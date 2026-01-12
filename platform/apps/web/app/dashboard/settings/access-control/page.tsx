@@ -19,7 +19,11 @@ import { Textarea } from "../../../../components/ui/textarea";
 import { Button } from "../../../../components/ui/button";
 import { useToast } from "../../../../components/ui/use-toast";
 
-const PROVIDERS = ["kisi", "brivo", "cloudkey"] as const;
+type Provider = "kisi" | "brivo" | "cloudkey";
+
+const PROVIDERS: Provider[] = ["kisi", "brivo", "cloudkey"];
+const providerSet = new Set<string>(PROVIDERS);
+const isProvider = (value: string): value is Provider => providerSet.has(value);
 
 export default function AccessControlSettingsPage() {
   const { toast } = useToast();
@@ -30,7 +34,7 @@ export default function AccessControlSettingsPage() {
   });
 
   const campgroundId = useMemo(
-    () => whoami?.user?.memberships?.[0]?.campgroundId ?? null,
+    () => whoami?.user?.memberships?.[0]?.campgroundId ?? undefined,
     [whoami?.user?.memberships]
   );
 
@@ -41,11 +45,16 @@ export default function AccessControlSettingsPage() {
 
   const providersQuery = useQuery({
     queryKey: ["access-providers", campgroundId],
-    queryFn: () => apiClient.listAccessProviders(campgroundId as string),
+    queryFn: () => {
+      if (!campgroundId) {
+        throw new Error("Missing campground");
+      }
+      return apiClient.listAccessProviders(campgroundId);
+    },
     enabled: !!campgroundId && allowed
   });
 
-  const [selectedProvider, setSelectedProvider] = useState<(typeof PROVIDERS)[number]>("kisi");
+  const [selectedProvider, setSelectedProvider] = useState<Provider>("kisi");
   const [displayName, setDisplayName] = useState("");
   const [status, setStatus] = useState("enabled");
   const [credentialsText, setCredentialsText] = useState("{}");
@@ -60,16 +69,26 @@ export default function AccessControlSettingsPage() {
   }, [providersQuery.data, selectedProvider]);
 
   const saveMutation = useMutation({
-    mutationFn: (payload: { displayName?: string; status?: string; credentials: any; webhookSecret?: string }) =>
-      apiClient.upsertAccessProvider(campgroundId as string, selectedProvider, payload),
+    mutationFn: (payload: {
+      displayName?: string;
+      status?: string;
+      credentials: Record<string, unknown>;
+      webhookSecret?: string;
+    }) => {
+      if (!campgroundId) {
+        throw new Error("Missing campground");
+      }
+      return apiClient.upsertAccessProvider(campgroundId, selectedProvider, payload);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["access-providers", campgroundId] });
       toast({ title: "Saved", description: "Access provider updated." });
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
+      const message = err instanceof Error ? err.message : "Could not save provider";
       toast({
         title: "Save failed",
-        description: err?.message ?? "Could not save provider",
+        description: message,
         variant: "destructive"
       });
     }
@@ -158,7 +177,11 @@ export default function AccessControlSettingsPage() {
               <Label className="text-xs text-muted-foreground">Provider</Label>
               <Select
                 value={selectedProvider}
-                onValueChange={(value) => setSelectedProvider(value as typeof selectedProvider)}
+                onValueChange={(value) => {
+                  if (isProvider(value)) {
+                    setSelectedProvider(value);
+                  }
+                }}
               >
                 <SelectTrigger className="w-full text-sm">
                   <SelectValue />

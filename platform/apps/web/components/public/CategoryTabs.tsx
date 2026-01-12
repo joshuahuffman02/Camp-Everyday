@@ -174,6 +174,11 @@ export function CategoryTabs({
   const [showRightArrow, setShowRightArrow] = useState(false);
   const [hoveredCategory, setHoveredCategory] = useState<CategoryType | null>(null);
   const prefersReducedMotion = useReducedMotionSafe();
+  const springTransition: { type: "spring"; stiffness: number; damping: number } = {
+    type: "spring",
+    stiffness: 400,
+    damping: 10,
+  };
 
   // Check if scroll arrows should be visible
   const updateArrows = () => {
@@ -217,7 +222,7 @@ export function CategoryTabs({
       ? {}
       : {
           scale: 1.15,
-          transition: { type: "spring" as const, stiffness: 400, damping: 10 }
+          transition: springTransition
         },
     tap: prefersReducedMotion ? {} : { scale: 0.9 },
     active: { scale: 1.05 }

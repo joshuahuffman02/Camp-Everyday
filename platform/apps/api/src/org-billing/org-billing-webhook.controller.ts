@@ -1,4 +1,3 @@
-import type { Request } from "express";
 import {
   Controller,
   Post,
@@ -8,9 +7,33 @@ import {
   RawBodyRequest,
   Logger,
 } from "@nestjs/common";
-import { Request } from "express";
+import type { Request } from "express";
 import Stripe from "stripe";
 import { SubscriptionService } from "./subscription.service";
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error && error.message ? error.message : "Unknown error";
+
+const isStripeEvent = (value: unknown): value is Stripe.Event => {
+  if (!isRecord(value)) return false;
+  if (typeof value.type !== "string") return false;
+  if (!("data" in value) || !isRecord(value.data)) return false;
+  return true;
+};
+
+const isStripeSubscription = (value: unknown): value is Stripe.Subscription =>
+  isRecord(value) && typeof value.id === "string" && typeof value.status === "string";
+
+type StripeInvoiceLike = Stripe.Invoice & {
+  subscription?: string | Stripe.Subscription | null;
+  customer?: string | Stripe.Customer | null;
+};
+
+const isStripeInvoice = (value: unknown): value is StripeInvoiceLike =>
+  isRecord(value) && typeof value.id === "string";
 
 /**
  * Webhook controller for organization billing events from Stripe.
@@ -24,14 +47,12 @@ import { SubscriptionService } from "./subscription.service";
 @Controller("webhooks")
 export class OrgBillingWebhookController {
   private readonly logger = new Logger(OrgBillingWebhookController.name);
-  private stripe: Stripe;
+  private stripe?: Stripe;
 
   constructor(private subscriptionService: SubscriptionService) {
     const secretKey = process.env.STRIPE_SECRET_KEY;
     if (secretKey) {
-      this.stripe = new Stripe(secretKey, {
-        apiVersion: "2025-11-17.clover" as any,
-      });
+      this.stripe = new Stripe(secretKey);
     }
   }
 
@@ -91,11 +112,16 @@ export class OrgBillingWebhookController {
         );
       } else {
         // Only allowed in development when secret is missing
-        event = JSON.parse(req.rawBody!.toString()) as Stripe.Event;
+        const parsed = JSON.parse(req.rawBody!.toString());
+        if (!isStripeEvent(parsed)) {
+          throw new BadRequestException("Invalid Stripe webhook payload");
+        }
+        event = parsed;
       }
-    } catch (err: any) {
-      this.logger.error(`Webhook signature verification failed: ${err.message}`);
-      throw new BadRequestException(`Webhook Error: ${err.message}`);
+    } catch (err: unknown) {
+      const message = getErrorMessage(err);
+      this.logger.error(`Webhook signature verification failed: ${message}`);
+      throw new BadRequestException(`Webhook Error: ${message}`);
     }
 
     this.logger.log(`Processing billing webhook: ${event.type}`);
@@ -105,50 +131,70 @@ export class OrgBillingWebhookController {
         // Subscription lifecycle events
         case "customer.subscription.created":
         case "customer.subscription.updated": {
-          const subscription = event.data.object as Stripe.Subscription;
-          await this.subscriptionService.handleSubscriptionUpdated(
-            subscription.id,
-            subscription.status
-          );
+          const dataObject = event.data.object;
+          if (isStripeSubscription(dataObject)) {
+            await this.subscriptionService.handleSubscriptionUpdated(
+              dataObject.id,
+              dataObject.status
+            );
+          } else {
+            this.logger.warn("Received subscription event with unexpected payload");
+          }
           break;
         }
 
         case "customer.subscription.deleted": {
-          const subscription = event.data.object as Stripe.Subscription;
-          await this.subscriptionService.handleSubscriptionUpdated(
-            subscription.id,
-            "canceled"
-          );
+          const dataObject = event.data.object;
+          if (isStripeSubscription(dataObject)) {
+            await this.subscriptionService.handleSubscriptionUpdated(
+              dataObject.id,
+              "canceled"
+            );
+          } else {
+            this.logger.warn("Received subscription deletion event with unexpected payload");
+          }
           break;
         }
 
         // Invoice events
         case "invoice.paid": {
-          const invoice = event.data.object as Stripe.Invoice;
-          if (invoice.subscription && typeof invoice.customer === "string") {
-            await this.subscriptionService.handleInvoicePaid(
-              invoice.id,
-              invoice.customer
-            );
+          const dataObject = event.data.object;
+          if (isStripeInvoice(dataObject)) {
+            if (dataObject.subscription && typeof dataObject.customer === "string") {
+              await this.subscriptionService.handleInvoicePaid(
+                dataObject.id,
+                dataObject.customer
+              );
+            }
+          } else {
+            this.logger.warn("Received invoice event with unexpected payload");
           }
           break;
         }
 
         case "invoice.payment_failed": {
-          const invoice = event.data.object as Stripe.Invoice;
-          if (invoice.subscription && typeof invoice.customer === "string") {
-            await this.subscriptionService.handleInvoiceFailed(
-              invoice.id,
-              invoice.customer
-            );
+          const dataObject = event.data.object;
+          if (isStripeInvoice(dataObject)) {
+            if (dataObject.subscription && typeof dataObject.customer === "string") {
+              await this.subscriptionService.handleInvoiceFailed(
+                dataObject.id,
+                dataObject.customer
+              );
+            }
+          } else {
+            this.logger.warn("Received invoice payment failure with unexpected payload");
           }
           break;
         }
 
         case "invoice.finalized": {
-          const invoice = event.data.object as Stripe.Invoice;
+          const dataObject = event.data.object;
+          if (!isStripeInvoice(dataObject)) {
+            this.logger.warn("Received invoice finalized with unexpected payload");
+            break;
+          }
           this.logger.log(
-            `Invoice finalized: ${invoice.id}, amount: ${invoice.amount_due}, customer: ${invoice.customer}`
+            `Invoice finalized: ${dataObject.id}, amount: ${dataObject.amount_due}, customer: ${dataObject.customer}`
           );
           // Could send notification email here
           break;

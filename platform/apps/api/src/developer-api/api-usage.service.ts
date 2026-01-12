@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 
 interface RecordUsageInput {
@@ -20,6 +21,7 @@ export class ApiUsageService {
   async recordUsage(input: RecordUsageInput) {
     return this.prisma.apiUsage.create({
       data: {
+        id: randomUUID(),
         apiClientId: input.apiClientId,
         endpoint: input.endpoint,
         method: input.method,
@@ -166,7 +168,7 @@ export class ApiUsageService {
     const clientIds = topClients.map((c) => c.apiClientId);
     const clients = await this.prisma.apiClient.findMany({
       where: { id: { in: clientIds } },
-      select: { id: true, name: true, campground: { select: { name: true } } },
+      select: { id: true, name: true, Campground: { select: { name: true } } },
     });
     const clientMap = new Map(clients.map((c) => [c.id, c]));
 
@@ -179,7 +181,7 @@ export class ApiUsageService {
         return {
           apiClientId: c.apiClientId,
           name: client?.name || "Unknown",
-          campground: client?.campground?.name || "Unknown",
+          campground: client?.Campground?.name || "Unknown",
           requests: c._count,
         };
       }),

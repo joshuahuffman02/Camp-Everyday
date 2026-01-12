@@ -28,36 +28,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
 
-type Guest = {
-  id: string;
-  primaryFirstName: string;
-  primaryLastName: string;
-  email?: string;
-  phone?: string;
-  rigLength?: number;
-  rigType?: string;
-};
-
-type Site = {
-  id: string;
-  name: string;
-  siteClassId?: string;
-  status?: string;
-};
-
-type SiteClass = { id: string; name: string };
-
-type Campground = {
-  id: string;
-  name: string;
-  [key: string]: unknown;
-};
-
-type ReservationConfirmation = {
-  id: string;
-  confirmationNumber?: string;
-  [key: string]: unknown;
-};
+type Guest = Awaited<ReturnType<typeof apiClient.getGuests>>[number];
+type Site = Awaited<ReturnType<typeof apiClient.getSitesWithStatus>>[number];
+type SiteClass = Awaited<ReturnType<typeof apiClient.getSiteClasses>>[number];
+type Campground = Awaited<ReturnType<typeof apiClient.getCampgrounds>>[number];
+type SeasonalRate = Awaited<ReturnType<typeof apiClient.getSeasonalRates>>[number];
+type ReservationConfirmation = Awaited<ReturnType<typeof apiClient.createReservation>>;
 
 interface ReservationPayload {
   campgroundId: string;
@@ -74,9 +50,7 @@ interface ReservationPayload {
   pricingType: "transient" | "seasonal";
 }
 
-// API expects additional fields - status defaults to pending on create
-// Using Record<string, unknown> allows the payload to be accepted by the API without strict type checking
-type ApiReservationPayload = ReservationPayload & Record<string, unknown>;
+type CreateReservationPayload = Parameters<typeof apiClient.createReservation>[0];
 
 export default function BookingV2Page() {
   return (
@@ -92,7 +66,7 @@ function BookingV2Content() {
   const searchParams = useSearchParams();
   const guestParam = searchParams.get("guestId");
 
-  const { data: campgrounds = [] } = useQuery({
+  const { data: campgrounds = [] } = useQuery<Campground[]>({
     queryKey: ["campgrounds"],
     queryFn: () => apiClient.getCampgrounds()
   });
@@ -102,8 +76,7 @@ function BookingV2Content() {
   useEffect(() => {
     if (campgrounds.length === 0) return;
     const stored = typeof window !== "undefined" ? localStorage.getItem("campreserv:selectedCampground") : null;
-    const typedCampgrounds = campgrounds as Campground[];
-    const candidate = stored && typedCampgrounds.some((cg) => cg.id === stored) ? stored : typedCampgrounds[0].id;
+    const candidate = stored && campgrounds.some((cg) => cg.id === stored) ? stored : campgrounds[0].id;
     setCampgroundId((prev) => prev || candidate);
   }, [campgrounds]);
 
@@ -113,20 +86,20 @@ function BookingV2Content() {
     }
   }, [campgroundId]);
 
-  const selectedCampground = (campgrounds as Campground[]).find((c) => c.id === campgroundId);
+  const selectedCampground = campgrounds.find((c) => c.id === campgroundId);
 
-  const guestsQuery = useQuery({
+  const guestsQuery = useQuery<Guest[]>({
     queryKey: ["guests"],
     queryFn: () => apiClient.getGuests()
   });
 
-  const siteClassesQuery = useQuery({
+  const siteClassesQuery = useQuery<SiteClass[]>({
     queryKey: ["site-classes", campgroundId],
     queryFn: () => apiClient.getSiteClasses(campgroundId),
     enabled: !!campgroundId
   });
 
-  const seasonalRatesQuery = useQuery({
+  const seasonalRatesQuery = useQuery<SeasonalRate[]>({
     queryKey: ["seasonal-rates", campgroundId],
     queryFn: () => apiClient.getSeasonalRates(campgroundId),
     enabled: !!campgroundId
@@ -171,7 +144,7 @@ function BookingV2Content() {
     }
   }, [form.arrivalDate]);
 
-  const siteStatusQuery = useQuery({
+  const siteStatusQuery = useQuery<Site[]>({
     queryKey: ["site-status", campgroundId, form.arrivalDate, form.departureDate],
     queryFn: () =>
       apiClient.getSitesWithStatus(campgroundId, {
@@ -182,14 +155,12 @@ function BookingV2Content() {
   });
 
   const availableSites: Site[] = useMemo(() => {
-    const sites = (siteStatusQuery.data ?? []) as Site[];
-    return sites
-      .map((s) => ({ ...s, siteClassId: s.siteClassId ?? undefined }))
-      .filter((s) => s.status === "available");
+    const sites = siteStatusQuery.data ?? [];
+    return sites.filter((s) => s.status === "available");
   }, [siteStatusQuery.data]);
 
   const filteredGuests = useMemo(() => {
-    const list = guestsQuery.data as Guest[] | undefined;
+    const list = guestsQuery.data;
     if (!list) return [];
     const q = guestSearch.toLowerCase();
     return list.filter((g) => {
@@ -201,7 +172,14 @@ function BookingV2Content() {
   }, [guestsQuery.data, guestSearch]);
 
   const createReservation = useMutation({
-    mutationFn: (data: ReservationPayload) => apiClient.createReservation({ ...data, status: "pending" } as Parameters<typeof apiClient.createReservation>[0]),
+    mutationFn: (data: ReservationPayload) => {
+      const payload: CreateReservationPayload = {
+        ...data,
+        status: "pending",
+        totalAmount: 0
+      };
+      return apiClient.createReservation(payload);
+    },
     onSuccess: (res) => {
       toast({ title: "Reservation created", description: "Guest has been booked." });
       queryClient.invalidateQueries({ queryKey: ["reservations"] });
@@ -232,15 +210,16 @@ function BookingV2Content() {
   const nights =
     arrivalDate && departureDate ? Math.max(1, Math.round((departureDate.getTime() - arrivalDate.getTime()) / (1000 * 60 * 60 * 24))) : 0;
 
-  const selectedGuest: Guest | undefined = ((guestsQuery.data ?? []) as Guest[]).find((g) => g.id === form.guestId);
+  const selectedGuest = (guestsQuery.data ?? []).find((g) => g.id === form.guestId);
   const selectedSite: Site | undefined = availableSites.find((s) => s.id === form.siteId);
-  const selectedClass: SiteClass | undefined = siteClassesQuery.data?.find((sc: SiteClass) => sc.id === form.siteClassId);
+  const selectedClass = siteClassesQuery.data?.find((sc) => sc.id === form.siteClassId);
   const selectedGuestName = selectedGuest ? `${selectedGuest.primaryFirstName} ${selectedGuest.primaryLastName}` : "";
 
   useEffect(() => {
     if (!showGuestDropdown) return;
     const handler = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
+      const target = e.target;
+      if (!(target instanceof HTMLElement)) return;
       if (!target.closest(".guest-search-container")) {
         setShowGuestDropdown(false);
       }
@@ -278,7 +257,7 @@ function BookingV2Content() {
                 <SelectValue placeholder="Select campground" />
               </SelectTrigger>
               <SelectContent>
-                {(campgrounds as Campground[]).map((cg) => (
+            {campgrounds.map((cg) => (
                   <SelectItem key={cg.id} value={cg.id}>
                     {cg.name}
                   </SelectItem>

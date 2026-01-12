@@ -1,5 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException, Logger } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { ReservationStatus } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { CreateOtaChannelDto } from "./dto/create-ota-channel.dto";
 import { UpdateOtaChannelDto } from "./dto/update-ota-channel.dto";
 import { UpsertOtaMappingDto } from "./dto/upsert-mapping.dto";
@@ -35,6 +37,48 @@ type OtaStats = {
   webhookFailure: number;
 };
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const getString = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+const getStringId = (value: unknown): string | undefined => {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return undefined;
+};
+
+const getNumberValue = (value: unknown): number | undefined => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+};
+
+const getDateValue = (value: unknown): Date | null => {
+  if (value instanceof Date) return value;
+  if (typeof value === "string" || typeof value === "number") {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  return null;
+};
+
+const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined => {
+  if (value === undefined || value === null) return undefined;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
+};
+
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error && error.message ? error.message : "Unknown error";
+
 @Injectable()
 export class OtaService {
   private readonly logger = new Logger(OtaService.name);
@@ -57,7 +101,7 @@ export class OtaService {
 
   private async requireMapping(campgroundId: string, mappingId: string, select?: Record<string, boolean>) {
     const mapping = await this.prisma.otaListingMapping.findFirst({
-      where: { id: mappingId, channel: { campgroundId } },
+      where: { id: mappingId, OtaChannel: { campgroundId } },
       ...(select ? { select } : {})
     });
     if (!mapping) throw new NotFoundException("Mapping not found");
@@ -115,17 +159,22 @@ export class OtaService {
     };
   }
 
-  listChannels(campgroundId: string) {
-    return this.prisma.otaChannel.findMany({
+  async listChannels(campgroundId: string) {
+    const channels = await this.prisma.otaChannel.findMany({
       where: { campgroundId },
-      include: { mappings: true },
+      include: { OtaListingMapping: true },
       orderBy: { createdAt: "desc" },
     });
+    return channels.map(({ OtaListingMapping, ...rest }) => ({
+      ...rest,
+      mappings: OtaListingMapping,
+    }));
   }
 
   createChannel(campgroundId: string, data: CreateOtaChannelDto) {
     return this.prisma.otaChannel.create({
       data: {
+        id: randomUUID(),
         campgroundId,
         name: data.name,
         provider: data.provider,
@@ -137,6 +186,7 @@ export class OtaService {
         ignoreCategoryRestrictions: data.ignoreCategoryRestrictions ?? false,
         feeMode: data.feeMode ?? "absorb",
         webhookSecret: data.webhookSecret,
+        updatedAt: new Date(),
       },
     });
   }
@@ -145,20 +195,25 @@ export class OtaService {
     await this.requireChannel(campgroundId, id, { id: true });
     return this.prisma.otaChannel.update({
       where: { id },
-      data,
+      data: { ...data, updatedAt: new Date() },
     });
   }
 
   async listMappings(channelId: string, campgroundId: string) {
     await this.requireChannel(campgroundId, channelId, { id: true });
-    return this.prisma.otaListingMapping.findMany({
+    const mappings = await this.prisma.otaListingMapping.findMany({
       where: { channelId },
       include: {
-        site: { select: { id: true, name: true } },
-        siteClass: { select: { id: true, name: true } },
+        Site: { select: { id: true, name: true } },
+        SiteClass: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: "desc" },
     });
+    return mappings.map(({ Site, SiteClass, ...rest }) => ({
+      ...rest,
+      site: Site,
+      siteClass: SiteClass,
+    }));
   }
 
   async upsertMapping(channelId: string, campgroundId: string, body: UpsertOtaMappingDto) {
@@ -166,11 +221,13 @@ export class OtaService {
     return this.prisma.otaListingMapping.upsert({
       where: { channelId_externalId: { channelId, externalId: body.externalId } },
       create: {
+        id: randomUUID(),
         channelId,
         externalId: body.externalId,
         siteId: body.siteId ?? null,
         siteClassId: body.siteClassId ?? null,
         status: body.status ?? "mapped",
+        updatedAt: new Date(),
       },
       update: {
         siteId: body.siteId ?? null,
@@ -200,14 +257,16 @@ export class OtaService {
   }
 
   logSync(channelId: string, payload: unknown, direction: string, eventType: string, status: string, message?: string) {
+    const payloadJson = toJsonValue(payload);
     return this.prisma.otaSyncLog.create({
       data: {
+        id: randomUUID(),
         channelId,
         direction,
         eventType,
         status,
         message,
-        payload: payload as any,
+        payload: payloadJson,
       },
     });
   }
@@ -359,7 +418,7 @@ export class OtaService {
 
   async importIcal(mappingId: string, campgroundId: string) {
     const mapping = await this.prisma.otaListingMapping.findFirst({
-      where: { id: mappingId, channel: { campgroundId } },
+      where: { id: mappingId, OtaChannel: { campgroundId } },
       select: { id: true, icalUrl: true, siteId: true, channelId: true },
     });
     if (!mapping) throw new NotFoundException("Mapping not found");
@@ -392,6 +451,7 @@ export class OtaService {
     if (events.length > 0) {
       await this.prisma.blackoutDate.createMany({
         data: events.map((e) => ({
+          id: randomUUID(),
           campgroundId,
           siteId: mapping.siteId,
           startDate: e.start,
@@ -407,7 +467,8 @@ export class OtaService {
     return { ok: true, imported: events.length };
   }
 
-  async handleWebhook(provider: string, body: any, rawBody: string, signature?: string, timestamp?: string) {
+  async handleWebhook(provider: string, body: unknown, rawBody: string, signature?: string, timestamp?: string) {
+    const payload = isRecord(body) ? body : {};
     const channel = await this.prisma.otaChannel.findFirst({
       where: { provider },
       select: { id: true, webhookSecret: true, campgroundId: true, defaultStatus: true, rateMultiplier: true, feeMode: true },
@@ -421,10 +482,15 @@ export class OtaService {
     this.recordWebhook(provider, channel.campgroundId, true);
 
     // Idempotent import record
-    const externalReservationId = body?.id || body?.reservationId || body?.externalId || "unknown";
+    const externalReservationId =
+      getStringId(payload.id) ??
+      getStringId(payload.reservationId) ??
+      getStringId(payload.externalId) ??
+      "unknown";
     const importRecord = await this.prisma.otaReservationImport.upsert({
       where: { channelId_externalReservationId: { channelId: channel.id, externalReservationId } },
       create: {
+        id: randomUUID(),
         channelId: channel.id,
         externalReservationId,
         status: "pending",
@@ -436,9 +502,14 @@ export class OtaService {
       },
     });
 
-    await this.logSync(channel.id, body, "pull", "reservation", "success", "Webhook received");
+    await this.logSync(channel.id, payload, "pull", "reservation", "success", "Webhook received");
     // Basic mapping check to surface quick failures
-    const externalListingId = body?.listingId || body?.siteId || body?.siteExternalId || body?.listingExternalId || null;
+    const externalListingId =
+      getStringId(payload.listingId) ??
+      getStringId(payload.siteId) ??
+      getStringId(payload.siteExternalId) ??
+      getStringId(payload.listingExternalId) ??
+      null;
     if (externalListingId) {
       const mapping = await this.prisma.otaListingMapping.findFirst({
         where: { channelId: channel.id, externalId: String(externalListingId) },
@@ -447,18 +518,22 @@ export class OtaService {
       if (!mapping) {
         await this.prisma.otaReservationImport.update({
           where: { id: importRecord.id },
-          data: { status: "failed", message: "No mapping found for listing", updatedAt: new Date() },
+          data: { status: "failed", message: "No mapping found for listing" },
         });
-        await this.logSync(channel.id, body, "pull", "reservation", "failed", "No mapping found");
+        await this.logSync(channel.id, payload, "pull", "reservation", "failed", "No mapping found");
         return { ok: false, reason: "no_mapping" };
       }
       await this.prisma.otaReservationImport.update({
         where: { id: importRecord.id },
-        data: { message: "Mapping found; pending processing", status: "pending", updatedAt: new Date() },
+        data: { message: "Mapping found; pending processing", status: "pending" },
       });
 
       // Cancellation / modification handling
-      const normalizedStatus = this.mapExternalStatus(body?.status || body?.reservationStatus || body?.state);
+      const rawStatus =
+        getString(payload.status) ??
+        getString(payload.reservationStatus) ??
+        getString(payload.state);
+      const normalizedStatus = this.mapExternalStatus(rawStatus);
       if (normalizedStatus === "cancelled") {
         if (importRecord.reservationId) {
           await this.prisma.reservation.update({
@@ -467,17 +542,17 @@ export class OtaService {
           });
           await this.prisma.otaReservationImport.update({
             where: { id: importRecord.id },
-            data: { status: "imported", message: "Cancelled", updatedAt: new Date() },
+            data: { status: "imported", message: "Cancelled" },
           });
-          await this.logSync(channel.id, body, "pull", "reservation", "success", "Cancelled reservation");
+          await this.logSync(channel.id, payload, "pull", "reservation", "success", "Cancelled reservation");
           this.recordSync(provider, channel.campgroundId, true, "pull");
           return { ok: true, importId: importRecord.id, reservationId: importRecord.reservationId, cancelled: true };
         } else {
           await this.prisma.otaReservationImport.update({
             where: { id: importRecord.id },
-            data: { status: "failed", message: "Cancellation received but reservation not found", updatedAt: new Date() },
+            data: { status: "failed", message: "Cancellation received but reservation not found" },
           });
-          await this.logSync(channel.id, body, "pull", "reservation", "failed", "Cancellation without reservation");
+          await this.logSync(channel.id, payload, "pull", "reservation", "failed", "Cancellation without reservation");
           return { ok: false, reason: "missing_reservation_for_cancel" };
         }
       }
@@ -490,7 +565,7 @@ export class OtaService {
           mappingId: mapping.id,
           siteId: mapping.siteId,
           siteClassId: mapping.siteClassId,
-          payload: body,
+          payload,
           channelDefaultStatus: channel.defaultStatus,
           rateMultiplier: channel.rateMultiplier ?? 1,
           feeMode: channel.feeMode ?? "absorb",
@@ -498,17 +573,18 @@ export class OtaService {
 
         await this.prisma.otaReservationImport.update({
           where: { id: importRecord.id },
-          data: { status: "imported", message: "Imported", reservationId: result.reservationId, updatedAt: new Date() },
+          data: { status: "imported", message: "Imported", reservationId: result.reservationId },
         });
-        await this.logSync(channel.id, body, "pull", "reservation", "success", "Imported");
+        await this.logSync(channel.id, payload, "pull", "reservation", "success", "Imported");
         return { ok: true, importId: importRecord.id, reservationId: result.reservationId };
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const message = getErrorMessage(err);
         await this.prisma.otaReservationImport.update({
           where: { id: importRecord.id },
-          data: { status: "failed", message: err?.message || "Import failed", updatedAt: new Date() },
+          data: { status: "failed", message },
         });
-        await this.logSync(channel.id, body, "pull", "reservation", "failed", err?.message || "Import failed");
-        return { ok: false, reason: "import_failed", error: err?.message };
+        await this.logSync(channel.id, payload, "pull", "reservation", "failed", message);
+        return { ok: false, reason: "import_failed", error: message };
       }
     }
 
@@ -521,45 +597,68 @@ export class OtaService {
     mappingId: string;
     siteId?: string | null;
     siteClassId?: string | null;
-    payload: any;
+    payload: Record<string, unknown>;
     channelDefaultStatus?: string;
     rateMultiplier?: number;
     feeMode?: string;
   }) {
     const { payload } = opts;
-    const arrival = payload?.arrivalDate || payload?.startDate;
-    const departure = payload?.departureDate || payload?.endDate;
+    const arrival = getDateValue(payload.arrivalDate) ?? getDateValue(payload.startDate);
+    const departure = getDateValue(payload.departureDate) ?? getDateValue(payload.endDate);
     if (!arrival || !departure) throw new BadRequestException("Missing arrival/departure dates");
 
-    const guestEmail = payload?.guestEmail || payload?.email || payload?.guest?.email;
-    const guestFirst = payload?.guestFirstName || payload?.firstName || payload?.guest?.firstName || "OTA Guest";
-    const guestLast = payload?.guestLastName || payload?.lastName || payload?.guest?.lastName || "Imported";
+    const guestRecord = isRecord(payload.guest) ? payload.guest : undefined;
+    const guestEmail =
+      getString(payload.guestEmail) ??
+      getString(payload.email) ??
+      getString(guestRecord?.email);
+    const guestFirst =
+      getString(payload.guestFirstName) ??
+      getString(payload.firstName) ??
+      getString(guestRecord?.firstName) ??
+      "OTA Guest";
+    const guestLast =
+      getString(payload.guestLastName) ??
+      getString(payload.lastName) ??
+      getString(guestRecord?.lastName) ??
+      "Imported";
     if (!guestEmail) throw new BadRequestException("Missing guest email");
 
     const rateMultiplier = opts.rateMultiplier ?? 1;
-    const baseSubtotal = Math.round((payload?.baseSubtotalCents ?? payload?.totalCents ?? 0) * rateMultiplier);
-    const feesAmount = Math.round((payload?.feesCents ?? 0) * rateMultiplier);
-    const taxesAmount = Math.round((payload?.taxesCents ?? 0) * rateMultiplier);
-    const channelFeeCents = Math.round((payload?.channelFeeCents ?? payload?.commissionCents ?? 0) * rateMultiplier);
+    const baseSubtotal = Math.round((getNumberValue(payload.baseSubtotalCents) ?? getNumberValue(payload.totalCents) ?? 0) * rateMultiplier);
+    const feesAmount = Math.round((getNumberValue(payload.feesCents) ?? 0) * rateMultiplier);
+    const taxesAmount = Math.round((getNumberValue(payload.taxesCents) ?? 0) * rateMultiplier);
+    const channelFeeCents = Math.round((getNumberValue(payload.channelFeeCents) ?? getNumberValue(payload.commissionCents) ?? 0) * rateMultiplier);
     const totalAmount = Math.max(0, baseSubtotal + feesAmount + taxesAmount);
 
     // Find or create guest
+    const emailNormalized = guestEmail.trim().toLowerCase();
+    const campgroundTag = `campground:${opts.campgroundId}`;
     const existingGuest = await this.prisma.guest.findFirst({
-      where: { email: guestEmail, campgroundId: opts.campgroundId },
-      select: { id: true },
+      where: {
+        OR: [{ emailNormalized }, { email: guestEmail }],
+      },
+      select: { id: true, tags: true },
     });
     let guestId = existingGuest?.id;
     if (!guestId) {
       const guest = await this.prisma.guest.create({
         data: {
-          campgroundId: opts.campgroundId,
-          firstName: guestFirst,
-          lastName: guestLast,
+          id: randomUUID(),
+          primaryFirstName: guestFirst,
+          primaryLastName: guestLast,
           email: guestEmail,
+          emailNormalized,
+          tags: [campgroundTag],
         },
         select: { id: true },
       });
       guestId = guest.id;
+    } else if (existingGuest?.tags && !existingGuest.tags.includes(campgroundTag)) {
+      await this.prisma.guest.update({
+        where: { id: guestId },
+        data: { tags: { set: [...existingGuest.tags, campgroundTag] } },
+      });
     }
 
     let siteId = opts.siteId;
@@ -568,34 +667,41 @@ export class OtaService {
     }
     if (!siteId) throw new BadRequestException("Mapping missing siteId");
 
-    const status = this.mapExternalStatus(payload?.status || payload?.reservationStatus || payload?.state) || (opts.channelDefaultStatus ?? "pending");
+    const rawStatus =
+      getString(payload.status) ??
+      getString(payload.reservationStatus) ??
+      getString(payload.state) ??
+      opts.channelDefaultStatus;
+    const status = this.mapExternalStatus(rawStatus) ?? ReservationStatus.pending;
 
     const reservation = await this.prisma.reservation.create({
       data: {
+        id: randomUUID(),
         campgroundId: opts.campgroundId,
         siteId,
         guestId,
-        arrivalDate: new Date(arrival),
-        departureDate: new Date(departure),
-        adults: payload?.adults ?? 2,
-        children: payload?.children ?? 0,
-        status: status as any,
+        arrivalDate: arrival,
+        departureDate: departure,
+        adults: getNumberValue(payload.adults) ?? 2,
+        children: getNumberValue(payload.children) ?? 0,
+        status,
         totalAmount,
         baseSubtotal,
         feesAmount,
         taxesAmount,
         balanceAmount: totalAmount,
-        source: payload?.provider ?? payload?.channel ?? "ota",
-        notes: `Imported from ${payload?.provider || "OTA"} | extRes: ${payload?.id ?? "n/a"}`,
-        bookedAt: payload?.bookedAt ? new Date(payload.bookedAt) : new Date(),
+        source: getString(payload.provider) ?? getString(payload.channel) ?? "ota",
+        notes: `Imported from ${getString(payload.provider) ?? "OTA"} | extRes: ${getStringId(payload.id) ?? "n/a"}`,
+        bookedAt: getDateValue(payload.bookedAt) ?? new Date(),
       },
       select: { id: true },
     });
 
     // Ledger entries: revenue + channel fee (if provided)
-    const entries: any[] = [];
+    const entries: Prisma.LedgerEntryCreateManyInput[] = [];
     if (totalAmount > 0) {
       entries.push({
+        id: randomUUID(),
         campgroundId: opts.campgroundId,
         reservationId: reservation.id,
         amountCents: totalAmount,
@@ -605,6 +711,7 @@ export class OtaService {
     }
     if (channelFeeCents > 0) {
       entries.push({
+        id: randomUUID(),
         campgroundId: opts.campgroundId,
         reservationId: reservation.id,
         amountCents: channelFeeCents,
@@ -619,12 +726,12 @@ export class OtaService {
     return { reservationId: reservation.id };
   }
 
-  private mapExternalStatus(raw?: string): string | null {
+  private mapExternalStatus(raw?: string | null): ReservationStatus | null {
     if (!raw) return null;
     const s = String(raw).toLowerCase();
-    if (["cancelled", "canceled", "void"].includes(s)) return "cancelled";
-    if (["pending", "tentative", "unconfirmed", "hold"].includes(s)) return "pending";
-    return "confirmed";
+    if (["cancelled", "canceled", "void"].includes(s)) return ReservationStatus.cancelled;
+    if (["pending", "tentative", "unconfirmed", "hold"].includes(s)) return ReservationStatus.pending;
+    return ReservationStatus.confirmed;
   }
 
   /**
@@ -773,9 +880,9 @@ export class OtaService {
         });
 
         successCount++;
-      } catch (error: any) {
+      } catch (error: unknown) {
         errorCount++;
-        const errorMsg = error?.message || "Unknown error during sync";
+        const errorMsg = getErrorMessage(error);
         errors.push(`Mapping ${m.externalId}: ${errorMsg}`);
 
         this.logger.error(`Error pushing listing ${m.externalId}: ${errorMsg}`);

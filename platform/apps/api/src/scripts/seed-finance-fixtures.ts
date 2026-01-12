@@ -29,7 +29,7 @@ async function main() {
       status: "paid",
       arrivalDate: new Date(),
       createdAt: new Date(),
-      lines: {
+      PayoutLine: {
         create: [
           {
             id: randomUUID(),
@@ -73,25 +73,6 @@ async function main() {
     update: {},
   });
 
-  // Sample gift card (only if model exists in client)
-  if ("giftCard" in prisma) {
-    const cardCode = "UI-GIFT-50";
-    await (prisma as any).giftCard.upsert({
-      where: { code: cardCode },
-      create: {
-        code: cardCode,
-        balanceCents: 5000,
-        kind: "gift_card",
-        expiresAt: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
-        createdAt: new Date(),
-      },
-      update: {
-        balanceCents: 5000,
-        expiresAt: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
-      },
-    });
-  }
-
   console.log("Seeded finance fixtures for campground:", campgroundId);
   await prisma.$disconnect();
 }
@@ -100,4 +81,3 @@ main().catch((e) => {
   console.error(e);
   process.exit(1);
 });
-

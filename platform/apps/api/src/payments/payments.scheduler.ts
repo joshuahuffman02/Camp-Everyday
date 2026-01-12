@@ -5,6 +5,9 @@ import { PaymentsReconciliationService } from "./reconciliation.service";
 import { JobQueueService } from "../observability/job-queue.service";
 import { StripeService } from "./stripe.service";
 
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error && error.message ? error.message : "Unknown error";
+
 @Injectable()
 export class PaymentsScheduler {
   private readonly logger = new Logger(PaymentsScheduler.name);
@@ -21,16 +24,17 @@ export class PaymentsScheduler {
     const accounts = await this.prisma.campground.findMany({
       where: { stripeAccountId: { not: null } },
       select: { stripeAccountId: true }
-    } as any);
+    });
     await Promise.all(
-      accounts.map((cg: any) => {
-        if (!cg.stripeAccountId) return Promise.resolve();
+      accounts.map((cg) => {
+        const stripeAccountId = cg.stripeAccountId;
+        if (!stripeAccountId) return Promise.resolve();
         return this.queue.enqueue(
           "payout-recon",
-          () => this.recon.reconcileRecentPayouts(cg.stripeAccountId),
-          { jobName: `recon-${cg.stripeAccountId}`, timeoutMs: 30000, concurrency: 2 }
+          () => this.recon.reconcileRecentPayouts(stripeAccountId),
+          { jobName: `recon-${stripeAccountId}`, timeoutMs: 30000, concurrency: 2 }
         ).catch((err) => {
-          this.logger.warn(`Recon failed for account ${cg.stripeAccountId}: ${err instanceof Error ? err.message : err}`);
+          this.logger.warn(`Recon failed for account ${stripeAccountId}: ${err instanceof Error ? err.message : err}`);
         });
       })
     );
@@ -71,24 +75,25 @@ export class PaymentsScheduler {
           { stripeCapabilitiesFetchedAt: { lt: cutoff } }
         ]
       },
-      select: { id: true, stripeAccountId: true } as any
+      select: { id: true, stripeAccountId: true }
     });
 
     for (const cg of campgrounds) {
       try {
-        const capabilities = await this.stripe.retrieveAccountCapabilities(cg.stripeAccountId);
+        const stripeAccountId = cg.stripeAccountId;
+        if (!stripeAccountId) continue;
+        const capabilities = await this.stripe.retrieveAccountCapabilities(stripeAccountId);
         if (!capabilities) continue;
         await this.prisma.campground.update({
           where: { id: cg.id },
           data: {
-            stripeCapabilities: capabilities as any,
+            stripeCapabilities: capabilities,
             stripeCapabilitiesFetchedAt: new Date()
           }
         });
-      } catch (err: any) {
-        this.logger.warn(`Capability refresh failed for ${cg.id}: ${err?.message || err}`);
+      } catch (err: unknown) {
+        this.logger.warn(`Capability refresh failed for ${cg.id}: ${getErrorMessage(err)}`);
       }
     }
   }
 }
-

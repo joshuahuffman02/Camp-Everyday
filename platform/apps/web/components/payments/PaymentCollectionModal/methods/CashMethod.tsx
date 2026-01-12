@@ -94,9 +94,10 @@ export function CashMethod({ onSuccess, onError, onCancel }: CashMethodProps) {
       });
 
       onSuccess?.(reference);
-    } catch (err: any) {
-      setError(err.message || "Failed to record cash payment");
-      onError?.(err.message || "Failed to record cash payment");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to record cash payment";
+      setError(message);
+      onError?.(message);
     } finally {
       setLoading(false);
     }

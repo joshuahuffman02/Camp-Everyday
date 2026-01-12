@@ -18,6 +18,135 @@ import { PromptSanitizerService } from "./prompt-sanitizer.service";
 import { PiiEncryptionService } from "../security/pii-encryption.service";
 import { AiPrivacyService } from "./ai-privacy.service";
 
+type OpenAiUsage = {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
+};
+
+type SearchableItemType = "guest" | "site" | "message";
+
+type SearchableItem = {
+  type: SearchableItemType;
+  id: string;
+  title: string;
+  content: string;
+};
+
+type SearchMatch = {
+  id: string;
+  type: SearchableItemType;
+  score: number;
+  reason?: string;
+};
+
+type PricingFactor = {
+  label: string;
+  value: string;
+  weight: number;
+};
+
+type PricingSuggestion = {
+  suggestedRateCents?: number;
+  upliftPercent?: number;
+  reasoning?: string;
+  factors?: PricingFactor[];
+  confidence?: number;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const isSearchableItemType = (value: unknown): value is SearchableItemType =>
+  value === "guest" || value === "site" || value === "message";
+
+const toStringValue = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+const toNumberValue = (value: unknown): number | undefined => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return undefined;
+};
+
+const toPayloadRecord = (value: unknown): Record<string, unknown> =>
+  (isRecord(value) ? value : {});
+
+const parseOpenAiUsage = (value: unknown): OpenAiUsage => {
+  if (!isRecord(value)) return {};
+  const usage = value.usage;
+  if (!isRecord(usage)) return {};
+  return {
+    prompt_tokens: typeof usage.prompt_tokens === "number" ? usage.prompt_tokens : undefined,
+    completion_tokens: typeof usage.completion_tokens === "number" ? usage.completion_tokens : undefined,
+    total_tokens: typeof usage.total_tokens === "number" ? usage.total_tokens : undefined,
+  };
+};
+
+const parseOpenAiContent = (value: unknown): string => {
+  if (!isRecord(value)) return "";
+  const choices = value.choices;
+  if (!Array.isArray(choices) || choices.length === 0) return "";
+  const first = choices[0];
+  if (!isRecord(first)) return "";
+  const message = first.message;
+  if (!isRecord(message)) return "";
+  return typeof message.content === "string" ? message.content : "";
+};
+
+const parseSearchMatches = (value: unknown): SearchMatch[] => {
+  if (!Array.isArray(value)) return [];
+  const matches: SearchMatch[] = [];
+  for (const entry of value) {
+    if (!isRecord(entry)) continue;
+    const { id, type, score, reason } = entry;
+    if (typeof id !== "string" || !isSearchableItemType(type) || typeof score !== "number") {
+      continue;
+    }
+    if (typeof reason !== "undefined" && typeof reason !== "string") {
+      continue;
+    }
+    matches.push({ id, type, score, reason: typeof reason === "string" ? reason : undefined });
+  }
+  return matches;
+};
+
+const parsePricingSuggestion = (value: unknown): PricingSuggestion | null => {
+  if (!isRecord(value)) return null;
+  const suggestion: PricingSuggestion = {};
+  if (typeof value.suggestedRateCents === "number") {
+    suggestion.suggestedRateCents = value.suggestedRateCents;
+  }
+  if (typeof value.upliftPercent === "number") {
+    suggestion.upliftPercent = value.upliftPercent;
+  }
+  if (typeof value.reasoning === "string") {
+    suggestion.reasoning = value.reasoning;
+  }
+  if (typeof value.confidence === "number") {
+    suggestion.confidence = value.confidence;
+  }
+  if (Array.isArray(value.factors)) {
+    const factors: PricingFactor[] = [];
+    for (const factor of value.factors) {
+      if (!isRecord(factor)) continue;
+      const { label, value: factorValue, weight } = factor;
+      if (typeof label === "string" && typeof factorValue === "string" && typeof weight === "number") {
+        factors.push({ label, value: factorValue, weight });
+      }
+    }
+    if (factors.length > 0) {
+      suggestion.factors = factors;
+    }
+  }
+  return suggestion;
+};
+
+const nonEmpty = (value: string): boolean => value.length > 0;
+
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
@@ -46,7 +175,7 @@ export class AiService {
    * Get API key for a campground (decrypted if stored encrypted)
    */
   private getApiKey(campground: { aiApiKey?: string | null }): string | null {
-    const encryptedKey = (campground as any)?.aiApiKey;
+    const encryptedKey = campground?.aiApiKey;
     const decryptedKey = this.decryptApiKey(encryptedKey);
     return decryptedKey || process.env.OPENAI_API_KEY || null;
   }
@@ -56,10 +185,10 @@ export class AiService {
     if (!campgroundId) return true;
     const cg = await this.prisma.campground.findUnique({
       where: { id: campgroundId },
-      select: { aiEnabled: true as any, aiApiKey: true as any },
+      select: { aiEnabled: true, aiApiKey: true },
     });
     if (!cg) return true;
-    if (!(cg as any).aiEnabled) return true;
+    if (!cg.aiEnabled) return true;
     // SECURITY: Decrypt and check API key
     const apiKey = this.getApiKey(cg);
     if (!apiKey) return true;
@@ -73,14 +202,14 @@ export class AiService {
     // SECURITY: Encrypt API key before storing
     const newApiKey = dto.openaiApiKey
       ? this.piiEncryption.encrypt(dto.openaiApiKey)
-      : (cg as any).aiApiKey;
+      : cg.aiApiKey;
 
     await this.prisma.campground.update({
       where: { id: campgroundId },
       data: {
         aiEnabled: dto.enabled,
         aiApiKey: newApiKey,
-      } as any,
+      },
     });
     return { ok: true, enabled: dto.enabled, hasKey: !!newApiKey };
   }
@@ -88,16 +217,16 @@ export class AiService {
   async generate(dto: GenerateAiSuggestionsDto) {
     const cg = await this.prisma.campground.findUnique({
       where: { id: dto.campgroundId },
-      select: { id: true, name: true, aiEnabled: true as any, aiApiKey: true as any } as any,
+      select: { id: true, name: true, aiEnabled: true, aiApiKey: true },
     });
     if (!cg) throw new BadRequestException("Campground not found");
     // SECURITY: Decrypt API key from database
     const apiKey = this.getApiKey(cg);
-    if (!(cg as any).aiEnabled || !apiKey) {
+    if (!cg.aiEnabled || !apiKey) {
       throw new ForbiddenException("AI suggestions not enabled for this campground");
     }
 
-    const cgId = (cg as any).id as string;
+    const cgId = cg.id;
     const last90 = await this.getEventCounts(cgId, 90);
     const last365 = await this.getEventCounts(cgId, 365);
     const cabins90 = await this.getCabinRollup(cgId, 90);
@@ -179,9 +308,9 @@ Guidelines:
       throw new BadRequestException("AI suggestion request failed");
     }
 
-    const json = await res.json();
-    const content = json?.choices?.[0]?.message?.content || "";
-    const usage = json?.usage || {};
+    const json: unknown = await res.json();
+    const content = parseOpenAiContent(json);
+    const usage = parseOpenAiUsage(json);
 
     return {
       suggestions: content,
@@ -197,16 +326,16 @@ Guidelines:
   async ask(dto: AskDto) {
     const cg = await this.prisma.campground.findUnique({
       where: { id: dto.campgroundId },
-      select: { id: true, name: true, aiEnabled: true as any, aiApiKey: true as any } as any,
+      select: { id: true, name: true, aiEnabled: true, aiApiKey: true },
     });
     if (!cg) throw new BadRequestException("Campground not found");
     // SECURITY: Decrypt API key from database
     const apiKey = this.getApiKey(cg);
-    if (!(cg as any).aiEnabled || !apiKey) {
+    if (!cg.aiEnabled || !apiKey) {
       throw new ForbiddenException("AI not enabled for this campground");
     }
 
-    const cgId = (cg as any).id as string;
+    const cgId = cg.id;
 
     // SECURITY: Sanitize user input to prevent prompt injection
     const { sanitized: sanitizedQuestion, blocked, warnings } = this.promptSanitizer.sanitize(dto.question);
@@ -266,9 +395,9 @@ Return:
       throw new BadRequestException("AI ask request failed");
     }
 
-    const json = await res.json();
-    const content = json?.choices?.[0]?.message?.content || "";
-    const usage = json?.usage || {};
+    const json: unknown = await res.json();
+    const content = parseOpenAiContent(json);
+    const usage = parseOpenAiUsage(json);
 
     return {
       answer: content,
@@ -392,9 +521,9 @@ Return:
     // Use AI for intelligent pricing recommendation
     const cg = await this.prisma.campground.findUnique({
       where: { id: cgId },
-      select: { name: true, aiApiKey: true as any },
+      select: { name: true, aiApiKey: true },
     });
-    const apiKey = (cg as any)?.aiApiKey || process.env.OPENAI_API_KEY;
+    const apiKey = cg?.aiApiKey || process.env.OPENAI_API_KEY;
 
     const prompt = `You are a revenue management AI for ${cg?.name || "a campground"}. Analyze the data and suggest optimal pricing.
 
@@ -436,22 +565,23 @@ Respond with JSON only (no markdown):
         throw new BadRequestException(`OpenAI error: ${res.status}`);
       }
 
-      const json = await res.json();
-      const content = json?.choices?.[0]?.message?.content || "";
+      const json: unknown = await res.json();
+      const content = parseOpenAiContent(json);
       const parsed = JSON.parse(content.replace(/```json\n?|\n?```/g, "").trim());
+      const suggestion = parsePricingSuggestion(parsed);
 
       return {
         campgroundId: cgId,
         siteClassId: dto.siteClassId ?? null,
         window: { arrivalDate: dto.arrivalDate ?? null, departureDate: dto.departureDate ?? null },
         defaultRate,
-        suggestedRateCents: parsed.suggestedRateCents || defaultRate,
+        suggestedRateCents: suggestion?.suggestedRateCents ?? defaultRate,
         currency: "USD",
         demandIndex,
-        factors: parsed.factors || [],
+        factors: suggestion?.factors ?? [],
         comparableSites: [],
-        notes: parsed.reasoning || "AI-generated pricing recommendation",
-        confidence: parsed.confidence,
+        notes: suggestion?.reasoning || "AI-generated pricing recommendation",
+        confidence: suggestion?.confidence,
         generatedAt: new Date().toISOString(),
         mode: "live",
       };
@@ -498,16 +628,12 @@ Respond with JSON only (no markdown):
     const [guests, sites, messages] = await Promise.all([
       // Get recent/relevant guests
       this.prisma.guest.findMany({
-        where: cgId ? { campgroundId: cgId } : {},
+        where: cgId ? { Reservation: { some: { campgroundId: cgId } } } : {},
         take: 50,
         orderBy: { updatedAt: "desc" },
         select: {
           id: true,
-          firstName: true,
-          lastName: true,
-          email: true,
           notes: true,
-          loyaltyTier: true,
           tags: true,
         },
       }),
@@ -520,9 +646,14 @@ Respond with JSON only (no markdown):
           name: true,
           description: true,
           siteType: true,
-          maxRigLength: true,
-          hookups: true,
-          amenities: true,
+          rigMaxLength: true,
+          hookupsPower: true,
+          hookupsWater: true,
+          hookupsSewer: true,
+          powerAmps: true,
+          amenityTags: true,
+          vibeTags: true,
+          tags: true,
         },
       }),
       // Get recent messages
@@ -532,8 +663,7 @@ Respond with JSON only (no markdown):
         orderBy: { createdAt: "desc" },
         select: {
           id: true,
-          subject: true,
-          body: true,
+          content: true,
           guestId: true,
         },
       }),
@@ -541,35 +671,50 @@ Respond with JSON only (no markdown):
 
     // SECURITY: Anonymize guest PII before sending to AI
     // We use IDs and metadata only, not names/emails
-    const searchableItems = [
-      ...guests.map((g, index) => {
-        // Anonymize guest data - only send non-PII attributes
-        const guestRef = `Guest_${index + 1}`;
-        const { anonymizedText } = this.aiPrivacy.anonymize(g.notes || '');
-        return {
-          type: "guest",
-          id: g.id,
-          title: guestRef, // Don't send real names to AI
-          content: `${guestRef} ${g.loyaltyTier || ""} ${(g.tags as string[] || []).join(" ")} ${anonymizedText}`.trim(),
-        };
-      }),
-      ...sites.map((s) => ({
+    const guestItems: SearchableItem[] = guests.map((g, index) => {
+      const guestRef = `Guest_${index + 1}`;
+      const { anonymizedText } = this.aiPrivacy.anonymize(g.notes || "");
+      return {
+        type: "guest",
+        id: g.id,
+        title: guestRef,
+        content: `${guestRef} ${g.tags.join(" ")} ${anonymizedText}`.trim(),
+      };
+    });
+
+    const siteItems: SearchableItem[] = sites.map((s) => {
+      const powerLabel = s.hookupsPower
+        ? (s.powerAmps.length > 0 ? `${s.powerAmps.join("/")}A power` : "power")
+        : "";
+      const hookups = [
+        powerLabel,
+        s.hookupsWater ? "water" : "",
+        s.hookupsSewer ? "sewer" : "",
+      ].filter(nonEmpty);
+      const amenities = [...s.amenityTags, ...s.vibeTags, ...s.tags].filter(nonEmpty);
+      const rigLabel = s.rigMaxLength ? `fits ${s.rigMaxLength}ft rigs` : "";
+      return {
         type: "site",
         id: s.id,
         title: s.name,
-        content: `${s.name} ${s.description || ""} ${s.siteType || ""} ${s.maxRigLength ? `fits ${s.maxRigLength}ft rigs` : ""} ${(s.hookups as string[] || []).join(" ")} ${(s.amenities as string[] || []).join(" ")}`.trim(),
-      })),
-      ...messages.map((m) => {
-        // SECURITY: Anonymize message content to remove PII
-        const { anonymizedText: anonSubject } = this.aiPrivacy.anonymize(m.subject || '');
-        const { anonymizedText: anonBody } = this.aiPrivacy.anonymize((m.body || '').slice(0, 200));
-        return {
-          type: "message",
-          id: m.id,
-          title: anonSubject || "Message",
-          content: `${anonSubject} ${anonBody}`.trim(),
-        };
-      }),
+        content: `${s.name} ${s.description || ""} ${s.siteType || ""} ${rigLabel} ${hookups.join(" ")} ${amenities.join(" ")}`.trim(),
+      };
+    });
+
+    const messageItems: SearchableItem[] = messages.map((m) => {
+      const { anonymizedText } = this.aiPrivacy.anonymize(m.content.slice(0, 200));
+      return {
+        type: "message",
+        id: m.id,
+        title: "Message",
+        content: anonymizedText,
+      };
+    });
+
+    const searchableItems: SearchableItem[] = [
+      ...guestItems,
+      ...siteItems,
+      ...messageItems,
     ];
 
     if (useMock) {
@@ -596,11 +741,20 @@ Respond with JSON only (no markdown):
     }
 
     // Use AI for semantic matching
+    if (!cgId) {
+      return {
+        campgroundId: null,
+        query,
+        results: [],
+        generatedAt: new Date().toISOString(),
+        mode: "empty",
+      };
+    }
     const cg = await this.prisma.campground.findUnique({
-      where: { id: cgId! },
-      select: { name: true, aiApiKey: true as any },
+      where: { id: cgId },
+      select: { name: true, aiApiKey: true },
     });
-    const apiKey = (cg as any)?.aiApiKey || process.env.OPENAI_API_KEY;
+    const apiKey = cg?.aiApiKey || process.env.OPENAI_API_KEY;
 
     const prompt = `You are a search assistant. Given the user query and items below, return the most relevant matches.
 
@@ -636,13 +790,13 @@ Only include items with score >= 0.5. Return empty array if no good matches.`;
         throw new BadRequestException(`OpenAI error: ${res.status}`);
       }
 
-      const json = await res.json();
-      const content = json?.choices?.[0]?.message?.content || "[]";
+      const json: unknown = await res.json();
+      const content = parseOpenAiContent(json) || "[]";
       const parsed = JSON.parse(content.replace(/```json\n?|\n?```/g, "").trim());
 
       // Enrich results with full data
-      const results = (parsed as any[]).map((match) => {
-        const item = searchableItems.find((i) => i.id === match.id);
+      const results = parseSearchMatches(parsed).map((match) => {
+        const item = searchableItems.find((entry) => entry.id === match.id);
         return {
           type: match.type,
           id: match.id,
@@ -688,6 +842,7 @@ Only include items with score >= 0.5. Return empty array if no good matches.`;
     const useMock = await this.shouldUseMock(dto.campgroundId, forceMock);
     const action = dto.action.toLowerCase();
     const campgroundId = dto.campgroundId;
+    const payload = toPayloadRecord(dto.payload);
 
     // ==================== DYNAMIC PRICING ACTIONS ====================
     if (action === "get_pricing_recommendations" || action === "pricing_recommendations") {
@@ -695,8 +850,8 @@ Only include items with score >= 0.5. Return empty array if no good matches.`;
         return { action, error: "campgroundId is required", generatedAt: new Date().toISOString() };
       }
       const recommendations = await this.dynamicPricingService.getRecommendations(campgroundId, {
-        status: dto.payload?.status || "pending",
-        limit: dto.payload?.limit || 10,
+        status: toStringValue(payload.status) ?? "pending",
+        limit: toNumberValue(payload.limit) ?? 10,
       });
       const summary = await this.dynamicPricingService.getPricingSummary(campgroundId);
       return {
@@ -712,7 +867,8 @@ Only include items with score >= 0.5. Return empty array if no good matches.`;
     }
 
     if (action === "apply_pricing" || action === "apply_pricing_recommendation") {
-      const { recommendationId, userId } = dto.payload || {};
+      const recommendationId = toStringValue(payload.recommendationId);
+      const userId = toStringValue(payload.userId);
       if (!recommendationId) {
         return { action, error: "recommendationId is required", generatedAt: new Date().toISOString() };
       }
@@ -720,14 +876,16 @@ Only include items with score >= 0.5. Return empty array if no good matches.`;
       return {
         action,
         result,
-        message: `Applied pricing adjustment of ${result.adjustmentPercent}% for ${result.siteClassName || "sites"}`,
+        message: `Applied pricing adjustment of ${result.adjustmentPercent}% for ${result.siteClassId || "sites"}`,
         generatedAt: new Date().toISOString(),
         mode: "live",
       };
     }
 
     if (action === "dismiss_pricing" || action === "dismiss_pricing_recommendation") {
-      const { recommendationId, userId, reason } = dto.payload || {};
+      const recommendationId = toStringValue(payload.recommendationId);
+      const userId = toStringValue(payload.userId);
+      const reason = toStringValue(payload.reason);
       if (!recommendationId) {
         return { action, error: "recommendationId is required", generatedAt: new Date().toISOString() };
       }
@@ -761,8 +919,8 @@ Only include items with score >= 0.5. Return empty array if no good matches.`;
         return { action, error: "campgroundId is required", generatedAt: new Date().toISOString() };
       }
       const insights = await this.revenueService.getInsights(campgroundId, {
-        status: dto.payload?.status || "new",
-        limit: dto.payload?.limit || 10,
+        status: toStringValue(payload.status) ?? "new",
+        limit: toNumberValue(payload.limit) ?? 10,
       });
       const summary = await this.revenueService.getRevenueSummary(campgroundId);
       return {
@@ -831,8 +989,8 @@ Only include items with score >= 0.5. Return empty array if no good matches.`;
         return { action, error: "campgroundId is required", generatedAt: new Date().toISOString() };
       }
       const alerts = await this.weatherService.getAlerts(campgroundId, {
-        status: dto.payload?.status,
-        limit: dto.payload?.limit || 10,
+        status: toStringValue(payload.status),
+        limit: toNumberValue(payload.limit) ?? 10,
       });
       return {
         action,
@@ -867,9 +1025,9 @@ Only include items with score >= 0.5. Return empty array if no good matches.`;
         return { action, error: "campgroundId is required", generatedAt: new Date().toISOString() };
       }
       const alerts = await this.maintenanceService.getAlerts(campgroundId, {
-        status: dto.payload?.status,
-        severity: dto.payload?.severity,
-        limit: dto.payload?.limit || 10,
+        status: toStringValue(payload.status),
+        severity: toStringValue(payload.severity),
+        limit: toNumberValue(payload.limit) ?? 10,
       });
       const summary = await this.maintenanceService.getMaintenanceSummary(campgroundId);
       return {
@@ -906,9 +1064,12 @@ Only include items with score >= 0.5. Return empty array if no good matches.`;
         return { action, error: "campgroundId is required", generatedAt: new Date().toISOString() };
       }
       const [metrics, quickStats, activity] = await Promise.all([
-        this.dashboardService.getMetrics(campgroundId, dto.payload?.periodDays || 30),
+        this.dashboardService.getMetrics(campgroundId, toNumberValue(payload.periodDays) ?? 30),
         this.dashboardService.getQuickStats(campgroundId),
-        this.dashboardService.getActivityFeed(campgroundId, dto.payload?.activityLimit || 10),
+        this.dashboardService.getActivityFeed(
+          campgroundId,
+          toNumberValue(payload.activityLimit) ?? 10
+        ),
       ]);
       return {
         action,
@@ -925,7 +1086,10 @@ Only include items with score >= 0.5. Return empty array if no good matches.`;
       if (!campgroundId) {
         return { action, error: "campgroundId is required", generatedAt: new Date().toISOString() };
       }
-      const activity = await this.dashboardService.getActivityFeed(campgroundId, dto.payload?.limit || 20);
+      const activity = await this.dashboardService.getActivityFeed(
+        campgroundId,
+        toNumberValue(payload.limit) ?? 20
+      );
       return {
         action,
         activity,
@@ -939,7 +1103,10 @@ Only include items with score >= 0.5. Return empty array if no good matches.`;
       if (!campgroundId) {
         return { action, error: "campgroundId is required", generatedAt: new Date().toISOString() };
       }
-      const metrics = await this.dashboardService.getMetrics(campgroundId, dto.payload?.periodDays || 30);
+      const metrics = await this.dashboardService.getMetrics(
+        campgroundId,
+        toNumberValue(payload.periodDays) ?? 30
+      );
       return {
         action,
         metrics,
@@ -962,10 +1129,12 @@ Only include items with score >= 0.5. Return empty array if no good matches.`;
     }
 
     if (action === "draft_reply") {
-      const { guestName, lastMessage, reservationContext } = dto.payload || {};
+      const guestName = toStringValue(payload.guestName);
+      const lastMessage = toStringValue(payload.lastMessage);
+      const reservationContext = toStringValue(payload.reservationContext);
       const cg = campgroundId ? await this.prisma.campground.findUnique({
         where: { id: campgroundId },
-        select: { aiApiKey: true as any },
+        select: { aiApiKey: true },
       }) : null;
 
       const prompt = `
@@ -993,7 +1162,7 @@ Only include items with score >= 0.5. Return empty array if no good matches.`;
       };
 
       try {
-        const apiKey = (cg as any)?.aiApiKey || process.env.OPENAI_API_KEY;
+        const apiKey = cg?.aiApiKey || process.env.OPENAI_API_KEY;
         if (!apiKey) {
           return {
             action,
@@ -1135,4 +1304,3 @@ Only include items with score >= 0.5. Return empty array if no good matches.`;
     return { bookings, revenueCents, adr };
   }
 }
-

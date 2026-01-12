@@ -51,6 +51,15 @@ function getDatePresets() {
 
 type SortField = "occurredAt" | "glCode" | "amountCents" | "direction";
 type SortDir = "asc" | "desc";
+type AgingData = Awaited<ReturnType<typeof apiClient.getAging>>;
+type AgingKey = keyof AgingData;
+
+const agingBuckets: Array<{ label: string; key: AgingKey; severity: "low" | "medium" | "high" | "critical" }> = [
+  { label: "Current (0-30)", key: "current", severity: "low" },
+  { label: "31-60 days", key: "31_60", severity: "medium" },
+  { label: "61-90 days", key: "61_90", severity: "high" },
+  { label: "90+ days", key: "90_plus", severity: "critical" }
+];
 
 export default function LedgerPage() {
   const [campgroundId, setCampgroundId] = useState<string>("");
@@ -111,7 +120,8 @@ export default function LedgerPage() {
       );
     })
     .sort((a, b) => {
-      let aVal: any, bVal: any;
+      let aVal: number | string = 0;
+      let bVal: number | string = 0;
       switch (sortField) {
         case "occurredAt":
           aVal = new Date(a.occurredAt).getTime();
@@ -331,13 +341,8 @@ export default function LedgerPage() {
                     Aging Receivables
                   </h3>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                    {[
-                      { label: "Current (0-30)", key: "current", severity: "low" },
-                      { label: "31-60 days", key: "31_60", severity: "medium" },
-                      { label: "61-90 days", key: "61_90", severity: "high" },
-                      { label: "90+ days", key: "90_plus", severity: "critical" }
-                    ].map((b) => {
-                      const amount = agingQuery.data?.[b.key as keyof typeof agingQuery.data] || 0;
+                    {agingBuckets.map((b) => {
+                      const amount = agingQuery.data ? agingQuery.data[b.key] : 0;
                       const hasBalance = amount > 0;
                       return (
                         <div

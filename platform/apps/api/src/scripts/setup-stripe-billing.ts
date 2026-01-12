@@ -12,16 +12,20 @@
 
 import Stripe from "stripe";
 
-const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+const requireEnv = (value: string | undefined, name: string): string => {
+  if (!value) {
+    console.error(`ERROR: ${name} is not set`);
+    console.log(`Set your Stripe test secret key: export ${name}=sk_test_...`);
+    process.exit(1);
+  }
+  return value;
+};
 
-if (!STRIPE_SECRET_KEY) {
-  console.error("ERROR: STRIPE_SECRET_KEY is not set");
-  console.log("Set your Stripe test secret key: export STRIPE_SECRET_KEY=sk_test_...");
-  process.exit(1);
-}
+const STRIPE_SECRET_KEY = requireEnv(process.env.STRIPE_SECRET_KEY, "STRIPE_SECRET_KEY");
+const STRIPE_API_VERSION = "2025-12-15.clover";
 
-const stripe = new Stripe(STRIPE_SECRET_KEY as string, {
-  apiVersion: "2024-12-18.acacia" as any,
+const stripe = new Stripe(STRIPE_SECRET_KEY, {
+  apiVersion: STRIPE_API_VERSION,
 });
 
 interface CreatedResources {
@@ -33,7 +37,7 @@ interface CreatedResources {
 async function main() {
   console.log("Setting up Stripe billing for Keepr...\n");
 
-  const isTestMode = (STRIPE_SECRET_KEY as string).startsWith("sk_test_");
+  const isTestMode = STRIPE_SECRET_KEY.startsWith("sk_test_");
   console.log(`Mode: ${isTestMode ? "TEST" : "LIVE"}\n`);
 
   if (!isTestMode) {
@@ -99,14 +103,16 @@ async function main() {
     console.log(`  [OK] Standard monthly ($69): ${standardMonthly.id}`);
 
     // Standard per-booking: $2.50 (metered)
+    const meteredRecurring: Stripe.PriceCreateParams.Recurring = {
+      interval: "month",
+      usage_type: "metered",
+    };
+
     const standardBookingFee = await stripe.prices.create({
       product: bookingFeeProduct.id,
       unit_amount: 250,
       currency: "usd",
-      recurring: {
-        interval: "month",
-        usage_type: "metered",
-      } as any,
+      recurring: meteredRecurring,
       metadata: { tier: "standard", type: "booking_fee" },
       nickname: "Standard Per-Booking - $2.50",
     });
@@ -135,10 +141,7 @@ async function main() {
       product: bookingFeeProduct.id,
       unit_amount: 75,
       currency: "usd",
-      recurring: {
-        interval: "month",
-        usage_type: "metered",
-      } as any,
+      recurring: meteredRecurring,
       metadata: { tier: "founders_circle", type: "booking_fee" },
       nickname: "Founders Circle Per-Booking - $0.75",
     });
@@ -173,10 +176,7 @@ async function main() {
       product: bookingFeeProduct.id,
       unit_amount: 100,
       currency: "usd",
-      recurring: {
-        interval: "month",
-        usage_type: "metered",
-      } as any,
+      recurring: meteredRecurring,
       metadata: { tier: "pioneer", type: "booking_fee" },
       nickname: "Pioneer Per-Booking - $1.00",
     });
@@ -211,10 +211,7 @@ async function main() {
       product: bookingFeeProduct.id,
       unit_amount: 125,
       currency: "usd",
-      recurring: {
-        interval: "month",
-        usage_type: "metered",
-      } as any,
+      recurring: meteredRecurring,
       metadata: { tier: "trailblazer", type: "booking_fee" },
       nickname: "Trailblazer Per-Booking - $1.25",
     });
@@ -230,10 +227,7 @@ async function main() {
       product: smsProduct.id,
       unit_amount: 10, // $0.10
       currency: "usd",
-      recurring: {
-        interval: "month",
-        usage_type: "metered",
-      } as any,
+      recurring: meteredRecurring,
       metadata: { type: "sms_outbound" },
       nickname: "SMS Outbound - $0.10",
     });
@@ -244,10 +238,7 @@ async function main() {
       product: smsProduct.id,
       unit_amount: 4, // $0.04
       currency: "usd",
-      recurring: {
-        interval: "month",
-        usage_type: "metered",
-      } as any,
+      recurring: meteredRecurring,
       metadata: { type: "sms_inbound" },
       nickname: "SMS Inbound - $0.04",
     });

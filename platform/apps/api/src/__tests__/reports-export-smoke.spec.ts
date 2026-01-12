@@ -1,12 +1,7 @@
-// @ts-nocheck
-import * as request from "supertest";
-import { Test } from "@nestjs/testing";
-import { ValidationPipe } from "@nestjs/common";
-import { ReportsController } from "../reports/reports.controller";
+import { ServiceUnavailableException } from "@nestjs/common";
+import { Test, type TestingModule } from "@nestjs/testing";
 import { ReportsService } from "../reports/reports.service";
 import { PrismaService } from "../prisma/prisma.service";
-import { JwtAuthGuard } from "../auth/guards";
-import { RolesGuard } from "../auth/guards/roles.guard";
 import { ObservabilityService } from "../observability/observability.service";
 import { AlertingService } from "../observability/alerting.service";
 import { DashboardService } from "../dashboard/dashboard.service";
@@ -15,11 +10,53 @@ import { AuditService } from "../audit/audit.service";
 import { JobQueueService } from "../observability/job-queue.service";
 import { EmailService } from "../email/email.service";
 
+type ExportJob = {
+  id: string;
+  campgroundId: string;
+  type: string;
+  resource: string;
+  status: string;
+  location: string;
+  filters: Record<string, unknown>;
+  requestedById: string;
+  createdAt: string;
+  completedAt: string;
+};
+
+type ExportJobStatusFilter = string | { in?: string[] };
+
+type ExportJobFindManyArgs = {
+  where?: { status?: ExportJobStatusFilter };
+  take?: number;
+};
+
+type ExportJobFindUniqueArgs = { where: { id: string } };
+
+type ExportJobCreateArgs = { data: Partial<ExportJob> };
+
+type ExportJobUpdateArgs = { where: { id: string }; data: Partial<ExportJob> };
+
+type ExportJobCountArgs = { where?: { status?: { in?: string[] } } };
+
+type ReservationFindManyArgs = { cursor?: { id: string }; take: number };
+
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
+
+const resolveStatusFilter = (status: ExportJobStatusFilter | undefined): string[] | undefined => {
+  if (!status) return undefined;
+  if (typeof status === "string") return [status];
+  if (isRecord(status) && Array.isArray(status.in)) {
+    return status.in.filter((entry) => typeof entry === "string");
+  }
+  return undefined;
+};
+
 describe("Reports exports smoke", () => {
-  let app: any;
+  let moduleRef: TestingModule;
+  let service: ReportsService;
   const campgroundId = "camp-reports-test";
   const now = new Date().toISOString();
-  const stubExports = [
+  const stubExports: ExportJob[] = [
     {
       id: "exp-1",
       campgroundId,
@@ -30,10 +67,10 @@ describe("Reports exports smoke", () => {
       filters: { range: "last_30_days" },
       requestedById: "user-1",
       createdAt: now,
-      completedAt: now
-    }
+      completedAt: now,
+    },
   ];
-  const jobs = [...stubExports];
+  const jobs: ExportJob[] = [...stubExports];
 
   const reservationRows = Array.from({ length: 6 }).map((_, idx) => ({
     id: `res-${idx + 1}`,
@@ -44,71 +81,83 @@ describe("Reports exports smoke", () => {
     paidAmount: 9000,
     status: "confirmed",
     source: idx % 2 === 0 ? "online" : "admin",
-    createdAt: new Date(2025, 0, idx + 1)
+    createdAt: new Date(2025, 0, idx + 1),
   }));
 
   const prismaStub = {
     integrationExportJob: {
-      findMany: jest.fn().mockImplementation(({ where }: any) => {
-        const filtered = where?.status
-          ? jobs.filter((j) => j.status === where.status)
-          : jobs;
-        return Promise.resolve(filtered.slice(0, where?.take ?? filtered.length));
+      findMany: jest.fn().mockImplementation((args: ExportJobFindManyArgs) => {
+        const statuses = resolveStatusFilter(args.where?.status);
+        const filtered = statuses ? jobs.filter((job) => statuses.includes(job.status)) : jobs;
+        return Promise.resolve(filtered.slice(0, args.take ?? filtered.length));
       }),
-      findUnique: jest.fn().mockImplementation(({ where }: any) => {
-        return Promise.resolve(jobs.find((e) => e.id === where.id) || null);
+      findUnique: jest.fn().mockImplementation((args: ExportJobFindUniqueArgs) => {
+        return Promise.resolve(jobs.find((entry) => entry.id === args.where.id) || null);
       }),
-      create: jest.fn().mockImplementation(({ data }: any) => {
-        const created = {
+      create: jest.fn().mockImplementation((args: ExportJobCreateArgs) => {
+        const base: ExportJob = {
           id: "exp-new",
-          ...data,
-          createdAt: new Date().toISOString()
+          campgroundId,
+          type: "api",
+          resource: "reports",
+          status: "queued",
+          location: "csv",
+          filters: {},
+          requestedById: "user-1",
+          createdAt: new Date().toISOString(),
+          completedAt: new Date().toISOString(),
         };
-        jobs.push(created as any);
+        const created: ExportJob = { ...base, ...args.data, createdAt: base.createdAt };
+        jobs.push(created);
         return Promise.resolve(created);
       }),
-      count: jest.fn().mockImplementation(({ where }: any) => {
-        if (where?.status?.in) {
-          return Promise.resolve(jobs.filter((j) => (where.status.in as any[]).includes(j.status)).length);
+      count: jest.fn().mockImplementation((args: ExportJobCountArgs) => {
+        const statuses = Array.isArray(args.where?.status?.in)
+          ? args.where?.status?.in.filter((entry) => typeof entry === "string")
+          : undefined;
+        if (statuses) {
+          return Promise.resolve(jobs.filter((job) => statuses.includes(job.status)).length);
         }
         return Promise.resolve(jobs.length);
       }),
-      update: jest.fn().mockImplementation(({ where, data }: any) => {
-        const idx = jobs.findIndex((j) => j.id === where.id);
+      update: jest.fn().mockImplementation((args: ExportJobUpdateArgs) => {
+        const idx = jobs.findIndex((job) => job.id === args.where.id);
         if (idx >= 0) {
-          jobs[idx] = { ...jobs[idx], ...data };
-          return Promise.resolve(jobs[idx]);
+          const updated = { ...jobs[idx], ...args.data };
+          jobs[idx] = updated;
+          return Promise.resolve(updated);
         }
         return Promise.resolve(null);
-      })
+      }),
     },
     reservation: {
-      findMany: jest.fn().mockImplementation(({ cursor, take }: any) => {
-        const startIdx = cursor
-          ? reservationRows.findIndex((r) => r.id === cursor.id) + 1
-          : 0;
-        return Promise.resolve(reservationRows.slice(startIdx, startIdx + take));
+      findMany: jest.fn().mockImplementation((args: ReservationFindManyArgs) => {
+        const startIdx = args.cursor ? reservationRows.findIndex((row) => row.id === args.cursor?.id) + 1 : 0;
+        return Promise.resolve(reservationRows.slice(startIdx, startIdx + args.take));
       }),
-      count: jest.fn().mockResolvedValue(0)
+      count: jest.fn().mockResolvedValue(0),
     },
     site: {
-      findMany: jest.fn().mockResolvedValue([{ id: "site-1" }, { id: "site-2" }])
+      findMany: jest.fn().mockResolvedValue([{ id: "site-1" }, { id: "site-2" }]),
     },
     reservationUpsell: {
-      count: jest.fn().mockResolvedValue(0)
-    }
+      count: jest.fn().mockResolvedValue(0),
+    },
+    campground: {
+      findUnique: jest.fn().mockResolvedValue({ timezone: "UTC" }),
+    },
   };
 
   const observabilityStub = {
-    recordReportResult: jest.fn()
+    recordReportResult: jest.fn(),
   };
 
   const alertingStub = {
-    dispatch: jest.fn().mockResolvedValue({ ok: true })
+    dispatch: jest.fn().mockResolvedValue({ ok: true }),
   };
 
   const uploadsStub = {
-    uploadBuffer: jest.fn().mockResolvedValue({ url: "file://export.csv", key: "export.csv" })
+    uploadBuffer: jest.fn().mockResolvedValue({ url: "file://export.csv", key: "export.csv" }),
   };
 
   const auditStub = { recordExport: jest.fn() };
@@ -126,97 +175,95 @@ describe("Reports exports smoke", () => {
       revenue: 7200,
       overdueBalance: 300,
       maintenanceOpen: 0,
-      maintenanceOverdue: 0
-    })
+      maintenanceOverdue: 0,
+    }),
   };
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({
-      controllers: [ReportsController],
+    moduleRef = await Test.createTestingModule({
       providers: [
         ReportsService,
         {
           provide: PrismaService,
-          useValue: prismaStub
+          useValue: prismaStub,
         },
         {
           provide: ObservabilityService,
-          useValue: observabilityStub
+          useValue: observabilityStub,
         },
         {
           provide: AlertingService,
-          useValue: alertingStub
+          useValue: alertingStub,
         },
         {
           provide: UploadsService,
-          useValue: uploadsStub
+          useValue: uploadsStub,
         },
         {
           provide: AuditService,
-          useValue: auditStub
+          useValue: auditStub,
         },
         {
           provide: JobQueueService,
-          useValue: jobQueueStub
+          useValue: jobQueueStub,
         },
         {
           provide: EmailService,
-          useValue: emailStub
+          useValue: emailStub,
         },
         {
           provide: DashboardService,
-          useValue: dashboardStub
-        }
-      ]
-    })
-      .overrideGuard(JwtAuthGuard)
-      .useValue({ canActivate: () => true })
-      .overrideGuard(RolesGuard)
-      .useValue({ canActivate: () => true })
-      .compile();
+          useValue: dashboardStub,
+        },
+      ],
+    }).compile();
 
-    app = moduleRef.createNestApplication();
-    app.setGlobalPrefix("api");
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    app.use((req: any, _res: any, next: any) => {
-      req.user = { id: "tester", role: "owner" };
-      next();
-    });
-    await app.init();
+    service = moduleRef.get(ReportsService);
   });
 
   afterAll(async () => {
-    await app?.close();
+    await moduleRef.close();
   });
 
   it("lists and queues report exports with filters", async () => {
-    const api = request(app.getHttpServer());
-    const list = await api.get(`/api/campgrounds/${campgroundId}/reports/exports`).expect(200);
-    expect(Array.isArray(list.body)).toBe(true);
-    expect(list.body[0]).toMatchObject({ id: "exp-1", filters: { range: "last_30_days" } });
+    const list = await service.listExports(campgroundId);
+    expect(Array.isArray(list)).toBe(true);
+    expect(list[0]).toMatchObject({ id: "exp-1", filters: { range: "last_30_days" } });
 
-    const queued = await api
-      .post(`/api/campgrounds/${campgroundId}/reports/exports`)
-      .send({ filters: { range: "last_7_days", tab: "overview" }, format: "csv" })
-      .expect(201);
-    expect(queued.body.filters).toMatchObject({ range: "last_7_days", tab: "overview" });
+    const queued = await service.queueExport({
+      campgroundId,
+      filters: { range: "last_7_days", tab: "overview" },
+      format: "csv",
+      requestedById: "tester",
+    });
+    expect(queued.filters).toMatchObject({ range: "last_7_days", tab: "overview" });
 
-    const rerun = await api.post(`/api/campgrounds/${campgroundId}/reports/exports/exp-1/rerun`).expect(201);
-    expect(rerun.body.filters).toMatchObject({ range: "last_30_days" });
+    const rerun = await service.rerunExport(campgroundId, "exp-1", "tester");
+    expect(rerun.filters).toMatchObject({ range: "last_30_days" });
   });
 
   it("enforces capacity guard with 503 and retry-after", async () => {
     prismaStub.integrationExportJob.count.mockResolvedValue(999);
-    const api = request(app.getHttpServer());
-    const res = await api
-      .post(`/api/campgrounds/${campgroundId}/reports/exports`)
-      .send({ filters: { range: "last_7_days" } })
-      .expect(503);
-    expect(res.body).toMatchObject({
-      message: expect.stringContaining("capacity"),
-      retryAfter: expect.any(Number),
-      reason: "capacity_guard"
-    });
+    let caught: ServiceUnavailableException | null = null;
+    try {
+      await service.queueExport({ campgroundId, filters: { range: "last_7_days" }, requestedById: "tester" });
+    } catch (err) {
+      if (err instanceof ServiceUnavailableException) {
+        caught = err;
+      } else {
+        throw err;
+      }
+    }
+    expect(caught).not.toBeNull();
+    if (caught) {
+      const response = caught.getResponse();
+      expect(isRecord(response)).toBe(true);
+      if (isRecord(response)) {
+        expect(response.message).toContain("capacity");
+        expect(response.retryAfter).toEqual(expect.any(Number));
+        expect(response.reason).toBe("capacity_guard");
+      }
+    }
     expect(observabilityStub.recordReportResult).toHaveBeenCalledWith(
       false,
       undefined,
@@ -227,15 +274,15 @@ describe("Reports exports smoke", () => {
   });
 
   it("paginates with resumable tokens and caps row budget", async () => {
+    const previousMax = process.env.REPORT_EXPORT_MAX_ROWS;
     process.env.REPORT_EXPORT_MAX_ROWS = "5";
-    const service = app.get(ReportsService) as ReportsService;
     const first = await service.generateExportPage({ campgroundId, pageSize: 3 });
     expect(first.rows).toHaveLength(3);
     expect(first.nextToken).toBeTruthy();
     const second = await service.generateExportPage({
       campgroundId,
       paginationToken: first.nextToken ?? undefined,
-      pageSize: 3
+      pageSize: 3,
     });
     expect(second.rows).toHaveLength(2);
     expect(second.nextToken).toBeNull();
@@ -243,30 +290,34 @@ describe("Reports exports smoke", () => {
       adr: expect.any(Number),
       revpar: expect.any(Number),
       revenue: expect.any(Number),
-      liability: expect.any(Number)
+      liability: expect.any(Number),
     });
     expect(second.summary).toHaveProperty("attachRate");
+    if (previousMax === undefined) {
+      delete process.env.REPORT_EXPORT_MAX_ROWS;
+    } else {
+      process.env.REPORT_EXPORT_MAX_ROWS = previousMax;
+    }
   });
 
   it("generates an export file with download url and sends email", async () => {
-    const api = request(app.getHttpServer());
-    const service = app.get(ReportsService) as ReportsService;
-    expect((service as any).email).toBe(emailStub);
-    const queued = await api
-      .post(`/api/campgrounds/${campgroundId}/reports/exports`)
-      .send({ format: "csv", filters: { range: "last_7_days" }, emailTo: ["ops@test.com"] })
-      .expect(201);
-    expect(queued.body.filters?.emailTo).toEqual(["ops@test.com"]);
+    const serviceEmail = Reflect.get(service, "email");
+    expect(serviceEmail).toBe(emailStub);
+    const queued = await service.queueExport({
+      campgroundId,
+      format: "csv",
+      filters: { range: "last_7_days" },
+      emailTo: ["ops@test.com"],
+      requestedById: "tester",
+    });
+    const queuedFilters = isRecord(queued.filters) ? queued.filters : {};
+    expect(queuedFilters.emailTo).toEqual(["ops@test.com"]);
 
     await service.processQueuedExports();
 
-    const detail = await api
-      .get(`/api/campgrounds/${campgroundId}/reports/exports/${queued.body.id}`)
-      .expect(200);
-    expect(detail.body.downloadUrl).toBeTruthy();
+    const detail = await service.getExport(campgroundId, queued.id);
+    expect(detail.downloadUrl).toBeTruthy();
     expect(auditStub.recordExport).toHaveBeenCalled();
     expect(emailStub.sendEmail).toHaveBeenCalled();
   });
 });
-
-

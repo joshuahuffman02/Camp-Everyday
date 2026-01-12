@@ -30,43 +30,16 @@ import { format, formatDistanceToNow } from "date-fns";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-const SPRING_CONFIG = {
-  type: "spring" as const,
+const SPRING_CONFIG: { type: "spring"; stiffness: number; damping: number } = {
+  type: "spring",
   stiffness: 300,
   damping: 25,
 };
 
-type WeatherData = {
-  temp?: number;
-  temperature?: number;
-  feelsLike: number;
-  humidity: number;
-  windSpeed: number;
-  windGust?: number;
-  description: string;
-  icon: string;
-  updatedAt?: string;
-  alerts?: Array<{
-    event: string;
-    severity: string;
-    headline: string;
-    start: string;
-    end: string;
-  }>;
-};
-
-type WeatherAlert = {
-  id: string;
-  alertType: string;
-  severity: string;
-  title: string;
-  message: string;
-  guestsAffected?: number;
-  guestsNotified: number;
-  startTime: string;
-  status: string;
-  createdAt?: string;
-};
+type WeatherData = NonNullable<Awaited<ReturnType<typeof apiClient.getCurrentWeather>>>;
+type ForecastDay = Awaited<ReturnType<typeof apiClient.getWeatherForecast>>[number];
+type WeatherAlert = Awaited<ReturnType<typeof apiClient.getWeatherAlerts>>[number];
+type AutopilotConfig = Awaited<ReturnType<typeof apiClient.getAutopilotConfig>>;
 
 function getWeatherIcon(icon: string) {
   if (icon.includes("rain") || icon.includes("drizzle")) return CloudRain;
@@ -98,7 +71,7 @@ export default function AIWeatherPage() {
   const campground = campgrounds[0];
 
   // Get current weather
-  const { data: weather, isLoading: loadingWeather } = useQuery({
+  const { data: weather, isLoading: loadingWeather } = useQuery<WeatherData | null>({
     queryKey: ["current-weather", campground?.id],
     queryFn: () => apiClient.getCurrentWeather(campground!.id),
     enabled: !!campground?.id,
@@ -106,28 +79,28 @@ export default function AIWeatherPage() {
   });
 
   // Get weather forecast
-  const { data: forecast = [], isLoading: loadingForecast } = useQuery({
+  const { data: forecast = [], isLoading: loadingForecast } = useQuery<ForecastDay[]>({
     queryKey: ["weather-forecast", campground?.id],
     queryFn: () => apiClient.getWeatherForecast(campground!.id),
     enabled: !!campground?.id,
   });
 
   // Get weather alerts
-  const { data: alerts = [], isLoading: loadingAlerts } = useQuery({
+  const { data: alerts = [], isLoading: loadingAlerts } = useQuery<WeatherAlert[]>({
     queryKey: ["weather-alerts", campground?.id],
     queryFn: () => apiClient.getWeatherAlerts(campground!.id),
     enabled: !!campground?.id,
   });
 
   // Get autopilot config
-  const { data: autopilotConfig } = useQuery({
+  const { data: autopilotConfig } = useQuery<AutopilotConfig>({
     queryKey: ["ai-autopilot-config", campground?.id],
     queryFn: () => apiClient.getAutopilotConfig(campground!.id),
     enabled: !!campground?.id,
   });
 
-  const activeAlerts = (alerts as WeatherAlert[]).filter(a => a.status === "active");
-  const WeatherIcon = weather ? getWeatherIcon((weather as WeatherData).icon || "") : CloudSun;
+  const activeAlerts = alerts.filter((alert) => alert.status === "active");
+  const WeatherIcon = weather ? getWeatherIcon(weather.icon || "") : CloudSun;
 
   if (!campground) {
     return (
@@ -170,8 +143,8 @@ export default function AIWeatherPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant={(autopilotConfig as { weatherAlertsEnabled?: boolean })?.weatherAlertsEnabled ? "default" : "secondary"}>
-              {(autopilotConfig as { weatherAlertsEnabled?: boolean })?.weatherAlertsEnabled ? "Active" : "Disabled"}
+            <Badge variant={autopilotConfig?.weatherAlertsEnabled ? "default" : "secondary"}>
+              {autopilotConfig?.weatherAlertsEnabled ? "Active" : "Disabled"}
             </Badge>
             <Link href="/ai/settings">
               <Button variant="outline" size="sm" className="gap-2">
@@ -229,8 +202,8 @@ export default function AIWeatherPage() {
             <CardHeader>
               <CardTitle>Current Conditions</CardTitle>
               <CardDescription>
-                {weather && (weather as WeatherData).updatedAt
-                  ? `Updated ${formatDistanceToNow(new Date((weather as WeatherData).updatedAt as string), { addSuffix: true })}`
+                {weather?.updatedAt
+                  ? `Updated ${formatDistanceToNow(new Date(weather.updatedAt), { addSuffix: true })}`
                   : "Current weather conditions"}
               </CardDescription>
             </CardHeader>
@@ -247,10 +220,10 @@ export default function AIWeatherPage() {
                     </div>
                     <div>
                       <div className="text-4xl font-bold text-foreground">
-                        {Math.round((weather as WeatherData).temp || (weather as WeatherData).temperature || 0)}°F
+                        {Math.round(weather?.temp ?? weather?.temperature ?? 0)}°F
                       </div>
                       <p className="text-sm text-muted-foreground capitalize">
-                        {(weather as WeatherData).description}
+                        {weather?.description}
                       </p>
                     </div>
                   </div>
@@ -258,17 +231,17 @@ export default function AIWeatherPage() {
                   <div className="grid grid-cols-3 gap-6 md:ml-auto">
                     <div className="text-center">
                       <Thermometer className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
-                      <p className="text-sm font-medium">{Math.round((weather as WeatherData).feelsLike)}°F</p>
+                      <p className="text-sm font-medium">{Math.round(weather?.feelsLike ?? 0)}°F</p>
                       <p className="text-xs text-muted-foreground">Feels Like</p>
                     </div>
                     <div className="text-center">
                       <Droplets className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
-                      <p className="text-sm font-medium">{(weather as WeatherData).humidity}%</p>
+                      <p className="text-sm font-medium">{weather?.humidity ?? 0}%</p>
                       <p className="text-xs text-muted-foreground">Humidity</p>
                     </div>
                     <div className="text-center">
                       <Wind className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
-                      <p className="text-sm font-medium">{Math.round((weather as WeatherData).windSpeed)} mph</p>
+                      <p className="text-sm font-medium">{Math.round(weather?.windSpeed ?? 0)} mph</p>
                       <p className="text-xs text-muted-foreground">Wind</p>
                     </div>
                   </div>
@@ -302,14 +275,14 @@ export default function AIWeatherPage() {
                 </div>
               ) : Array.isArray(forecast) && forecast.length > 0 ? (
                 <div className="grid grid-cols-5 gap-4">
-                  {forecast.slice(0, 5).map((day: Record<string, unknown>, i: number) => {
-                    const DayIcon = getWeatherIcon((day.icon as string | undefined) || "");
-                    const high = (day.high as number | undefined) || (day.tempHigh as number | undefined) || 0;
-                    const low = (day.low as number | undefined) || (day.tempLow as number | undefined) || 0;
+                  {forecast.slice(0, 5).map((day, i) => {
+                    const DayIcon = getWeatherIcon(day.icon || "");
+                    const high = day.tempHigh ?? 0;
+                    const low = day.tempLow ?? 0;
                     return (
                       <div key={i} className="text-center p-3 rounded-lg bg-muted/50">
                         <p className="text-xs font-medium text-muted-foreground mb-2">
-                          {i === 0 ? "Today" : format(new Date(day.date as string), "EEE")}
+                          {i === 0 ? "Today" : format(new Date(day.date), "EEE")}
                         </p>
                         <DayIcon className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
                         <p className="font-bold text-foreground">{Math.round(high)}°</p>
@@ -343,14 +316,14 @@ export default function AIWeatherPage() {
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
-              ) : (alerts as WeatherAlert[]).length === 0 ? (
+              ) : alerts.length === 0 ? (
                 <div className="text-center py-8">
                   <Sparkles className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
                   <p className="text-muted-foreground">No weather alerts yet</p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {(alerts as WeatherAlert[]).slice(0, 10).map((alert) => (
+                  {alerts.slice(0, 10).map((alert) => (
                     <div
                       key={alert.id}
                       className="flex items-center justify-between p-3 rounded-lg border bg-card"
@@ -369,7 +342,7 @@ export default function AIWeatherPage() {
                           {alert.status}
                         </Badge>
                         <p className="text-xs text-muted-foreground mt-1">
-                          {alert.createdAt && formatDistanceToNow(new Date(alert.createdAt), { addSuffix: true })}
+                          {alert.startTime && formatDistanceToNow(new Date(alert.startTime), { addSuffix: true })}
                         </p>
                       </div>
                     </div>

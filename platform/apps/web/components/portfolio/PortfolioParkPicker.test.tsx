@@ -7,9 +7,33 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PortfolioParkPicker } from "./PortfolioParkPicker";
 
-const mockFetch = vi.fn();
-global.fetch = mockFetch as any;
+const mockFetch = vi.fn<typeof fetch>();
+global.fetch = mockFetch;
 process.env.NEXT_PUBLIC_API_BASE = "http://localhost:4000/api";
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const getString = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+const getRequestUrl = (input: RequestInfo | URL): string => {
+  if (typeof input === "string") return input;
+  if (input instanceof URL) return input.toString();
+  if (typeof input === "object" && input !== null && "url" in input) {
+    const value = input.url;
+    return typeof value === "string" ? value : String(value);
+  }
+  return String(input);
+};
+
+const getSelect = (testId: string) => {
+  const element = screen.getByTestId(testId);
+  if (!(element instanceof HTMLSelectElement)) {
+    throw new Error(`Expected ${testId} to be a select element`);
+  }
+  return element;
+};
 
 function renderPicker() {
   const qc = new QueryClient({
@@ -50,7 +74,8 @@ describe("PortfolioParkPicker", () => {
   beforeEach(() => {
     localStorage.clear();
     mockFetch.mockReset();
-    mockFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+    mockFetch.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = getRequestUrl(input);
       // GET portfolios
       if (url.endsWith("/portfolios") && (!init || init.method === "GET")) {
         return new Response(
@@ -78,9 +103,15 @@ describe("PortfolioParkPicker", () => {
       }
       // POST select
       if (url.endsWith("/portfolios/select") && init?.method === "POST") {
-        const body = init.body ? JSON.parse(init.body as string) : {};
+        const parsedBody: unknown = typeof init.body === "string" ? JSON.parse(init.body) : {};
+        const body = isRecord(parsedBody) ? parsedBody : {};
+        const portfolioId = getString(body.portfolioId);
+        const parkId = getString(body.parkId);
         return new Response(
-          JSON.stringify({ activePortfolioId: body.portfolioId, activeParkId: body.parkId ?? "park-1a" }),
+          JSON.stringify({
+            activePortfolioId: portfolioId,
+            activeParkId: parkId ?? "park-1a",
+          }),
           { status: 200, headers: { "Content-Type": "application/json" } }
         );
       }
@@ -98,8 +129,8 @@ describe("PortfolioParkPicker", () => {
     renderPicker();
 
     await screen.findByText("Alpha Portfolio");
-    const portfolioSelect = screen.getByTestId("portfolio-picker:portfolio") as HTMLSelectElement;
-    const parkSelect = screen.getByTestId("portfolio-picker:park") as HTMLSelectElement;
+    const portfolioSelect = getSelect("portfolio-picker:portfolio");
+    const parkSelect = getSelect("portfolio-picker:park");
 
     await waitFor(() => {
       expect(portfolioSelect.disabled).toBe(false);
@@ -120,8 +151,7 @@ describe("PortfolioParkPicker", () => {
     await user.selectOptions(screen.getByTestId("portfolio-picker:park"), "park-2b");
 
     await waitFor(() => {
-      expect((screen.getByTestId("portfolio-picker:park") as HTMLSelectElement).value).toBe("park-2b");
+      expect(getSelect("portfolio-picker:park").value).toBe("park-2b");
     });
   });
 });
-

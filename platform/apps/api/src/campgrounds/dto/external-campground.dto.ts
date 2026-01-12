@@ -132,7 +132,7 @@ export class ExternalCampgroundUpsertDto {
 
   @IsOptional()
   @IsArray()
-  reviewSources?: any[];
+  reviewSources?: Array<Record<string, unknown>>;
 
   @IsOptional()
   @IsDateString()
@@ -157,4 +157,3 @@ export class OsmIngestRequestDto {
   @IsNumber()
   limit?: number;
 }
-

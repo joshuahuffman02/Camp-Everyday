@@ -398,7 +398,9 @@ export function NaturalLanguageSearch({
             className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg"
           >
             <p className="text-sm text-red-700">
-              {(searchMutation.error as Error)?.message || "Search failed. Please try again."}
+              {searchMutation.error instanceof Error
+                ? searchMutation.error.message
+                : "Search failed. Please try again."}
             </p>
           </motion.div>
         )}

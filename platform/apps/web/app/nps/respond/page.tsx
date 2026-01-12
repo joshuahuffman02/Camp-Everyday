@@ -71,7 +71,9 @@ function NpsRespondContent() {
         {mutation.isPending ? "Submitting..." : "Submit feedback"}
       </button>
       {mutation.error ? (
-        <p className="text-sm text-red-600 mt-3">{(mutation.error as Error).message}</p>
+        <p className="text-sm text-red-600 mt-3">
+          {mutation.error instanceof Error ? mutation.error.message : "Something went wrong."}
+        </p>
       ) : null}
     </div>
   );
@@ -84,4 +86,3 @@ export default function NpsRespondPage() {
     </Suspense>
   );
 }
-

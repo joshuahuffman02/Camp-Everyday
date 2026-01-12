@@ -23,8 +23,17 @@ interface StripeConnectProps {
   onSkip?: () => void;
 }
 
-const SPRING_CONFIG = {
-  type: "spring" as const,
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof Error) return error.message;
+  if (isRecord(error) && typeof error.message === "string") return error.message;
+  return fallback;
+};
+
+const SPRING_CONFIG: { type: "spring"; stiffness: number; damping: number } = {
+  type: "spring",
   stiffness: 200,
   damping: 15,
 };
@@ -50,8 +59,8 @@ export function StripeConnect({
       const redirectUrl = await onConnect();
       // Redirect to Stripe's hosted onboarding
       window.location.href = redirectUrl;
-    } catch (err: any) {
-      setError(err?.message || "Failed to start Stripe connection");
+    } catch (error) {
+      setError(getErrorMessage(error, "Failed to start Stripe connection"));
       setConnecting(false);
     }
   };
@@ -66,8 +75,8 @@ export function StripeConnect({
         // Will trigger celebration in parent
         onNext();
       }
-    } catch (err: any) {
-      setError(err?.message || "Failed to check connection status");
+    } catch (error) {
+      setError(getErrorMessage(error, "Failed to check connection status"));
     } finally {
       setChecking(false);
     }

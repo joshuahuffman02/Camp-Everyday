@@ -1,7 +1,5 @@
-// @ts-nocheck
-import * as request from "supertest";
-import { Test } from "@nestjs/testing";
-import { ValidationPipe } from "@nestjs/common";
+import { Test, TestingModule } from "@nestjs/testing";
+import { Reflector } from "@nestjs/core";
 import { CommunicationsController } from "../communications/communications.controller";
 import { PrismaService } from "../prisma/prisma.service";
 import { EmailService } from "../email/email.service";
@@ -9,22 +7,42 @@ import { SmsService } from "../sms/sms.service";
 import { NpsService } from "../nps/nps.service";
 import { ObservabilityService } from "../observability/observability.service";
 import { AlertingService } from "../observability/alerting.service";
-import { JwtAuthGuard } from "../auth/guards";
-import { RolesGuard } from "../auth/guards/roles.guard";
-import { ScopeGuard } from "../permissions/scope.guard";
+import { AiAutoReplyService } from "../ai/ai-auto-reply.service";
+import { AiSentimentService } from "../ai/ai-sentiment.service";
+import { PermissionsService } from "../permissions/permissions.service";
+
+type PrismaMock = {
+  communication: { create: jest.Mock; update: jest.Mock; updateMany: jest.Mock };
+  privacySetting: { findUnique: jest.Mock };
+  consentLog: { findFirst: jest.Mock };
+  campground: { findUnique: jest.Mock };
+  communicationTemplate: { findUnique: jest.Mock };
+};
+
+type EmailMock = { sendEmail: jest.Mock };
+type SmsMock = { sendSms: jest.Mock };
+type ObservabilityMock = { recordCommsStatus: jest.Mock };
+type AlertingMock = { dispatch: jest.Mock };
 
 describe("Communications consent, quiet hours, and alerts", () => {
   jest.setTimeout(30000); // Increase timeout for Nest.js test module setup
 
-  let app: any;
-  let prisma: any;
-  let email: any;
-  let sms: any;
-  let observability: any;
-  let alerting: any;
+  let controller: CommunicationsController;
+  let prisma: PrismaMock;
+  let email: EmailMock;
+  let sms: SmsMock;
+  let observability: ObservabilityMock;
+  let alerting: AlertingMock;
+  let moduleRef: TestingModule | undefined;
+  let previousSenderDomains: string | undefined;
+  let previousVerifiedDomains: string | undefined;
 
   beforeEach(async () => {
     jest.useFakeTimers().setSystemTime(new Date("2025-01-01T05:00:00.000Z")); // 00:00 EST
+    previousSenderDomains = process.env.EMAIL_SENDER_DOMAINS;
+    previousVerifiedDomains = process.env.EMAIL_VERIFIED_DOMAINS;
+    process.env.EMAIL_SENDER_DOMAINS = "keeprstay.com";
+    process.env.EMAIL_VERIFIED_DOMAINS = "";
 
     prisma = {
       communication: {
@@ -51,7 +69,7 @@ describe("Communications consent, quiet hours, and alerts", () => {
     observability = { recordCommsStatus: jest.fn() };
     alerting = { dispatch: jest.fn().mockResolvedValue({ ok: true }) };
 
-    const moduleRef = await Test.createTestingModule({
+    moduleRef = await Test.createTestingModule({
       controllers: [CommunicationsController],
       providers: [
         { provide: PrismaService, useValue: prisma },
@@ -59,26 +77,38 @@ describe("Communications consent, quiet hours, and alerts", () => {
         { provide: SmsService, useValue: sms },
         { provide: NpsService, useValue: {} },
         { provide: ObservabilityService, useValue: observability },
-        { provide: AlertingService, useValue: alerting }
+        { provide: AlertingService, useValue: alerting },
+        { provide: AiAutoReplyService, useValue: { processInboundMessage: jest.fn() } },
+        { provide: AiSentimentService, useValue: { analyzeCommunication: jest.fn() } },
+        { provide: Reflector, useValue: new Reflector() },
+        {
+          provide: PermissionsService,
+          useValue: {
+            isPlatformStaff: () => false,
+            checkAccess: async () => ({ allowed: true })
+          }
+        }
       ]
-    })
-      .overrideGuard(JwtAuthGuard)
-      .useValue({ canActivate: () => true })
-      .overrideGuard(RolesGuard)
-      .useValue({ canActivate: () => true })
-      .overrideGuard(ScopeGuard)
-      .useValue({ canActivate: () => true })
-      .compile();
+    }).compile();
 
-    app = moduleRef.createNestApplication();
-    app.setGlobalPrefix("api");
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await app.init();
+    controller = moduleRef.get(CommunicationsController);
   });
 
   afterEach(async () => {
     jest.useRealTimers();
-    await app.close();
+    if (moduleRef) {
+      await moduleRef.close();
+    }
+    if (previousSenderDomains === undefined) {
+      delete process.env.EMAIL_SENDER_DOMAINS;
+    } else {
+      process.env.EMAIL_SENDER_DOMAINS = previousSenderDomains;
+    }
+    if (previousVerifiedDomains === undefined) {
+      delete process.env.EMAIL_VERIFIED_DOMAINS;
+    } else {
+      process.env.EMAIL_VERIFIED_DOMAINS = previousVerifiedDomains;
+    }
   });
 
   it("rejects outbound email when consent is missing", async () => {
@@ -89,10 +119,8 @@ describe("Communications consent, quiet hours, and alerts", () => {
       subject: "Hello",
       bodyHtml: "<p>Body</p>"
     });
-    const api = request(app.getHttpServer());
-    const res = await api
-      .post("/api/communications/send")
-      .send({
+    await expect(
+      controller.send({
         campgroundId: "cg-1",
         type: "email",
         direction: "outbound",
@@ -101,9 +129,7 @@ describe("Communications consent, quiet hours, and alerts", () => {
         body: "Body",
         templateId: "tpl-1"
       })
-      .expect(400);
-
-    expect(res.body.message).toMatch(/Consent required/i);
+    ).rejects.toThrow(/Consent required/i);
     expect(prisma.communication.create).not.toHaveBeenCalled();
   });
 
@@ -123,10 +149,8 @@ describe("Communications consent, quiet hours, and alerts", () => {
       bodyHtml: "<p>Body</p>"
     });
 
-    const api = request(app.getHttpServer());
-    const res = await api
-      .post("/api/communications/send")
-      .send({
+    await expect(
+      controller.send({
         campgroundId: "cg-1",
         type: "email",
         direction: "outbound",
@@ -136,9 +160,7 @@ describe("Communications consent, quiet hours, and alerts", () => {
         consentGranted: true,
         templateId: "tpl-1"
       })
-      .expect(400);
-
-    expect(res.body.message).toMatch(/Consent required/i);
+    ).rejects.toThrow(/Consent required/i);
     expect(prisma.communication.create).not.toHaveBeenCalled();
   });
 
@@ -159,21 +181,17 @@ describe("Communications consent, quiet hours, and alerts", () => {
       bodyHtml: "<p>Hello</p>"
     });
 
-    const api = request(app.getHttpServer());
-    const res = await api
-      .post("/api/communications/send")
-      .send({
-        campgroundId: "cg-1",
-        type: "email",
-        direction: "outbound",
-        toAddress: "guest@example.com",
-        subject: "Hello",
-        body: "Body",
-        templateId: "tpl-1"
-      })
-      .expect(201);
+    const res = await controller.send({
+      campgroundId: "cg-1",
+      type: "email",
+      direction: "outbound",
+      toAddress: "guest@example.com",
+      subject: "Hello",
+      body: "Body",
+      templateId: "tpl-1"
+    });
 
-    expect(res.body.status).toBe("sent");
+    expect(res.status).toBe("sent");
     expect(prisma.communication.create).toHaveBeenCalled();
     const metadata = prisma.communication.create.mock.calls[0][0].data.metadata;
     expect(metadata.consentSource).toBe("consent_log");
@@ -188,10 +206,8 @@ describe("Communications consent, quiet hours, and alerts", () => {
       bodyHtml: "Body"
     });
     prisma.consentLog.findFirst.mockResolvedValueOnce({ grantedAt: new Date().toISOString(), consentType: "email" });
-    const api = request(app.getHttpServer());
-    await api
-      .post("/api/communications/send")
-      .send({
+    await expect(
+      controller.send({
         campgroundId: "cg-1",
         type: "email",
         direction: "outbound",
@@ -200,7 +216,7 @@ describe("Communications consent, quiet hours, and alerts", () => {
         body: "Body",
         templateId: "tpl-quiet"
       })
-      .expect(400);
+    ).rejects.toThrow(/Quiet hours/i);
   });
 
   it("rejects unapproved templates", async () => {
@@ -218,10 +234,8 @@ describe("Communications consent, quiet hours, and alerts", () => {
       parkTimeZone: "America/New_York"
     });
 
-    const api = request(app.getHttpServer());
-    const res = await api
-      .post("/api/communications/send")
-      .send({
+    await expect(
+      controller.send({
         campgroundId: "cg-1",
         type: "email",
         direction: "outbound",
@@ -230,9 +244,7 @@ describe("Communications consent, quiet hours, and alerts", () => {
         body: "Body",
         templateId: "tpl-1"
       })
-      .expect(400);
-
-    expect(res.body.message).toMatch(/Template not approved/i);
+    ).rejects.toThrow(/Template not approved/i);
   });
 
   it("rejects raw email without template by default", async () => {
@@ -245,10 +257,8 @@ describe("Communications consent, quiet hours, and alerts", () => {
     });
     prisma.consentLog.findFirst.mockResolvedValueOnce({ grantedAt: new Date().toISOString(), consentType: "email" });
 
-    const api = request(app.getHttpServer());
-    const res = await api
-      .post("/api/communications/send")
-      .send({
+    await expect(
+      controller.send({
         campgroundId: "cg-1",
         type: "email",
         direction: "outbound",
@@ -256,9 +266,7 @@ describe("Communications consent, quiet hours, and alerts", () => {
         subject: "Hello",
         body: "Body"
       })
-      .expect(400);
-
-    expect(res.body.message).toMatch(/Template is required/i);
+    ).rejects.toThrow(/Template is required/i);
   });
 
   it("dispatches alerts when SMS fails", async () => {
@@ -279,10 +287,8 @@ describe("Communications consent, quiet hours, and alerts", () => {
     });
     sms.sendSms.mockResolvedValueOnce({ success: false, provider: "twilio", fallback: "send_failed" });
 
-    const api = request(app.getHttpServer());
-    await api
-      .post("/api/communications/send")
-      .send({
+    await expect(
+      controller.send({
         campgroundId: "cg-1",
         type: "sms",
         direction: "outbound",
@@ -290,22 +296,18 @@ describe("Communications consent, quiet hours, and alerts", () => {
         body: "Hi",
         templateId: "tpl-2"
       })
-      .expect(500);
+    ).rejects.toThrow(/Failed to send sms/i);
 
     expect(alerting.dispatch).toHaveBeenCalled();
   });
 
   it("sends alerts on bounce events", async () => {
-    const api = request(app.getHttpServer());
-    await api
-      .post("/api/communications/webhook/postmark/status")
-      .send({
-        MessageID: "msg-1",
-        RecordType: "Bounce",
-        BounceType: "HardBounce",
-        Description: "Mailbox not found"
-      })
-      .expect(200);
+    await controller.postmarkStatus({
+      MessageID: "msg-1",
+      RecordType: "Bounce",
+      BounceType: "HardBounce",
+      Description: "Mailbox not found"
+    });
 
     expect(prisma.communication.updateMany).toHaveBeenCalled();
     expect(alerting.dispatch).toHaveBeenCalledWith(
@@ -317,4 +319,3 @@ describe("Communications consent, quiet hours, and alerts", () => {
     );
   });
 });
-

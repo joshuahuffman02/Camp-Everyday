@@ -2,7 +2,7 @@ import { IsInt, IsOptional, IsString } from "class-validator";
 
 export class ContractStatsQueryDto {
   @IsString()
-  campgroundId: string;
+  campgroundId!: string;
 
   @IsOptional()
   @IsInt()

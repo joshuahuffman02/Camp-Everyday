@@ -7,13 +7,20 @@ import { Roles, RolesGuard } from "../auth/guards/roles.guard";
 import { ScopeGuard } from "../permissions/scope.guard";
 import { RequireScope } from "../permissions/scope.decorator";
 import type { Request } from "express";
+import type { AuthUser } from "../auth/auth.types";
+
+type AuthRequest = Request & { user: AuthUser };
 
 @Controller()
 export class GatewayConfigController {
   constructor(private readonly gatewayConfig: GatewayConfigService) { }
 
-  private ensureCampgroundMembership(user: any, campgroundId: string) {
-    const memberships = user?.memberships?.map((m: any) => m.campgroundId) ?? [];
+  private ensureCampgroundMembership(user: AuthUser | undefined, campgroundId: string) {
+    if (!user) {
+      throw new ForbiddenException("Forbidden by campground scope");
+    }
+
+    const memberships = user.memberships.map((membership) => membership.campgroundId);
     if (!campgroundId || !memberships.includes(campgroundId)) {
       throw new ForbiddenException("Forbidden by campground scope");
     }
@@ -23,8 +30,8 @@ export class GatewayConfigController {
   @RequireScope({ resource: "payments", action: "read" })
   @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
   @Get("campgrounds/:campgroundId/payment-gateway")
-  async getGatewayConfig(@Param("campgroundId") campgroundId: string, @Req() req: Request) {
-    this.ensureCampgroundMembership(req?.user, campgroundId);
+  async getGatewayConfig(@Param("campgroundId") campgroundId: string, @Req() req: AuthRequest) {
+    this.ensureCampgroundMembership(req.user, campgroundId);
     return this.gatewayConfig.getConfig(campgroundId);
   }
 
@@ -35,13 +42,13 @@ export class GatewayConfigController {
   async upsertGatewayConfig(
     @Param("campgroundId") campgroundId: string,
     @Body() body: UpsertPaymentGatewayConfigDto,
-    @Req() req: Request
+    @Req() req: AuthRequest
   ) {
-    this.ensureCampgroundMembership(req?.user, campgroundId);
+    this.ensureCampgroundMembership(req.user, campgroundId);
     return this.gatewayConfig.upsertConfig(campgroundId, body, {
-      userId: req?.user?.id ?? null,
-      ip: req?.ip ?? null,
-      userAgent: req?.headers?.["user-agent"] ?? null
+      userId: req.user.id,
+      ip: req.ip ?? null,
+      userAgent: req.headers?.["user-agent"] ?? null
     });
   }
 }

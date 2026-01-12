@@ -35,6 +35,13 @@ interface SyncStatusContextValue {
   discardConflict: (queueKey: string, itemId: string) => void;
 }
 
+type QueueItem = {
+  id?: string;
+  conflict?: boolean;
+  nextAttemptAt?: number;
+  lastError?: string;
+};
+
 const SyncStatusContext = createContext<SyncStatusContextValue | null>(null);
 
 const QUEUE_SOURCES = [
@@ -62,14 +69,18 @@ export function SyncStatusProvider({ children }: { children: ReactNode }) {
 
     return QUEUE_SOURCES.map(({ key, label }) => {
       try {
-        const list = loadQueue<any>(key);
-        const conflicts = list.filter((i: any) => i?.conflict);
+        const list = loadQueue<QueueItem>(key);
+        const conflicts = list.filter((item) => item.conflict);
         const nextRetry =
           list
-            .map((i: any) => i?.nextAttemptAt)
-            .filter((n: any) => typeof n === "number")
+            .map((item) => item.nextAttemptAt)
+            .filter((value): value is number => typeof value === "number")
             .sort((a: number, b: number) => a - b)[0] ?? null;
-        const lastError = list.map((i: any) => i?.lastError).find((e: any) => e) ?? null;
+        const lastError =
+          list
+            .map((item) => item.lastError)
+            .find((error): error is string => typeof error === "string" && error.length > 0) ??
+          null;
 
         return {
           key,
@@ -111,7 +122,9 @@ export function SyncStatusProvider({ children }: { children: ReactNode }) {
     const queues = loadQueueData();
     const totalPending = queues.reduce((sum, q) => sum + q.count, 0);
     const totalConflicts = queues.reduce((sum, q) => sum + q.conflicts, 0);
-    const errors = queues.map(q => q.lastError).filter(Boolean) as string[];
+    const errors = queues
+      .map((queue) => queue.lastError)
+      .filter((error): error is string => typeof error === "string" && error.length > 0);
 
     // Get last sync time from telemetry
     const telemetry = getTelemetry();
@@ -170,7 +183,7 @@ export function SyncStatusProvider({ children }: { children: ReactNode }) {
 
   const retryConflict = useCallback(
     (queueKey: string, itemId: string) => {
-      const items = loadQueue<any>(queueKey);
+      const items = loadQueue<QueueItem>(queueKey);
       const updated = items.map((i) =>
         i.id === itemId ? { ...i, conflict: false, nextAttemptAt: Date.now() } : i
       );
@@ -182,7 +195,7 @@ export function SyncStatusProvider({ children }: { children: ReactNode }) {
 
   const discardConflict = useCallback(
     (queueKey: string, itemId: string) => {
-      const items = loadQueue<any>(queueKey);
+      const items = loadQueue<QueueItem>(queueKey);
       const updated = items.filter((i) => i.id !== itemId);
       saveQueue(queueKey, updated);
       refresh();

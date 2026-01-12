@@ -1,8 +1,10 @@
-import { Body, Controller, Get, Param, Post, UseGuards, Request, Patch } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards, Req, Patch } from '@nestjs/common';
 import { MessagesService } from './messages.service';
-import { CreateMessageDto } from './dto/create-message.dto';
+import { CreateMessageDto, SenderType } from './dto/create-message.dto';
 import { AuthGuard } from '@nestjs/passport';
-import type { Request } from "express";
+import type { Request as ExpressRequest } from "express";
+
+type GuestRequest = ExpressRequest & { user: { id: string } };
 
 @Controller()
 export class MessagesController {
@@ -48,8 +50,7 @@ export class MessagesController {
     @Get('portal/reservations/:id/messages')
     @UseGuards(AuthGuard('guest-jwt'))
     async listGuestMessages(
-        @Param('id') reservationId: string,
-        @Request() req: Request,
+        @Param('id') reservationId: string
     ) {
         // Verify the guest owns this reservation
         // For now, we trust the guard, but you could add additional checks
@@ -61,14 +62,15 @@ export class MessagesController {
     async createGuestMessage(
         @Param('id') reservationId: string,
         @Body() body: Omit<CreateMessageDto, 'senderType' | 'guestId'>,
-        @Request() req: Request,
+        @Req() req: GuestRequest,
     ) {
         // Use the guest ID from the JWT token
         const guestId = req.user.id;
-        return this.messagesService.create(reservationId, {
+        const payload: CreateMessageDto = {
             ...body,
             guestId,
-            senderType: 'guest' as const,
-        } as CreateMessageDto);
+            senderType: SenderType.guest,
+        };
+        return this.messagesService.create(reservationId, payload);
     }
 }

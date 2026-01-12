@@ -1,6 +1,17 @@
 import { Injectable, ConflictException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
+import { randomUUID } from "crypto";
+
+type GroupNotificationPayload = {
+  id: string;
+  name?: string | null;
+  reservations?: Array<{
+    guest?: {
+      email?: string | null;
+    };
+  }>;
+};
 
 @Injectable()
 export class GroupsService {
@@ -21,10 +32,12 @@ export class GroupsService {
   }) {
     const group = await this.prisma.group.create({
       data: {
+        id: randomUUID(),
         tenantId: data.tenantId,
         sharedPayment: data.sharedPayment ?? false,
         sharedComm: data.sharedComm ?? false,
         primaryReservationId: data.primaryReservationId,
+        updatedAt: new Date(),
       },
     });
 
@@ -169,7 +182,7 @@ export class GroupsService {
    * Notify group members when reservations are added or removed
    */
   private async notifyGroupChange(
-    group: any,
+    group: GroupNotificationPayload,
     addedIds: string[] | undefined,
     removedIds: string[] | undefined
   ) {
@@ -212,8 +225,9 @@ export class GroupsService {
       }
 
       this.logger.log(`Sent group change notifications to ${guestEmails.length} guests`);
-    } catch (error: any) {
-      this.logger.error(`Failed to send group change notification: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to send group change notification: ${message}`);
     }
   }
 
@@ -227,4 +241,3 @@ export class GroupsService {
     return this.prisma.group.delete({ where: { id } });
   }
 }
-

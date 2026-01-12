@@ -152,7 +152,7 @@ export class TerminalPaymentService {
                 status: "processing",
                 amountCents: 0,
                 currency: "",
-                readerStatus: result.status,
+                readerStatus: result.status ?? undefined,
             };
         } catch (error) {
             // Reset reader status on error

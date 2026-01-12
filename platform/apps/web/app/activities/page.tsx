@@ -75,6 +75,52 @@ type ActivityRecord = {
     maxConcurrent?: number | null;
 };
 
+type NewActivityForm = {
+    name: string;
+    description: string;
+    price: string;
+    duration: string;
+    capacity: string;
+    imageUrl: string;
+    schedulingMode: SchedulingMode;
+    operatingHours: OperatingHours;
+    slotDuration: string;
+    maxConcurrent: string;
+};
+
+type CreateActivityPayload = {
+    name: string;
+    description?: string;
+    price: number;
+    duration: number;
+    capacity: number;
+    images: string[];
+    schedulingMode: SchedulingMode;
+    operatingHours?: OperatingHours;
+    slotDuration?: number;
+    maxConcurrent?: number;
+};
+
+type CreatedActivityResult = ActivityRecord & { inputDuration?: number };
+
+type CalendarEvent = {
+    id: string;
+    title: string;
+    start: Date;
+    end: Date;
+    allDay?: boolean;
+    resource: Event;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null;
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+    if (error instanceof Error) return error.message;
+    if (isRecord(error) && typeof error.message === "string") return error.message;
+    return fallback;
+};
+
 type CapacitySnapshot = {
     activityId: string;
     capacity: number;
@@ -479,14 +525,14 @@ export default function ActivitiesPage() {
         sun: { start: "09:00", end: "17:00" },
     };
 
-    const [newActivity, setNewActivity] = useState({
+    const [newActivity, setNewActivity] = useState<NewActivityForm>({
         name: "",
         description: "",
         price: "",
         duration: "60",
         capacity: "20",
         imageUrl: "",
-        schedulingMode: "scheduled" as SchedulingMode,
+        schedulingMode: "scheduled",
         operatingHours: defaultOperatingHours,
         slotDuration: "60",
         maxConcurrent: "3"
@@ -554,8 +600,8 @@ export default function ActivitiesPage() {
     });
 
     const createMutation = useMutation({
-        mutationFn: async () => {
-            const activityData: Record<string, unknown> = {
+        mutationFn: async (): Promise<CreatedActivityResult> => {
+            const activityData: CreateActivityPayload = {
                 name: newActivity.name,
                 description: newActivity.description || undefined,
                 price: Math.round(parseFloat(newActivity.price || "0") * 100),
@@ -575,7 +621,7 @@ export default function ActivitiesPage() {
             const result = await apiClient.createActivity(campgroundId, activityData);
             return { ...result, inputDuration: activityData.duration };
         },
-        onSuccess: (result: any) => {
+        onSuccess: (result: CreatedActivityResult) => {
             queryClient.invalidateQueries({ queryKey: ["activities", campgroundId] });
             setCelebrationName(newActivity.name);
             // Store created activity for schedule wizard
@@ -599,9 +645,13 @@ export default function ActivitiesPage() {
                 maxConcurrent: "3"
             });
         },
-        onError: (err: any) => {
+        onError: (err: unknown) => {
             console.error("Create activity error:", err);
-            toast({ title: "Failed to create activity", description: err?.message || "Please try again", variant: "destructive" });
+            toast({
+                title: "Failed to create activity",
+                description: getErrorMessage(err, "Please try again"),
+                variant: "destructive",
+            });
         }
     });
 
@@ -628,23 +678,23 @@ export default function ActivitiesPage() {
             await fetch(signed.uploadUrl, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
             setNewActivity((s) => ({ ...s, imageUrl: signed.publicUrl }));
             toast({ title: "Image uploaded!" });
-        } catch (err) {
-            toast({ title: "Upload failed", description: (err as Error).message, variant: "destructive" });
+        } catch (err: unknown) {
+            toast({ title: "Upload failed", description: getErrorMessage(err, "Upload failed"), variant: "destructive" });
         } finally {
             setUploading(false);
         }
     };
 
-    const calendarEvents = events?.map(event => ({
+    const calendarEvents: CalendarEvent[] = events?.map((event) => ({
         id: event.id,
         title: event.title,
         start: new Date(event.startDate),
         end: event.endDate ? new Date(event.endDate) : new Date(event.startDate),
         allDay: event.isAllDay,
-        resource: event
+        resource: event,
     })) || [];
 
-    const handleSelectEvent = (event: any) => {
+    const handleSelectEvent = (event: CalendarEvent) => {
         console.log("Selected event:", event);
     };
 

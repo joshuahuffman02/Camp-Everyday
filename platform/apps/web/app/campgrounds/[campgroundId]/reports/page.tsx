@@ -22,7 +22,51 @@ type ReportRun = {
   series: Array<{ label: string; chart: string; points: Array<{ x: string; y: number }> }>;
 };
 
+type ChartType = "line" | "bar" | "pie";
+
 const categories = ["All", "Bookings", "Inventory", "Payments", "Operations", "Marketing"];
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const isLabeledEntry = (value: unknown): value is { id: string; label: string } =>
+  isRecord(value) && typeof value.id === "string" && typeof value.label === "string";
+
+const isCatalogEntry = (value: unknown): value is CatalogEntry =>
+  isRecord(value) &&
+  typeof value.id === "string" &&
+  typeof value.name === "string" &&
+  typeof value.category === "string" &&
+  Array.isArray(value.dimensions) &&
+  value.dimensions.every(isLabeledEntry) &&
+  Array.isArray(value.metrics) &&
+  value.metrics.every(isLabeledEntry) &&
+  Array.isArray(value.chartTypes) &&
+  value.chartTypes.every((item) => typeof item === "string");
+
+const isReportPoint = (value: unknown): value is { x: string; y: number } =>
+  isRecord(value) && typeof value.x === "string" && typeof value.y === "number";
+
+const isReportSeries = (value: unknown): value is ReportRun["series"][number] =>
+  isRecord(value) &&
+  typeof value.label === "string" &&
+  typeof value.chart === "string" &&
+  Array.isArray(value.points) &&
+  value.points.every(isReportPoint);
+
+const isReportRun = (value: unknown): value is ReportRun =>
+  isRecord(value) &&
+  isRecord(value.meta) &&
+  typeof value.meta.id === "string" &&
+  typeof value.meta.name === "string" &&
+  typeof value.meta.category === "string" &&
+  Array.isArray(value.rows) &&
+  value.rows.every(isRecord) &&
+  Array.isArray(value.series) &&
+  value.series.every(isReportSeries);
+
+const isChartType = (value: unknown): value is ChartType =>
+  value === "line" || value === "bar" || value === "pie";
 
 export default function ReportsPage({ params }: { params: { campgroundId: string } }) {
   const [search, setSearch] = useState("");
@@ -44,9 +88,10 @@ export default function ReportsPage({ params }: { params: { campgroundId: string
       });
 
       if (Array.isArray(res.catalog)) {
-        setCatalog(res.catalog as CatalogEntry[]);
-        if (!selected && res.catalog.length > 0) {
-          setSelected(res.catalog[0] as CatalogEntry);
+        const entries = res.catalog.filter(isCatalogEntry);
+        setCatalog(entries);
+        if (!selected && entries.length > 0) {
+          setSelected(entries[0]);
         }
       }
     } catch (err) {
@@ -67,8 +112,10 @@ export default function ReportsPage({ params }: { params: { campgroundId: string
         sample: true
       });
 
-      if (data && typeof data === "object") {
-        setRun(data as ReportRun);
+      if (isReportRun(data)) {
+        setRun(data);
+      } else {
+        setRun(null);
       }
       setSelected(entry);
     } catch (err) {
@@ -170,7 +217,7 @@ export default function ReportsPage({ params }: { params: { campgroundId: string
           {run?.series?.length ? (
             <ReportChart
               series={run.series}
-              chart={(run.series[0]?.chart ?? "line") as "line" | "bar" | "pie"}
+              chart={isChartType(run.series[0]?.chart) ? run.series[0].chart : "line"}
             />
           ) : (
             <div className="rounded border border-dashed border-border p-6 text-sm text-muted-foreground">

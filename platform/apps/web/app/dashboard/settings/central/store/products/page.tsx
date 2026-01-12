@@ -56,6 +56,9 @@ interface Category {
   name: string;
 }
 
+type ApiProduct = Awaited<ReturnType<typeof apiClient.getProducts>>[number];
+type ApiCategory = Awaited<ReturnType<typeof apiClient.getProductCategories>>[number];
+
 export default function ProductsPage() {
   const [loading, setLoading] = useState(true);
   const [campgroundId, setCampgroundId] = useState<string | null>(null);
@@ -73,12 +76,31 @@ export default function ProductsPage() {
       return;
     }
 
-    Promise.all([
-      apiClient.getProducts(id).catch(() => []),
-      apiClient.getProductCategories(id).catch(() => [])
-    ]).then(([productList, categoryList]) => {
-      setProducts(Array.isArray(productList) ? productList as unknown as Product[] : []);
-      setCategories(Array.isArray(categoryList) ? categoryList as unknown as Category[] : []);
+    const emptyProducts: ApiProduct[] = [];
+    const emptyCategories: ApiCategory[] = [];
+    const productsPromise: Promise<ApiProduct[]> = apiClient.getProducts(id).catch(() => emptyProducts);
+    const categoriesPromise: Promise<ApiCategory[]> = apiClient.getProductCategories(id).catch(() => emptyCategories);
+    Promise.all([productsPromise, categoriesPromise]).then(([productList, categoryList]) => {
+      const categoryMap = new Map(categoryList.map((category) => [category.id, category.name]));
+      const mappedProducts: Product[] = productList.map((product) => ({
+        id: product.id,
+        name: product.name,
+        sku: product.sku ?? null,
+        price: product.priceCents,
+        categoryId: product.categoryId ?? null,
+        isActive: product.isActive !== false,
+        trackInventory: product.trackInventory === true,
+        inventoryCount: product.stockQty ?? null,
+        category: product.categoryId
+          ? { id: product.categoryId, name: categoryMap.get(product.categoryId) ?? product.categoryId }
+          : undefined,
+      }));
+      const mappedCategories: Category[] = categoryList.map((category) => ({
+        id: category.id,
+        name: category.name,
+      }));
+      setProducts(mappedProducts);
+      setCategories(mappedCategories);
       setLoading(false);
     });
   }, []);

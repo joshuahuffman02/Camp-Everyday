@@ -14,9 +14,52 @@ import {
   SankeyDiagram,
 } from "@/components/analytics";
 
+type GuestJourneyOverview = {
+  totalGuests: number;
+  newGuests: number;
+  returningGuests: number;
+  returnRate: number;
+  averageStaysPerGuest: number;
+};
+
+type AccommodationProgression = {
+  progressions?: Array<{ fromType: string; toType: string; count: number }>;
+  upgradeRate?: number;
+  downgradeRate?: number;
+};
+
+type LifetimeValueTier = {
+  tier: string;
+  guestCount: number;
+  totalRevenue: number;
+  averageLtv: number;
+  averageStays: number;
+};
+
+type LifetimeValueSummary = {
+  tiers?: LifetimeValueTier[];
+  averageLtv?: number;
+  topPercentileLtv?: number;
+};
+
+type RetentionCohort = {
+  cohortMonth: string;
+  totalGuests: number;
+  retention30: number | null;
+  retention90: number | null;
+  retention180: number | null;
+};
+
+type GuestJourneyData = {
+  overview?: GuestJourneyOverview;
+  accommodationProgression?: AccommodationProgression;
+  lifetimeValue?: LifetimeValueSummary;
+  retentionCohorts?: RetentionCohort[];
+};
+
 export default function GuestJourneyPage() {
   const [dateRange, setDateRange] = useState("last_12_months");
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<GuestJourneyData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -37,7 +80,29 @@ export default function GuestJourneyPage() {
     fetchData();
   }, [dateRange]);
 
-  const ltvPieData = data?.lifetimeValue?.tiers?.map((tier: any) => ({
+  const toNumber = (value: unknown): number | undefined =>
+    typeof value === "number" ? value : undefined;
+  const formatCount = (value: unknown): string => {
+    const numberValue = toNumber(value);
+    return numberValue !== undefined ? numberValue.toLocaleString() : "—";
+  };
+  const formatMoney = (value: unknown): string => {
+    const numberValue = toNumber(value);
+    return numberValue !== undefined ? formatCurrency(numberValue) : "—";
+  };
+  const formatPercent = (value: unknown): string => {
+    const numberValue = toNumber(value);
+    return numberValue !== undefined ? `${numberValue.toFixed(1)}%` : "—";
+  };
+  const formatFixed = (value: unknown): string => {
+    const numberValue = toNumber(value);
+    return numberValue !== undefined ? numberValue.toFixed(1) : "—";
+  };
+
+  const upgradeRate = toNumber(data?.accommodationProgression?.upgradeRate) ?? 0;
+  const downgradeRate = toNumber(data?.accommodationProgression?.downgradeRate) ?? 0;
+
+  const ltvPieData = data?.lifetimeValue?.tiers?.map((tier) => ({
     name: tier.tier,
     value: tier.guestCount,
   })) || [];
@@ -133,7 +198,7 @@ export default function GuestJourneyPage() {
           { id: "glamping-return", label: "Glamping" },
         ]}
         links={
-          data?.accommodationProgression?.progressions?.map((prog: any) => ({
+          data?.accommodationProgression?.progressions?.map((prog) => ({
             source: prog.fromType,
             target: `${prog.toType}-return`,
             value: prog.count,
@@ -165,7 +230,7 @@ export default function GuestJourneyPage() {
               <div>
                 <p className="text-sm text-green-600 font-medium">Upgrade Rate</p>
                 <p className="text-3xl font-bold text-foreground">
-                  {data?.accommodationProgression?.upgradeRate?.toFixed(1) || 0}%
+                  {upgradeRate.toFixed(1)}%
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   Guests moving to higher-tier accommodations
@@ -183,7 +248,7 @@ export default function GuestJourneyPage() {
               <div>
                 <p className="text-sm text-red-600 font-medium">Downgrade Rate</p>
                 <p className="text-3xl font-bold text-foreground">
-                  {data?.accommodationProgression?.downgradeRate?.toFixed(1) || 0}%
+                  {downgradeRate.toFixed(1)}%
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   Guests moving to lower-tier accommodations
@@ -202,10 +267,10 @@ export default function GuestJourneyPage() {
             description="Guest distribution across value segments"
             columns={[
               { key: "tier", label: "LTV Tier" },
-              { key: "guestCount", label: "Guests", align: "right", format: (v) => v.toLocaleString() },
-              { key: "totalRevenue", label: "Total Revenue", align: "right", format: (v) => formatCurrency(v) },
-              { key: "averageLtv", label: "Avg LTV", align: "right", format: (v) => formatCurrency(v) },
-              { key: "averageStays", label: "Avg Stays", align: "right", format: (v) => v.toFixed(1) },
+              { key: "guestCount", label: "Guests", align: "right", format: (v) => formatCount(v) },
+              { key: "totalRevenue", label: "Total Revenue", align: "right", format: (v) => formatMoney(v) },
+              { key: "averageLtv", label: "Avg LTV", align: "right", format: (v) => formatMoney(v) },
+              { key: "averageStays", label: "Avg Stays", align: "right", format: (v) => formatFixed(v) },
             ]}
             data={data?.lifetimeValue?.tiers || []}
             loading={loading}
@@ -241,10 +306,10 @@ export default function GuestJourneyPage() {
         description="Track how guest cohorts return over time"
         columns={[
           { key: "cohortMonth", label: "Cohort" },
-          { key: "totalGuests", label: "Guests", align: "right", format: (v) => v.toLocaleString() },
-          { key: "retention30", label: "30-Day", align: "right", format: (v) => v !== null ? `${v.toFixed(1)}%` : "—" },
-          { key: "retention90", label: "90-Day", align: "right", format: (v) => v !== null ? `${v.toFixed(1)}%` : "—" },
-          { key: "retention180", label: "180-Day", align: "right", format: (v) => v !== null ? `${v.toFixed(1)}%` : "—" },
+          { key: "totalGuests", label: "Guests", align: "right", format: (v) => formatCount(v) },
+          { key: "retention30", label: "30-Day", align: "right", format: (v) => formatPercent(v) },
+          { key: "retention90", label: "90-Day", align: "right", format: (v) => formatPercent(v) },
+          { key: "retention180", label: "180-Day", align: "right", format: (v) => formatPercent(v) },
         ]}
         data={data?.retentionCohorts || []}
         loading={loading}

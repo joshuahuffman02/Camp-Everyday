@@ -38,6 +38,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import Link from "next/link";
+import { z } from "zod";
 
 interface FeatureStats {
   id: string;
@@ -51,6 +52,20 @@ interface FeatureStats {
   lastUsedAt: string | null;
   date: string;
 }
+
+const FeatureStatsSchema = z.object({
+  id: z.string(),
+  feature: z.string(),
+  subFeature: z.string().nullable(),
+  usageCount: z.number(),
+  uniqueUsers: z.number(),
+  totalSessions: z.number(),
+  avgDuration: z.number().nullable(),
+  successRate: z.number().nullable(),
+  lastUsedAt: z.string().nullable(),
+  date: z.string(),
+});
+const FeatureStatsArraySchema = z.array(FeatureStatsSchema);
 
 function formatDuration(seconds: number | null): string {
   if (!seconds) return "-";
@@ -101,6 +116,7 @@ export default function FeatureAdoptionDashboard() {
     queryFn: async () => {
       const response = await apiClient.get<FeatureStats[]>(`/analytics/enhanced/reports/features`, {
         params: { campgroundId, days: parseInt(days) },
+        schema: FeatureStatsArraySchema,
       });
       return response.data;
     },

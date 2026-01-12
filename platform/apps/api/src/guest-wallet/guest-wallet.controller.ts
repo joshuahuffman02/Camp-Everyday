@@ -8,7 +8,7 @@ import {
   Param,
   Query,
   UseGuards,
-  Request,
+  Req,
 } from "@nestjs/common";
 import { AuthGuard } from "@nestjs/passport";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
@@ -21,20 +21,23 @@ import {
   WalletTransactionsQueryDto,
 } from "./guest-wallet.dto";
 import { UserRole } from "@prisma/client";
+import type { AuthUser } from "../auth/auth.types";
+
+type StaffRequest = Request & { user?: AuthUser | null };
+type GuestRequest = Request & { user: { id: string } };
 
 @Controller()
 export class GuestWalletController {
   constructor(private readonly guestWalletService: GuestWalletService) {}
 
-  private assertCampgroundAccess(campgroundId: string, user: any): void {
+  private assertCampgroundAccess(campgroundId: string, user?: AuthUser | null): void {
     const isPlatformStaff = user?.platformRole === "platform_admin" ||
-                            user?.platformRole === "platform_superadmin" ||
                             user?.platformRole === "support_agent";
     if (isPlatformStaff) {
       return;
     }
 
-    const userCampgroundIds = user?.memberships?.map((m: any) => m.campgroundId) ?? [];
+    const userCampgroundIds = user?.memberships?.map((membership) => membership.campgroundId) ?? [];
     if (!userCampgroundIds.includes(campgroundId)) {
       throw new BadRequestException("You do not have access to this campground");
     }
@@ -49,7 +52,7 @@ export class GuestWalletController {
    */
   @Get("portal/wallet")
   @UseGuards(AuthGuard("guest-jwt"))
-  async getMyWallets(@Request() req: Request) {
+  async getMyWallets(@Req() req: GuestRequest) {
     const guestId = req.user.id;
     return this.guestWalletService.getGuestWallets(guestId);
   }
@@ -60,7 +63,7 @@ export class GuestWalletController {
   @Get("portal/wallet/:campgroundId/transactions")
   @UseGuards(AuthGuard("guest-jwt"))
   async getMyTransactions(
-    @Request() req: Request,
+    @Req() req: GuestRequest,
     @Param("campgroundId") campgroundId: string,
     @Query() query: WalletTransactionsQueryDto
   ) {
@@ -92,7 +95,7 @@ export class GuestWalletController {
   async getWalletBalance(
     @Param("campgroundId") campgroundId: string,
     @Param("guestId") guestId: string,
-    @Request() req: Request
+    @Req() req: StaffRequest
   ) {
     this.assertCampgroundAccess(campgroundId, req.user);
     return this.guestWalletService.getGuestBalance(campgroundId, guestId);
@@ -107,7 +110,7 @@ export class GuestWalletController {
   async getWalletsForGuest(
     @Param("campgroundId") campgroundId: string,
     @Param("guestId") guestId: string,
-    @Request() req: Request
+    @Req() req: StaffRequest
   ) {
     this.assertCampgroundAccess(campgroundId, req.user);
     return this.guestWalletService.getGuestWalletsForCampground(campgroundId, guestId);
@@ -123,7 +126,7 @@ export class GuestWalletController {
     @Param("campgroundId") campgroundId: string,
     @Param("guestId") guestId: string,
     @Body() dto: Omit<AddWalletCreditDto, "guestId">,
-    @Request() req: Request
+    @Req() req: StaffRequest
   ) {
     this.assertCampgroundAccess(campgroundId, req.user);
     return this.guestWalletService.addCredit(
@@ -144,7 +147,7 @@ export class GuestWalletController {
     @Param("campgroundId") campgroundId: string,
     @Param("guestId") guestId: string,
     @Query() query: WalletTransactionsQueryDto,
-    @Request() req: Request
+    @Req() req: StaffRequest
   ) {
     this.assertCampgroundAccess(campgroundId, req.user);
     const wallet = query.walletId
@@ -170,7 +173,7 @@ export class GuestWalletController {
   async debitWallet(
     @Param("campgroundId") campgroundId: string,
     @Body() dto: DebitWalletDto,
-    @Request() req: Request
+    @Req() req: Request
   ) {
     this.assertCampgroundAccess(campgroundId, req.user);
     return this.guestWalletService.debitForPayment(
@@ -196,7 +199,7 @@ export class GuestWalletController {
       amountCents: number;
       reason: string;
     },
-    @Request() req: Request
+    @Req() req: Request
   ) {
     this.assertCampgroundAccess(campgroundId, req.user);
     return this.guestWalletService.creditFromRefund(

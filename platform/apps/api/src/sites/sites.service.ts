@@ -1,7 +1,13 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateSiteDto } from "./dto/create-site.dto";
-import { SiteType } from "@prisma/client";
+import { ReservationStatus, SiteType } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
+
+const SITE_TYPES = new Set<string>(Object.values(SiteType));
+
+const isSiteType = (value: string): value is SiteType => SITE_TYPES.has(value);
 
 @Injectable()
 export class SitesService {
@@ -11,8 +17,8 @@ export class SitesService {
     const site = await this.prisma.site.findUnique({
       where: { id },
       include: {
-        siteClass: true,
-        campground: true
+        SiteClass: true,
+        Campground: true
       }
     });
 
@@ -43,7 +49,11 @@ export class SitesService {
   }
 
   create(data: CreateSiteDto) {
-    return this.prisma.site.create({ data: { ...data, siteType: data.siteType as SiteType } });
+    const { siteType, ...rest } = data;
+    if (!isSiteType(siteType)) {
+      throw new BadRequestException("Invalid siteType");
+    }
+    return this.prisma.site.create({ data: { id: randomUUID(), ...rest, siteType } });
   }
 
   async update(id: string, data: Partial<CreateSiteDto>) {
@@ -53,14 +63,19 @@ export class SitesService {
       throw new NotFoundException('Site not found');
     }
 
-    const { campgroundId, siteType, ...rest } = data;
+    const { campgroundId, siteType, siteClassId, ...rest } = data;
+    const siteTypeValue = siteType && isSiteType(siteType) ? siteType : undefined;
+    if (siteType && !siteTypeValue) throw new BadRequestException("Invalid siteType");
+    const updateData: Prisma.SiteUpdateInput = {
+      ...rest,
+      ...(siteTypeValue ? { siteType: siteTypeValue } : {})
+    };
+    if (siteClassId !== undefined) {
+      updateData.SiteClass = siteClassId ? { connect: { id: siteClassId } } : { disconnect: true };
+    }
     return this.prisma.site.update({
       where: { id },
-      data: {
-        ...rest,
-        ...(siteType ? { siteType: siteType as SiteType } : {}),
-        ...(rest.siteClassId === null ? { siteClassId: null } : {})
-      }
+      data: updateData
     });
   }
 
@@ -80,7 +95,7 @@ export class SitesService {
     const activeReservation = await this.prisma.reservation.findFirst({
       where: {
         siteId: id,
-        status: { not: "canceled" }, // Assuming 'canceled' is the status string from ReservationStatus enum or similar
+        status: { not: ReservationStatus.cancelled },
         arrivalDate: { lte: now },
         departureDate: { gt: now }
       },

@@ -5,10 +5,28 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OpTaskTemplate, OpTaskCategory, Prisma } from '@prisma/client';
+import { randomUUID } from 'crypto';
 import {
   CreateOpTaskTemplateDto,
   UpdateOpTaskTemplateDto,
 } from '../dto/op-task.dto';
+
+const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined => {
+  if (value === undefined || value === null) return undefined;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
+};
+
+const toNullableJsonInput = (
+  value: unknown,
+): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined => {
+  if (value === undefined) return undefined;
+  if (value === null) return Prisma.JsonNull;
+  return toJsonValue(value) ?? Prisma.JsonNull;
+};
 
 @Injectable()
 export class OpTemplateService {
@@ -23,13 +41,14 @@ export class OpTemplateService {
   ): Promise<OpTaskTemplate> {
     return this.prisma.opTaskTemplate.create({
       data: {
+        id: randomUUID(),
         campgroundId,
         name: dto.name,
         description: dto.description,
         category: dto.category,
         priority: dto.priority ?? 'medium',
-        checklistTemplate: dto.checklistTemplate ?? [],
-        suppliesNeeded: dto.suppliesNeeded ?? [],
+        checklistTemplate: toNullableJsonInput(dto.checklistTemplate ?? []),
+        suppliesNeeded: toNullableJsonInput(dto.suppliesNeeded ?? []),
         estimatedMinutes: dto.estimatedMinutes,
         slaMinutes: dto.slaMinutes,
         defaultTeamId: dto.defaultTeamId,
@@ -38,10 +57,11 @@ export class OpTemplateService {
         siteIds: dto.siteIds ?? [],
         xpValue: dto.xpValue ?? 10,
         isActive: true,
+        updatedAt: new Date(),
       },
       include: {
-        defaultTeam: true,
-        defaultAssignee: { select: { id: true, firstName: true, lastName: true } },
+        OpTeam: true,
+        User: { select: { id: true, firstName: true, lastName: true } },
       },
     });
   }
@@ -64,9 +84,9 @@ export class OpTemplateService {
       },
       orderBy: [{ category: 'asc' }, { name: 'asc' }],
       include: {
-        defaultTeam: true,
-        defaultAssignee: { select: { id: true, firstName: true, lastName: true } },
-        _count: { select: { tasks: true, triggers: true, recurrenceRules: true } },
+        OpTeam: true,
+        User: { select: { id: true, firstName: true, lastName: true } },
+        _count: { select: { OpTask: true, OpTaskTrigger: true, OpRecurrenceRule: true } },
       },
     });
   }
@@ -78,11 +98,11 @@ export class OpTemplateService {
     const template = await this.prisma.opTaskTemplate.findUnique({
       where: { id },
       include: {
-        defaultTeam: true,
-        defaultAssignee: { select: { id: true, firstName: true, lastName: true } },
-        triggers: { where: { isActive: true } },
-        recurrenceRules: { where: { isActive: true } },
-        _count: { select: { tasks: true } },
+        OpTeam: true,
+        User: { select: { id: true, firstName: true, lastName: true } },
+        OpTaskTrigger: { where: { isActive: true } },
+        OpRecurrenceRule: { where: { isActive: true } },
+        _count: { select: { OpTask: true } },
       },
     });
 
@@ -114,20 +134,25 @@ export class OpTemplateService {
         ...(dto.description !== undefined && { description: dto.description }),
         ...(dto.category && { category: dto.category }),
         ...(dto.priority && { priority: dto.priority }),
-        ...(dto.checklistTemplate && { checklistTemplate: dto.checklistTemplate }),
-        ...(dto.suppliesNeeded && { suppliesNeeded: dto.suppliesNeeded }),
+        ...(dto.checklistTemplate !== undefined && {
+          checklistTemplate: toNullableJsonInput(dto.checklistTemplate),
+        }),
+        ...(dto.suppliesNeeded !== undefined && {
+          suppliesNeeded: toNullableJsonInput(dto.suppliesNeeded),
+        }),
         ...(dto.estimatedMinutes !== undefined && { estimatedMinutes: dto.estimatedMinutes }),
         ...(dto.slaMinutes !== undefined && { slaMinutes: dto.slaMinutes }),
         ...(dto.defaultTeamId !== undefined && { defaultTeamId: dto.defaultTeamId }),
         ...(dto.defaultAssigneeId !== undefined && { defaultAssigneeId: dto.defaultAssigneeId }),
-        ...(dto.siteClassIds && { siteClassIds: dto.siteClassIds }),
-        ...(dto.siteIds && { siteIds: dto.siteIds }),
+        ...(dto.siteClassIds !== undefined && { siteClassIds: dto.siteClassIds }),
+        ...(dto.siteIds !== undefined && { siteIds: dto.siteIds }),
         ...(dto.xpValue !== undefined && { xpValue: dto.xpValue }),
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+        updatedAt: new Date(),
       },
       include: {
-        defaultTeam: true,
-        defaultAssignee: { select: { id: true, firstName: true, lastName: true } },
+        OpTeam: true,
+        User: { select: { id: true, firstName: true, lastName: true } },
       },
     });
   }
@@ -139,7 +164,7 @@ export class OpTemplateService {
     const existing = await this.prisma.opTaskTemplate.findUnique({
       where: { id },
       include: {
-        _count: { select: { triggers: true, recurrenceRules: true } },
+        _count: { select: { OpTaskTrigger: true, OpRecurrenceRule: true } },
       },
     });
 
@@ -149,7 +174,7 @@ export class OpTemplateService {
 
     // Check if template is in use
     const activeConnections =
-      (existing._count?.triggers ?? 0) + (existing._count?.recurrenceRules ?? 0);
+      (existing._count?.OpTaskTrigger ?? 0) + (existing._count?.OpRecurrenceRule ?? 0);
 
     if (activeConnections > 0) {
       throw new ConflictException(
@@ -177,13 +202,14 @@ export class OpTemplateService {
 
     return this.prisma.opTaskTemplate.create({
       data: {
+        id: randomUUID(),
         campgroundId: original.campgroundId,
         name: newName ?? `${original.name} (Copy)`,
         description: original.description,
         category: original.category,
         priority: original.priority,
-        checklistTemplate: original.checklistTemplate ?? [],
-        suppliesNeeded: original.suppliesNeeded ?? [],
+        checklistTemplate: toNullableJsonInput(original.checklistTemplate ?? []),
+        suppliesNeeded: toNullableJsonInput(original.suppliesNeeded ?? []),
         estimatedMinutes: original.estimatedMinutes,
         slaMinutes: original.slaMinutes,
         defaultTeamId: original.defaultTeamId,
@@ -192,6 +218,7 @@ export class OpTemplateService {
         siteIds: original.siteIds,
         xpValue: original.xpValue,
         isActive: true,
+        updatedAt: new Date(),
       },
     });
   }
@@ -199,7 +226,7 @@ export class OpTemplateService {
   /**
    * Get starter templates for new campgrounds
    */
-  getStarterTemplates(): Partial<CreateOpTaskTemplateDto>[] {
+  getStarterTemplates(): CreateOpTaskTemplateDto[] {
     return [
       {
         name: 'Cabin Turnover',
@@ -337,10 +364,7 @@ export class OpTemplateService {
       });
 
       if (!existing) {
-        const newTemplate = await this.create(
-          campgroundId,
-          template as CreateOpTaskTemplateDto,
-        );
+        const newTemplate = await this.create(campgroundId, template);
         created.push(newTemplate);
       }
     }

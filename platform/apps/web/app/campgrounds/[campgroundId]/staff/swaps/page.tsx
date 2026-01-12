@@ -59,8 +59,8 @@ type SwapRequest = {
   };
 };
 
-const SPRING_CONFIG = {
-  type: "spring" as const,
+const SPRING_CONFIG: { type: "spring"; stiffness: number; damping: number } = {
+  type: "spring",
   stiffness: 200,
   damping: 20,
 };
@@ -81,7 +81,8 @@ export default function ShiftSwapsPage({ params }: { params: { campgroundId: str
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [processing, setProcessing] = useState<Set<string>>(new Set());
-  const [activeTab, setActiveTab] = useState<"all" | "incoming" | "outgoing" | "manager">("all");
+  type SwapTab = "all" | "incoming" | "outgoing" | "manager";
+  const [activeTab, setActiveTab] = useState<SwapTab>("all");
 
   const loadSwaps = async () => {
     setLoading(true);
@@ -110,7 +111,7 @@ export default function ShiftSwapsPage({ params }: { params: { campgroundId: str
 
   const userId = whoami?.user?.id;
   const ownershipRoles = whoami?.user?.ownershipRoles ?? [];
-  const membership = whoami?.user?.memberships?.find((m: any) => m.campgroundId === params.campgroundId);
+  const membership = whoami?.user?.memberships?.find((m) => m.campgroundId === params.campgroundId);
   const isManager = ownershipRoles.includes("owner") || ownershipRoles.includes("admin") || membership?.role === "owner" || membership?.role === "admin";
 
   const filteredSwaps = useMemo(() => {
@@ -219,11 +220,17 @@ export default function ShiftSwapsPage({ params }: { params: { campgroundId: str
     });
   };
 
-  const tabs = [
-    { id: "all" as const, label: "All Swaps" },
-    { id: "incoming" as const, label: "Incoming", badge: pendingIncoming },
-    { id: "outgoing" as const, label: "My Requests" },
-    ...(isManager ? [{ id: "manager" as const, label: "Manager Queue", badge: pendingManager }] : []),
+  const managerTab: { id: SwapTab; label: string; badge?: number } = {
+    id: "manager",
+    label: "Manager Queue",
+    badge: pendingManager
+  };
+
+  const tabs: Array<{ id: SwapTab; label: string; badge?: number }> = [
+    { id: "all", label: "All Swaps" },
+    { id: "incoming", label: "Incoming", badge: pendingIncoming },
+    { id: "outgoing", label: "My Requests" },
+    ...(isManager ? [managerTab] : []),
   ];
 
   return (

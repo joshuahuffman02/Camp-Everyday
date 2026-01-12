@@ -3,26 +3,28 @@
  * Used across the dashboard and other pages for consistent motion design.
  */
 
+import type { Transition } from "framer-motion";
+
 // Spring animation config - smooth, natural feeling motion
 export const SPRING_CONFIG = {
-  type: "spring" as const,
+  type: "spring",
   stiffness: 200,
   damping: 20,
-};
+} satisfies Transition;
 
 // Faster spring for micro-interactions
 export const SPRING_FAST = {
-  type: "spring" as const,
+  type: "spring",
   stiffness: 300,
   damping: 25,
-};
+} satisfies Transition;
 
 // Slower spring for larger elements
 export const SPRING_SLOW = {
-  type: "spring" as const,
+  type: "spring",
   stiffness: 150,
   damping: 20,
-};
+} satisfies Transition;
 
 // Stagger delay between items in a list
 export const STAGGER_DELAY = 0.05;

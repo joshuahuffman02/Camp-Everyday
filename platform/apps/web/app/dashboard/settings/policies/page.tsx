@@ -40,6 +40,16 @@ function FormsInfoBanner() {
   );
 }
 
+type CampgroundWithPolicies = Awaited<ReturnType<typeof apiClient.getCampground>> & {
+  cancellationPolicyType?: string | null;
+  cancellationWindowHours?: number | null;
+  cancellationFeeType?: string | null;
+  cancellationFeeFlatCents?: number | null;
+  cancellationFeePercent?: number | null;
+  cancellationNotes?: string | null;
+  depositConfig?: DepositConfig | null;
+};
+
 export default function BookingRulesPage() {
   const [campgroundId, setCampgroundId] = useState<string | null>(null);
   const [policyForm, setPolicyForm] = useState({
@@ -58,21 +68,14 @@ export default function BookingRulesPage() {
     setCampgroundId(id);
   }, []);
 
-  const campgroundQuery = useQuery({
+  const campgroundQuery = useQuery<CampgroundWithPolicies>({
     queryKey: ["campground", campgroundId],
     queryFn: () => apiClient.getCampground(campgroundId!),
     enabled: !!campgroundId,
   });
 
   useEffect(() => {
-    const cg = campgroundQuery.data as {
-      cancellationPolicyType?: string | null;
-      cancellationWindowHours?: number | null;
-      cancellationFeeType?: string | null;
-      cancellationFeeFlatCents?: number | null;
-      cancellationFeePercent?: number | null;
-      cancellationNotes?: string | null;
-    } | undefined;
+    const cg = campgroundQuery.data;
     if (!cg) return;
     setPolicyForm({
       cancellationPolicyType: cg.cancellationPolicyType || "",
@@ -137,7 +140,7 @@ export default function BookingRulesPage() {
                 campgroundId={campgroundId!}
                 initialRule={campgroundQuery.data.depositRule ?? ""}
                 initialPercentage={campgroundQuery.data.depositPercentage ?? null}
-                initialConfig={(campgroundQuery.data as { depositConfig?: DepositConfig | null }).depositConfig ?? null}
+                initialConfig={campgroundQuery.data.depositConfig ?? null}
               />
             </CardContent>
           </Card>

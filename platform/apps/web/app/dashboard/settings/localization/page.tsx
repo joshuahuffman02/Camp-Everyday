@@ -48,7 +48,10 @@ export default function LocalizationSettingsPage() {
       }
       toast({ title: "Localization updated" });
     },
-    onError: (err: any) => toast({ title: "Save failed", description: err?.message ?? "Try again", variant: "destructive" }),
+    onError: (err: unknown) => {
+      const message = err instanceof Error ? err.message : "Try again";
+      toast({ title: "Save failed", description: message, variant: "destructive" });
+    },
   });
 
   const selectedLocaleMeta = useMemo(() => localesQuery.data?.find((l) => l.code === locale), [localesQuery.data, locale]);

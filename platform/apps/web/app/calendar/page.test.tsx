@@ -8,33 +8,121 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { z } from "zod";
 import CalendarPage from "./page";
+import {
+  BlackoutDateSchema,
+  CampgroundSchema,
+  GuestSchema,
+  QuoteSchema,
+  ReservationSchema,
+  SiteSchema,
+} from "@keepr/shared";
 
 // Mock the api client used by the calendar
+const apiClient = {
+  getCampgrounds: vi.fn(),
+  getSites: vi.fn(),
+  getReservations: vi.fn(),
+  getBlackouts: vi.fn(),
+  getAvailability: vi.fn(),
+  checkOverlap: vi.fn(),
+  getQuote: vi.fn(),
+  updateReservation: vi.fn(),
+  createHold: vi.fn(),
+  checkInReservation: vi.fn()
+};
+
 vi.mock("@/lib/api-client", () => {
   return {
-    apiClient: {
-      getCampgrounds: vi.fn(),
-      getSites: vi.fn(),
-      getReservations: vi.fn(),
-      getBlackouts: vi.fn(),
-      getAvailability: vi.fn(),
-      checkOverlap: vi.fn(),
-      getQuote: vi.fn(),
-      updateReservation: vi.fn(),
-      createHold: vi.fn(),
-      checkInReservation: vi.fn()
-    }
+    apiClient
   };
 });
 
-const { apiClient } = require("@/lib/api-client") as typeof import("@/lib/api-client");
+type CampgroundInput = z.input<typeof CampgroundSchema>;
+type SiteInput = z.input<typeof SiteSchema>;
+type ReservationInput = z.input<typeof ReservationSchema>;
+type BlackoutInput = z.input<typeof BlackoutDateSchema>;
+type QuoteInput = z.input<typeof QuoteSchema>;
+type GuestInput = z.input<typeof GuestSchema>;
+
+type AvailabilitySite = SiteInput & {
+  siteClass?: {
+    name: string;
+    rigMaxLength?: number | null;
+    defaultRate: number;
+    maxOccupancy?: number;
+  } | null;
+  isActive?: boolean;
+};
+
+type OverlapCheck = {
+  conflict: boolean;
+  reasons?: string[];
+};
+
+const buildCampground = (overrides: Partial<CampgroundInput> = {}): CampgroundInput => ({
+  id: "cg1",
+  organizationId: "org1",
+  name: "Camp One",
+  slug: "camp-one",
+  depositRule: "percentage_50",
+  ...overrides
+});
+
+const buildSite = (overrides: Partial<SiteInput> = {}): SiteInput => ({
+  id: "s1",
+  campgroundId: "cg1",
+  name: "Site One",
+  siteNumber: "1",
+  siteType: "rv",
+  maxOccupancy: 6,
+  ...overrides
+});
+
+const buildGuest = (overrides: Partial<GuestInput> = {}): GuestInput => ({
+  id: "g1",
+  primaryFirstName: "Guest",
+  primaryLastName: "One",
+  email: "guest@example.com",
+  ...overrides
+});
+
+const buildReservation = (overrides: Partial<ReservationInput> = {}): ReservationInput => ({
+  id: "r1",
+  siteId: "s1",
+  campgroundId: "cg1",
+  guestId: "g1",
+  arrivalDate: "2025-01-01",
+  departureDate: "2025-01-03",
+  adults: 2,
+  status: "confirmed",
+  totalAmount: 30000,
+  guest: buildGuest(),
+  ...overrides
+});
+
+const buildAvailabilitySite = (overrides: Partial<AvailabilitySite> = {}): AvailabilitySite => ({
+  ...buildSite(),
+  siteClassId: null,
+  siteClass: null,
+  isActive: true,
+  ...overrides
+});
+
+const defaultQuote: QuoteInput = {
+  nights: 2,
+  baseSubtotalCents: 20000,
+  rulesDeltaCents: 0,
+  totalCents: 22000,
+  perNightCents: 11000
+};
 
 function createWrapper(initialData?: {
-  campgrounds?: any[];
-  sites?: any[];
-  reservations?: any[];
-  blackouts?: any[];
+  campgrounds?: CampgroundInput[];
+  sites?: SiteInput[];
+  reservations?: ReservationInput[];
+  blackouts?: BlackoutInput[];
 }) {
   const qc = new QueryClient({
     defaultOptions: {
@@ -58,25 +146,15 @@ describe("CalendarPage", () => {
     vi.useRealTimers();
     vi.setSystemTime(new Date("2025-01-01T00:00:00Z"));
     localStorage.setItem("campreserv:selectedCampground", "cg1");
-    (apiClient.getCampgrounds as vi.Mock).mockResolvedValue([
-      { id: "cg1", name: "Camp One", depositRule: "50% due on booking" }
-    ]);
-    (apiClient.getSites as vi.Mock).mockResolvedValue([
-      { id: "s1", campgroundId: "cg1", name: "Site One", siteType: "rv_full", maxOccupancy: 6 }
-    ]);
-    (apiClient.getReservations as vi.Mock).mockResolvedValue([]);
-    (apiClient.getBlackouts as vi.Mock).mockResolvedValue([]);
-    (apiClient.getAvailability as vi.Mock).mockResolvedValue([{ id: "s1" }]);
-    (apiClient.checkOverlap as vi.Mock).mockResolvedValue({ conflict: false });
-    (apiClient.getQuote as vi.Mock).mockResolvedValue({
-      nights: 2,
-      baseSubtotalCents: 20000,
-      rulesDeltaCents: 0,
-      totalCents: 22000,
-      perNightCents: 11000
-    });
-    (apiClient.createHold as vi.Mock).mockResolvedValue({ id: "h1" });
-    (apiClient.updateReservation as vi.Mock).mockResolvedValue({});
+    apiClient.getCampgrounds.mockResolvedValue([buildCampground()]);
+    apiClient.getSites.mockResolvedValue([buildSite({ siteType: "rv" })]);
+    apiClient.getReservations.mockResolvedValue([]);
+    apiClient.getBlackouts.mockResolvedValue([]);
+    apiClient.getAvailability.mockResolvedValue([buildAvailabilitySite()]);
+    apiClient.checkOverlap.mockResolvedValue({ conflict: false } satisfies OverlapCheck);
+    apiClient.getQuote.mockResolvedValue({ ...defaultQuote });
+    apiClient.createHold.mockResolvedValue({ id: "h1" });
+    apiClient.updateReservation.mockResolvedValue({});
   });
 
   afterEach(() => {
@@ -118,17 +196,13 @@ describe("CalendarPage", () => {
   });
 
   it("moves an existing reservation when dragged to an earlier date", async () => {
-    (apiClient.getReservations as vi.Mock).mockResolvedValue([
-      {
+    apiClient.getReservations.mockResolvedValue([
+      buildReservation({
         id: "r1",
-        siteId: "s1",
-        campgroundId: "cg1",
         arrivalDate: "2025-01-03",
         departureDate: "2025-01-05",
-        status: "confirmed",
-        totalAmount: 30000,
-        guest: { primaryFirstName: "Guest", primaryLastName: "One" }
-      }
+        guest: buildGuest({ primaryFirstName: "Guest", primaryLastName: "One" })
+      })
     ]);
 
     const user = userEvent.setup();
@@ -156,17 +230,12 @@ describe("CalendarPage", () => {
   });
 
   it("blocks moving a checked-in reservation", async () => {
-    (apiClient.getReservations as vi.Mock).mockResolvedValue([
-      {
+    apiClient.getReservations.mockResolvedValue([
+      buildReservation({
         id: "r2",
-        siteId: "s1",
-        campgroundId: "cg1",
-        arrivalDate: "2025-01-01",
-        departureDate: "2025-01-03",
         status: "checked_in",
-        totalAmount: 30000,
-        guest: { primaryFirstName: "Guest", primaryLastName: "Two" }
-      }
+        guest: buildGuest({ primaryFirstName: "Guest", primaryLastName: "Two" })
+      })
     ]);
     const user = userEvent.setup();
     render(<CalendarPage />, { wrapper: createWrapper() });
@@ -186,7 +255,7 @@ describe("CalendarPage", () => {
   });
 
   it("surfaces overlap conflicts on selection", async () => {
-    (apiClient.checkOverlap as vi.Mock).mockResolvedValue({ conflict: true });
+    apiClient.checkOverlap.mockResolvedValue({ conflict: true } satisfies OverlapCheck);
     const user = userEvent.setup();
     render(<CalendarPage />, { wrapper: createWrapper() });
 
@@ -201,7 +270,7 @@ describe("CalendarPage", () => {
   });
 
   it("shows availability errors but keeps selection flow usable", async () => {
-    (apiClient.getAvailability as vi.Mock).mockRejectedValue(new Error("server down"));
+    apiClient.getAvailability.mockRejectedValue(new Error("server down"));
     const user = userEvent.setup();
     render(<CalendarPage />, { wrapper: createWrapper() });
 
@@ -217,19 +286,14 @@ describe("CalendarPage", () => {
   });
 
   it("confirms extension, collects delta, and redirects to payment", async () => {
-    (apiClient.getReservations as vi.Mock).mockResolvedValue([
-      {
+    apiClient.getReservations.mockResolvedValue([
+      buildReservation({
         id: "r3",
-        siteId: "s1",
-        campgroundId: "cg1",
-        arrivalDate: "2025-01-01",
-        departureDate: "2025-01-03",
-        status: "confirmed",
         totalAmount: 20000,
-        guest: { primaryFirstName: "Ext", primaryLastName: "Guest" }
-      }
+        guest: buildGuest({ primaryFirstName: "Ext", primaryLastName: "Guest" })
+      })
     ]);
-    (apiClient.getQuote as vi.Mock).mockResolvedValue({
+    apiClient.getQuote.mockResolvedValue({
       nights: 3,
       baseSubtotalCents: 30000,
       rulesDeltaCents: 0,
@@ -269,19 +333,14 @@ describe("CalendarPage", () => {
   });
 
   it("shows extension quote error and aborts", async () => {
-    (apiClient.getReservations as vi.Mock).mockResolvedValue([
-      {
+    apiClient.getReservations.mockResolvedValue([
+      buildReservation({
         id: "r4",
-        siteId: "s1",
-        campgroundId: "cg1",
-        arrivalDate: "2025-01-01",
-        departureDate: "2025-01-03",
-        status: "confirmed",
         totalAmount: 20000,
-        guest: { primaryFirstName: "Err", primaryLastName: "Guest" }
-      }
+        guest: buildGuest({ primaryFirstName: "Err", primaryLastName: "Guest" })
+      })
     ]);
-    (apiClient.getQuote as vi.Mock).mockRejectedValue(new Error("quote failed"));
+    apiClient.getQuote.mockRejectedValue(new Error("quote failed"));
 
     const user = userEvent.setup();
     render(<CalendarPage />, { wrapper: createWrapper() });
@@ -300,4 +359,3 @@ describe("CalendarPage", () => {
     expect(apiClient.updateReservation).not.toHaveBeenCalled();
   });
 });
-

@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { Prisma, DonationStatus, CharityPayoutStatus } from "@prisma/client";
+import { randomUUID } from "crypto";
 import { postBalancedLedgerEntries } from "../ledger/ledger-posting.util";
 
 // GL Codes for charity accounting
@@ -8,6 +9,15 @@ const GL_CODES = {
   CHARITY_DONATIONS_PAYABLE: "2400", // Liability - money owed to charity
   CHARITY_CASH_COLLECTED: "1010",    // Asset - cash received from guests
   CHARITY_CASH_PAID_OUT: "1010",     // Asset - cash paid to charity
+};
+
+const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined => {
+  if (value === undefined || value === null) return undefined;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
 };
 
 // DTOs
@@ -79,18 +89,26 @@ export class CharityService {
       where.isActive = true;
     }
 
-    return this.prisma.charity.findMany({
+    const charities = await this.prisma.charity.findMany({
       where,
       orderBy: { name: "asc" },
       include: {
         _count: {
           select: {
-            campgroundCharities: true,
-            donations: true,
+            CampgroundCharity: true,
+            CharityDonation: true,
           },
         },
       },
     });
+    return charities.map((charity) => ({
+      ...charity,
+      _count: {
+        ...charity._count,
+        campgroundCharities: charity._count.CampgroundCharity,
+        donations: charity._count.CharityDonation,
+      },
+    }));
   }
 
   async getCharity(id: string) {
@@ -99,8 +117,8 @@ export class CharityService {
       include: {
         _count: {
           select: {
-            campgroundCharities: true,
-            donations: true,
+            CampgroundCharity: true,
+            CharityDonation: true,
           },
         },
       },
@@ -110,18 +128,27 @@ export class CharityService {
       throw new NotFoundException("Charity not found");
     }
 
-    return charity;
+    return {
+      ...charity,
+      _count: {
+        ...charity._count,
+        campgroundCharities: charity._count.CampgroundCharity,
+        donations: charity._count.CharityDonation,
+      },
+    };
   }
 
   async createCharity(data: CreateCharityDto) {
     return this.prisma.charity.create({
       data: {
+        id: randomUUID(),
         name: data.name,
         description: data.description,
         logoUrl: data.logoUrl,
         taxId: data.taxId,
         website: data.website,
         category: data.category,
+        updatedAt: new Date(),
       },
     });
   }
@@ -163,12 +190,15 @@ export class CharityService {
   // ==========================================================================
 
   async getCampgroundCharity(campgroundId: string) {
-    return this.prisma.campgroundCharity.findUnique({
+    const settings = await this.prisma.campgroundCharity.findUnique({
       where: { campgroundId },
       include: {
         Charity: true,
       },
     });
+    if (!settings) return null;
+    const { Charity, ...rest } = settings;
+    return { ...rest, charity: Charity, Charity: undefined };
   }
 
   async setCampgroundCharity(campgroundId: string, data: SetCampgroundCharityDto) {
@@ -178,12 +208,14 @@ export class CharityService {
     if (data.newCharity && !charityId) {
       const newCharity = await this.prisma.charity.create({
         data: {
+          id: randomUUID(),
           name: data.newCharity.name,
           description: data.newCharity.description,
           taxId: data.newCharity.taxId,
           website: data.newCharity.website,
           isActive: true,
           isVerified: false, // Campground-created charities aren't platform-verified
+          updatedAt: new Date(),
         },
       });
       charityId = newCharity.id;
@@ -196,24 +228,30 @@ export class CharityService {
     // Verify charity exists
     await this.getCharity(charityId);
 
-    return this.prisma.campgroundCharity.upsert({
+    const roundUpOptions = data.roundUpOptions
+      ? toJsonValue({ values: [...data.roundUpOptions.values] })
+      : undefined;
+
+    const settings = await this.prisma.campgroundCharity.upsert({
       where: { campgroundId },
       create: {
+        id: randomUUID(),
         campgroundId,
         charityId,
         isEnabled: data.isEnabled ?? true,
         customMessage: data.customMessage,
         roundUpType: data.roundUpType ?? "nearest_dollar",
-        roundUpOptions: data.roundUpOptions as Prisma.InputJsonValue,
+        roundUpOptions,
         defaultOptIn: data.defaultOptIn ?? false,
         glCode: data.glCode ?? "2400",
+        updatedAt: new Date(),
       },
       update: {
         charityId,
         isEnabled: data.isEnabled,
         customMessage: data.customMessage,
         roundUpType: data.roundUpType,
-        roundUpOptions: data.roundUpOptions as Prisma.InputJsonValue,
+        roundUpOptions,
         defaultOptIn: data.defaultOptIn,
         glCode: data.glCode,
       },
@@ -221,6 +259,8 @@ export class CharityService {
         Charity: true,
       },
     });
+    const { Charity, ...rest } = settings;
+    return { ...rest, charity: Charity, Charity: undefined };
   }
 
   async disableCampgroundCharity(campgroundId: string) {
@@ -242,6 +282,7 @@ export class CharityService {
       // Create the donation record
       const donation = await tx.charityDonation.create({
         data: {
+          id: randomUUID(),
           reservationId: data.reservationId,
           charityId: data.charityId,
           campgroundId: data.campgroundId,
@@ -410,18 +451,21 @@ export class CharityService {
     startDate?: Date;
     endDate?: Date;
   }): Promise<CharityStats> {
+    const createdAtFilter =
+      options.startDate || options.endDate
+        ? {
+            ...(options.startDate ? { gte: options.startDate } : {}),
+            ...(options.endDate ? { lte: options.endDate } : {})
+          }
+        : undefined;
+
     const where: Prisma.CharityDonationWhereInput = {
       status: { not: "refunded" },
+      ...(createdAtFilter ? { createdAt: createdAtFilter } : {})
     };
 
     if (options.charityId) where.charityId = options.charityId;
     if (options.campgroundId) where.campgroundId = options.campgroundId;
-    if (options.startDate || options.endDate) {
-      where.createdAt = {};
-      if (options.startDate) where.createdAt.gte = options.startDate;
-      if (options.endDate) where.createdAt.lte = options.endDate;
-    }
-
     // Run all queries in parallel for performance
     const [donations, donors, byStatus, reservationCount] = await Promise.all([
       // Get donation stats
@@ -448,7 +492,7 @@ export class CharityService {
             where: {
               campgroundId: options.campgroundId,
               status: { in: ["confirmed", "checked_in", "checked_out"] },
-              createdAt: where.createdAt,
+              ...(createdAtFilter ? { createdAt: createdAtFilter } : {}),
             },
           })
         : Promise.resolve(0),
@@ -537,10 +581,12 @@ export class CharityService {
     return this.prisma.$transaction(async (tx) => {
       const payout = await tx.charityPayout.create({
         data: {
+          id: randomUUID(),
           charityId,
           amountCents: totalAmountCents,
           status: "pending",
           createdBy,
+          updatedAt: new Date(),
         },
         include: {
           Charity: true,
@@ -567,7 +613,7 @@ export class CharityService {
       where: { id: payoutId },
       include: {
         Charity: true,
-        donations: {
+        CharityDonation: {
           select: { campgroundId: true, amountCents: true },
         },
       },
@@ -601,7 +647,7 @@ export class CharityService {
       // Create ledger entries for each campground involved in this payout
       // Group donations by campground
       const byCampground = new Map<string, number>();
-      for (const donation of payout.donations) {
+      for (const donation of payout.CharityDonation) {
         const current = byCampground.get(donation.campgroundId) ?? 0;
         byCampground.set(donation.campgroundId, current + donation.amountCents);
       }
@@ -655,7 +701,7 @@ export class CharityService {
         where,
         include: {
           Charity: true,
-          _count: { select: { donations: true } },
+          _count: { select: { CharityDonation: true } },
         },
         orderBy: { createdAt: "desc" },
         take: options?.limit ?? 50,

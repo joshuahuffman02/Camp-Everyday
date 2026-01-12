@@ -1,9 +1,12 @@
 "use client";
 
 import { Button } from "../ui/button";
+import { apiClient } from "@/lib/api-client";
+
+type StoreOrder = Awaited<ReturnType<typeof apiClient.createStoreOrder>>;
 
 interface ReceiptViewProps {
-    order: any;
+    order: StoreOrder;
     onNewOrder: () => void;
 }
 

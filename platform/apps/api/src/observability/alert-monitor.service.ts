@@ -7,6 +7,23 @@ import { PrometheusService } from "./prometheus.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { OtaService } from "../ota/ota.service";
 
+type OtaAlert = {
+  provider: string;
+  campgroundId: string;
+  ageMinutes?: number;
+  webhookErrorRate?: number;
+  successRate?: number;
+};
+
+type OtaAlertCollection = {
+  freshnessBreaches: OtaAlert[];
+  webhookBreaches: OtaAlert[];
+  successBreaches: OtaAlert[];
+};
+
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
 @Injectable()
 export class AlertMonitorService {
   private readonly logger = new Logger(AlertMonitorService.name);
@@ -35,14 +52,15 @@ export class AlertMonitorService {
       const breaches: string[] = [];
 
       if (alerts.domain.redeem.breach) breaches.push("redeem failure spike");
-      const offlineQueued = Object.entries((alerts.queues as any).state || {}).some(
-        ([name, state]) => name?.toLowerCase().includes("offline") && ((state as any)?.queued ?? 0) > 0
+      const queueState = alerts.queues.state ?? {};
+      const offlineQueued = Object.entries(queueState).some(
+        ([name, state]) => name.toLowerCase().includes("offline") && (state.queued ?? 0) > 0
       );
       if (alerts.domain.offlineBacklog.breach || offlineQueued) breaches.push("offline backlog");
       if (alerts.domain.offerLag.breach) breaches.push("offer lag high");
       if (alerts.domain.reports.breach) breaches.push("report failures");
-      const hasDlq = Object.entries((alerts.queues as any).state || {}).some(
-        ([name, state]) => name?.toLowerCase().includes("dlq") && ((state as any)?.queued ?? 0) > 0
+      const hasDlq = Object.entries(queueState).some(
+        ([name, state]) => name.toLowerCase().includes("dlq") && (state.queued ?? 0) > 0
       );
       if (hasDlq) breaches.push("DLQ non-empty");
       if (alerts.queues.lagBreaches.length > 0) breaches.push("queue lag");
@@ -61,15 +79,19 @@ export class AlertMonitorService {
       }
 
       if (this.otaAlertsEnabled) {
-        const ota = this.otaService.alerts?.() ?? { freshnessBreaches: [], webhookBreaches: [], successBreaches: [] };
+        const ota: OtaAlertCollection = this.otaService.alerts();
         // Emit into observability domain for OTA backlog visibility
-        [...(ota.freshnessBreaches || []), ...(ota.webhookBreaches || []), ...(ota.successBreaches || [])].forEach((b: any) => {
-          const ageSeconds = typeof b.ageMinutes === "number" ? b.ageMinutes * 60 : undefined;
-          this.observability.recordOtaStatus(!(b.webhookErrorRate || b.ageMinutes === Infinity || (b.successRate ?? 1) < 0.95), ageSeconds, b);
+        [...ota.freshnessBreaches, ...ota.webhookBreaches, ...ota.successBreaches].forEach((breach) => {
+          const ageSeconds = typeof breach.ageMinutes === "number" ? breach.ageMinutes * 60 : undefined;
+          this.observability.recordOtaStatus(
+            !(breach.webhookErrorRate || breach.ageMinutes === Infinity || (breach.successRate ?? 1) < 0.95),
+            ageSeconds,
+            breach
+          );
         });
-        if ((ota as any).freshnessBreaches?.length) breaches.push("OTA backlog/freshness");
-        if ((ota as any).webhookBreaches?.length) breaches.push("OTA webhook error rate");
-        if ((ota as any).successBreaches?.length) breaches.push("OTA success rate drop");
+        if (ota.freshnessBreaches.length > 0) breaches.push("OTA backlog/freshness");
+        if (ota.webhookBreaches.length > 0) breaches.push("OTA webhook error rate");
+        if (ota.successBreaches.length > 0) breaches.push("OTA success rate drop");
       }
 
       const failedSynthetics = Object.entries(alerts.synthetics || {}).filter(([, v]) => v && !v.ok);
@@ -121,15 +143,15 @@ export class AlertMonitorService {
       for (const breach of breaches) {
         this.prometheus.incCounter("alert_breaches_total", { breach });
       }
-    } catch (err) {
-      this.logger.error(`Alert evaluation failed: ${(err as any)?.message ?? err}`);
+    } catch (err: unknown) {
+      this.logger.error(`Alert evaluation failed: ${getErrorMessage(err)}`);
     }
   }
 
   private async reportWindowSignal() {
     const since = new Date(Date.now() - 60 * 60 * 1000);
     const [failures, total] = await Promise.all([
-      this.prisma.reportRun.count({ where: { createdAt: { gte: since }, status: { in: ["failed", "error"] as any } } }),
+      this.prisma.reportRun.count({ where: { createdAt: { gte: since }, status: { in: ["failed", "error"] } } }),
       this.prisma.reportRun.count({ where: { createdAt: { gte: since } } }),
     ]);
     const rate = total === 0 ? 0 : failures / total;

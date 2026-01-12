@@ -20,39 +20,78 @@ interface GuestCheckoutModalProps {
     onClose: () => void;
     cart: CartItem[];
     campgroundId: string;
-    guest: any; // Using any for now, ideally Guest type
-    onSuccess: (order: any) => void;
+    guest: PortalGuest | null;
+    onSuccess: (order: StoreOrder) => void;
     isOnline: boolean;
-    queueOrder: (payload: any) => void;
+    queueOrder: (payload: StoreOrderPayload) => void;
     onQueued: () => void;
 }
 
 type PaymentMethod = "card" | "charge_to_site";
+type FulfillmentType = "pickup" | "curbside" | "delivery" | "table_service";
+
+type GuestReservation = {
+    status?: string | null;
+    site?: { siteNumber?: string | null } | null;
+};
+
+type PortalGuest = {
+    reservations?: GuestReservation[];
+};
+
+type StoreOrderPayload = {
+    items: Array<{ productId: string; qty: number }>;
+    paymentMethod: PaymentMethod;
+    channel: "online";
+    fulfillmentType: FulfillmentType;
+    charityDonation?: {
+        charityId: string;
+        amountCents: number;
+    };
+    siteNumber?: string;
+    deliveryInstructions?: string;
+};
+
+type StoreOrder = Awaited<ReturnType<typeof apiClient.createStoreOrder>>;
+
+type CharityDonation = {
+    optedIn: boolean;
+    amountCents: number;
+    charityId: string | null;
+};
+
+const getErrorMessage = (err: unknown) =>
+    err instanceof Error ? err.message : "Failed to process order";
 
 export function GuestCheckoutModal({ isOpen, onClose, cart, campgroundId, guest, onSuccess, isOnline, queueOrder, onQueued }: GuestCheckoutModalProps) {
     const [method, setMethod] = useState<PaymentMethod>("charge_to_site");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [fulfillment, setFulfillment] = useState<"pickup" | "curbside" | "delivery" | "table_service">("delivery");
+    const [fulfillment, setFulfillment] = useState<FulfillmentType>("delivery");
     const [instructions, setInstructions] = useState("");
     const [locationHint, setLocationHint] = useState("");
-    const [charityDonation, setCharityDonation] = useState<{ optedIn: boolean; amountCents: number; charityId: string | null }>({ optedIn: false, amountCents: 0, charityId: null });
+    const [charityDonation, setCharityDonation] = useState<CharityDonation>({
+        optedIn: false,
+        amountCents: 0,
+        charityId: null
+    });
 
     const subtotalCents = cart.reduce((sum, item) => sum + item.priceCents * item.qty, 0);
     const totalCents = subtotalCents + (charityDonation.optedIn ? charityDonation.amountCents : 0);
 
     // Find active reservation
     const currentReservation = guest?.reservations?.find(
-        (r: any) => r.status === "checked_in" || r.status === "confirmed"
+        (reservation) => reservation.status === "checked_in" || reservation.status === "confirmed"
     );
 
-    const canChargeToSite = !!currentReservation;
+    const currentSiteNumber = currentReservation?.site?.siteNumber ?? undefined;
+    const canChargeToSite = Boolean(currentSiteNumber);
 
     const handleSubmit = async () => {
         setLoading(true);
         setError(null);
         try {
-            const payload: any = {
+            const payload: StoreOrderPayload = {
                 items: cart.map(item => ({ productId: item.id, qty: item.qty })),
                 paymentMethod: method,
                 channel: "online",
@@ -67,8 +106,10 @@ export function GuestCheckoutModal({ isOpen, onClose, cart, campgroundId, guest,
                 if (!currentReservation) {
                     throw new Error("No active reservation found to charge to.");
                 }
-                // We pass the site number from the reservation
-                payload.siteNumber = currentReservation.site.siteNumber;
+                if (!currentSiteNumber) {
+                    throw new Error("Reservation does not have a site assigned.");
+                }
+                payload.siteNumber = currentSiteNumber;
             }
 
             if (!payload.siteNumber && locationHint) {
@@ -90,10 +131,10 @@ export function GuestCheckoutModal({ isOpen, onClose, cart, campgroundId, guest,
             const order = await apiClient.createStoreOrder(campgroundId, payload);
             recordTelemetry({ source: "portal-store", type: "sync", status: "success", message: "Order processed", meta: { items: cart.length, paymentMethod: method } });
             onSuccess(order);
-        } catch (err: any) {
+        } catch (err) {
             console.error(err);
-            setError(err.message || "Failed to process order");
-            recordTelemetry({ source: "portal-store", type: "error", status: "failed", message: "Order failed", meta: { error: err?.message } });
+            setError(getErrorMessage(err));
+            recordTelemetry({ source: "portal-store", type: "error", status: "failed", message: "Order failed", meta: { error: getErrorMessage(err) } });
         } finally {
             setLoading(false);
         }
@@ -198,9 +239,9 @@ export function GuestCheckoutModal({ isOpen, onClose, cart, campgroundId, guest,
                         </button>
                     </div>
 
-                    {method === "charge_to_site" && currentReservation && (
+                    {method === "charge_to_site" && currentSiteNumber && (
                         <div className="p-3 bg-muted rounded-md text-sm">
-                            Charging to <strong>Site {currentReservation.site.siteNumber}</strong>
+                            Charging to <strong>Site {currentSiteNumber}</strong>
                         </div>
                     )}
 

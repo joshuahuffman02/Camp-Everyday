@@ -10,9 +10,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/components/ui/use-toast";
 import { RefreshCw, Zap, Lock } from "lucide-react";
 
+type UtilityMeter = Awaited<ReturnType<typeof ApiClient.getUtilityMeters>>[number];
+type SmartLock = Awaited<ReturnType<typeof ApiClient.getSmartLocks>>[number];
+
 export default function DeviceRegistryPage() {
-    const [meters, setMeters] = useState<any[]>([]);
-    const [locks, setLocks] = useState<any[]>([]);
+    const [meters, setMeters] = useState<UtilityMeter[]>([]);
+    const [locks, setLocks] = useState<SmartLock[]>([]);
     const [loading, setLoading] = useState(false);
     const [simulating, setSimulating] = useState(false);
     const { toast } = useToast();
@@ -155,29 +158,35 @@ export default function DeviceRegistryPage() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {locks.map((lock) => (
-                                        <TableRow key={lock.id}>
-                                            <TableCell>{lock.name || "Unknown Lock"}</TableCell>
-                                            <TableCell className="capitalize">{lock.vendor}</TableCell>
-                                            <TableCell>{lock.siteId || "-"}</TableCell>
-                                            <TableCell>
-                                                <Badge variant={lock.status === 'locked' ? 'default' : 'destructive'}>
-                                                    {lock.status}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="flex items-center gap-2">
-                                                    <div className={`h-2.5 w-full max-w-[50px] bg-secondary rounded-full overflow-hidden`}>
-                                                        <div
-                                                            className={`h-full ${lock.batteryLevel < 20 ? 'bg-red-500' : 'bg-green-500'}`}
-                                                            style={{ width: `${lock.batteryLevel || 0}%` }}
-                                                        />
+                                    {locks.map((lock) => {
+                                        const batteryLevel =
+                                            typeof lock.batteryLevel === "number"
+                                                ? lock.batteryLevel
+                                                : 0;
+                                        return (
+                                            <TableRow key={lock.id}>
+                                                <TableCell>{lock.name || "Unknown Lock"}</TableCell>
+                                                <TableCell className="capitalize">{lock.vendor}</TableCell>
+                                                <TableCell>{lock.siteId || "-"}</TableCell>
+                                                <TableCell>
+                                                    <Badge variant={lock.status === 'locked' ? 'default' : 'destructive'}>
+                                                        {lock.status}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="h-2.5 w-full max-w-[50px] bg-secondary rounded-full overflow-hidden">
+                                                            <div
+                                                                className={`h-full ${batteryLevel < 20 ? 'bg-red-500' : 'bg-green-500'}`}
+                                                                style={{ width: `${batteryLevel}%` }}
+                                                            />
+                                                        </div>
+                                                        <span className="text-sm">{batteryLevel}%</span>
                                                     </div>
-                                                    <span className="text-sm">{lock.batteryLevel}%</span>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })}
                                     {locks.length === 0 && !loading && (
                                         <TableRow>
                                             <TableCell colSpan={5} className="text-center h-24 text-muted-foreground">

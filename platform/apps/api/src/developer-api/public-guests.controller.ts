@@ -5,6 +5,7 @@ import { ApiScopes } from "./decorators/api-scopes.decorator";
 import { PublicApiService } from "./public-api.service";
 import { IsEmail, IsOptional, IsString } from "class-validator";
 import type { Request } from "express";
+import type { ApiPrincipal } from "./types";
 
 class CreateGuestBody {
   @IsString() primaryFirstName!: string;
@@ -20,6 +21,8 @@ class UpdateGuestBody {
   @IsString() @IsOptional() phone?: string;
 }
 
+type ApiRequest = Request & { apiPrincipal: ApiPrincipal };
+
 @Controller("developer/guests")
 @UseGuards(ApiTokenGuard, ApiScopeGuard)
 export class PublicGuestsController {
@@ -27,37 +30,36 @@ export class PublicGuestsController {
 
   @Get()
   @ApiScopes("guests:read")
-  list(@Req() req: Request) {
+  list(@Req() req: ApiRequest) {
     const campgroundId = req.apiPrincipal.campgroundId;
     return this.api.listGuests(campgroundId);
   }
 
   @Get(":id")
   @ApiScopes("guests:read")
-  get(@Req() req: Request, @Param("id") id: string) {
+  get(@Req() req: ApiRequest, @Param("id") id: string) {
     const campgroundId = req.apiPrincipal.campgroundId;
     return this.api.getGuest(campgroundId, id);
   }
 
   @Post()
   @ApiScopes("guests:write")
-  create(@Req() req: Request, @Body() body: CreateGuestBody) {
+  create(@Req() req: ApiRequest, @Body() body: CreateGuestBody) {
     const campgroundId = req.apiPrincipal.campgroundId;
     return this.api.createGuest(campgroundId, body);
   }
 
   @Patch(":id")
   @ApiScopes("guests:write")
-  update(@Req() req: Request, @Param("id") id: string, @Body() body: UpdateGuestBody) {
+  update(@Req() req: ApiRequest, @Param("id") id: string, @Body() body: UpdateGuestBody) {
     const campgroundId = req.apiPrincipal.campgroundId;
     return this.api.updateGuest(campgroundId, id, body);
   }
 
   @Delete(":id")
   @ApiScopes("guests:write")
-  remove(@Req() req: Request, @Param("id") id: string) {
+  remove(@Req() req: ApiRequest, @Param("id") id: string) {
     const campgroundId = req.apiPrincipal.campgroundId;
     return this.api.deleteGuest(campgroundId, id);
   }
 }
-

@@ -35,6 +35,7 @@ const earlyAccessBenefits = [
       'Early access pricing is locked forever. As we grow and add features, your rate stays the same.',
   },
 ];
+const EASE_OUT: "easeOut" = "easeOut";
 
 export function Testimonials() {
   const ref = useRef<HTMLElement>(null);
@@ -54,7 +55,7 @@ export function Testimonials() {
     visible: {
       opacity: 1,
       y: 0,
-      transition: prefersReducedMotion ? undefined : { duration: 0.5, ease: 'easeOut' as const },
+      transition: prefersReducedMotion ? undefined : { duration: 0.5, ease: EASE_OUT },
     },
   };
 

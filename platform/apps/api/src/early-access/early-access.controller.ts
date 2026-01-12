@@ -100,7 +100,7 @@ export class EarlyAccessController {
    * Admin endpoint - get early access stats
    */
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.super_admin)
+  @Roles("platform_admin")
   @Get("admin/stats")
   getStats() {
     return this.earlyAccess.getEarlyAccessStats();
@@ -110,7 +110,7 @@ export class EarlyAccessController {
    * Admin endpoint - get all pending onboardings
    */
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.super_admin)
+  @Roles("platform_admin")
   @Get("admin/pending")
   getPendingOnboardings() {
     return this.earlyAccess.getPendingOnboardings();
@@ -120,7 +120,7 @@ export class EarlyAccessController {
    * Admin endpoint - resend email for a specific session
    */
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.super_admin)
+  @Roles("platform_admin")
   @Post("admin/resend/:sessionId")
   adminResendEmail(@Param("sessionId") sessionId: string) {
     return this.earlyAccess.adminResendEmail(sessionId);

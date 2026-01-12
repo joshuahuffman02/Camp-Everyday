@@ -4,6 +4,7 @@ import { StoredValueStatus } from "@prisma/client";
 import { StoredValueService } from "../stored-value/stored-value.service";
 import { postBalancedLedgerEntries } from "../ledger/ledger-posting.util";
 import type { AuthUser } from "../auth/auth.types";
+import { randomUUID } from "crypto";
 
 type RedemptionChannel = "booking" | "pos";
 
@@ -31,6 +32,9 @@ type GiftCardActor = AuthUser & {
   campgroundId: string;
   tenantId?: string | null;
 };
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
 
 @Injectable()
 export class GiftCardsService {
@@ -93,7 +97,7 @@ export class GiftCardsService {
           code,
           amountCents,
           currency: card.currency ?? "usd",
-          redeemCampgroundId: actor?.campgroundId ?? null,
+          redeemCampgroundId: actor?.campgroundId ?? undefined,
           referenceType: "reservation",
           referenceId: bookingId,
           channel: "booking"
@@ -101,6 +105,10 @@ export class GiftCardsService {
         undefined,
         actor
       );
+      const redeemedBalanceCents =
+        isRecord(redeemResult) && typeof redeemResult.balanceCents === "number"
+          ? redeemResult.balanceCents
+          : card.balanceCents - amountCents;
 
       // 3. Calculate new paid amount
       const newPaid = (lockedReservation.paidAmount ?? 0) + amountCents;
@@ -122,6 +130,7 @@ export class GiftCardsService {
       const paymentRef = `GIFT-${code}-${Date.now()}`;
       await tx.payment.create({
         data: {
+          id: randomUUID(),
           campgroundId: lockedReservation.campgroundId,
           reservationId: bookingId,
           amountCents,
@@ -138,8 +147,8 @@ export class GiftCardsService {
         include: { SiteClass: true }
       });
 
-      const revenueGl = site?.siteClass?.glCode ?? "REVENUE_UNMAPPED";
-      const revenueAccount = site?.siteClass?.clientAccount ?? "Revenue";
+      const revenueGl = site?.SiteClass?.glCode ?? "REVENUE_UNMAPPED";
+      const revenueAccount = site?.SiteClass?.clientAccount ?? "Revenue";
 
       // 8. Post balanced ledger entries
       // Debit: Stored Value Liability (decrease liability as card is redeemed)
@@ -173,7 +182,7 @@ export class GiftCardsService {
 
       return {
         code,
-        balanceCents: redeemResult.balanceCents,
+        balanceCents: redeemedBalanceCents,
         redeemedCents: amountCents,
         channel: "booking",
         referenceId: bookingId,
@@ -216,7 +225,7 @@ export class GiftCardsService {
         code,
         amountCents,
         currency: card.currency ?? "usd",
-        redeemCampgroundId: actor?.campgroundId ?? null,
+        redeemCampgroundId: actor?.campgroundId ?? undefined,
         referenceType: context.channel === "booking" ? "reservation" : "pos_order",
         referenceId: context.referenceId,
         channel: context.channel
@@ -227,7 +236,10 @@ export class GiftCardsService {
 
     return {
       code,
-      balanceCents: result.balanceCents ?? card.balanceCents - amountCents,
+      balanceCents:
+        isRecord(result) && typeof result.balanceCents === "number"
+          ? result.balanceCents
+          : card.balanceCents - amountCents,
       redeemedCents: amountCents,
       channel: context.channel,
       referenceId: context.referenceId
@@ -239,18 +251,22 @@ export class GiftCardsService {
     const storedValueCode = await this.prisma.storedValueCode.findUnique({
       where: { code },
       include: {
-        account: true
+        StoredValueAccount: true
       }
     });
 
-    if (storedValueCode && storedValueCode.active && storedValueCode.account.status === StoredValueStatus.active) {
+    if (
+      storedValueCode &&
+      storedValueCode.active &&
+      storedValueCode.StoredValueAccount.status === StoredValueStatus.active
+    ) {
       const { balanceCents } = await this.storedValue.balanceByAccount(storedValueCode.accountId);
-      const kind = storedValueCode.account.type === "gift" ? "gift_card" : "store_credit";
+      const kind = storedValueCode.StoredValueAccount.type === "gift" ? "gift_card" : "store_credit";
 
       return {
         code,
         balanceCents,
-        currency: storedValueCode.account.currency,
+        currency: storedValueCode.StoredValueAccount.currency,
         kind,
         accountId: storedValueCode.accountId
       };

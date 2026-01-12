@@ -1,4 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
+import { randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { IntegrationProvider } from "./framework/integration-provider.interface";
 import { IntegrationFrameworkService } from "./framework/integration-framework.service";
@@ -34,6 +36,14 @@ export interface IntegrationListing {
   connectionStatus?: string;
   lastSyncAt?: Date;
 }
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const toRecordOrNull = (value: Prisma.JsonValue | null): Record<string, unknown> | null => {
+  if (value === null) return null;
+  return isRecord(value) ? value : null;
+};
 
 /**
  * Integration Registry Service
@@ -119,7 +129,7 @@ export class IntegrationRegistryService implements OnModuleInit {
     category?: string;
     activeOnly?: boolean;
   }): Promise<IntegrationListing[]> {
-    const where: any = {};
+    const where: Prisma.IntegrationDefinitionWhereInput = {};
 
     if (options?.activeOnly !== false) {
       where.isActive = true;
@@ -144,7 +154,7 @@ export class IntegrationRegistryService implements OnModuleInit {
       docsUrl: def.docsUrl,
       authType: def.authType,
       syncTypes: def.syncTypes,
-      features: def.features as Record<string, unknown> | null,
+      features: toRecordOrNull(def.features),
       isActive: def.isActive,
       isBeta: def.isBeta,
       isPremium: def.isPremium,
@@ -171,7 +181,7 @@ export class IntegrationRegistryService implements OnModuleInit {
       docsUrl: definition.docsUrl,
       authType: definition.authType,
       syncTypes: definition.syncTypes,
-      features: definition.features as Record<string, unknown> | null,
+      features: toRecordOrNull(definition.features),
       isActive: definition.isActive,
       isBeta: definition.isBeta,
       isPremium: definition.isPremium,
@@ -219,8 +229,8 @@ export class IntegrationRegistryService implements OnModuleInit {
     const connections = await this.prisma.marketplaceConnection.findMany({
       where: { campgroundId },
       include: {
-        definition: true,
-        syncLogs: {
+        IntegrationDefinition: true,
+        MarketplaceSyncLog: {
           orderBy: { startedAt: "desc" },
           take: 1,
         },
@@ -231,10 +241,10 @@ export class IntegrationRegistryService implements OnModuleInit {
     return connections.map((conn) => ({
       id: conn.id,
       integration: {
-        slug: conn.definition.slug,
-        name: conn.definition.name,
-        category: conn.definition.category,
-        logoUrl: conn.definition.logoUrl,
+        slug: conn.IntegrationDefinition.slug,
+        name: conn.IntegrationDefinition.name,
+        category: conn.IntegrationDefinition.category,
+        logoUrl: conn.IntegrationDefinition.logoUrl,
       },
       status: conn.status,
       lastSyncAt: conn.lastSyncAt,
@@ -243,7 +253,7 @@ export class IntegrationRegistryService implements OnModuleInit {
       syncEnabled: conn.syncEnabled,
       createdAt: conn.createdAt,
       updatedAt: conn.updatedAt,
-      lastLog: conn.syncLogs[0] || null,
+      lastLog: conn.MarketplaceSyncLog[0] || null,
     }));
   }
 
@@ -305,7 +315,8 @@ export class IntegrationRegistryService implements OnModuleInit {
    * Seed default integration definitions
    */
   private async seedDefaultDefinitions() {
-    const definitions = [
+    const now = new Date();
+    const definitions: Array<Omit<Prisma.IntegrationDefinitionCreateInput, "id">> = [
       {
         slug: "quickbooks",
         name: "QuickBooks Online",
@@ -325,6 +336,7 @@ export class IntegrationRegistryService implements OnModuleInit {
         isActive: true,
         isBeta: false,
         sortOrder: 10,
+        updatedAt: now,
       },
       {
         slug: "xero",
@@ -345,6 +357,7 @@ export class IntegrationRegistryService implements OnModuleInit {
         isActive: true,
         isBeta: false,
         sortOrder: 20,
+        updatedAt: now,
       },
       {
         slug: "mailchimp",
@@ -365,6 +378,7 @@ export class IntegrationRegistryService implements OnModuleInit {
         isActive: true,
         isBeta: false,
         sortOrder: 30,
+        updatedAt: now,
       },
       {
         slug: "klaviyo",
@@ -385,6 +399,7 @@ export class IntegrationRegistryService implements OnModuleInit {
         isActive: true,
         isBeta: false,
         sortOrder: 40,
+        updatedAt: now,
       },
       {
         slug: "remotelock",
@@ -405,6 +420,7 @@ export class IntegrationRegistryService implements OnModuleInit {
         isActive: true,
         isBeta: false,
         sortOrder: 50,
+        updatedAt: now,
       },
       {
         slug: "august",
@@ -425,6 +441,7 @@ export class IntegrationRegistryService implements OnModuleInit {
         isActive: true,
         isBeta: true,
         sortOrder: 60,
+        updatedAt: now,
       },
     ];
 
@@ -432,7 +449,10 @@ export class IntegrationRegistryService implements OnModuleInit {
       try {
         await this.prisma.integrationDefinition.upsert({
           where: { slug: def.slug },
-          create: def as any,
+          create: {
+            id: randomUUID(),
+            ...def,
+          },
           update: {
             name: def.name,
             description: def.description,
@@ -442,12 +462,13 @@ export class IntegrationRegistryService implements OnModuleInit {
             authType: def.authType,
             syncTypes: def.syncTypes,
             webhookTypes: def.webhookTypes,
-            features: def.features as any,
+            features: def.features,
             sortOrder: def.sortOrder,
           },
         });
       } catch (error) {
-        this.logger.warn(`Failed to seed ${def.slug}: ${(error as Error).message}`);
+        const message = error instanceof Error ? error.message : String(error);
+        this.logger.warn(`Failed to seed ${def.slug}: ${message}`);
       }
     }
 

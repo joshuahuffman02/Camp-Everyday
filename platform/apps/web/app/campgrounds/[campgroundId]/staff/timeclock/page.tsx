@@ -36,14 +36,6 @@ type Shift = {
   timeEntries?: { id: string; clockInAt: string; clockOutAt?: string | null }[];
 };
 
-interface WhoamiUser {
-  id: string;
-  email: string;
-  name?: string;
-  firstName?: string;
-  lastName?: string;
-}
-
 type BreakType = "paid" | "unpaid" | "meal" | "rest";
 
 type ActiveBreak = {
@@ -52,8 +44,8 @@ type ActiveBreak = {
   startedAt: string;
 };
 
-const SPRING_CONFIG = {
-  type: "spring" as const,
+const SPRING_CONFIG: { type: "spring"; stiffness: number; damping: number } = {
+  type: "spring",
   stiffness: 200,
   damping: 20,
 };
@@ -100,7 +92,7 @@ export default function TimeclockPage({ params }: { params: { campgroundId: stri
         );
         if (res.ok) {
           const data: Shift[] = await res.json();
-          const currentUser = whoami.user as WhoamiUser | undefined;
+          const currentUser = whoami?.user;
           const mine = data.filter((s) => s.userId === currentUser?.id);
           setShifts(mine);
         }
@@ -286,8 +278,12 @@ export default function TimeclockPage({ params }: { params: { campgroundId: stri
               <User className="w-4 h-4" />
               <span className="text-sm">
                 {(() => {
-                  const user = whoami.user as WhoamiUser | undefined;
-                  return user?.name || user?.email || "Staff Member";
+                  const user = whoami?.user;
+                  const nameParts = [user?.firstName, user?.lastName].filter(
+                    (part): part is string => Boolean(part)
+                  );
+                  const displayName = nameParts.length > 0 ? nameParts.join(" ") : undefined;
+                  return displayName || user?.email || "Staff Member";
                 })()}
               </span>
             </div>

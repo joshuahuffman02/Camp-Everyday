@@ -33,6 +33,17 @@ const buildEntry = (): ScheduleEntry => ({
 });
 const EMPTY_SELECT_VALUE = "__empty";
 
+const scheduleDirections: ScheduleEntry["direction"][] = ["before", "after"];
+const scheduleUnits: ScheduleEntry["unit"][] = ["days", "hours"];
+const scheduleAnchors: ScheduleEntry["anchor"][] = ["arrival", "departure"];
+
+const isScheduleDirection = (value: string): value is ScheduleEntry["direction"] =>
+  scheduleDirections.some((direction) => direction === value);
+const isScheduleUnit = (value: string): value is ScheduleEntry["unit"] =>
+  scheduleUnits.some((unit) => unit === value);
+const isScheduleAnchor = (value: string): value is ScheduleEntry["anchor"] =>
+  scheduleAnchors.some((anchor) => anchor === value);
+
 function computeSendTime(entry: ScheduleEntry, sendHour: number, arrival: Date, departure: Date) {
   const base = entry.anchor === "arrival" ? arrival : departure;
   const deltaMs = entry.unit === "hours" ? entry.offset * 60 * 60 * 1000 : entry.offset * 24 * 60 * 60 * 1000;
@@ -85,7 +96,10 @@ export default function CommunicationsSettingsPage() {
       qc.invalidateQueries({ queryKey: ["campgrounds"] });
       toast({ title: "Saved", description: "NPS messaging schedule updated." });
     },
-    onError: (err: any) => toast({ title: "Save failed", description: err?.message || "Try again", variant: "destructive" })
+    onError: (err: unknown) => {
+      const message = err instanceof Error ? err.message : "Try again";
+      toast({ title: "Save failed", description: message, variant: "destructive" });
+    }
   });
 
   const templateOptions = templatesQuery.data ?? [];
@@ -94,15 +108,16 @@ export default function CommunicationsSettingsPage() {
     const now = new Date();
     const arrival = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
     const departure = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000);
-    const entries = [...(schedule || []), {
+    const defaultEntry: ScheduleEntry = {
       id: "nps-post-departure-default",
       anchor: "departure",
       direction: "after",
       offset: 1,
       unit: "days",
       templateId: defaultTemplateId,
-      enabled: true
-    } as ScheduleEntry];
+      enabled: true,
+    };
+    const entries = [...(schedule || []), defaultEntry];
     return entries
       .filter((e) => e.enabled !== false)
       .map((entry) => ({
@@ -206,14 +221,15 @@ export default function CommunicationsSettingsPage() {
                     }} />
                     <span className="text-sm text-foreground">On</span>
                   </div>
-                  <Select
-                    value={entry.direction}
-                    onValueChange={(value) => {
+                    <Select
+                      value={entry.direction}
+                      onValueChange={(value) => {
+                      if (!isScheduleDirection(value)) return;
                       const next = [...schedule];
-                      next[idx] = { ...entry, direction: value as ScheduleEntry["direction"] };
+                      next[idx] = { ...entry, direction: value };
                       setSchedule(next);
                     }}
-                  >
+                    >
                     <SelectTrigger className="h-9 text-sm">
                       <SelectValue />
                     </SelectTrigger>
@@ -231,14 +247,15 @@ export default function CommunicationsSettingsPage() {
                       setSchedule(next);
                     }}
                   />
-                  <Select
-                    value={entry.unit}
-                    onValueChange={(value) => {
+                    <Select
+                      value={entry.unit}
+                      onValueChange={(value) => {
+                      if (!isScheduleUnit(value)) return;
                       const next = [...schedule];
-                      next[idx] = { ...entry, unit: value as ScheduleEntry["unit"] };
+                      next[idx] = { ...entry, unit: value };
                       setSchedule(next);
                     }}
-                  >
+                    >
                     <SelectTrigger className="h-9 text-sm">
                       <SelectValue />
                     </SelectTrigger>
@@ -247,14 +264,15 @@ export default function CommunicationsSettingsPage() {
                       <SelectItem value="days">Days</SelectItem>
                     </SelectContent>
                   </Select>
-                  <Select
-                    value={entry.anchor}
-                    onValueChange={(value) => {
+                    <Select
+                      value={entry.anchor}
+                      onValueChange={(value) => {
+                      if (!isScheduleAnchor(value)) return;
                       const next = [...schedule];
-                      next[idx] = { ...entry, anchor: value as ScheduleEntry["anchor"] };
+                      next[idx] = { ...entry, anchor: value };
                       setSchedule(next);
                     }}
-                  >
+                    >
                     <SelectTrigger className="h-9 text-sm">
                       <SelectValue />
                     </SelectTrigger>

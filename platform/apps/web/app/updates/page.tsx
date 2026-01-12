@@ -19,13 +19,21 @@ import {
 } from "../../lib/roadmap-data";
 
 // Helper to render a lucide icon from its name (kebab-case)
-function PhaseIcon({ name, className = "h-5 w-5" }: { name: string; className?: string }) {
-  const iconName = name
-    .split('-')
+const toPascalCase = (value: string) =>
+  value
+    .split("-")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join('') as keyof typeof LucideIcons;
+    .join("");
 
-  const IconComponent = LucideIcons[iconName] as React.ComponentType<{ className?: string }>;
+const isLucideIconName = (value: string): value is keyof typeof LucideIcons => value in LucideIcons;
+
+const isIconComponent = (value: unknown): value is React.ComponentType<{ className?: string }> =>
+  typeof value === "function";
+
+function PhaseIcon({ name, className = "h-5 w-5" }: { name: string; className?: string }) {
+  const iconName = toPascalCase(name);
+  const iconCandidate = isLucideIconName(iconName) ? LucideIcons[iconName] : undefined;
+  const IconComponent = isIconComponent(iconCandidate) ? iconCandidate : null;
 
   if (!IconComponent) {
     return <LucideIcons.Circle className={className} />;

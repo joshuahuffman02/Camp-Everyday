@@ -155,11 +155,13 @@ export function SearchBar({ onSearch }: SearchBarProps) {
     // Close suggestions when clicking outside
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
+            const target = e.target;
+            if (!target || !(target instanceof Node)) return;
             if (
                 suggestionsRef.current &&
-                !suggestionsRef.current.contains(e.target as Node) &&
+                !suggestionsRef.current.contains(target) &&
                 locationInputRef.current &&
-                !locationInputRef.current.contains(e.target as Node)
+                !locationInputRef.current.contains(target)
             ) {
                 setShowLocationSuggestions(false);
             }

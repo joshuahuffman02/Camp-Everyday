@@ -216,7 +216,7 @@ export class PublicValueStackController {
       email: body.email,
       source: body.source,
       marketingOptIn: body.marketingOptIn,
-      ipAddress,
+      ipAddress: ipAddress ?? undefined,
       userAgent,
     });
   }

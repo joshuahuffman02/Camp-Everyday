@@ -18,6 +18,15 @@ import {
   StripeSettingsCard,
 } from "@/components/settings/payments";
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object";
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (typeof error === "string") return error;
+  if (isRecord(error) && typeof error.message === "string") return error.message;
+  return fallback;
+};
+
 export default function PaymentsSettingsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -110,8 +119,8 @@ export default function PaymentsSettingsPage() {
       await apiClient.refreshPaymentCapabilities(campgroundId);
       queryClient.invalidateQueries({ queryKey: ["payment-settings", campgroundId] });
       toast({ title: "Capabilities refreshed", description: "Payment method status updated from Stripe." });
-    } catch (err: any) {
-      toast({ title: "Refresh failed", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      toast({ title: "Refresh failed", description: getErrorMessage(err, "Refresh failed"), variant: "destructive" });
     } finally {
       setRefreshingCapabilities(false);
     }

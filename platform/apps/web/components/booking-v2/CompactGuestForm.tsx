@@ -101,7 +101,10 @@ export function CompactGuestForm({
     siteType?.toLowerCase().includes("rv") ||
     siteType?.toLowerCase().includes("trailer");
 
-  const updateField = (field: keyof GuestFormData, value: any) => {
+  const updateField = <K extends keyof GuestFormData>(
+    field: K,
+    value: GuestFormData[K]
+  ) => {
     onChange({ ...data, [field]: value });
   };
 

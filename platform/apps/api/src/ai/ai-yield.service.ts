@@ -1,9 +1,11 @@
 import { Injectable, Logger } from "@nestjs/common";
+import type { AiPricingRecommendation, AiRevenueInsight } from "@prisma/client";
 import { Cron } from "@nestjs/schedule";
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeService } from "../realtime/realtime.service";
+import { randomUUID } from "crypto";
 
-interface YieldMetrics {
+export interface YieldMetrics {
   // Today's metrics
   todayOccupancy: number; // percentage
   todayRevenue: number; // cents
@@ -35,7 +37,7 @@ interface YieldMetrics {
   potentialRevenue: number; // cents
 }
 
-interface OccupancyForecast {
+export interface OccupancyForecast {
   date: string;
   occupiedSites: number;
   totalSites: number;
@@ -138,6 +140,7 @@ export class AiYieldService {
         },
       },
       create: {
+        id: randomUUID(),
         campgroundId,
         date: targetDate,
         totalSites,
@@ -569,8 +572,8 @@ export class AiYieldService {
     metrics: YieldMetrics;
     occupancyTrend: Array<{ date: string; occupancy: number; revenue: number }>;
     forecasts: OccupancyForecast[];
-    topRecommendations: any[];
-    revenueInsights: any[];
+    topRecommendations: AiPricingRecommendation[];
+    revenueInsights: AiRevenueInsight[];
   }> {
     const [metrics, occupancyTrend, forecastData, recommendations, insights] =
       await Promise.all([

@@ -24,6 +24,7 @@ import {
   getQuickWins,
   type SecurityAssessmentData,
   type SecurityCategory,
+  type SecurityChecklistItem,
   type SecurityCertificationLevel,
 } from "@/lib/security-certification";
 import {
@@ -53,6 +54,45 @@ import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import Confetti from "react-confetti";
 import { useWindowSize } from "@/hooks/use-window-size";
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object";
+
+const isStringArray = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((item) => typeof item === "string");
+
+const isSecurityAssessmentData = (value: unknown): value is SecurityAssessmentData =>
+  isRecord(value) &&
+  isStringArray(value.completedItems) &&
+  (value.notes === undefined || typeof value.notes === "string") &&
+  (value.lastUpdated === undefined || typeof value.lastUpdated === "string");
+
+const getString = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+const getBoolean = (value: unknown): boolean | undefined =>
+  typeof value === "boolean" ? value : undefined;
+
+const isSecurityCategory = (value: string): value is SecurityCategory =>
+  Object.prototype.hasOwnProperty.call(SECURITY_CATEGORIES, value);
+
+const tierLevels: Array<Exclude<SecurityCertificationLevel, "none">> = [
+  "basic",
+  "standard",
+  "advanced",
+  "excellence",
+];
+
+const createEmptyItemsByCategory = (): Record<SecurityCategory, SecurityChecklistItem[]> => ({
+  access_management: [],
+  physical_security: [],
+  employee_training: [],
+  incident_response: [],
+  privacy_practices: [],
+  vendor_management: [],
+});
+
+const securityCategoryList = Object.keys(SECURITY_CATEGORIES).filter(isSecurityCategory);
 
 const SECURITY_TONES: Record<SecurityCertificationLevel, { bg: string; text: string; border: string }> = {
   none: { bg: "bg-muted", text: "text-muted-foreground", border: "border-border" },
@@ -144,20 +184,10 @@ export default function SecurityCertificationPage() {
     const cg = campgroundQuery.data;
     if (!cg) return;
 
-    // Type assertion for extended campground fields not in base schema
-    type CampgroundWithSecurity = typeof cg & {
-      securityAssessment?: SecurityAssessmentData;
-      securityVerified?: boolean;
-      securityVerifiedBy?: string;
-      securityAuditorEmail?: string;
-      securityAuditorOrg?: string;
-      securityCertificationLevel?: string;
-    };
-
-    const cgWithSecurity = cg as CampgroundWithSecurity;
-    const securityData = cgWithSecurity.securityAssessment;
-    if (securityData) {
-      const items = new Set(securityData.completedItems || []);
+    const cgRecord = isRecord(cg) ? cg : null;
+    const securityData = cgRecord ? cgRecord["securityAssessment"] : undefined;
+    if (isSecurityAssessmentData(securityData)) {
+      const items = new Set(securityData.completedItems);
       setCompletedItems(items);
       setInitialCompletedItems(items);
       setNotes(securityData.notes || "");
@@ -166,13 +196,13 @@ export default function SecurityCertificationPage() {
     }
 
     // Load auditor info
-    setIsVerified(cgWithSecurity.securityVerified || false);
-    setAuditorName(cgWithSecurity.securityVerifiedBy || "");
-    setAuditorEmail(cgWithSecurity.securityAuditorEmail || "");
-    setAuditorOrg(cgWithSecurity.securityAuditorOrg || "");
+    setIsVerified(getBoolean(cgRecord ? cgRecord["securityVerified"] : undefined) ?? false);
+    setAuditorName(getString(cgRecord ? cgRecord["securityVerifiedBy"] : undefined) ?? "");
+    setAuditorEmail(getString(cgRecord ? cgRecord["securityAuditorEmail"] : undefined) ?? "");
+    setAuditorOrg(getString(cgRecord ? cgRecord["securityAuditorOrg"] : undefined) ?? "");
 
     // Set previous level for comparison
-    const savedLevel = cgWithSecurity.securityCertificationLevel || "none";
+    const savedLevel = getString(cgRecord ? cgRecord["securityCertificationLevel"] : undefined) || "none";
     setPreviousLevel(savedLevel);
   }, [campgroundQuery.data]);
 
@@ -310,7 +340,7 @@ export default function SecurityCertificationPage() {
     if (!acc[item.category]) acc[item.category] = [];
     acc[item.category].push(item);
     return acc;
-  }, {} as Record<SecurityCategory, typeof SECURITY_CHECKLIST>);
+  }, createEmptyItemsByCategory());
 
   // Check if this is a first-time user (no progress)
   const isFirstTimeUser = stats.totalPoints === 0 && initialCompletedItems.size === 0;
@@ -725,7 +755,7 @@ export default function SecurityCertificationPage() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-              {(["basic", "standard", "advanced", "excellence"] as const).map((level) => {
+              {tierLevels.map((level) => {
                 const info = getSecurityBadgeInfo(level);
                 const threshold = SECURITY_CERTIFICATION_THRESHOLDS[level];
                 const tierOrder = ["none", "basic", "standard", "advanced", "excellence"];
@@ -827,7 +857,7 @@ export default function SecurityCertificationPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {(Object.keys(SECURITY_CATEGORIES) as SecurityCategory[]).map((category) => {
+            {securityCategoryList.map((category) => {
               const categoryInfo = SECURITY_CATEGORIES[category];
               const items = itemsByCategory[category] || [];
               const categoryStats = stats.categoryProgress[category];

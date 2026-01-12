@@ -23,10 +23,31 @@ import { cn } from "@/lib/utils";
 
 type MaintenanceStatus = Maintenance["status"];
 type MaintenancePriority = Maintenance["priority"];
+type MaintenanceRecord = Maintenance & {
+  outOfOrder?: boolean | null;
+  outOfOrderReason?: string | null;
+};
+
+const isMaintenanceStatus = (value: string): value is MaintenanceStatus =>
+  value === "open" || value === "in_progress" || value === "closed";
+
+const toMaintenanceTicket = (ticket: MaintenanceRecord): MaintenanceTicket => ({
+  id: ticket.id,
+  title: ticket.title,
+  description: ticket.description ?? undefined,
+  priority: ticket.priority,
+  status: ticket.status,
+  siteId: ticket.siteId ?? undefined,
+  isBlocking: ticket.isBlocking ?? false,
+  outOfOrder: ticket.outOfOrder ?? false,
+  outOfOrderReason: ticket.outOfOrderReason ?? undefined,
+  dueDate: ticket.dueDate ?? undefined,
+  campgroundId: ticket.campgroundId
+});
 
 export default function MaintenancePage() {
   const { toast } = useToast();
-  const [tickets, setTickets] = useState<Maintenance[]>([]);
+  const [tickets, setTickets] = useState<MaintenanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("open");
@@ -106,7 +127,8 @@ export default function MaintenancePage() {
     try {
       // Fetch all tickets for now, filtering can be done client-side or via API params
       // Assuming apiClient has getMaintenanceTickets method (we need to add it)
-      const data = await apiClient.getMaintenanceTickets(activeTab === "all" ? undefined : activeTab as MaintenanceStatus);
+      const status = activeTab === "all" ? undefined : isMaintenanceStatus(activeTab) ? activeTab : undefined;
+      const data = await apiClient.getMaintenanceTickets(status);
       setTickets(data);
     } catch (error) {
       console.error("Failed to load tickets", error);
@@ -360,10 +382,10 @@ export default function MaintenancePage() {
                         size="sm"
                         variant="ghost"
                         className="text-muted-foreground"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedTicket(ticket as unknown as MaintenanceTicket);
-                        }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedTicket(toMaintenanceTicket(ticket));
+                          }}
                       >
                         <Pencil className="h-3 w-3 mr-1" />
                         Edit

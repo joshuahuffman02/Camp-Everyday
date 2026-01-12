@@ -41,7 +41,9 @@ const REPORT_PAGE_DEFINITIONS: PageDefinition[] = reportCatalog.flatMap((categor
     }];
   }
 
-  const subReports = subTabs[category.id as keyof typeof subTabs] || category.subReports;
+  const isSubTabCategory = (value: string): value is keyof typeof subTabs =>
+    Object.prototype.hasOwnProperty.call(subTabs, value);
+  const subReports = isSubTabCategory(category.id) ? subTabs[category.id] : category.subReports;
 
   return subReports.map((sub) => ({
     href: `/reports/${category.id}/${sub.id}`,

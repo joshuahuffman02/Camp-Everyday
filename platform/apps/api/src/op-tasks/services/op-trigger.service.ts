@@ -11,12 +11,82 @@ import {
   Reservation,
   Site,
   OpTaskState,
+  Prisma,
 } from '@prisma/client';
+import type { OpTaskTemplate } from '@prisma/client';
+import { randomUUID } from 'crypto';
 import {
   CreateOpTaskTriggerDto,
   UpdateOpTaskTriggerDto,
   TriggerConditionsDto,
 } from '../dto/op-task.dto';
+
+type TriggerWithTemplate = OpTaskTrigger & { OpTaskTemplate: OpTaskTemplate };
+
+type ChecklistTemplateItem = {
+  id: string;
+  text: string;
+  required?: boolean;
+  category?: string;
+  estimatedMinutes?: number;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const isStringArray = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((item) => typeof item === "string");
+
+const normalizeChecklistTemplate = (value: unknown): ChecklistTemplateItem[] => {
+  if (!Array.isArray(value)) return [];
+  const items: ChecklistTemplateItem[] = [];
+  for (const item of value) {
+    if (!isRecord(item)) continue;
+    if (typeof item.id !== "string" || typeof item.text !== "string") continue;
+    items.push({
+      id: item.id,
+      text: item.text,
+      required: item.required === true ? true : undefined,
+      category: typeof item.category === "string" ? item.category : undefined,
+      estimatedMinutes: typeof item.estimatedMinutes === "number" ? item.estimatedMinutes : undefined,
+    });
+  }
+  return items;
+};
+
+const normalizeTriggerConditions = (value: unknown): TriggerConditionsDto | null => {
+  if (!isRecord(value)) return null;
+  const conditions: TriggerConditionsDto = {};
+
+  if (isStringArray(value.siteClassIds)) conditions.siteClassIds = value.siteClassIds;
+  if (isStringArray(value.siteIds)) conditions.siteIds = value.siteIds;
+  if (typeof value.minNights === "number") conditions.minNights = value.minNights;
+  if (typeof value.maxNights === "number") conditions.maxNights = value.maxNights;
+  if (typeof value.hasPets === "boolean") conditions.hasPets = value.hasPets;
+  if (typeof value.stayType === "string") conditions.stayType = value.stayType;
+
+  return Object.keys(conditions).length > 0 ? conditions : null;
+};
+
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error && error.message ? error.message : "Unknown error";
+
+const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined => {
+  if (value === undefined || value === null) return undefined;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
+};
+
+const toNullableJsonInput = (
+  value: unknown,
+): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined => {
+  if (value === undefined) return undefined;
+  if (value === null) return Prisma.JsonNull;
+  return toJsonValue(value) ?? Prisma.JsonNull;
+};
 
 @Injectable()
 export class OpTriggerService {
@@ -41,20 +111,22 @@ export class OpTriggerService {
 
     return this.prisma.opTaskTrigger.create({
       data: {
+        id: randomUUID(),
         campgroundId,
         name: dto.name,
         triggerEvent: dto.triggerEvent,
         templateId: dto.templateId,
-        conditions: dto.conditions ?? {},
+        conditions: toNullableJsonInput(dto.conditions ?? {}),
         slaOffsetMinutes: dto.slaOffsetMinutes ?? 0,
         assignToTeamId: dto.assignToTeamId,
         assignToUserId: dto.assignToUserId,
         isActive: true,
+        updatedAt: new Date(),
       },
       include: {
-        template: true,
-        assignToTeam: true,
-        assignToUser: { select: { id: true, firstName: true, lastName: true } },
+        OpTaskTemplate: true,
+        OpTeam: true,
+        User: { select: { id: true, firstName: true, lastName: true } },
       },
     });
   }
@@ -74,10 +146,10 @@ export class OpTriggerService {
       },
       orderBy: [{ triggerEvent: 'asc' }, { name: 'asc' }],
       include: {
-        template: true,
-        assignToTeam: true,
-        assignToUser: { select: { id: true, firstName: true, lastName: true } },
-        _count: { select: { tasks: true } },
+        OpTaskTemplate: true,
+        OpTeam: true,
+        User: { select: { id: true, firstName: true, lastName: true } },
+        _count: { select: { OpTask: true } },
       },
     });
   }
@@ -89,10 +161,10 @@ export class OpTriggerService {
     const trigger = await this.prisma.opTaskTrigger.findUnique({
       where: { id },
       include: {
-        template: true,
-        assignToTeam: true,
-        assignToUser: { select: { id: true, firstName: true, lastName: true } },
-        _count: { select: { tasks: true } },
+        OpTaskTemplate: true,
+        OpTeam: true,
+        User: { select: { id: true, firstName: true, lastName: true } },
+        _count: { select: { OpTask: true } },
       },
     });
 
@@ -127,16 +199,19 @@ export class OpTriggerService {
         ...(dto.name && { name: dto.name }),
         ...(dto.triggerEvent && { triggerEvent: dto.triggerEvent }),
         ...(dto.templateId && { templateId: dto.templateId }),
-        ...(dto.conditions !== undefined && { conditions: dto.conditions ?? {} }),
+        ...(dto.conditions !== undefined && {
+          conditions: toNullableJsonInput(dto.conditions ?? {}),
+        }),
         ...(dto.slaOffsetMinutes !== undefined && { slaOffsetMinutes: dto.slaOffsetMinutes }),
         ...(dto.assignToTeamId !== undefined && { assignToTeamId: dto.assignToTeamId }),
         ...(dto.assignToUserId !== undefined && { assignToUserId: dto.assignToUserId }),
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+        updatedAt: new Date(),
       },
       include: {
-        template: true,
-        assignToTeam: true,
-        assignToUser: { select: { id: true, firstName: true, lastName: true } },
+        OpTaskTemplate: true,
+        OpTeam: true,
+        User: { select: { id: true, firstName: true, lastName: true } },
       },
     });
   }
@@ -169,7 +244,7 @@ export class OpTriggerService {
         triggerEvent: event,
         isActive: true,
       },
-      include: { template: true },
+      include: { OpTaskTemplate: true },
     });
 
     if (triggers.length === 0) {
@@ -182,34 +257,40 @@ export class OpTriggerService {
     for (const trigger of triggers) {
       try {
         // Check if conditions are met
-        if (!this.checkConditions(trigger.conditions as TriggerConditionsDto, context)) {
+        const conditions = normalizeTriggerConditions(trigger.conditions);
+        if (!this.checkConditions(conditions, context)) {
           this.logger.debug(`Trigger ${trigger.id} conditions not met, skipping`);
           continue;
         }
 
+        const template = trigger.OpTaskTemplate;
         // Calculate SLA due time
         const slaDueAt = this.calculateSlaDueTime(trigger, context);
+
+        const checklistItems = normalizeChecklistTemplate(template.checklistTemplate);
+        const checklist = checklistItems.length
+          ? checklistItems.map((item) => ({
+              ...item,
+              completed: false,
+            }))
+          : null;
 
         // Create the task
         const task = await this.prisma.opTask.create({
           data: {
+            id: randomUUID(),
             campgroundId,
-            category: trigger.template.category,
-            title: this.interpolateTitle(trigger.template.name, context),
-            description: trigger.template.description,
-            priority: trigger.template.priority,
+            category: template.category,
+            title: this.interpolateTitle(template.name, context),
+            description: template.description,
+            priority: template.priority,
             siteId: context.siteId,
             reservationId: context.reservationId,
-            assignedToUserId: trigger.assignToUserId ?? trigger.template.defaultAssigneeId,
-            assignedToTeamId: trigger.assignToTeamId ?? trigger.template.defaultTeamId,
+            assignedToUserId: trigger.assignToUserId ?? template.defaultAssigneeId,
+            assignedToTeamId: trigger.assignToTeamId ?? template.defaultTeamId,
             slaDueAt,
             slaStatus: 'on_track',
-            checklist: trigger.template.checklistTemplate
-              ? (trigger.template.checklistTemplate as any[]).map((item) => ({
-                  ...item,
-                  completed: false,
-                }))
-              : null,
+            checklist: toNullableJsonInput(checklist),
             checklistProgress: 0,
             templateId: trigger.templateId,
             triggerId: trigger.id,
@@ -218,13 +299,14 @@ export class OpTriggerService {
             state: trigger.assignToUserId || trigger.assignToTeamId
               ? OpTaskState.assigned
               : OpTaskState.pending,
+            updatedAt: new Date(),
           },
         });
 
         createdTasks.push(task);
         this.logger.log(`Created task ${task.id} from trigger ${trigger.id} for event ${event}`);
-      } catch (error) {
-        this.logger.error(`Failed to execute trigger ${trigger.id}: ${error.message}`);
+      } catch (error: unknown) {
+        this.logger.error(`Failed to execute trigger ${trigger.id}: ${getErrorMessage(error)}`);
       }
     }
 
@@ -289,7 +371,7 @@ export class OpTriggerService {
    * Calculate SLA due time based on trigger offset and context
    */
   private calculateSlaDueTime(
-    trigger: OpTaskTrigger & { template: any },
+    trigger: TriggerWithTemplate,
     context: TriggerContext,
   ): Date {
     // Get reference time based on event type
@@ -315,9 +397,9 @@ export class OpTriggerService {
     const slaFromOffset = new Date(referenceTime.getTime() + offsetMs);
 
     // If template has SLA minutes, use whichever is sooner
-    if (trigger.template.slaMinutes) {
+    if (trigger.OpTaskTemplate.slaMinutes) {
       const slaFromTemplate = new Date(
-        Date.now() + trigger.template.slaMinutes * 60 * 1000,
+        Date.now() + trigger.OpTaskTemplate.slaMinutes * 60 * 1000,
       );
       return slaFromOffset < slaFromTemplate ? slaFromOffset : slaFromTemplate;
     }

@@ -16,6 +16,7 @@ import {
   Prisma,
   GamificationEventCategory,
 } from '@prisma/client';
+import { randomUUID } from "crypto";
 import {
   CreateOpTaskDto,
   UpdateOpTaskDto,
@@ -24,6 +25,51 @@ import {
 } from '../dto/op-task.dto';
 import { GamificationService } from '../../gamification/gamification.service';
 import { OpGamificationService } from './op-gamification.service';
+
+type ChecklistTemplateItem = {
+  id: string;
+  text: string;
+  required?: boolean;
+  category?: string;
+  estimatedMinutes?: number;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const normalizeChecklistTemplate = (value: unknown): ChecklistTemplateItem[] => {
+  if (!Array.isArray(value)) return [];
+  const items: ChecklistTemplateItem[] = [];
+  for (const item of value) {
+    if (!isRecord(item)) continue;
+    if (typeof item.id !== "string" || typeof item.text !== "string") continue;
+    items.push({
+      id: item.id,
+      text: item.text,
+      required: item.required === true ? true : undefined,
+      category: typeof item.category === "string" ? item.category : undefined,
+      estimatedMinutes: typeof item.estimatedMinutes === "number" ? item.estimatedMinutes : undefined,
+    });
+  }
+  return items;
+};
+
+const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined => {
+  if (value === undefined || value === null) return undefined;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
+};
+
+const toNullableJsonInput = (
+  value: unknown
+): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined => {
+  if (value === undefined) return undefined;
+  if (value === null) return Prisma.JsonNull;
+  return toJsonValue(value) ?? Prisma.JsonNull;
+};
 
 @Injectable()
 export class OpTaskService {
@@ -46,7 +92,7 @@ export class OpTaskService {
     createdById: string,
   ): Promise<OpTask> {
     // If template provided, inherit defaults
-    let templateData: Prisma.OpTaskCreateInput['checklist'] = undefined;
+    let templateChecklistItems: ChecklistTemplateItem[] = [];
     let slaMinutes: number | null = null;
 
     if (dto.templateId) {
@@ -54,7 +100,7 @@ export class OpTaskService {
         where: { id: dto.templateId },
       });
       if (template) {
-        templateData = template.checklistTemplate as any;
+        templateChecklistItems = normalizeChecklistTemplate(template.checklistTemplate);
         slaMinutes = template.slaMinutes;
       }
     }
@@ -69,8 +115,8 @@ export class OpTaskService {
     // Initialize checklist from template if not provided
     const checklist = dto.checklist
       ? dto.checklist
-      : templateData
-        ? (templateData as any[]).map((item: any) => ({
+      : templateChecklistItems.length
+        ? templateChecklistItems.map((item) => ({
             ...item,
             completed: false,
           }))
@@ -78,6 +124,7 @@ export class OpTaskService {
 
     return this.prisma.opTask.create({
       data: {
+        id: randomUUID(),
         campgroundId,
         category: dto.category,
         title: dto.title,
@@ -90,20 +137,21 @@ export class OpTaskService {
         assignedToTeamId: dto.assignedToTeamId,
         slaDueAt,
         slaStatus: 'on_track',
-        checklist,
+        checklist: toNullableJsonInput(checklist),
         checklistProgress: 0,
         notes: dto.notes,
         isBlocking: dto.isBlocking ?? false,
         templateId: dto.templateId,
         sourceEvent: OpTriggerEvent.manual,
         createdById,
+        updatedAt: new Date(),
       },
       include: {
         Site: true,
         Reservation: { include: { Guest: true } },
-        assignedToUser: { select: { id: true, firstName: true, lastName: true } },
-        assignedToTeam: true,
-        template: true,
+        User_OpTask_assignedToUserIdToUser: { select: { id: true, firstName: true, lastName: true } },
+        OpTeam: true,
+        OpTaskTemplate: true,
       },
     });
   }
@@ -147,9 +195,9 @@ export class OpTaskService {
         include: {
           Site: true,
           Reservation: { include: { Guest: true } },
-          assignedToUser: { select: { id: true, firstName: true, lastName: true } },
-          assignedToTeam: true,
-          template: true,
+          User_OpTask_assignedToUserIdToUser: { select: { id: true, firstName: true, lastName: true } },
+          OpTeam: true,
+          OpTaskTemplate: true,
         },
       }),
       this.prisma.opTask.count({ where }),
@@ -167,15 +215,15 @@ export class OpTaskService {
       include: {
         Site: true,
         Reservation: { include: { Guest: true } },
-        assignedToUser: { select: { id: true, firstName: true, lastName: true, email: true } },
-        assignedToTeam: { include: { members: { include: { user: true } } } },
-        completedBy: { select: { id: true, firstName: true, lastName: true } },
-        verifiedBy: { select: { id: true, firstName: true, lastName: true } },
-        template: true,
-        trigger: true,
-        recurrenceRule: true,
-        comments: {
-          include: { user: { select: { id: true, firstName: true, lastName: true } } },
+        User_OpTask_assignedToUserIdToUser: { select: { id: true, firstName: true, lastName: true, email: true } },
+        OpTeam: { include: { OpTeamMember: { include: { User: true } } } },
+        User_OpTask_completedByIdToUser: { select: { id: true, firstName: true, lastName: true } },
+        User_OpTask_verifiedByIdToUser: { select: { id: true, firstName: true, lastName: true } },
+        OpTaskTemplate: true,
+        OpTaskTrigger: true,
+        OpRecurrenceRule: true,
+        OpTaskComment: {
+          include: { User: { select: { id: true, firstName: true, lastName: true } } },
           orderBy: { createdAt: 'asc' },
         },
       },
@@ -215,20 +263,27 @@ export class OpTaskService {
     }
 
     // Prepare update data
-    const updateData: Prisma.OpTaskUpdateInput = {
-      ...dto,
+    const updateData: Prisma.OpTaskUncheckedUpdateInput = {
+      state: dto.state,
+      priority: dto.priority,
+      title: dto.title,
+      description: dto.description,
+      assignedToUserId: dto.assignedToUserId,
+      assignedToTeamId: dto.assignedToTeamId,
+      slaDueAt: dto.slaDueAt ? new Date(dto.slaDueAt) : undefined,
+      checklist: dto.checklist === undefined ? undefined : toNullableJsonInput(dto.checklist),
+      photos: dto.photos === undefined ? undefined : toNullableJsonInput(dto.photos),
+      notes: dto.notes,
+      isBlocking: dto.isBlocking,
+      outOfOrder: dto.outOfOrder,
+      outOfOrderReason: dto.outOfOrderReason,
+      outOfOrderUntil: dto.outOfOrderUntil ? new Date(dto.outOfOrderUntil) : undefined,
       checklistProgress,
       ...(isCompleting && { completedAt: new Date(), completedById: userId }),
       ...(isVerifying && { verifiedAt: new Date(), verifiedById: userId }),
       ...(dto.state === OpTaskState.in_progress && !existing.startedAt && { startedAt: new Date() }),
+      updatedAt: new Date(),
     };
-
-    // Remove undefined values
-    Object.keys(updateData).forEach((key) => {
-      if (updateData[key as keyof typeof updateData] === undefined) {
-        delete updateData[key as keyof typeof updateData];
-      }
-    });
 
     const updated = await this.prisma.opTask.update({
       where: { id },
@@ -236,9 +291,9 @@ export class OpTaskService {
       include: {
         Site: true,
         Reservation: { include: { Guest: true } },
-        assignedToUser: { select: { id: true, firstName: true, lastName: true } },
-        assignedToTeam: true,
-        template: true,
+        User_OpTask_assignedToUserIdToUser: { select: { id: true, firstName: true, lastName: true } },
+        OpTeam: true,
+        OpTaskTemplate: true,
       },
     });
 
@@ -322,13 +377,15 @@ export class OpTaskService {
 
     return this.prisma.opTaskComment.create({
       data: {
+        id: randomUUID(),
         taskId,
         userId,
         content: dto.content,
         isSystemMessage: false,
+        updatedAt: new Date(),
       },
       include: {
-        user: { select: { id: true, firstName: true, lastName: true } },
+        User: { select: { id: true, firstName: true, lastName: true } },
       },
     });
   }
@@ -339,10 +396,12 @@ export class OpTaskService {
   private async addSystemComment(taskId: string, userId: string, content: string) {
     return this.prisma.opTaskComment.create({
       data: {
+        id: randomUUID(),
         taskId,
         userId,
         content,
         isSystemMessage: true,
+        updatedAt: new Date(),
       },
     });
   }
@@ -393,28 +452,27 @@ export class OpTaskService {
         state: task.state === OpTaskState.pending ? OpTaskState.assigned : task.state,
       },
       include: {
-        assignedToUser: { select: { id: true, firstName: true, lastName: true } },
-        assignedToTeam: true,
+        User_OpTask_assignedToUserIdToUser: { select: { id: true, firstName: true, lastName: true } },
+        OpTeam: true,
       },
     });
 
     // Add audit comment
     if (userId) {
-      const assignee = assignToUserId
-        ? await this.prisma.user.findUnique({
-            where: { id: assignToUserId },
-            select: { firstName: true, lastName: true },
-          })
-        : assignToTeamId
-          ? await this.prisma.opTeam.findUnique({
-              where: { id: assignToTeamId },
-              select: { name: true },
-            })
-          : null;
-
-      const assigneeName = assignToUserId
-        ? `${assignee?.firstName} ${assignee?.lastName}`
-        : assignee?.name ?? 'Unassigned';
+      let assigneeName = "Unassigned";
+      if (assignToUserId) {
+        const user = await this.prisma.user.findUnique({
+          where: { id: assignToUserId },
+          select: { firstName: true, lastName: true },
+        });
+        assigneeName = user ? `${user.firstName} ${user.lastName}` : "Unassigned";
+      } else if (assignToTeamId) {
+        const team = await this.prisma.opTeam.findUnique({
+          where: { id: assignToTeamId },
+          select: { name: true },
+        });
+        assigneeName = team?.name ?? "Unassigned";
+      }
 
       await this.addSystemComment(id, userId, `Assigned to ${assigneeName}`);
     }
@@ -492,8 +550,8 @@ export class OpTaskService {
       orderBy: { slaDueAt: 'asc' },
       include: {
         Site: true,
-        assignedToUser: { select: { id: true, firstName: true, lastName: true } },
-        assignedToTeam: true,
+        User_OpTask_assignedToUserIdToUser: { select: { id: true, firstName: true, lastName: true } },
+        OpTeam: true,
       },
     });
   }
@@ -511,8 +569,8 @@ export class OpTaskService {
       orderBy: { slaDueAt: 'asc' },
       include: {
         Site: true,
-        assignedToUser: { select: { id: true, firstName: true, lastName: true } },
-        assignedToTeam: true,
+        User_OpTask_assignedToUserIdToUser: { select: { id: true, firstName: true, lastName: true } },
+        OpTeam: true,
       },
     });
   }
@@ -541,7 +599,7 @@ export class OpTaskService {
       include: {
         Site: true,
         Reservation: { include: { Guest: true } },
-        template: true,
+        OpTaskTemplate: true,
       },
     });
   }

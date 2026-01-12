@@ -2,6 +2,7 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiPrivacyService } from './ai-privacy.service';
 import { AiFeatureType } from '@prisma/client';
+import { randomUUID } from 'crypto';
 
 interface AiCompletionRequest {
     campgroundId: string;
@@ -25,12 +26,12 @@ interface AiCompletionResponse {
 }
 
 interface AiToolCompletionRequest extends AiCompletionRequest {
-    tools: any[];
-    toolChoice?: any;
+    tools: OpenAiToolDefinition[];
+    toolChoice?: OpenAiToolChoice;
 }
 
 interface AiToolCompletionResponse extends AiCompletionResponse {
-    toolCalls?: { id?: string; name: string; arguments: string }[];
+    toolCalls?: OpenAiToolCall[];
 }
 
 interface ProviderResponse {
@@ -42,7 +43,49 @@ interface ProviderResponse {
 }
 
 interface ProviderToolResponse extends ProviderResponse {
-    toolCalls?: { id?: string; name: string; arguments: string }[];
+    toolCalls?: OpenAiToolCall[];
+}
+
+interface OpenAiToolDefinition {
+    type: string;
+    function?: {
+        name: string;
+        description?: string;
+        parameters?: Record<string, unknown>;
+    };
+}
+
+type OpenAiToolChoice =
+    | 'auto'
+    | { type: 'function'; function: { name: string } }
+    | { type: string; function?: { name: string } };
+
+interface OpenAiToolCall {
+    id?: string;
+    name: string;
+    arguments: string;
+}
+
+interface OpenAiChatResponse {
+    choices: { message: { content: string; tool_calls?: OpenAiToolCallRaw[] } }[];
+    usage?: { total_tokens: number; prompt_tokens: number; completion_tokens: number };
+    model?: string;
+}
+
+interface OpenAiToolCallRaw {
+    id?: string;
+    type: string;
+    function?: { name?: string; arguments?: string };
+}
+
+interface AnthropicResponse {
+    content: { text: string }[];
+    usage?: { input_tokens: number; output_tokens: number };
+    model?: string;
+}
+
+interface LocalAiResponse {
+    response?: string;
 }
 
 @Injectable()
@@ -272,8 +315,8 @@ export class AiProviderService {
             apiKey?: string | null;
             maxTokens: number;
             temperature: number;
-            tools: any[];
-            toolChoice?: any;
+            tools: OpenAiToolDefinition[];
+            toolChoice?: OpenAiToolChoice;
         },
     ): Promise<ProviderToolResponse> {
         if (provider === 'openai') {
@@ -329,21 +372,17 @@ export class AiProviderService {
             throw new BadRequestException(`OpenAI API error: ${response.status}`);
         }
 
-        const data = await response.json() as {
-            choices: { message: { content: string } }[];
-            usage: { total_tokens: number; prompt_tokens: number; completion_tokens: number };
-            model: string;
-        };
+        const data: OpenAiChatResponse = await response.json();
 
-        const inputTokens = data.usage?.prompt_tokens || 0;
-        const outputTokens = data.usage?.completion_tokens || 0;
+        const inputTokens = data.usage?.prompt_tokens ?? 0;
+        const outputTokens = data.usage?.completion_tokens ?? 0;
 
         return {
-            content: data.choices[0]?.message?.content || '',
-            tokensUsed: data.usage?.total_tokens || 0,
+            content: data.choices[0]?.message?.content ?? '',
+            tokensUsed: data.usage?.total_tokens ?? 0,
             inputTokens,
             outputTokens,
-            model: data.model || 'gpt-4o-mini',
+            model: data.model ?? 'gpt-4o-mini',
         };
     }
 
@@ -353,8 +392,8 @@ export class AiProviderService {
         apiKey?: string | null;
         maxTokens: number;
         temperature: number;
-        tools: any[];
-        toolChoice?: any;
+        tools: OpenAiToolDefinition[];
+        toolChoice?: OpenAiToolChoice;
     }): Promise<ProviderToolResponse> {
         const apiKey = options.apiKey || process.env.OPENAI_API_KEY;
         if (!apiKey) {
@@ -374,7 +413,7 @@ export class AiProviderService {
                     { role: 'user', content: options.userPrompt },
                 ],
                 tools: options.tools,
-                tool_choice: options.toolChoice || 'auto',
+                tool_choice: options.toolChoice ?? 'auto',
                 max_tokens: options.maxTokens,
                 temperature: options.temperature,
             }),
@@ -386,29 +425,27 @@ export class AiProviderService {
             throw new BadRequestException(`OpenAI API error: ${response.status}`);
         }
 
-        const data = await response.json() as {
-            choices: { message: { content: string; tool_calls?: { id?: string; type: string; function: { name: string; arguments: string } }[] } }[];
-            usage: { total_tokens: number; prompt_tokens: number; completion_tokens: number };
-            model: string;
-        };
+        const data: OpenAiChatResponse = await response.json();
 
         const message = data.choices[0]?.message;
-        const toolCalls = message?.tool_calls?.map((call) => ({
-            id: call.id,
-            name: call.function?.name,
-            arguments: call.function?.arguments,
-        })).filter((call) => call.name && call.arguments);
+        const toolCalls: OpenAiToolCall[] = [];
+        for (const call of message?.tool_calls ?? []) {
+            const name = call.function?.name;
+            const args = call.function?.arguments;
+            if (typeof name !== 'string' || typeof args !== 'string') continue;
+            toolCalls.push({ id: call.id, name, arguments: args });
+        }
 
-        const inputTokens = data.usage?.prompt_tokens || 0;
-        const outputTokens = data.usage?.completion_tokens || 0;
+        const inputTokens = data.usage?.prompt_tokens ?? 0;
+        const outputTokens = data.usage?.completion_tokens ?? 0;
 
         return {
-            content: message?.content || '',
-            toolCalls: toolCalls?.length ? toolCalls as { id?: string; name: string; arguments: string }[] : undefined,
-            tokensUsed: data.usage?.total_tokens || 0,
+            content: message?.content ?? '',
+            toolCalls: toolCalls.length ? toolCalls : undefined,
+            tokensUsed: data.usage?.total_tokens ?? 0,
             inputTokens,
             outputTokens,
-            model: data.model || 'gpt-4o-mini',
+            model: data.model ?? 'gpt-4o-mini',
         };
     }
 
@@ -447,21 +484,17 @@ export class AiProviderService {
             throw new BadRequestException(`Anthropic API error: ${response.status}`);
         }
 
-        const data = await response.json() as {
-            content: { text: string }[];
-            usage: { input_tokens: number; output_tokens: number };
-            model: string;
-        };
+        const data: AnthropicResponse = await response.json();
 
-        const inputTokens = data.usage?.input_tokens || 0;
-        const outputTokens = data.usage?.output_tokens || 0;
+        const inputTokens = data.usage?.input_tokens ?? 0;
+        const outputTokens = data.usage?.output_tokens ?? 0;
 
         return {
-            content: data.content[0]?.text || '',
+            content: data.content[0]?.text ?? '',
             tokensUsed: inputTokens + outputTokens,
             inputTokens,
             outputTokens,
-            model: data.model || 'claude-3-haiku',
+            model: data.model ?? 'claude-3-haiku',
         };
     }
 
@@ -488,10 +521,10 @@ export class AiProviderService {
             throw new BadRequestException(`Local AI API error: ${response.status}`);
         }
 
-        const data = await response.json() as { response: string };
+        const data: LocalAiResponse = await response.json();
 
         return {
-            content: data.response || '',
+            content: data.response ?? '',
             tokensUsed: 0, // Local models don't typically report token usage
             inputTokens: 0,
             outputTokens: 0,
@@ -563,7 +596,9 @@ export class AiProviderService {
         costCents?: number;
     }): Promise<void> {
         try {
-            await this.prisma.aiInteractionLog.create({ data });
+            await this.prisma.aiInteractionLog.create({
+                data: { id: randomUUID(), ...data },
+            });
         } catch (error) {
             this.logger.error('Failed to log AI interaction', error);
             // Don't throw - logging failures shouldn't break the main flow

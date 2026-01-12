@@ -1,4 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
+import { randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 
 /**
@@ -13,6 +15,18 @@ export class UsageTrackerService {
   private readonly logger = new Logger(UsageTrackerService.name);
 
   constructor(private readonly prisma: PrismaService) {}
+
+  private toNullableJsonInput(
+    value: unknown
+  ): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined {
+    if (value === undefined) return undefined;
+    if (value === null) return Prisma.JsonNull;
+    try {
+      return JSON.parse(JSON.stringify(value));
+    } catch {
+      return Prisma.JsonNull;
+    }
+  }
 
   /**
    * Record a booking created event for billing
@@ -38,13 +52,14 @@ export class UsageTrackerService {
 
       await this.prisma.usageEvent.create({
         data: {
+          id: randomUUID(),
           organizationId,
           campgroundId,
           eventType: "booking_created",
           quantity: 1,
           referenceType: "reservation",
           referenceId: reservationId,
-          metadata: metadata ?? {},
+          metadata: metadata === undefined ? undefined : this.toNullableJsonInput(metadata),
         },
       });
 
@@ -106,18 +121,19 @@ export class UsageTrackerService {
       // Track the surcharge as a usage event
       await this.prisma.usageEvent.create({
         data: {
+          id: randomUUID(),
           organizationId,
           eventType: "setup_service_surcharge",
           quantity: 1,
           unitCents: chargeAmount,
           referenceType: "reservation",
           referenceId: reservationId,
-          metadata: {
+          metadata: this.toNullableJsonInput({
             setupServiceId: service.id,
             setupServiceType: service.serviceType,
             balanceRemaining: newBalance,
             isPaidOff,
-          },
+          }),
         },
       });
 
@@ -150,6 +166,7 @@ export class UsageTrackerService {
     try {
       await this.prisma.usageEvent.create({
         data: {
+          id: randomUUID(),
           organizationId,
           campgroundId,
           eventType: direction === "outbound" ? "sms_outbound" : "sms_inbound",
@@ -179,11 +196,14 @@ export class UsageTrackerService {
     try {
       await this.prisma.usageEvent.create({
         data: {
+          id: randomUUID(),
           organizationId,
           campgroundId,
           eventType: "ai_usage",
           quantity: tokenCount,
-          metadata: modelId ? { modelId } : {},
+          metadata: modelId
+            ? this.toNullableJsonInput({ modelId })
+            : this.toNullableJsonInput({}),
         },
       });
 

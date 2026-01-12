@@ -7,6 +7,7 @@ import { EmailService } from "../email/email.service";
 import { AiNaturalSearchService } from "../ai/ai-natural-search.service";
 import { Throttle } from "@nestjs/throttler";
 import type { Request } from "express";
+import { randomUUID } from "crypto";
 
 @Controller("public")
 @Throttle({ default: { limit: 60, ttl: 60000 } }) // 60 requests per minute per IP
@@ -190,6 +191,7 @@ export class PublicReservationsController {
         // Store the demo request in the database
         const demoRequest = await this.prisma.demoRequest.create({
             data: {
+                id: randomUUID(),
                 name: dto.name,
                 email: dto.email,
                 phone: dto.phone || null,
@@ -197,6 +199,7 @@ export class PublicReservationsController {
                 siteCount: dto.sites,
                 message: dto.message || null,
                 source: "website",
+                updatedAt: new Date(),
             },
         });
 

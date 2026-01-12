@@ -103,6 +103,11 @@ interface GuestAnalytics {
   }[];
 }
 
+type ExportFormat = "csv" | "json";
+
+const isExportFormat = (value: string): value is ExportFormat =>
+  value === "csv" || value === "json";
+
 // Empty state data for when no real data exists
 const emptyAnalytics: GuestAnalytics = {
   overview: {
@@ -174,13 +179,15 @@ function TrendIndicator({ current, previous }: { current: number; previous: numb
   );
 }
 
+type BarChartDatum = { [key: string]: number | string | undefined; percentage?: number };
+
 function BarChart({ data, labelKey, valueKey, maxValue }: {
-  data: any[];
+  data: BarChartDatum[];
   labelKey: string;
   valueKey: string;
   maxValue?: number;
 }) {
-  const max = maxValue || Math.max(...data.map(d => d[valueKey]));
+  const max = maxValue || Math.max(...data.map(d => Number(d[valueKey]) || 0));
 
   return (
     <div className="space-y-2">
@@ -190,11 +197,11 @@ function BarChart({ data, labelKey, valueKey, maxValue }: {
           <div className="flex-1 h-6 bg-muted rounded overflow-hidden">
             <div
               className="h-full bg-emerald-600 rounded transition-all"
-              style={{ width: `${(item[valueKey] / max) * 100}%` }}
+              style={{ width: `${((Number(item[valueKey]) || 0) / max) * 100}%` }}
             />
           </div>
           <div className="w-16 text-xs text-foreground text-right">
-            {item.percentage ? `${item.percentage}%` : item[valueKey].toLocaleString()}
+            {item.percentage ? `${item.percentage}%` : (Number(item[valueKey]) || 0).toLocaleString()}
           </div>
         </div>
       ))}
@@ -239,7 +246,7 @@ export default function GuestAnalyticsPage() {
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [sharing, setSharing] = useState(false);
-  const [exportFormat, setExportFormat] = useState<"csv" | "json">("csv");
+  const [exportFormat, setExportFormat] = useState<ExportFormat>("csv");
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [shareLinkCopied, setShareLinkCopied] = useState(false);
   const [shareName, setShareName] = useState("");
@@ -936,7 +943,14 @@ export default function GuestAnalyticsPage() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Export Format</Label>
-              <Select value={exportFormat} onValueChange={(v) => setExportFormat(v as "csv" | "json")}>
+              <Select
+                value={exportFormat}
+                onValueChange={(value) => {
+                  if (isExportFormat(value)) {
+                    setExportFormat(value);
+                  }
+                }}
+              >
                 <SelectTrigger className="bg-card border-border">
                   <SelectValue />
                 </SelectTrigger>

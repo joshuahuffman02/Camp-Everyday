@@ -14,13 +14,64 @@ interface BookingSourcesTabProps {
     dateRange: { start: string; end: string };
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null;
+
+const isNumber = (value: unknown): value is number =>
+    typeof value === "number" && Number.isFinite(value);
+
+const parseSourceStats = (value: unknown): { count: number; revenue: number } | null => {
+    if (!isRecord(value)) return null;
+    return {
+        count: isNumber(value.count) ? value.count : 0,
+        revenue: isNumber(value.revenue) ? value.revenue : 0,
+    };
+};
+
+const parseBySource = (value: unknown): Record<string, { count: number; revenue: number }> => {
+    if (!isRecord(value)) return {};
+    const result: Record<string, { count: number; revenue: number }> = {};
+    for (const [key, entry] of Object.entries(value)) {
+        const stats = parseSourceStats(entry);
+        if (stats) {
+            result[key] = stats;
+        }
+    }
+    return result;
+};
+
+const parseByLeadTime = (value: unknown): Record<string, number> => {
+    if (!isRecord(value)) return {};
+    const result: Record<string, number> = {};
+    for (const [key, entry] of Object.entries(value)) {
+        if (isNumber(entry)) {
+            result[key] = entry;
+        }
+    }
+    return result;
+};
+
+const parseBookingSources = (value: unknown): BookingSourcesData => {
+    if (!isRecord(value)) {
+        return { totalBookings: 0, bySource: {}, byLeadTime: {} };
+    }
+    return {
+        totalBookings: isNumber(value.totalBookings) ? value.totalBookings : 0,
+        bySource: parseBySource(value.bySource),
+        byLeadTime: parseByLeadTime(value.byLeadTime),
+    };
+};
+
 export function BookingSourcesTab({ campgroundId, dateRange }: BookingSourcesTabProps) {
-    const { data, isLoading } = useQuery({
+    const { data, isLoading } = useQuery<BookingSourcesData>({
         queryKey: ["reports-booking-sources", campgroundId, dateRange],
-        queryFn: () => apiClient.getBookingSources(campgroundId, {
-            startDate: dateRange.start,
-            endDate: dateRange.end
-        }),
+        queryFn: async () => {
+            const result = await apiClient.getBookingSources(campgroundId, {
+                startDate: dateRange.start,
+                endDate: dateRange.end
+            });
+            return parseBookingSources(result);
+        },
         enabled: !!campgroundId
     });
 
@@ -34,8 +85,7 @@ export function BookingSourcesTab({ campgroundId, dateRange }: BookingSourcesTab
 
     if (!data) return <div>No data available</div>;
 
-    const typedData = data as unknown as BookingSourcesData;
-    const totalBookings = typedData.totalBookings || 0;
+    const totalBookings = data.totalBookings || 0;
 
     // Helper for percentage
     const getPercent = (val: number) => totalBookings > 0 ? (val / totalBookings) * 100 : 0;
@@ -65,7 +115,7 @@ export function BookingSourcesTab({ campgroundId, dateRange }: BookingSourcesTab
             <h3 className="text-lg font-semibold text-foreground">Booking Channels</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {sourceConfig.map((source) => {
-                    const stats = typedData.bySource[source.key] || { count: 0, revenue: 0 };
+                    const stats = data.bySource[source.key] || { count: 0, revenue: 0 };
                     return (
                         <Card key={source.key}>
                             <CardContent className="pt-6">
@@ -106,7 +156,7 @@ export function BookingSourcesTab({ campgroundId, dateRange }: BookingSourcesTab
                 <CardContent>
                     <div className="space-y-4">
                         {leadTimeConfig.map((item) => {
-                            const count = typedData.byLeadTime[item.key] || 0;
+                            const count = data.byLeadTime[item.key] || 0;
                             const percent = getPercent(count);
                             return (
                                 <div key={item.key} className="space-y-1">

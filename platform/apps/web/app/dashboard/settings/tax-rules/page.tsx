@@ -62,6 +62,12 @@ const defaultFormData: TaxRuleFormData = {
     isActive: true
 };
 
+const isTaxRuleType = (value: string): value is TaxRuleFormData["type"] =>
+    value === "percentage" || value === "flat" || value === "exemption";
+
+const getErrorMessage = (error: unknown, fallback: string) =>
+    error instanceof Error ? error.message : fallback;
+
 export default function TaxRulesSettingsPage() {
     const { toast } = useToast();
     const qc = useQueryClient();
@@ -195,8 +201,8 @@ export default function TaxRulesSettingsPage() {
             }
             setIsModalOpen(false);
             loadTaxRules(campgroundId);
-        } catch (err: any) {
-            setError(err.message || "Failed to save tax rule");
+        } catch (err: unknown) {
+            setError(getErrorMessage(err, "Failed to save tax rule"));
         } finally {
             setSaving(false);
         }
@@ -495,7 +501,11 @@ export default function TaxRulesSettingsPage() {
                                 <Label>Type</Label>
                                 <Select
                                     value={formData.type}
-                                    onValueChange={(val) => setFormData({ ...formData, type: val as "percentage" | "flat" | "exemption" })}
+                                    onValueChange={(val) => {
+                                        if (isTaxRuleType(val)) {
+                                            setFormData({ ...formData, type: val });
+                                        }
+                                    }}
                                 >
                                     <SelectTrigger>
                                         <SelectValue />

@@ -11,7 +11,7 @@ import { CsrfService } from "./csrf.service";
  * Decorator to skip CSRF check on specific routes
  */
 export const SkipCsrf = () => {
-    return (target: any, key?: string, descriptor?: PropertyDescriptor) => {
+    return (target: object, key?: string, descriptor?: PropertyDescriptor) => {
         if (descriptor) {
             Reflect.defineMetadata("skipCsrf", true, descriptor.value);
             return descriptor;
@@ -53,14 +53,15 @@ export class CsrfGuard implements CanActivate {
     ) {}
 
     canActivate(context: ExecutionContext): boolean {
-        const request = context.switchToHttp().getRequest();
-        const response = context.switchToHttp().getResponse();
+        const request = context.switchToHttp().getRequest<CsrfRequest>();
+        const response = context.switchToHttp().getResponse<CsrfResponse>();
 
         // Always set/refresh CSRF cookie for browser clients
         this.ensureCsrfCookie(request, response);
 
         // Skip for safe methods
-        if (this.safeMethods.includes(request.method?.toUpperCase())) {
+        const method = request.method?.toUpperCase();
+        if (method && this.safeMethods.includes(method)) {
             return true;
         }
 
@@ -72,7 +73,7 @@ export class CsrfGuard implements CanActivate {
 
         // Skip for exempt paths
         const path = request.path || request.url;
-        if (this.exemptPaths.some(exempt => path.startsWith(exempt))) {
+        if (path && this.exemptPaths.some(exempt => path.startsWith(exempt))) {
             return true;
         }
 
@@ -82,8 +83,8 @@ export class CsrfGuard implements CanActivate {
         }
 
         // Skip if request has no origin/referer (likely not from browser)
-        const origin = request.headers.origin;
-        const referer = request.headers.referer;
+        const origin = getHeaderValue(request.headers, "origin");
+        const referer = getHeaderValue(request.headers, "referer");
         if (!origin && !referer) {
             // Could be from mobile app, Postman, etc.
             // You might want to make this stricter in production
@@ -92,9 +93,11 @@ export class CsrfGuard implements CanActivate {
 
         // Validate CSRF token
         const cookieToken = request.cookies?.[this.csrfService.getCookieName()];
-        const headerToken = request.headers[this.csrfService.getHeaderName()];
+        const headerToken = getHeaderValue(request.headers, this.csrfService.getHeaderName());
+        const cookieValue = cookieToken ?? "";
+        const headerValue = headerToken ?? "";
 
-        if (!this.csrfService.validateRequest(cookieToken, headerToken)) {
+        if (!this.csrfService.validateRequest(cookieValue, headerValue)) {
             throw new ForbiddenException("Invalid CSRF token");
         }
 
@@ -104,7 +107,7 @@ export class CsrfGuard implements CanActivate {
     /**
      * Ensure CSRF cookie is set for browser clients
      */
-    private ensureCsrfCookie(request: any, response: any): void {
+    private ensureCsrfCookie(request: CsrfRequest, response: CsrfResponse): void {
         const existingCookie = request.cookies?.[this.csrfService.getCookieName()];
 
         // Check if existing cookie is valid
@@ -124,3 +127,22 @@ export class CsrfGuard implements CanActivate {
         );
     }
 }
+
+type CsrfRequest = {
+    method?: string;
+    path?: string;
+    url?: string;
+    headers: Record<string, unknown>;
+    cookies?: Record<string, string>;
+    apiPrincipal?: unknown;
+};
+
+type CsrfResponse = {
+    cookie: (name: string, value: string, options?: unknown) => void;
+};
+
+const getHeaderValue = (headers: Record<string, unknown>, key: string): string | undefined => {
+    const value = headers[key];
+    if (Array.isArray(value)) return typeof value[0] === "string" ? value[0] : undefined;
+    return typeof value === "string" ? value : undefined;
+};

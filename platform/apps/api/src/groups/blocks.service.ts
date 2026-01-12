@@ -1,5 +1,11 @@
 import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { randomUUID } from "crypto";
+
+const isStringArray = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((item) => typeof item === "string");
+
+const normalizeSites = (value: unknown): string[] => (isStringArray(value) ? value : []);
 
 @Injectable()
 export class BlocksService {
@@ -38,7 +44,7 @@ export class BlocksService {
     });
 
     const conflictingSitesFromBlocks = conflictingBlocks
-      .flatMap((b) => (b.sites as string[]) || [])
+      .flatMap((b) => normalizeSites(b.sites))
       .filter((s) => siteIds.includes(s));
 
     const allConflicts = [
@@ -93,6 +99,7 @@ export class BlocksService {
 
     return this.prisma.inventoryBlock.create({
       data: {
+        blockId: randomUUID(),
         tenantId: data.tenantId,
         sites: data.sites,
         windowStart,
@@ -101,6 +108,7 @@ export class BlocksService {
         state: 'active',
         lockId: data.lockId,
         createdBy: data.createdBy,
+        updatedAt: new Date(),
       },
     });
   }
@@ -109,7 +117,7 @@ export class BlocksService {
     return this.prisma.inventoryBlock.findMany({
       where: {
         tenantId,
-        state: state as any,
+        state: state ?? undefined,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -147,7 +155,7 @@ export class BlocksService {
 
       const conflicts = await this.checkConflicts(
         existing.tenantId,
-        existing.sites as string[],
+        normalizeSites(existing.sites),
         newStart,
         newEnd,
         blockId,
@@ -184,4 +192,3 @@ export class BlocksService {
     return this.prisma.inventoryBlock.delete({ where: { blockId } });
   }
 }
-

@@ -3,7 +3,18 @@
  * Keepr Brand - "Reservation software for places worth returning to"
  */
 
-export const SEO_CONFIG = {
+type SeoConfig = {
+  siteName: string;
+  siteUrl: string;
+  defaultTitle: string;
+  defaultDescription: string;
+  twitterHandle: string;
+  locale: string;
+  themeColor: string;
+  keywords: string[];
+};
+
+export const SEO_CONFIG: Readonly<SeoConfig> = {
   siteName: "Keepr",
   siteUrl: process.env.NEXT_PUBLIC_APP_BASE || "https://keeprstay.com",
   defaultTitle: "Keepr - Reservation software for places worth returning to",
@@ -23,22 +34,30 @@ export const SEO_CONFIG = {
     "RV resort software",
     "campground POS",
   ],
-} as const;
+};
 
 export const getBaseUrl = () => SEO_CONFIG.siteUrl.replace(/\/+$/, "");
 
 /**
  * Static pages for sitemap generation
  */
-export const STATIC_PAGES = [
-  { path: "/", priority: 1.0, changeFrequency: "daily" as const },
-  { path: "/browse", priority: 0.9, changeFrequency: "daily" as const },
-  { path: "/developers", priority: 0.7, changeFrequency: "monthly" as const },
-  { path: "/careers", priority: 0.6, changeFrequency: "weekly" as const },
-  { path: "/case-studies", priority: 0.8, changeFrequency: "weekly" as const },
-  { path: "/public-roadmap", priority: 0.5, changeFrequency: "weekly" as const },
-  { path: "/signup", priority: 0.9, changeFrequency: "monthly" as const },
-] as const;
+type ChangeFrequency = "daily" | "weekly" | "monthly";
+
+type StaticPage = {
+  path: string;
+  priority: number;
+  changeFrequency: ChangeFrequency;
+};
+
+export const STATIC_PAGES: readonly StaticPage[] = [
+  { path: "/", priority: 1.0, changeFrequency: "daily" },
+  { path: "/browse", priority: 0.9, changeFrequency: "daily" },
+  { path: "/developers", priority: 0.7, changeFrequency: "monthly" },
+  { path: "/careers", priority: 0.6, changeFrequency: "weekly" },
+  { path: "/case-studies", priority: 0.8, changeFrequency: "weekly" },
+  { path: "/public-roadmap", priority: 0.5, changeFrequency: "weekly" },
+  { path: "/signup", priority: 0.9, changeFrequency: "monthly" },
+];
 
 /**
  * Page-specific SEO configurations

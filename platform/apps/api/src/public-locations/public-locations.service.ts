@@ -146,7 +146,7 @@ export class PublicLocationsService {
     const location = await this.prisma.seoLocation.findUnique({
       where: { slug },
       include: {
-        children: {
+        other_SeoLocation: {
           where: { campgroundCount: { gt: 0 } },
           orderBy: { campgroundCount: "desc" },
           take: 20,
@@ -169,14 +169,14 @@ export class PublicLocationsService {
       where: { locationId: location.id },
       orderBy:
         sortBy === "rating"
-          ? { campground: { reviewScore: "desc" } }
+          ? { Campground: { reviewScore: "desc" } }
           : sortBy === "distance"
             ? { distanceMiles: "asc" }
-            : { campground: { name: "asc" } },
+            : { Campground: { name: "asc" } },
       take: limit,
       skip: offset,
       include: {
-        campground: {
+        Campground: {
           select: {
             id: true,
             slug: true,
@@ -249,22 +249,22 @@ export class PublicLocationsService {
       bestTimeToVisit: location.bestTimeToVisit,
       campgroundCount: location.campgroundCount,
       campgrounds: campgroundMappings
-        .filter((m) => !m.campground.deletedAt)
+        .filter((m) => !m.Campground.deletedAt)
         .map((m) => ({
-          id: m.campground.id,
-          slug: m.campground.slug,
-          name: m.campground.name,
-          city: m.campground.city,
-          state: m.campground.state,
-          heroImageUrl: m.campground.heroImageUrl,
-          reviewScore: m.campground.reviewScore?.toNumber() ?? null,
-          reviewCount: m.campground.reviewCount,
-          amenities: m.campground.amenities,
+          id: m.Campground.id,
+          slug: m.Campground.slug,
+          name: m.Campground.name,
+          city: m.Campground.city,
+          state: m.Campground.state,
+          heroImageUrl: m.Campground.heroImageUrl,
+          reviewScore: m.Campground.reviewScore?.toNumber() ?? null,
+          reviewCount: m.Campground.reviewCount,
+          amenities: m.Campground.amenities,
           distanceMiles: m.distanceMiles,
-          claimStatus: m.campground.claimStatus,
+          claimStatus: m.Campground.claimStatus,
         })),
       nearbyAttractions,
-      childLocations: location.children,
+      childLocations: location.other_SeoLocation,
     };
   }
 
@@ -295,7 +295,7 @@ export class PublicLocationsService {
       take: limit,
       skip: offset,
       include: {
-        campground: {
+        Campground: {
           select: {
             id: true,
             slug: true,
@@ -361,19 +361,19 @@ export class PublicLocationsService {
       bestSeason: attraction.bestSeason,
       campgroundCount: attraction.nearbyCampgroundCount,
       campgrounds: campgroundMappings
-        .filter((m) => !m.campground.deletedAt)
+        .filter((m) => !m.Campground.deletedAt)
         .map((m) => ({
-          id: m.campground.id,
-          slug: m.campground.slug,
-          name: m.campground.name,
-          city: m.campground.city,
-          state: m.campground.state,
-          heroImageUrl: m.campground.heroImageUrl,
-          reviewScore: m.campground.reviewScore?.toNumber() ?? null,
-          reviewCount: m.campground.reviewCount,
-          amenities: m.campground.amenities,
+          id: m.Campground.id,
+          slug: m.Campground.slug,
+          name: m.Campground.name,
+          city: m.Campground.city,
+          state: m.Campground.state,
+          heroImageUrl: m.Campground.heroImageUrl,
+          reviewScore: m.Campground.reviewScore?.toNumber() ?? null,
+          reviewCount: m.Campground.reviewCount,
+          amenities: m.Campground.amenities,
           distanceMiles: m.distanceMiles,
-          claimStatus: m.campground.claimStatus,
+          claimStatus: m.Campground.claimStatus,
         })),
       relatedAttractions,
     };

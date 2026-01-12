@@ -18,6 +18,15 @@ interface TwilioCredentials {
   source: "campground" | "global";
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  return "Unknown error";
+};
+
 @Injectable()
 export class SmsService {
   private readonly logger = new Logger(SmsService.name);
@@ -142,12 +151,18 @@ export class SmsService {
     if (!credentials) {
       this.logger.warn(`SMS no-op: No Twilio credentials available. Would send to ${opts.to}: "${opts.body.substring(0, 50)}..."`);
       this.telemetry.skipped++;
-      this.dispatchAlert("SMS not configured", `Twilio credentials missing; SMS send skipped for ${opts.to}`, "warning", {
-        to: opts.to,
-        campgroundId: opts.campgroundId,
-        reservationId: opts.reservationId,
-        reason: "not_configured",
-      });
+      this.dispatchAlert(
+        "SMS not configured",
+        `Twilio credentials missing; SMS send skipped for ${opts.to}`,
+        "warning",
+        `sms-not-configured-${opts.campgroundId ?? "global"}`,
+        {
+          to: opts.to,
+          campgroundId: opts.campgroundId,
+          reservationId: opts.reservationId,
+          reason: "not_configured",
+        }
+      );
       return { provider: "noop", fallback: "not_configured", success: false };
     }
 
@@ -166,17 +181,18 @@ export class SmsService {
         },
         body: params.toString()
       });
-      const data: any = await res.json();
+      const data: unknown = await res.json();
       if (!res.ok) {
         throw new BadRequestException(`Twilio send failed: ${res.status} ${JSON.stringify(data)}`);
       }
+      const sid = isRecord(data) && typeof data.sid === "string" ? data.sid : undefined;
       this.telemetry.sent++;
-      this.logger.log(`SMS sent to ${opts.to} via Twilio (${credentials.source}, sid: ${data.sid})`);
+      this.logger.log(`SMS sent to ${opts.to} via Twilio (${credentials.source}, sid: ${sid ?? "unknown"})`);
 
       // Track SMS usage for billing (non-blocking)
-      this.trackSmsUsageForBilling(opts.campgroundId, data.sid);
+      this.trackSmsUsageForBilling(opts.campgroundId, sid);
 
-      return { providerMessageId: data.sid, provider: "twilio", success: true };
+      return { providerMessageId: sid, provider: "twilio", success: true };
     };
 
     let lastError: unknown;
@@ -199,7 +215,7 @@ export class SmsService {
       `Twilio failed for ${opts.to} after retries`,
       "error",
       `sms-send-failure-${opts.campgroundId ?? "global"}`,
-      { to: opts.to, campgroundId: opts.campgroundId, reservationId: opts.reservationId, error: (lastError as any)?.message }
+      { to: opts.to, campgroundId: opts.campgroundId, reservationId: opts.reservationId, error: getErrorMessage(lastError) }
     );
 
     // Final fallback: report failure and let caller decide on follow-up/failover.
@@ -216,7 +232,7 @@ export class SmsService {
     try {
       await this.alerting.dispatch(title, body, severity, dedupKey, details);
     } catch (err) {
-      this.logger.debug(`SMS alert dispatch skipped: ${(err as any)?.message ?? err}`);
+      this.logger.debug(`SMS alert dispatch skipped: ${getErrorMessage(err)}`);
     }
   }
 
@@ -250,8 +266,7 @@ export class SmsService {
       );
     } catch (err) {
       // Don't fail SMS send if usage tracking fails
-      this.logger.debug(`SMS usage tracking failed: ${(err as any)?.message ?? err}`);
+      this.logger.debug(`SMS usage tracking failed: ${getErrorMessage(err)}`);
     }
   }
 }
-

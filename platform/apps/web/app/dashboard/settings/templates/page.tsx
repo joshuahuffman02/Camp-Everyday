@@ -46,18 +46,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-interface Template {
-  id: string;
-  campgroundId: string;
-  name: string;
-  channel: "email" | "sms" | "both";
-  category: string | null;
-  subject: string | null;
-  html: string | null;
-  textBody: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
+type Template = Awaited<ReturnType<typeof apiClient.createCampaignTemplate>>;
+type PrebuiltTemplate = Omit<Template, "id" | "campgroundId" | "createdAt" | "updatedAt">;
 
 const TEMPLATE_VARIABLES = [
   { key: "{{guest_name}}", desc: "Guest's full name" },
@@ -81,11 +71,11 @@ const CATEGORIES = [
 ];
 
 // Improved prebuilt templates with better styling and content
-const PREBUILT_TEMPLATES = [
+const PREBUILT_TEMPLATES: PrebuiltTemplate[] = [
   {
     name: "Booking Confirmation",
     category: "confirmation",
-    channel: "email" as const,
+    channel: "email",
     subject: "Confirmed! Your reservation at {{campground_name}}",
     html: `<!DOCTYPE html>
 <html>
@@ -148,7 +138,7 @@ const PREBUILT_TEMPLATES = [
   {
     name: "Check-in Reminder (24h)",
     category: "reminder",
-    channel: "email" as const,
+    channel: "email",
     subject: "Tomorrow's the day! Your check-in details",
     html: `<!DOCTYPE html>
 <html>
@@ -208,7 +198,7 @@ const PREBUILT_TEMPLATES = [
   {
     name: "Check-In SMS",
     category: "reminder",
-    channel: "sms" as const,
+    channel: "sms",
     subject: null,
     html: null,
     textBody: "Hi {{guest_name}}! Reminder: Your check-in at {{campground_name}} is today. Site {{site_number}} is ready. Check-in after 2pm. See you soon!",
@@ -216,7 +206,7 @@ const PREBUILT_TEMPLATES = [
   {
     name: "Payment Received",
     category: "payment",
-    channel: "email" as const,
+    channel: "email",
     subject: "Payment received - Thank you!",
     html: `<!DOCTYPE html>
 <html>
@@ -265,7 +255,7 @@ const PREBUILT_TEMPLATES = [
   {
     name: "Balance Due Reminder",
     category: "payment",
-    channel: "email" as const,
+    channel: "email",
     subject: "Friendly reminder: Balance due for your stay",
     html: `<!DOCTYPE html>
 <html>
@@ -314,7 +304,7 @@ const PREBUILT_TEMPLATES = [
   {
     name: "Check-Out Thank You",
     category: "confirmation",
-    channel: "email" as const,
+    channel: "email",
     subject: "Thanks for staying with us, {{guest_name}}!",
     html: `<!DOCTYPE html>
 <html>
@@ -360,7 +350,7 @@ const PREBUILT_TEMPLATES = [
   {
     name: "Cancellation Confirmation",
     category: "booking",
-    channel: "email" as const,
+    channel: "email",
     subject: "Your reservation has been cancelled",
     html: `<!DOCTYPE html>
 <html>
@@ -405,7 +395,7 @@ const PREBUILT_TEMPLATES = [
   {
     name: "Welcome SMS",
     category: "operational",
-    channel: "sms" as const,
+    channel: "sms",
     subject: null,
     html: null,
     textBody: "Welcome to {{campground_name}}! Site {{site_number}} is ready for you. Office: 8am-8pm. WiFi password at the office. Enjoy your stay!",
@@ -442,6 +432,12 @@ export default function TemplatesPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const queryClient = useQueryClient();
   const templateListRef = useRef<HTMLDivElement>(null);
+  const requireCampgroundId = () => {
+    if (!campgroundId) {
+      throw new Error("Campground is required");
+    }
+    return campgroundId;
+  };
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -449,9 +445,9 @@ export default function TemplatesPage() {
     if (stored) setCampgroundId(stored);
   }, []);
 
-  const templatesQuery = useQuery({
+  const templatesQuery = useQuery<Template[]>({
     queryKey: ["campaign-templates", campgroundId],
-    queryFn: () => apiClient.getCampaignTemplates(campgroundId!),
+    queryFn: () => apiClient.getCampaignTemplates(requireCampgroundId()),
     enabled: !!campgroundId,
   });
 
@@ -466,10 +462,10 @@ export default function TemplatesPage() {
   const templates = templatesQuery.data ?? [];
 
   // Group by category
-  const templatesByCategory = CATEGORIES.reduce((acc, cat) => {
-    acc[cat] = templates.filter((t: Template) => (t.category || "general") === cat);
+  const templatesByCategory = CATEGORIES.reduce<Record<string, Template[]>>((acc, cat) => {
+    acc[cat] = templates.filter((template) => (template.category || "general") === cat);
     return acc;
-  }, {} as Record<string, Template[]>);
+  }, {});
 
   // Show success toast and auto-hide
   const showSuccessToast = (templateName: string) => {
@@ -939,7 +935,7 @@ function CreateTemplateModal({
   onClose: () => void;
   onCreated: (template: Template) => void;
 }) {
-  const firstInputRef = useRef<HTMLInputElement>(null);
+  const firstInputRef = useRef<HTMLInputElement | null>(null);
 
   const {
     register,
@@ -979,7 +975,7 @@ function CreateTemplateModal({
         html: data.channel === "email" ? "<p>Hello {{guest_name}},</p>" : undefined,
         textBody: data.channel === "sms" ? "Hello {{guest_name}}!" : undefined,
       });
-      onCreated(result as Template);
+      onCreated(result);
     } catch (err) {
       console.error("Failed to create template:", err);
     }
@@ -1017,9 +1013,7 @@ function CreateTemplateModal({
             {...nameRegister}
             ref={(e) => {
               nameRegister.ref(e);
-              if (firstInputRef) {
-                (firstInputRef as React.MutableRefObject<HTMLInputElement | null>).current = e;
-              }
+              firstInputRef.current = e;
             }}
           />
 
@@ -1127,7 +1121,7 @@ function PrebuiltTemplatesGallery({
       await apiClient.createCampaignTemplate(campgroundId, {
         name: template.name,
         channel: template.channel,
-        category: template.category,
+        category: template.category ?? undefined,
         subject: template.subject || undefined,
         html: template.html || undefined,
         textBody: template.textBody || undefined,

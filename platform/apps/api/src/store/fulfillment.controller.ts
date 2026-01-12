@@ -18,12 +18,17 @@ import { ScopeGuard } from "../permissions/scope.guard";
 import { FulfillmentAssignmentStatus } from "@prisma/client";
 import type { AuthUser } from "../auth/auth.types";
 
+type FulfillmentRequest = Request & {
+    user?: AuthUser;
+    campgroundId?: string | null;
+};
+
 @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
 @Controller()
 export class FulfillmentController {
     constructor(private readonly fulfillmentService: FulfillmentService) {}
 
-    private requireCampgroundId(req: Request, fallback?: string): string {
+    private requireCampgroundId(req: FulfillmentRequest, fallback?: string): string {
         const headerValue = req.headers["x-campground-id"];
         const headerCampgroundId = Array.isArray(headerValue) ? headerValue[0] : headerValue;
         const campgroundId = fallback ?? req.campgroundId ?? headerCampgroundId ?? undefined;
@@ -33,11 +38,21 @@ export class FulfillmentController {
         return campgroundId;
     }
 
+    private requireUserId(req: FulfillmentRequest): string {
+        const userId = req.user?.id;
+        if (!userId) {
+            throw new BadRequestException("User not found");
+        }
+        return userId;
+    }
+
     private assertCampgroundAccess(campgroundId: string, user: AuthUser | null | undefined): void {
         const isPlatformStaff =
             user?.platformRole === "platform_admin" ||
-            user?.platformRole === "platform_superadmin" ||
-            user?.platformRole === "support_agent";
+            user?.platformRole === "support_agent" ||
+            user?.platformRole === "support_lead" ||
+            user?.platformRole === "regional_support" ||
+            user?.platformRole === "ops_engineer";
         if (isPlatformStaff) {
             return;
         }
@@ -55,10 +70,10 @@ export class FulfillmentController {
     @Get("campgrounds/:campgroundId/store/orders/fulfillment-queue")
     getFulfillmentQueue(
         @Param("campgroundId") campgroundId: string,
+        @Req() req: FulfillmentRequest,
         @Query("status") status?: string,
         @Query("locationId") locationId?: string,
-        @Query("limit") limit?: string,
-        @Req() req: Request
+        @Query("limit") limit?: string
     ) {
         this.assertCampgroundAccess(campgroundId, req.user);
         const statusValues: Set<string> = new Set(Object.values(FulfillmentAssignmentStatus));
@@ -80,7 +95,7 @@ export class FulfillmentController {
      * Get count of orders in each fulfillment status
      */
     @Get("campgrounds/:campgroundId/store/orders/fulfillment-counts")
-    getFulfillmentCounts(@Param("campgroundId") campgroundId: string, @Req() req: Request) {
+    getFulfillmentCounts(@Param("campgroundId") campgroundId: string, @Req() req: FulfillmentRequest) {
         this.assertCampgroundAccess(campgroundId, req.user);
         return this.fulfillmentService.getFulfillmentCounts(campgroundId);
     }
@@ -93,10 +108,10 @@ export class FulfillmentController {
     assignToLocation(
         @Param("id") orderId: string,
         @Body() body: { locationId: string },
-        @Query("campgroundId") campgroundId: string | undefined,
-        @Req() req: Request
+        @Req() req: FulfillmentRequest,
+        @Query("campgroundId") campgroundId?: string
     ) {
-        const userId = req.user?.id || req.user?.userId;
+        const userId = this.requireUserId(req);
         const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
         this.assertCampgroundAccess(requiredCampgroundId, req.user);
         return this.fulfillmentService.assignToLocation(
@@ -115,10 +130,10 @@ export class FulfillmentController {
     updateFulfillmentStatus(
         @Param("id") orderId: string,
         @Body() body: { status: FulfillmentAssignmentStatus },
-        @Query("campgroundId") campgroundId: string | undefined,
-        @Req() req: Request
+        @Req() req: FulfillmentRequest,
+        @Query("campgroundId") campgroundId?: string
     ) {
-        const userId = req.user?.id || req.user?.userId;
+        const userId = this.requireUserId(req);
         const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
         this.assertCampgroundAccess(requiredCampgroundId, req.user);
         return this.fulfillmentService.updateFulfillmentStatus(
@@ -136,12 +151,12 @@ export class FulfillmentController {
     @Get("store/locations/:id/fulfillment-orders")
     getLocationOrders(
         @Param("id") locationId: string,
+        @Req() req: FulfillmentRequest,
         @Query("includeCompleted") includeCompleted?: string,
-        @Query("campgroundId") campgroundId?: string,
-        @Req() req?: Request
+        @Query("campgroundId") campgroundId?: string
     ) {
         const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
-        this.assertCampgroundAccess(requiredCampgroundId, req?.user);
+        this.assertCampgroundAccess(requiredCampgroundId, req.user);
         return this.fulfillmentService.getLocationOrders(
             requiredCampgroundId,
             locationId,
@@ -157,9 +172,9 @@ export class FulfillmentController {
     bulkAssignToLocation(
         @Param("campgroundId") campgroundId: string,
         @Body() body: { orderIds: string[]; locationId: string },
-        @Req() req: Request
+        @Req() req: FulfillmentRequest
     ) {
-        const userId = req.user?.id || req.user?.userId;
+        const userId = this.requireUserId(req);
         this.assertCampgroundAccess(campgroundId, req.user);
         return this.fulfillmentService.bulkAssignToLocation(
             campgroundId,

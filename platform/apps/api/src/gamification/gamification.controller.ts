@@ -1,38 +1,58 @@
-import { BadRequestException, Body, Controller, Get, Patch, Post, Query, Request, UseGuards } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Patch, Post, Query, Req, UseGuards } from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/guards";
 import { GamificationService } from "./gamification.service";
 import { AwardXpDto, UpdateGamificationSettingsDto, UpsertXpRuleDto } from "./dto/gamification.dto";
-import type { Request } from "express";
+import type { Request as ExpressRequest } from "express";
+import type { AuthUser } from "../auth/auth.types";
+import { UserRole } from "@prisma/client";
+
+type GamificationRequest = ExpressRequest & { user?: AuthUser };
 
 @UseGuards(JwtAuthGuard)
 @Controller("gamification")
 export class GamificationController {
   constructor(private readonly gamificationService: GamificationService) { }
 
-  private resolveCampgroundId(req: any, provided?: string) {
-    const cg = provided || (req.headers?.["x-campground-id"] as string) || (req.query?.campgroundId as string);
+  private resolveCampgroundId(req: GamificationRequest, provided?: string) {
+    const headerValue = req.headers?.["x-campground-id"];
+    const headerId = Array.isArray(headerValue) ? headerValue[0] : headerValue;
+    const queryValue = req.query?.campgroundId;
+    const queryId =
+      typeof queryValue === "string" ? queryValue : Array.isArray(queryValue) ? queryValue[0] : undefined;
+    const cg = provided || headerId || queryId;
     if (!cg || typeof cg !== "string") {
       throw new BadRequestException("campgroundId is required");
     }
     return cg;
   }
 
+  private requireUserId(req: GamificationRequest): string {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new BadRequestException("User authentication required");
+    }
+    return userId;
+  }
+
   @Get("dashboard")
-  getDashboard(@Request() req: Request, @Query("campgroundId") campgroundId: string): any {
+  getDashboard(@Req() req: GamificationRequest, @Query("campgroundId") campgroundId: string) {
     const cg = this.resolveCampgroundId(req, campgroundId);
-    return this.gamificationService.getDashboard(req.user.id, cg);
+    const userId = this.requireUserId(req);
+    return this.gamificationService.getDashboard(userId, cg);
   }
 
   @Get("settings")
-  getSettings(@Request() req: Request, @Query("campgroundId") campgroundId: string): any {
+  getSettings(@Req() req: GamificationRequest, @Query("campgroundId") campgroundId: string) {
     const cg = this.resolveCampgroundId(req, campgroundId);
-    return this.gamificationService.getSettingsForManager(req.user.id, cg);
+    const userId = this.requireUserId(req);
+    return this.gamificationService.getSettingsForManager(userId, cg);
   }
 
   @Patch("settings")
-  updateSettings(@Request() req: Request, @Body() body: UpdateGamificationSettingsDto) {
-    const cg = this.resolveCampgroundId(req, (body as any)?.campgroundId);
-    const rawEnabled = (body as any)?.enabled;
+  updateSettings(@Req() req: GamificationRequest, @Body() body: UpdateGamificationSettingsDto) {
+    const cg = this.resolveCampgroundId(req, body.campgroundId);
+    const userId = this.requireUserId(req);
+    const rawEnabled: unknown = body.enabled;
     let enabled: boolean;
     if (typeof rawEnabled === "boolean") {
       enabled = rawEnabled;
@@ -47,11 +67,12 @@ export class GamificationController {
       throw new BadRequestException("enabled must be a boolean");
     }
 
+    const roleSet = new Set(Object.values(UserRole));
     const enabledRoles = Array.isArray(body?.enabledRoles)
-      ? body.enabledRoles.filter((r): r is any => typeof r === "string")
+      ? body.enabledRoles.filter((role): role is UserRole => roleSet.has(role))
       : [];
 
-    return this.gamificationService.updateSettings(req.user.id, {
+    return this.gamificationService.updateSettings(userId, {
       campgroundId: cg,
       enabled,
       enabledRoles,
@@ -59,51 +80,54 @@ export class GamificationController {
   }
 
   @Get("rules")
-  getRules(@Request() req: Request, @Query("campgroundId") campgroundId: string): any {
+  getRules(@Req() req: GamificationRequest, @Query("campgroundId") campgroundId: string) {
     const cg = this.resolveCampgroundId(req, campgroundId);
-    return this.gamificationService.getRules(req.user.id, cg);
+    const userId = this.requireUserId(req);
+    return this.gamificationService.getRules(userId, cg);
   }
 
   @Post("rules")
-  upsertRule(@Request() req: Request, @Body() body: UpsertXpRuleDto): any {
-    const cg = this.resolveCampgroundId(req, (body as any)?.campgroundId);
-    return this.gamificationService.upsertRule(req.user.id, { ...body, campgroundId: cg });
+  upsertRule(@Req() req: GamificationRequest, @Body() body: UpsertXpRuleDto) {
+    const cg = this.resolveCampgroundId(req, body.campgroundId);
+    const userId = this.requireUserId(req);
+    return this.gamificationService.upsertRule(userId, { ...body, campgroundId: cg });
   }
 
   @Post("award")
-  manualAward(@Request() req: Request, @Body() body: AwardXpDto): any {
-    const cg = this.resolveCampgroundId(req, (body as any)?.campgroundId);
-    return this.gamificationService.manualAward(req.user.id, { ...body, campgroundId: cg });
+  manualAward(@Req() req: GamificationRequest, @Body() body: AwardXpDto) {
+    const cg = this.resolveCampgroundId(req, body.campgroundId);
+    const userId = this.requireUserId(req);
+    return this.gamificationService.manualAward(userId, { ...body, campgroundId: cg });
   }
 
   @Get("levels")
-  listLevels(): any {
+  listLevels() {
     return this.gamificationService.getLevels();
   }
 
   @Get("leaderboard")
   getLeaderboard(
-    @Request() req: Request,
+    @Req() req: GamificationRequest,
     @Query("campgroundId") campgroundId: string,
     @Query("days") days?: string,
     @Query("limit") limit?: string,
-  ): any {
+  ) {
     const cg = this.resolveCampgroundId(req, campgroundId);
+    const userId = this.requireUserId(req);
     const parsedDays = days ? Number(days) : undefined;
     const parsedLimit = limit ? Number(limit) : undefined;
     return this.gamificationService.getLeaderboard({
       campgroundId: cg,
-      viewerId: req.user.id,
+      viewerId: userId,
       days: parsedDays,
       limit: parsedLimit
     });
   }
 
   @Get("stats")
-  getStats(@Request() req: Request, @Query("campgroundId") campgroundId: string, @Query("days") days?: string): any {
+  getStats(@Req() req: GamificationRequest, @Query("campgroundId") campgroundId: string, @Query("days") days?: string) {
     const cg = this.resolveCampgroundId(req, campgroundId);
     const parsedDays = days ? Number(days) : undefined;
     return this.gamificationService.getStats(cg, parsedDays);
   }
 }
-

@@ -4,7 +4,7 @@ import { BatchDisposalReason } from "@prisma/client";
 
 export class CreateBatchDto {
     @IsString()
-    productId: string;
+    productId!: string;
 
     @IsString()
     @IsOptional()
@@ -12,7 +12,7 @@ export class CreateBatchDto {
 
     @IsInt()
     @Min(1)
-    qtyReceived: number;
+    qtyReceived!: number;
 
     @IsDate()
     @Type(() => Date)
@@ -55,7 +55,7 @@ export class UpdateBatchDto {
 
 export class AdjustBatchDto {
     @IsInt()
-    adjustment: number;
+    adjustment!: number;
 
     @IsString()
     @IsOptional()
@@ -68,7 +68,7 @@ export class AdjustBatchDto {
 
 export class DisposeBatchDto {
     @IsEnum(BatchDisposalReason)
-    reason: BatchDisposalReason;
+    reason!: BatchDisposalReason;
 
     @IsString()
     @IsOptional()

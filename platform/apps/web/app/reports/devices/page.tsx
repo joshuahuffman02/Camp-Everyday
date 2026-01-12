@@ -31,6 +31,32 @@ type DeviceReport = {
   trends: TrendData[];
 };
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object";
+
+const isDeviceData = (value: unknown): value is DeviceData =>
+  isRecord(value) &&
+  typeof value.deviceType === "string" &&
+  typeof value.sessions === "number" &&
+  typeof value.bookings === "number" &&
+  typeof value.conversionRate === "number";
+
+const isTrendData = (value: unknown): value is TrendData =>
+  isRecord(value) &&
+  typeof value.date === "string" &&
+  typeof value.deviceType === "string" &&
+  typeof value.sessions === "number";
+
+const isDeviceReport = (value: unknown): value is DeviceReport =>
+  isRecord(value) &&
+  isRecord(value.period) &&
+  typeof value.period.days === "number" &&
+  typeof value.period.since === "string" &&
+  Array.isArray(value.devices) &&
+  value.devices.every(isDeviceData) &&
+  Array.isArray(value.trends) &&
+  value.trends.every(isTrendData);
+
 export default function DeviceAnalyticsPage() {
   const pathname = usePathname();
   const [campgroundId, setCampgroundId] = useState<string | null>(null);
@@ -54,7 +80,11 @@ export default function DeviceAnalyticsPage() {
         headers: { "Content-Type": "application/json" }
       });
       if (!res.ok) throw new Error("Failed to fetch device analytics");
-      return res.json() as Promise<DeviceReport>;
+      const payload = await res.json();
+      if (!isDeviceReport(payload)) {
+        throw new Error("Invalid device analytics response");
+      }
+      return payload;
     },
     enabled: !!campgroundId
   });

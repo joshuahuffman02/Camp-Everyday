@@ -4,13 +4,14 @@ import { Button } from "../../components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, List, CalendarDays, Maximize2, CalendarRange, Plus, Ban, Wrench, ClipboardCheck } from "lucide-react";
 import { formatLocalDateInput, parseLocalDateInput } from "./utils";
+import type { CalendarViewMode } from "./types";
 import { cn } from "../../lib/utils";
 
 interface CalendarHeaderProps {
     startDate: string;
     setStartDate: (v: string) => void;
-    viewMode: string;
-    setViewMode: (v: any) => void;
+    viewMode: CalendarViewMode;
+    setViewMode: (v: CalendarViewMode) => void;
     onToday: () => void;
     dayCount: number;
     setDayCount: (v: number) => void;

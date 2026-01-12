@@ -50,6 +50,11 @@ function getMilestoneMessage(totalCents: number): { milestone: string; next: str
   return null;
 }
 
+type CharityMode = "existing" | "custom";
+
+const isCharityMode = (value: string): value is CharityMode =>
+  value === "existing" || value === "custom";
+
 export default function CharitySettingsPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -65,7 +70,7 @@ export default function CharitySettingsPage() {
 
   // Form state
   const [isEnabled, setIsEnabled] = useState(true);
-  const [charityMode, setCharityMode] = useState<"existing" | "custom">("existing");
+  const [charityMode, setCharityMode] = useState<CharityMode>("existing");
   const [selectedCharityId, setSelectedCharityId] = useState<string>("");
   const [customCharity, setCustomCharity] = useState({ name: "", description: "", taxId: "", website: "" });
   const [customMessage, setCustomMessage] = useState("");
@@ -424,7 +429,14 @@ export default function CharitySettingsPage() {
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Charity Selection */}
-            <Tabs value={charityMode} onValueChange={(v) => setCharityMode(v as "existing" | "custom")}>
+            <Tabs
+              value={charityMode}
+              onValueChange={(value) => {
+                if (isCharityMode(value)) {
+                  setCharityMode(value);
+                }
+              }}
+            >
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="existing" className="flex items-center gap-2">
                   <Building2 className="h-4 w-4" />

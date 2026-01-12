@@ -116,6 +116,9 @@ export default function BookingBehaviorPage() {
     value: c.percentage,
   }));
 
+  const toNumber = (value: unknown): number | undefined =>
+    typeof value === "number" ? value : undefined;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -210,10 +213,39 @@ export default function BookingBehaviorPage() {
             description="Where guests are booking from"
             columns={[
               { key: "channel", label: "Channel" },
-              { key: "bookings", label: "Bookings", align: "right", format: (v) => v.toLocaleString() },
-              { key: "revenue", label: "Revenue", align: "right", format: (v) => formatCurrency(v) },
-              { key: "percentage", label: "Share", align: "right", format: (v) => `${v.toFixed(1)}%` },
-              { key: "averageLeadTime", label: "Avg Lead", align: "right", format: (v) => `${v}d` },
+              {
+                key: "bookings",
+                label: "Bookings",
+                align: "right",
+                format: (v) => (toNumber(v) ?? 0).toLocaleString(),
+              },
+              {
+                key: "revenue",
+                label: "Revenue",
+                align: "right",
+                format: (v) => {
+                  const numberValue = toNumber(v);
+                  return numberValue !== undefined ? formatCurrency(numberValue) : "—";
+                },
+              },
+              {
+                key: "percentage",
+                label: "Share",
+                align: "right",
+                format: (v) => {
+                  const numberValue = toNumber(v);
+                  return numberValue !== undefined ? `${numberValue.toFixed(1)}%` : "—";
+                },
+              },
+              {
+                key: "averageLeadTime",
+                label: "Avg Lead",
+                align: "right",
+                format: (v) => {
+                  const numberValue = toNumber(v);
+                  return numberValue !== undefined ? `${numberValue}d` : "—";
+                },
+              },
             ]}
             data={data.channelBreakdown}
             loading={loading}
@@ -256,9 +288,27 @@ export default function BookingBehaviorPage() {
             <DataTable
               title="By Accommodation Type"
               columns={[
-                { key: "type", label: "Type", format: (v) => v.charAt(0).toUpperCase() + v.slice(1) },
-                { key: "cancellationRate", label: "Rate", align: "right", format: (v) => `${v.toFixed(1)}%` },
-                { key: "cancelled", label: "Cancelled", align: "right", format: (v) => v.toLocaleString() },
+                {
+                  key: "type",
+                  label: "Type",
+                  format: (v) =>
+                    typeof v === "string" ? v.charAt(0).toUpperCase() + v.slice(1) : "Unknown",
+                },
+                {
+                  key: "cancellationRate",
+                  label: "Rate",
+                  align: "right",
+                  format: (v) => {
+                    const numberValue = toNumber(v);
+                    return numberValue !== undefined ? `${numberValue.toFixed(1)}%` : "—";
+                  },
+                },
+                {
+                  key: "cancelled",
+                  label: "Cancelled",
+                  align: "right",
+                  format: (v) => (toNumber(v) ?? 0).toLocaleString(),
+                },
               ]}
               data={data.cancellationAnalysis.byAccommodationType}
               loading={loading}
@@ -267,8 +317,21 @@ export default function BookingBehaviorPage() {
               title="By Lead Time"
               columns={[
                 { key: "bucket", label: "Lead Time" },
-                { key: "cancellationRate", label: "Rate", align: "right", format: (v) => `${v.toFixed(1)}%` },
-                { key: "cancelled", label: "Cancelled", align: "right", format: (v) => v.toLocaleString() },
+                {
+                  key: "cancellationRate",
+                  label: "Rate",
+                  align: "right",
+                  format: (v) => {
+                    const numberValue = toNumber(v);
+                    return numberValue !== undefined ? `${numberValue.toFixed(1)}%` : "—";
+                  },
+                },
+                {
+                  key: "cancelled",
+                  label: "Cancelled",
+                  align: "right",
+                  format: (v) => (toNumber(v) ?? 0).toLocaleString(),
+                },
               ]}
               data={data.cancellationAnalysis.byLeadTime}
               loading={loading}

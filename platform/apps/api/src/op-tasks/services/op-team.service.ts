@@ -5,12 +5,37 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { OpTeam, OpTeamMember } from '@prisma/client';
+import { OpTeam, OpTeamMember, OpTaskState } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
+import { randomUUID } from 'crypto';
 import {
   CreateOpTeamDto,
   UpdateOpTeamDto,
   AddTeamMemberDto,
 } from '../dto/op-task.dto';
+
+type AvailableStaffMember = Prisma.UserGetPayload<{
+  select: {
+    id: true;
+    firstName: true;
+    lastName: true;
+    email: true;
+    OpTeamMember: {
+      include: {
+        OpTeam: { select: { id: true; name: true } };
+      };
+    };
+  };
+}>;
+
+type TeamStats = {
+  teamId: string;
+  totalPending: number;
+  byState: Record<string, number>;
+  memberWorkload: Array<{ assignedToUserId: string | null; state: OpTaskState; _count: number }>;
+  completedToday: number;
+  memberCount: number;
+};
 
 @Injectable()
 export class OpTeamService {
@@ -30,14 +55,16 @@ export class OpTeamService {
 
     return this.prisma.opTeam.create({
       data: {
+        id: randomUUID(),
         campgroundId,
         name: dto.name,
         description: dto.description,
         color: dto.color ?? this.getRandomColor(),
         isActive: true,
+        updatedAt: new Date(),
       },
       include: {
-        members: { include: { user: { select: { id: true, firstName: true, lastName: true, email: true } } } },
+        OpTeamMember: { include: { User: { select: { id: true, firstName: true, lastName: true, email: true } } } },
       },
     });
   }
@@ -56,12 +83,12 @@ export class OpTeamService {
       },
       orderBy: { name: 'asc' },
       include: {
-        members: {
+        OpTeamMember: {
           include: {
-            user: { select: { id: true, firstName: true, lastName: true, email: true } },
+            User: { select: { id: true, firstName: true, lastName: true, email: true } },
           },
         },
-        _count: { select: { tasks: true } },
+        _count: { select: { OpTask: true } },
       },
     });
   }
@@ -73,12 +100,12 @@ export class OpTeamService {
     const team = await this.prisma.opTeam.findUnique({
       where: { id },
       include: {
-        members: {
+        OpTeamMember: {
           include: {
-            user: { select: { id: true, firstName: true, lastName: true, email: true } },
+            User: { select: { id: true, firstName: true, lastName: true, email: true } },
           },
         },
-        _count: { select: { tasks: true, templates: true } },
+        _count: { select: { OpTask: true, OpTaskTemplate: true } },
       },
     });
 
@@ -119,11 +146,12 @@ export class OpTeamService {
         ...(dto.description !== undefined && { description: dto.description }),
         ...(dto.color && { color: dto.color }),
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+        updatedAt: new Date(),
       },
       include: {
-        members: {
+        OpTeamMember: {
           include: {
-            user: { select: { id: true, firstName: true, lastName: true, email: true } },
+            User: { select: { id: true, firstName: true, lastName: true, email: true } },
           },
         },
       },
@@ -136,7 +164,7 @@ export class OpTeamService {
   async delete(id: string): Promise<void> {
     const existing = await this.prisma.opTeam.findUnique({
       where: { id },
-      include: { _count: { select: { tasks: true } } },
+      include: { _count: { select: { OpTask: true } } },
     });
 
     if (!existing) {
@@ -144,7 +172,7 @@ export class OpTeamService {
     }
 
     // Check if team has active tasks
-    if (existing._count.tasks > 0) {
+    if (existing._count.OpTask > 0) {
       throw new ConflictException(
         'Cannot delete team with assigned tasks. Reassign or complete tasks first.',
       );
@@ -183,12 +211,13 @@ export class OpTeamService {
 
     return this.prisma.opTeamMember.create({
       data: {
+        id: randomUUID(),
         teamId,
         userId: dto.userId,
         role: dto.role ?? 'member',
       },
       include: {
-        user: { select: { id: true, firstName: true, lastName: true, email: true } },
+        User: { select: { id: true, firstName: true, lastName: true, email: true } },
       },
     });
   }
@@ -230,7 +259,7 @@ export class OpTeamService {
       where: { id: membership.id },
       data: { role },
       include: {
-        user: { select: { id: true, firstName: true, lastName: true, email: true } },
+        User: { select: { id: true, firstName: true, lastName: true, email: true } },
       },
     });
   }
@@ -243,12 +272,12 @@ export class OpTeamService {
       where: {
         campgroundId,
         isActive: true,
-        members: { some: { userId } },
+        OpTeamMember: { some: { userId } },
       },
       include: {
-        members: {
+        OpTeamMember: {
           include: {
-            user: { select: { id: true, firstName: true, lastName: true } },
+            User: { select: { id: true, firstName: true, lastName: true } },
           },
         },
       },
@@ -258,7 +287,7 @@ export class OpTeamService {
   /**
    * Get available staff members for team assignment
    */
-  async getAvailableStaff(campgroundId: string): Promise<any[]> {
+  async getAvailableStaff(campgroundId: string): Promise<AvailableStaffMember[]> {
     return this.prisma.user.findMany({
       where: {
         CampgroundMembership: { some: { campgroundId } },
@@ -269,9 +298,9 @@ export class OpTeamService {
         firstName: true,
         lastName: true,
         email: true,
-        opTeamMemberships: {
-          where: { team: { campgroundId } },
-          include: { team: { select: { id: true, name: true } } },
+        OpTeamMember: {
+          where: { OpTeam: { campgroundId } },
+          include: { OpTeam: { select: { id: true, name: true } } },
         },
       },
     });
@@ -280,17 +309,17 @@ export class OpTeamService {
   /**
    * Get team workload statistics
    */
-  async getTeamStats(teamId: string): Promise<any> {
+  async getTeamStats(teamId: string): Promise<TeamStats> {
     const team = await this.prisma.opTeam.findUnique({
       where: { id: teamId },
-      include: { members: { select: { userId: true } } },
+      include: { OpTeamMember: { select: { userId: true } } },
     });
 
     if (!team) {
       throw new NotFoundException('Team not found');
     }
 
-    const memberIds = team.members.map((m) => m.userId);
+    const memberIds = team.OpTeamMember.map((m) => m.userId);
 
     const [teamTasks, memberTasks, completedToday] = await Promise.all([
       // Tasks assigned to team
@@ -330,7 +359,7 @@ export class OpTeamService {
       byState: Object.fromEntries(teamTasks.map((t) => [t.state, t._count])),
       memberWorkload: memberTasks,
       completedToday,
-      memberCount: team.members.length,
+      memberCount: team.OpTeamMember.length,
     };
   }
 
@@ -354,7 +383,13 @@ export class OpTeamService {
 
       if (!existing) {
         const newTeam = await this.prisma.opTeam.create({
-          data: { campgroundId, ...team, isActive: true },
+          data: {
+            id: randomUUID(),
+            campgroundId,
+            ...team,
+            isActive: true,
+            updatedAt: new Date(),
+          },
         });
         created.push(newTeam);
       }

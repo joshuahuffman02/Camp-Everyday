@@ -39,6 +39,9 @@ const BILLING_MODES: { value: MeteredBillingMode; label: string; description: st
   { value: "manual", label: "Manual", description: "Bill only when you trigger it" },
 ];
 
+const isBillingMode = (value: string): value is MeteredBillingMode =>
+  BILLING_MODES.some((mode) => mode.value === value);
+
 export function MeteredUtilitiesPanel({
   enabled,
   onEnabledChange,
@@ -107,7 +110,11 @@ export function MeteredUtilitiesPanel({
               <Label className="text-sm text-muted-foreground">How do you bill?</Label>
               <Select
                 value={billingMode || "per_reading"}
-                onValueChange={(value) => onBillingModeChange(value as MeteredBillingMode)}
+                onValueChange={(value) => {
+                  if (isBillingMode(value)) {
+                    onBillingModeChange(value);
+                  }
+                }}
               >
                 <SelectTrigger className="bg-muted/50 border-border text-foreground">
                   <SelectValue placeholder="Select billing mode" />

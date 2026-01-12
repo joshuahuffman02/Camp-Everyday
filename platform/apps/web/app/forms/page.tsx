@@ -28,8 +28,82 @@ import { Textarea } from "../../components/ui/textarea";
 import { cn } from "../../lib/utils";
 import { ContractsTab } from "./ContractsTab";
 
+type IconComponent = React.ComponentType<{ className?: string }>;
+
+type QuestionType = "text" | "textarea" | "number" | "checkbox" | "select" | "phone" | "email";
+type ConditionLogic = "all" | "any";
+type ConditionFieldType = "number" | "select" | "siteClass" | "text";
+type AutoAttachMode = "manual" | "all_bookings" | "site_classes";
+type ShowAtOption = "during_booking" | "at_checkin" | "after_booking" | "on_demand";
+type CollectionFormType = "waiver" | "vehicle" | "intake" | "custom";
+type LegalFormType = "park_rules" | "liability_waiver" | "long_term_stay" | "legal_agreement";
+type FormType = CollectionFormType | LegalFormType;
+
+const questionTypeValues: QuestionType[] = [
+  "text",
+  "textarea",
+  "number",
+  "checkbox",
+  "select",
+  "phone",
+  "email",
+];
+
+const formTypeValues: FormType[] = [
+  "waiver",
+  "vehicle",
+  "intake",
+  "custom",
+  "park_rules",
+  "liability_waiver",
+  "long_term_stay",
+  "legal_agreement",
+];
+
+const legalFormTypeValues: LegalFormType[] = [
+  "park_rules",
+  "liability_waiver",
+  "long_term_stay",
+  "legal_agreement",
+];
+
+const showAtValues: ShowAtOption[] = [
+  "during_booking",
+  "at_checkin",
+  "after_booking",
+  "on_demand",
+];
+
+const conditionLogicValues: ConditionLogic[] = ["all", "any"];
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const isStringArray = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((item) => typeof item === "string");
+
+const isQuestionType = (value: string): value is QuestionType =>
+  questionTypeValues.some((type) => type === value);
+
+const isFormType = (value: string): value is FormType =>
+  formTypeValues.some((type) => type === value);
+
+const isLegalDocumentType = (type: string): type is LegalFormType =>
+  legalFormTypeValues.some((value) => value === type);
+
+const isShowAtOption = (value: string): value is ShowAtOption =>
+  showAtValues.some((option) => option === value);
+
+const isConditionLogic = (value: string): value is ConditionLogic =>
+  conditionLogicValues.some((logic) => logic === value);
+
 // Question types with friendly labels
-const questionTypes = [
+const questionTypes: Array<{
+  value: QuestionType;
+  label: string;
+  icon: IconComponent;
+  description: string;
+}> = [
   { value: "text", label: "Short text", icon: Type, description: "Single line answer" },
   { value: "textarea", label: "Long text", icon: AlignLeft, description: "Multi-line answer" },
   { value: "number", label: "Number", icon: Hash, description: "Numeric input" },
@@ -42,7 +116,7 @@ const questionTypes = [
 type Question = {
   id: string;
   label: string;
-  type: string;
+  type: QuestionType;
   required: boolean;
   options?: string[];
 };
@@ -54,18 +128,17 @@ type DisplayCondition = {
   value: string | number | string[];
 };
 
-// Form types - data collection uses FormTemplate API, legal docs use Policies API
-type FormType =
-  // Data collection (FormTemplate backend)
-  | "waiver" | "vehicle" | "intake" | "custom"
-  // Legal documents (DocumentTemplate/Policies backend)
-  | "park_rules" | "liability_waiver" | "long_term_stay" | "legal_agreement";
-
-// Helper to determine which backend to use
-const isLegalDocumentType = (type: string): boolean =>
-  ["park_rules", "liability_waiver", "long_term_stay", "legal_agreement"].includes(type);
-
 type EnforcementType = "none" | "pre_booking" | "pre_checkin" | "post_booking";
+
+const enforcementTypeValues: EnforcementType[] = [
+  "none",
+  "pre_booking",
+  "pre_checkin",
+  "post_booking",
+];
+
+const isEnforcementType = (value: string): value is EnforcementType =>
+  enforcementTypeValues.some((entry) => entry === value);
 
 type FormTemplateInput = {
   title: string;
@@ -74,9 +147,9 @@ type FormTemplateInput = {
   questions: Question[];
   isActive: boolean;
   // Settings
-  autoAttachMode: "manual" | "all_bookings" | "site_classes";
+  autoAttachMode: AutoAttachMode;
   siteClassIds: string[];
-  showAt: string[];
+  showAt: ShowAtOption[];
   isRequired: boolean;
   allowSkipWithNote: boolean;
   validityDays: number | null;
@@ -84,7 +157,7 @@ type FormTemplateInput = {
   reminderDaysBefore: number | null;
   // Conditional display
   displayConditions: DisplayCondition[];
-  conditionLogic: "all" | "any";
+  conditionLogic: ConditionLogic;
   // Legal document fields (for Policies backend)
   documentContent?: string;
   requireSignature?: boolean;
@@ -124,8 +197,19 @@ const emptyForm: FormTemplateInput = {
   enforcement: "post_booking",
 };
 
-// Condition field options with friendly labels
-const conditionFields = [
+type ConditionFieldOption = {
+  value: DisplayCondition["field"];
+  label: string;
+  type: ConditionFieldType;
+  options?: string[];
+};
+
+type ConditionOperatorOption = {
+  value: DisplayCondition["operator"];
+  label: string;
+};
+
+const conditionFields: ConditionFieldOption[] = [
   { value: "pets", label: "Number of pets", type: "number" },
   { value: "adults", label: "Number of adults", type: "number" },
   { value: "children", label: "Number of children", type: "number" },
@@ -135,7 +219,23 @@ const conditionFields = [
   { value: "addOns", label: "Selected add-ons", type: "text" },
 ];
 
-const conditionOperators = {
+const displayConditionOperatorValues: DisplayCondition["operator"][] = [
+  "equals",
+  "not_equals",
+  "greater_than",
+  "less_than",
+  "in",
+  "not_in",
+  "contains",
+];
+
+const isDisplayConditionField = (value: string): value is DisplayCondition["field"] =>
+  conditionFields.some((field) => field.value === value);
+
+const isDisplayConditionOperator = (value: string): value is DisplayCondition["operator"] =>
+  displayConditionOperatorValues.some((op) => op === value);
+
+const conditionOperators: Record<ConditionFieldType, ConditionOperatorOption[]> = {
   number: [
     { value: "greater_than", label: "is more than" },
     { value: "less_than", label: "is less than" },
@@ -168,12 +268,68 @@ type StarterTemplate = {
   description: string;
   questions: Question[];
   autoAttachMode: FormTemplateInput["autoAttachMode"];
-  showAt: string[];
+  showAt: ShowAtOption[];
   category: "collection" | "legal";
   // Legal document specific
   documentContent?: string;
   enforcement?: FormTemplateInput["enforcement"];
 };
+
+type PolicyTemplate = Awaited<ReturnType<typeof apiClient.getPolicyTemplates>>[number];
+type FormTemplateApi = Awaited<ReturnType<typeof apiClient.getFormTemplates>>[number];
+type ReservationRecord = Awaited<ReturnType<typeof apiClient.getReservations>>[number];
+type GuestRecord = Awaited<ReturnType<typeof apiClient.getGuests>>[number];
+type SiteClassRecord = Awaited<ReturnType<typeof apiClient.getSiteClasses>>[number];
+
+type FormFieldQuestion = {
+  label: string;
+  type: string;
+  required: boolean;
+  options?: string[];
+};
+
+type FormFields = {
+  questions: FormFieldQuestion[];
+};
+
+type TemplateListItem = {
+  id: string;
+  title: string;
+  type: FormType;
+  description?: string | null;
+  fields: FormFields;
+  isActive?: boolean;
+  autoAttachMode?: AutoAttachMode;
+  siteClassIds?: string[];
+  showAt?: ShowAtOption[];
+  isRequired?: boolean;
+  allowSkipWithNote?: boolean;
+  validityDays?: number | null;
+  sendReminder?: boolean;
+  reminderDaysBefore?: number | null;
+  displayConditions?: DisplayCondition[];
+  conditionLogic?: ConditionLogic;
+  documentContent?: string;
+  enforcement?: EnforcementType;
+  requireSignature?: boolean;
+  updatedAt?: string | Date;
+  createdAt?: string | Date;
+  _backend: "form" | "policy";
+};
+
+type CreateFormTemplatePayload = Parameters<typeof apiClient.createFormTemplate>[0];
+type UpdateFormTemplatePayload = Parameters<typeof apiClient.updateFormTemplate>[1];
+
+type MainTab = "forms" | "contracts";
+
+const mainTabValues: MainTab[] = ["forms", "contracts"];
+const modalTabValues: ModalTab[] = ["questions", "settings"];
+
+const isMainTab = (value: string): value is MainTab =>
+  mainTabValues.some((tab) => tab === value);
+
+const isModalTab = (value: string): value is ModalTab =>
+  modalTabValues.some((tab) => tab === value);
 
 const starterTemplates: StarterTemplate[] = [
   // === Data Collection Templates ===
@@ -371,6 +527,76 @@ const typeIcons: Record<string, React.ReactNode> = Object.fromEntries(
   Object.entries(typeConfig).map(([k, v]) => [k, v.icon])
 );
 
+const parseShowAtOptions = (value: unknown): ShowAtOption[] => {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is ShowAtOption => typeof item === "string" && isShowAtOption(item));
+};
+
+const parseDisplayConditionValue = (value: unknown): DisplayCondition["value"] | null => {
+  if (typeof value === "string") return value;
+  if (typeof value === "number") return value;
+  if (isStringArray(value)) return value;
+  return null;
+};
+
+const parseDisplayConditions = (value: unknown): DisplayCondition[] => {
+  if (!Array.isArray(value)) return [];
+  return value.reduce<DisplayCondition[]>((acc, item) => {
+    if (!isRecord(item)) return acc;
+    const field = typeof item.field === "string" && isDisplayConditionField(item.field) ? item.field : null;
+    const operator = typeof item.operator === "string" && isDisplayConditionOperator(item.operator) ? item.operator : null;
+    const parsedValue = parseDisplayConditionValue(item.value);
+    if (!field || !operator || parsedValue === null) return acc;
+    acc.push({
+      id: generateId(),
+      field,
+      operator,
+      value: parsedValue
+    });
+    return acc;
+  }, []);
+};
+
+const parseQuestions = (value: unknown): Question[] => {
+  if (!Array.isArray(value)) return [];
+  return value.reduce<Question[]>((acc, item) => {
+    if (!isRecord(item)) return acc;
+    const label = typeof item.label === "string" ? item.label : "";
+    const typeValue = typeof item.type === "string" && isQuestionType(item.type) ? item.type : "text";
+    const required = typeof item.required === "boolean" ? item.required : false;
+    const options = isStringArray(item.options) ? item.options : undefined;
+    acc.push({
+      id: generateId(),
+      label,
+      type: typeValue,
+      required,
+      ...(options ? { options } : {})
+    });
+    return acc;
+  }, []);
+};
+
+const toFormFields = (value: unknown): FormFields => {
+  if (!isRecord(value)) return { questions: [] };
+  const rawQuestions = value.questions;
+  if (!Array.isArray(rawQuestions)) return { questions: [] };
+  const questions = rawQuestions.reduce<FormFieldQuestion[]>((acc, item) => {
+    if (!isRecord(item)) return acc;
+    const label = typeof item.label === "string" ? item.label : "";
+    const typeValue = typeof item.type === "string" ? item.type : "text";
+    const required = typeof item.required === "boolean" ? item.required : false;
+    const options = isStringArray(item.options) ? item.options : undefined;
+    acc.push({
+      label,
+      type: typeValue,
+      required,
+      ...(options ? { options } : {})
+    });
+    return acc;
+  }, []);
+  return { questions };
+};
+
 // ==== DUAL-BACKEND MAPPING FUNCTIONS ====
 
 // Map FormTemplateInput to Policy API payload
@@ -400,34 +626,51 @@ function mapFormToPolicy(form: FormTemplateInput, campgroundId: string) {
 }
 
 // Map Policy API response to FormTemplateInput
-function mapPolicyToForm(policy: any): FormTemplateInput & { id: string; updatedAt: string; createdAt: string } {
-  const config = policy.policyConfig || {};
+function mapPolicyToForm(
+  policy: PolicyTemplate
+): FormTemplateInput & { id: string; updatedAt?: string | Date; createdAt?: string | Date } {
+  const config = isRecord(policy.policyConfig) ? policy.policyConfig : {};
+  const showAt = parseShowAtOptions(config.showAt);
+  const questions = parseQuestions(config.questions);
+  const displayConditions = parseDisplayConditions(config.displayConditions);
+  const conditionLogic =
+    typeof config.conditionLogic === "string" && isConditionLogic(config.conditionLogic)
+      ? config.conditionLogic
+      : "all";
+  const enforcement =
+    typeof config.enforcement === "string" && isEnforcementType(config.enforcement)
+      ? config.enforcement
+      : "post_booking";
+  const requireSignature = typeof config.requireSignature === "boolean" ? config.requireSignature : true;
+  const isRequired = typeof config.isRequired === "boolean" ? config.isRequired : true;
+  const allowSkipWithNote = typeof config.allowSkipWithNote === "boolean" ? config.allowSkipWithNote : false;
+  const validityDays = typeof config.validityDays === "number" ? config.validityDays : null;
+  const sendReminder = typeof config.sendReminder === "boolean" ? config.sendReminder : false;
+  const reminderDaysBefore =
+    typeof config.reminderDaysBefore === "number" ? config.reminderDaysBefore : 1;
+  const resolvedType = isFormType(policy.type) ? policy.type : "legal_agreement";
+
   return {
     id: policy.id,
     title: policy.name,
-    type: policy.type as FormType,
+    type: resolvedType,
     description: policy.description || "",
     documentContent: policy.content || "",
-    questions: config.questions || [],
+    questions,
     isActive: policy.isActive ?? true,
     autoAttachMode: policy.autoSend ? "all_bookings" : (policy.siteClassId ? "site_classes" : "manual"),
     siteClassIds: policy.siteClassId ? [policy.siteClassId] : [],
-    showAt: config.showAt || ["during_booking"],
-    isRequired: config.isRequired ?? true,
-    allowSkipWithNote: config.allowSkipWithNote ?? false,
-    validityDays: config.validityDays ?? null,
-    sendReminder: config.sendReminder ?? false,
-    reminderDaysBefore: config.reminderDaysBefore ?? 1,
-    displayConditions: (config.displayConditions || []).map((c: any) => ({
-      id: generateId(),
-      field: c.field,
-      operator: c.operator,
-      value: c.value
-    })),
-    conditionLogic: config.conditionLogic || "all",
-    enforcement: config.enforcement || "post_booking",
-    requireSignature: config.requireSignature ?? true,
-    _backend: "policy" as const,
+    showAt: showAt.length > 0 ? showAt : ["during_booking"],
+    isRequired,
+    allowSkipWithNote,
+    validityDays,
+    sendReminder,
+    reminderDaysBefore,
+    displayConditions,
+    conditionLogic,
+    enforcement,
+    requireSignature,
+    _backend: "policy",
     _originalId: policy.id,
     updatedAt: policy.updatedAt,
     createdAt: policy.createdAt,
@@ -435,7 +678,12 @@ function mapPolicyToForm(policy: any): FormTemplateInput & { id: string; updated
 }
 
 // Show At options
-const showAtOptions = [
+const showAtOptions: Array<{
+  value: ShowAtOption;
+  label: string;
+  icon: IconComponent;
+  description: string;
+}> = [
   { value: "during_booking", label: "During online booking", icon: Calendar, description: "Guest fills out before payment" },
   { value: "at_checkin", label: "At check-in", icon: Clock, description: "Staff collects during check-in" },
   { value: "after_booking", label: "After booking (email)", icon: Send, description: "Sent via email after confirmation" },
@@ -566,7 +814,10 @@ function QuestionBuilder({
                     />
                     <Select
                       value={q.type}
-                      onValueChange={(value) => updateQuestion(q.id, { type: value, options: value === "select" ? ["Option 1"] : undefined })}
+                      onValueChange={(value) => {
+                        if (!isQuestionType(value)) return;
+                        updateQuestion(q.id, { type: value, options: value === "select" ? ["Option 1"] : undefined });
+                      }}
                     >
                       <SelectTrigger className="w-[140px]">
                         <div className="flex items-center gap-2">
@@ -928,7 +1179,11 @@ function FormSettings({
                   <span className="text-xs text-muted-foreground">Show when</span>
                   <Select
                     value={form.conditionLogic}
-                    onValueChange={(v) => onChange({ conditionLogic: v as "all" | "any" })}
+                    onValueChange={(value) => {
+                      if (isConditionLogic(value)) {
+                        onChange({ conditionLogic: value });
+                      }
+                    }}
                   >
                     <SelectTrigger className="w-[100px] h-7 text-xs">
                       <SelectValue />
@@ -945,22 +1200,24 @@ function FormSettings({
               <div className="space-y-2">
                 {form.displayConditions.map((condition, index) => {
                   const fieldConfig = conditionFields.find(f => f.value === condition.field);
-                  const operatorType = fieldConfig?.type || "text";
-                  const operators = conditionOperators[operatorType as keyof typeof conditionOperators] || conditionOperators.text;
+                  const operatorType: ConditionFieldType = fieldConfig?.type ?? "text";
+                  const operators = conditionOperators[operatorType] ?? conditionOperators.text;
 
                   return (
                     <div key={condition.id} className="flex items-center gap-2 p-2 rounded bg-muted">
                       {/* Field Select */}
                       <Select
                         value={condition.field}
-                        onValueChange={(v) => {
+                        onValueChange={(value) => {
+                          if (!isDisplayConditionField(value)) return;
                           const updated = [...form.displayConditions];
-                          const newField = conditionFields.find(f => f.value === v);
+                          const newField = conditionFields.find((field) => field.value === value);
+                          const nextFieldType = newField?.type ?? "text";
                           updated[index] = {
                             ...condition,
-                            field: v as DisplayCondition["field"],
-                            operator: newField?.type === "number" ? "greater_than" : "equals",
-                            value: newField?.type === "number" ? 0 : ""
+                            field: value,
+                            operator: nextFieldType === "number" ? "greater_than" : "equals",
+                            value: nextFieldType === "number" ? 0 : ""
                           };
                           onChange({ displayConditions: updated });
                         }}
@@ -978,9 +1235,10 @@ function FormSettings({
                       {/* Operator Select */}
                       <Select
                         value={condition.operator}
-                        onValueChange={(v) => {
+                        onValueChange={(value) => {
+                          if (!isDisplayConditionOperator(value)) return;
                           const updated = [...form.displayConditions];
-                          updated[index] = { ...condition, operator: v as DisplayCondition["operator"] };
+                          updated[index] = { ...condition, operator: value };
                           onChange({ displayConditions: updated });
                         }}
                       >
@@ -998,7 +1256,7 @@ function FormSettings({
                       {fieldConfig?.type === "number" && (
                         <Input
                           type="number"
-                          value={condition.value as number}
+                          value={typeof condition.value === "number" ? condition.value : 0}
                           onChange={(e) => {
                             const updated = [...form.displayConditions];
                             updated[index] = { ...condition, value: parseInt(e.target.value) || 0 };
@@ -1009,7 +1267,7 @@ function FormSettings({
                       )}
                       {fieldConfig?.type === "select" && (
                         <Select
-                          value={condition.value as string}
+                          value={typeof condition.value === "string" ? condition.value : ""}
                           onValueChange={(v) => {
                             const updated = [...form.displayConditions];
                             updated[index] = { ...condition, value: v };
@@ -1028,7 +1286,7 @@ function FormSettings({
                       )}
                       {fieldConfig?.type === "siteClass" && (
                         <Select
-                          value={condition.value as string}
+                          value={typeof condition.value === "string" ? condition.value : ""}
                           onValueChange={(v) => {
                             const updated = [...form.displayConditions];
                             updated[index] = { ...condition, value: v };
@@ -1048,7 +1306,7 @@ function FormSettings({
                       {fieldConfig?.type === "text" && (
                         <Input
                           type="text"
-                          value={condition.value as string}
+                          value={typeof condition.value === "string" ? condition.value : ""}
                           onChange={(e) => {
                             const updated = [...form.displayConditions];
                             updated[index] = { ...condition, value: e.target.value };
@@ -1174,7 +1432,7 @@ function ManualAttach({
   campgroundId,
   onAttach
 }: {
-  templates: any[];
+  templates: TemplateListItem[];
   campgroundId: string;
   onAttach: (templateId: string, reservationId?: string, guestId?: string) => void;
 }) {
@@ -1184,30 +1442,36 @@ function ManualAttach({
   const [selectedId, setSelectedId] = useState("");
 
   // Fetch reservations for search
-  const reservationsQuery = useQuery({
+  const reservationsQuery = useQuery<ReservationRecord[]>({
     queryKey: ["reservations", campgroundId],
     queryFn: () => apiClient.getReservations(campgroundId),
     enabled: !!campgroundId && searchType === "reservation",
   });
 
   // Fetch guests for search
-  const guestsQuery = useQuery({
+  const guestsQuery = useQuery<GuestRecord[]>({
     queryKey: ["guests", campgroundId],
     queryFn: () => apiClient.getGuests(campgroundId),
     enabled: !!campgroundId && searchType === "guest",
   });
 
-  const filteredResults = searchType === "reservation"
-    ? (reservationsQuery.data || []).filter((r: any) =>
-        r.confirmationNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        r.guest?.firstName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        r.guest?.lastName?.toLowerCase().includes(searchQuery.toLowerCase())
-      ).slice(0, 10)
-    : (guestsQuery.data || []).filter((g: any) =>
-        g.firstName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        g.lastName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        g.email?.toLowerCase().includes(searchQuery.toLowerCase())
-      ).slice(0, 10);
+  const reservationResults = (reservationsQuery.data || [])
+    .filter((r) =>
+      r.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      r.guest?.primaryFirstName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      r.guest?.primaryLastName?.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .slice(0, 10);
+
+  const guestResults = (guestsQuery.data || [])
+    .filter((g) =>
+      g.primaryFirstName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      g.primaryLastName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      g.email?.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .slice(0, 10);
+
+  const filteredResults = searchType === "reservation" ? reservationResults : guestResults;
 
   return (
     <div className="space-y-4">
@@ -1285,8 +1549,8 @@ function ManualAttach({
           <div className="border rounded-lg divide-y max-h-48 overflow-y-auto">
             {filteredResults.length === 0 ? (
               <div className="p-3 text-sm text-muted-foreground text-center">No results found</div>
-            ) : (
-              filteredResults.map((item: any) => (
+            ) : searchType === "reservation" ? (
+              reservationResults.map((item) => (
                 <button
                   key={item.id}
                   type="button"
@@ -1296,23 +1560,33 @@ function ManualAttach({
                     selectedId === item.id && "bg-status-success/15"
                   )}
                 >
-                  {searchType === "reservation" ? (
-                    <div>
-                      <div className="font-medium text-sm text-foreground">
-                        #{item.confirmationNumber} - {item.guest?.firstName} {item.guest?.lastName}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {new Date(item.startDate).toLocaleDateString()} - {new Date(item.endDate).toLocaleDateString()}
-                      </div>
+                  <div>
+                    <div className="font-medium text-sm text-foreground">
+                      #{item.id} - {item.guest?.primaryFirstName} {item.guest?.primaryLastName}
                     </div>
-                  ) : (
-                    <div>
-                      <div className="font-medium text-sm text-foreground">
-                        {item.firstName} {item.lastName}
-                      </div>
-                      <div className="text-xs text-muted-foreground">{item.email}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {new Date(item.arrivalDate).toLocaleDateString()} - {new Date(item.departureDate).toLocaleDateString()}
                     </div>
+                  </div>
+                </button>
+              ))
+            ) : (
+              guestResults.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setSelectedId(item.id)}
+                  className={cn(
+                    "w-full p-3 text-left hover:bg-muted transition-colors",
+                    selectedId === item.id && "bg-status-success/15"
                   )}
+                >
+                  <div>
+                    <div className="font-medium text-sm text-foreground">
+                      {item.primaryFirstName} {item.primaryLastName}
+                    </div>
+                    <div className="text-xs text-muted-foreground">{item.email}</div>
+                  </div>
                 </button>
               ))
             )}
@@ -1385,9 +1659,9 @@ function FirstFormCelebration({ open, onClose, formName }: { open: boolean; onCl
 }
 
 // Form preview modal
-function FormPreview({ open, onClose, form }: { open: boolean; onClose: () => void; form: any; }) {
+function FormPreview({ open, onClose, form }: { open: boolean; onClose: () => void; form: TemplateListItem | null; }) {
   if (!form) return null;
-  const questions = form.fields?.questions || [];
+  const questions = fieldsToQuestions(form.fields);
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[500px]">
@@ -1405,7 +1679,7 @@ function FormPreview({ open, onClose, form }: { open: boolean; onClose: () => vo
           {questions.length === 0 ? (
             <div className="text-center py-6 text-muted-foreground text-sm">No questions</div>
           ) : (
-            questions.map((q: any, idx: number) => (
+            questions.map((q, idx) => (
               <div key={idx} className="space-y-1.5">
                 <label className="text-sm font-medium">
                   {q.label}
@@ -1439,7 +1713,13 @@ function FormPreview({ open, onClose, form }: { open: boolean; onClose: () => vo
 }
 
 // Empty state
-function EmptyFormsState({ onCreateClick, onTemplateClick }: { onCreateClick: () => void; onTemplateClick: (t: any) => void; }) {
+function EmptyFormsState({
+  onCreateClick,
+  onTemplateClick
+}: {
+  onCreateClick: () => void;
+  onTemplateClick: (t: StarterTemplate) => void;
+}) {
   return (
     <div className="relative overflow-hidden rounded-xl border-2 border-dashed border-border bg-muted p-8">
       <div className="absolute top-0 right-0 w-48 h-48 bg-status-success/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
@@ -1478,27 +1758,35 @@ function EmptyFormsState({ onCreateClick, onTemplateClick }: { onCreateClick: ()
 }
 
 // Convert questions to fields
-function questionsToFields(questions: Question[]): { questions: any[] } {
+function questionsToFields(questions: Question[]): FormFields {
   return {
     questions: questions.map(q => {
-      const base: any = { label: q.label, type: q.type, required: q.required };
-      if (q.type === "select" && q.options) base.options = q.options;
+      const base: FormFieldQuestion = { label: q.label, type: q.type, required: q.required };
+      if (q.type === "select" && q.options) {
+        return { ...base, options: q.options };
+      }
       return base;
     })
   };
 }
 
 // Convert fields to questions
-function fieldsToQuestions(fields: any): Question[] {
-  if (!fields?.questions) return [];
-  return fields.questions.map((q: any) => ({
+function fieldsToQuestions(fields: FormFields | null | undefined): Question[] {
+  if (!fields) return [];
+  return fields.questions.map((q) => ({
     id: generateId(),
     label: q.label || "",
-    type: q.type || "text",
-    required: q.required || false,
-    options: q.options,
+    type: isQuestionType(q.type) ? q.type : "text",
+    required: q.required ?? false,
+    ...(q.options ? { options: q.options } : {})
   }));
 }
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof Error) return error.message;
+  if (isRecord(error) && typeof error.message === "string") return error.message;
+  return fallback;
+};
 
 export default function FormsPage() {
   const { toast } = useToast();
@@ -1507,13 +1795,13 @@ export default function FormsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormTemplateInput>(emptyForm);
-  const [modalTab, setModalTab] = useState<"questions" | "settings">("questions");
-  const [mainTab, setMainTab] = useState<"forms" | "contracts">("forms");
+  const [modalTab, setModalTab] = useState<ModalTab>("questions");
+  const [mainTab, setMainTab] = useState<MainTab>("forms");
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebrationName, setCelebrationName] = useState("");
-  const [previewForm, setPreviewForm] = useState<any>(null);
+  const [previewForm, setPreviewForm] = useState<TemplateListItem | null>(null);
   const [isFirstForm, setIsFirstForm] = useState(false);
 
   useEffect(() => {
@@ -1522,20 +1810,20 @@ export default function FormsPage() {
   }, []);
 
   // Query for form templates (data collection backend)
-  const formTemplatesQuery = useQuery({
+  const formTemplatesQuery = useQuery<FormTemplateApi[]>({
     queryKey: ["form-templates", campgroundId],
     queryFn: () => apiClient.getFormTemplates(campgroundId!),
     enabled: !!campgroundId,
   });
 
   // Query for policy templates (legal documents backend)
-  const policyTemplatesQuery = useQuery({
+  const policyTemplatesQuery = useQuery<PolicyTemplate[]>({
     queryKey: ["policy-templates", campgroundId],
     queryFn: () => apiClient.getPolicyTemplates(campgroundId!),
     enabled: !!campgroundId,
   });
 
-  const siteClassesQuery = useQuery({
+  const siteClassesQuery = useQuery<SiteClassRecord[]>({
     queryKey: ["site-classes", campgroundId],
     queryFn: () => apiClient.getSiteClasses(campgroundId!),
     enabled: !!campgroundId,
@@ -1543,37 +1831,66 @@ export default function FormsPage() {
 
   // Merge both form templates and policy templates into a unified list
   const allTemplates = useMemo(() => {
-    const forms = (formTemplatesQuery.data || []).map((f: any) => ({
-      ...f,
-      _backend: "form" as const,
+    const forms: TemplateListItem[] = (formTemplatesQuery.data || []).map((formTemplate) => ({
+      id: formTemplate.id,
+      title: formTemplate.title,
+      type: formTemplate.type,
+      description: formTemplate.description ?? "",
+      fields: toFormFields(formTemplate.fields),
+      isActive: formTemplate.isActive,
+      autoAttachMode: formTemplate.autoAttachMode,
+      siteClassIds: formTemplate.siteClassIds,
+      showAt: formTemplate.showAt,
+      isRequired: formTemplate.isRequired,
+      allowSkipWithNote: formTemplate.allowSkipWithNote,
+      validityDays: formTemplate.validityDays ?? null,
+      sendReminder: formTemplate.sendReminder,
+      reminderDaysBefore: formTemplate.reminderDaysBefore ?? null,
+      displayConditions: (formTemplate.displayConditions ?? []).map((condition) => ({
+        id: generateId(),
+        field: condition.field,
+        operator: condition.operator,
+        value: condition.value
+      })),
+      conditionLogic: formTemplate.conditionLogic,
+      updatedAt: formTemplate.updatedAt,
+      createdAt: formTemplate.createdAt,
+      _backend: "form",
     }));
 
     // Only include legal document types from policy templates
-    const policies = (policyTemplatesQuery.data || [])
-      .filter((p: any) => isLegalDocumentType(p.type))
-      .map((p: any) => {
-        const mapped = mapPolicyToForm(p);
+    const policies: TemplateListItem[] = (policyTemplatesQuery.data || [])
+      .filter((policy) => isLegalDocumentType(policy.type))
+      .map((policy) => {
+        const mapped = mapPolicyToForm(policy);
         return {
-          id: p.id,
+          id: mapped.id,
           title: mapped.title,
           type: mapped.type,
           description: mapped.description,
-          fields: { questions: mapped.questions },
+          fields: questionsToFields(mapped.questions),
           isActive: mapped.isActive,
           autoAttachMode: mapped.autoAttachMode,
           siteClassIds: mapped.siteClassIds,
           showAt: mapped.showAt,
+          isRequired: mapped.isRequired,
+          allowSkipWithNote: mapped.allowSkipWithNote,
+          validityDays: mapped.validityDays,
+          sendReminder: mapped.sendReminder,
+          reminderDaysBefore: mapped.reminderDaysBefore,
+          displayConditions: mapped.displayConditions,
+          conditionLogic: mapped.conditionLogic,
           documentContent: mapped.documentContent,
           enforcement: mapped.enforcement,
           requireSignature: mapped.requireSignature,
-          updatedAt: p.updatedAt,
-          createdAt: p.createdAt,
-          _backend: "policy" as const,
+          updatedAt: mapped.updatedAt,
+          createdAt: mapped.createdAt,
+          _backend: "policy",
         };
       });
 
     return [...forms, ...policies].sort((a, b) =>
-      new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()
+      new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime()
     );
   }, [formTemplatesQuery.data, policyTemplatesQuery.data]);
 
@@ -1607,11 +1924,11 @@ export default function FormsPage() {
       } else {
         // Use Form API for data collection types
         const fields = questionsToFields(form.questions);
-        const payload = {
+        const payload: Omit<CreateFormTemplatePayload, "campgroundId"> = {
           title: form.title,
           type: form.type,
-          description: form.description || undefined,
-          fields,
+          description: form.description ?? undefined,
+          fields: fields ?? undefined,
           isActive: form.isActive,
           autoAttachMode: form.autoAttachMode,
           siteClassIds: form.siteClassIds,
@@ -1633,12 +1950,24 @@ export default function FormsPage() {
           // Check if we're editing a form or converting a policy to a form
           const existingTemplate = allTemplates.find(t => t.id === editingId);
           if (existingTemplate?._backend === "form") {
-            return apiClient.updateFormTemplate(editingId, payload as Parameters<typeof apiClient.updateFormTemplate>[1]);
+            return apiClient.updateFormTemplate(editingId, payload);
           }
           // If converting from policy to form, create new form
-          return apiClient.createFormTemplate({ campgroundId: campgroundId!, ...payload } as Parameters<typeof apiClient.createFormTemplate>[0]);
+          const createPayload: CreateFormTemplatePayload = {
+            campgroundId: campgroundId!,
+            ...payload,
+            title: form.title,
+            type: form.type,
+          };
+          return apiClient.createFormTemplate(createPayload);
         }
-        return apiClient.createFormTemplate({ campgroundId: campgroundId!, ...payload } as Parameters<typeof apiClient.createFormTemplate>[0]);
+        const createPayload: CreateFormTemplatePayload = {
+          campgroundId: campgroundId!,
+          ...payload,
+          title: form.title,
+          type: form.type,
+        };
+        return apiClient.createFormTemplate(createPayload);
       }
     },
     onSuccess: () => {
@@ -1656,8 +1985,8 @@ export default function FormsPage() {
       setForm(emptyForm);
       setModalTab("questions");
     },
-    onError: (err: any) => {
-      toast({ title: err?.message || "Failed to save form", variant: "destructive" });
+    onError: (error: unknown) => {
+      toast({ title: getErrorMessage(error, "Failed to save form"), variant: "destructive" });
     },
   });
 
@@ -1695,7 +2024,8 @@ export default function FormsPage() {
     onSuccess: () => {
       toast({ title: "Form attached", description: "The form has been linked successfully." });
     },
-    onError: (err: any) => toast({ title: err?.message || "Failed to attach form", variant: "destructive" })
+    onError: (error: unknown) =>
+      toast({ title: getErrorMessage(error, "Failed to attach form"), variant: "destructive" })
   });
 
   const openCreate = () => {
@@ -1705,7 +2035,7 @@ export default function FormsPage() {
     setIsModalOpen(true);
   };
 
-  const openFromTemplate = (template: typeof starterTemplates[0]) => {
+  const openFromTemplate = (template: StarterTemplate) => {
     setEditingId(null);
     setForm({
       ...emptyForm,
@@ -1722,7 +2052,7 @@ export default function FormsPage() {
 
   const openEdit = (id: string) => {
     // Use merged allTemplates list to find the template
-    const t = allTemplates.find((x: any) => x.id === id);
+    const t = allTemplates.find((template) => template.id === id);
     if (!t) return;
     setEditingId(id);
     setForm({
@@ -1739,12 +2069,7 @@ export default function FormsPage() {
       validityDays: t.validityDays ?? null,
       sendReminder: t.sendReminder ?? false,
       reminderDaysBefore: t.reminderDaysBefore ?? 1,
-      displayConditions: (t.displayConditions || []).map((c: any) => ({
-        id: generateId(),
-        field: c.field,
-        operator: c.operator,
-        value: c.value
-      })),
+      displayConditions: (t.displayConditions || []).map((condition) => ({ ...condition })),
       conditionLogic: t.conditionLogic || "all",
       // Legal document fields
       documentContent: t.documentContent || "",
@@ -1757,16 +2082,18 @@ export default function FormsPage() {
     setIsModalOpen(true);
   };
 
-  const formToDelete = allTemplates.find((t: any) => t.id === deleteConfirmId);
+  const formToDelete = allTemplates.find((template) => template.id === deleteConfirmId);
   const siteClasses = siteClassesQuery.data || [];
+  const siteClassesError = siteClassesQuery.error instanceof Error ? siteClassesQuery.error : null;
 
   // Helper to get auto-attach badge
-  const getAutoAttachBadge = (t: any) => {
-    if (t.autoAttachMode === "all_bookings") {
+  const getAutoAttachBadge = (template: TemplateListItem) => {
+    if (template.autoAttachMode === "all_bookings") {
       return <Badge className="bg-status-warning/15 text-status-warning border-status-warning/30 hover:bg-status-warning/15">All bookings</Badge>;
     }
-    if (t.autoAttachMode === "site_classes" && t.siteClassIds?.length > 0) {
-      return <Badge className="bg-status-info/15 text-status-info border-status-info/30 hover:bg-status-info/15">{t.siteClassIds.length} site types</Badge>;
+    const siteClassIds = template.siteClassIds ?? [];
+    if (template.autoAttachMode === "site_classes" && siteClassIds.length > 0) {
+      return <Badge className="bg-status-info/15 text-status-info border-status-info/30 hover:bg-status-info/15">{siteClassIds.length} site types</Badge>;
     }
     return <Badge variant="secondary">Manual</Badge>;
   };
@@ -1800,7 +2127,15 @@ export default function FormsPage() {
       </AlertDialog>
 
       {/* Main Page Tabs */}
-      <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as "forms" | "contracts")} className="space-y-6">
+      <Tabs
+        value={mainTab}
+        onValueChange={(value) => {
+          if (isMainTab(value)) {
+            setMainTab(value);
+          }
+        }}
+        className="space-y-6"
+      >
         <TabsList className="grid w-full max-w-md grid-cols-2">
           <TabsTrigger value="forms" className="flex items-center gap-2">
             <FileText className="h-4 w-4" />
@@ -1858,7 +2193,9 @@ export default function FormsPage() {
 
             {allTemplates.length > 0 && (
               <div className="grid gap-3">
-                {allTemplates.map((t: any) => (
+                {allTemplates.map((t) => {
+                  const updatedAt = t.updatedAt ? new Date(t.updatedAt) : null;
+                  return (
                   <div
                     key={t.id}
                     className={cn(
@@ -1893,7 +2230,7 @@ export default function FormsPage() {
                             </>
                           )}
                           <span>•</span>
-                          <span>Updated {new Date(t.updatedAt).toLocaleDateString()}</span>
+                          <span>Updated {updatedAt ? updatedAt.toLocaleDateString() : "—"}</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -1910,7 +2247,8 @@ export default function FormsPage() {
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>
@@ -1951,7 +2289,15 @@ export default function FormsPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <Tabs value={modalTab} onValueChange={(v) => setModalTab(v as ModalTab)} className="flex-1 flex flex-col overflow-hidden">
+          <Tabs
+            value={modalTab}
+            onValueChange={(value) => {
+              if (isModalTab(value)) {
+                setModalTab(value);
+              }
+            }}
+            className="flex-1 flex flex-col overflow-hidden"
+          >
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="questions" className="flex items-center gap-2">
                 <FileQuestion className="h-4 w-4" />
@@ -2045,7 +2391,14 @@ export default function FormsPage() {
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-foreground">Type</label>
-                    <Select value={form.type} onValueChange={(v) => setForm(f => ({ ...f, type: v as FormType }))}>
+                    <Select
+                      value={form.type}
+                      onValueChange={(value) => {
+                        if (isFormType(value)) {
+                          setForm((current) => ({ ...current, type: value }));
+                        }
+                      }}
+                    >
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">Data Collection</div>
@@ -2142,9 +2495,9 @@ export default function FormsPage() {
                 <FormSettings
                   form={form}
                   onChange={(updates) => setForm(f => ({ ...f, ...updates }))}
-                  siteClasses={siteClasses.map((sc: any) => ({ id: sc.id, name: sc.name }))}
+                  siteClasses={siteClasses.map((sc) => ({ id: sc.id, name: sc.name }))}
                   siteClassesLoading={siteClassesQuery.isLoading}
-                  siteClassesError={siteClassesQuery.error as Error | null}
+                  siteClassesError={siteClassesError}
                 />
               </TabsContent>
             </div>

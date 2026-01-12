@@ -72,7 +72,7 @@ function shouldShowForm(
   const logic = template.conditionLogic || "all";
 
   const evaluateCondition = (cond: { field: string; operator: string; value: string | number | string[] }) => {
-    let fieldValue: any;
+    let fieldValue: string | number | undefined;
     switch (cond.field) {
       case "pets":
         fieldValue = context.pets;
@@ -102,15 +102,15 @@ function shouldShowForm(
       case "not_equals":
         return fieldValue !== cond.value;
       case "greater_than":
-        return typeof fieldValue === "number" && fieldValue > (cond.value as number);
+        return typeof fieldValue === "number" && typeof cond.value === "number" && fieldValue > cond.value;
       case "less_than":
-        return typeof fieldValue === "number" && fieldValue < (cond.value as number);
+        return typeof fieldValue === "number" && typeof cond.value === "number" && fieldValue < cond.value;
       case "in":
-        return Array.isArray(cond.value) && cond.value.includes(fieldValue);
+        return Array.isArray(cond.value) && cond.value.some((val) => val === fieldValue);
       case "not_in":
-        return Array.isArray(cond.value) && !cond.value.includes(fieldValue);
+        return Array.isArray(cond.value) && !cond.value.some((val) => val === fieldValue);
       case "contains":
-        return typeof fieldValue === "string" && fieldValue.includes(cond.value as string);
+        return typeof fieldValue === "string" && typeof cond.value === "string" && fieldValue.includes(cond.value);
       default:
         return true;
     }
@@ -183,7 +183,7 @@ export function BookingFormsSection({
     return null; // No forms to show
   }
 
-  const handleInputChange = (formId: string, questionId: string, value: any) => {
+  const handleInputChange = (formId: string, questionId: string, value: string | boolean) => {
     setFormResponses(prev => ({
       ...prev,
       [formId]: {

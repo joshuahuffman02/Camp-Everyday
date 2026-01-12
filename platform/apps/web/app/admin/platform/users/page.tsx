@@ -20,10 +20,6 @@ type Staff = {
   platformActive?: boolean | null;
 };
 
-interface UserWithPlatformRole {
-  platformRole?: string | null;
-}
-
 const PLATFORM_ROLE_OPTIONS = [
   { value: "support_agent", label: "Support Agent" },
   { value: "support_lead", label: "Support Lead" },
@@ -41,7 +37,7 @@ export default function PlatformUsersPage() {
   const [regionFilter, setRegionFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
 
-  const platformRole = (whoami?.user as UserWithPlatformRole | undefined)?.platformRole;
+  const platformRole = whoami?.user?.platformRole;
   const canManage = !!platformRole;
 
   const filteredStaff = useMemo(() => {
@@ -60,10 +56,11 @@ export default function PlatformUsersPage() {
       const params = regionFilter !== "all" ? `?region=${encodeURIComponent(regionFilter)}` : "";
       const res = await fetch(`${base}/support/reports/staff/directory${params}`, { credentials: "include" });
       if (!res.ok) throw new Error(`Failed to load staff (${res.status})`);
-      const data = (await res.json()) as Staff[];
+      const data: Staff[] = await res.json();
       setStaff(data.filter((s) => s.platformRole || s.platformActive));
-    } catch (err: any) {
-      toast({ title: "Load failed", description: err?.message || "Could not load staff", variant: "destructive" });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Could not load staff";
+      toast({ title: "Load failed", description: message, variant: "destructive" });
       setStaff([]);
     } finally {
       setLoading(false);
@@ -91,11 +88,12 @@ export default function PlatformUsersPage() {
         })
       });
       if (!res.ok) throw new Error(`Update failed (${res.status})`);
-      const updated = (await res.json()) as Staff;
+      const updated: Staff = await res.json();
       setStaff((prev) => prev.map((s) => (s.id === target.id ? { ...s, ...updated } : s)));
       toast({ title: "Saved", description: "Platform staff updated" });
-    } catch (err: any) {
-      toast({ title: "Save failed", description: err?.message || "Unable to save", variant: "destructive" });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unable to save";
+      toast({ title: "Save failed", description: message, variant: "destructive" });
     } finally {
       setSavingId(null);
     }
@@ -122,7 +120,11 @@ export default function PlatformUsersPage() {
             <div className="text-xs uppercase font-semibold text-muted-foreground">Platform</div>
             <h1 className="text-2xl font-bold text-foreground">Platform users</h1>
             <p className="text-sm text-muted-foreground">Internal staff for support and operations. Hidden from campground staff.</p>
-            {whoamiError && <p className="text-xs text-rose-600 mt-1">Failed to load identity: {(whoamiError as Error)?.message}</p>}
+            {whoamiError && (
+              <p className="text-xs text-rose-600 mt-1">
+                Failed to load identity: {whoamiError instanceof Error ? whoamiError.message : "Unknown error"}
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Select value={regionFilter} onValueChange={setRegionFilter}>
@@ -227,5 +229,3 @@ export default function PlatformUsersPage() {
     </div>
   );
 }
-
-

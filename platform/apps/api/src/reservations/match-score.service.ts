@@ -1,5 +1,30 @@
 import { Injectable } from '@nestjs/common';
-import { Guest, Site, Reservation, SiteClass } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+
+export type MatchScoreGuest = {
+    id: string;
+    rigLength: number | null;
+    preferences: Prisma.JsonValue | null;
+    reservations?: Array<{
+        id?: string;
+        siteId: string;
+        Site: { id?: string; siteClassId: string | null } | null;
+    }>;
+};
+
+export type MatchScoreSite = {
+    id: string;
+    rigMaxLength: number | null;
+    siteType: string;
+    accessible: boolean;
+    amenityTags: string[];
+    maxOccupancy: number;
+    siteClassId: string | null;
+    vibeTags?: string[] | null;
+    popularityScore?: number | null;
+    defaultRate?: number | null;
+    SiteClass?: { defaultRate?: number | null; rigMaxLength?: number | null } | null;
+};
 
 export interface MatchResult {
     score: number;
@@ -9,8 +34,8 @@ export interface MatchResult {
 @Injectable()
 export class MatchScoreService {
     calculateMatchScore(
-        guest: Guest & { reservations?: (Reservation & { site: Site | null })[] },
-        site: Site & { siteClass?: SiteClass | null }
+        guest: MatchScoreGuest,
+        site: MatchScoreSite
     ): MatchResult {
         let score = 50;
         const reasons: string[] = [];
@@ -23,7 +48,7 @@ export class MatchScoreService {
         // 2. History
         const pastReservations = guest.reservations || [];
         const hasStayedInSite = pastReservations.some(r => r.siteId === site.id);
-        const hasStayedInClass = pastReservations.some(r => r.site?.siteClassId === site.siteClassId);
+        const hasStayedInClass = pastReservations.some(r => r.Site?.siteClassId === site.siteClassId);
 
         if (hasStayedInSite) {
             score += 30;
@@ -35,24 +60,24 @@ export class MatchScoreService {
 
         // 3. Preferences vs Vibe Tags
         // guest.preferences is Json, we need to cast it safely
-        const preferences = guest.preferences as Record<string, unknown> || {};
-        const vibeTags = site.vibeTags || [];
+        const preferences = this.normalizePreferences(guest.preferences);
+        const vibeTags = site.vibeTags ?? [];
 
         // Example preference: { "secluded": true, "view": "lake" }
         // Example tags: ["Secluded", "Lake View"]
 
         // Check for boolean preferences matching tags
-        if (preferences.secluded && vibeTags.includes('Secluded')) {
+        if (preferences?.["secluded"] === true && vibeTags.includes('Secluded')) {
             score += 15;
             reasons.push('Matches preference: Secluded location');
         }
 
-        if (preferences.shade && vibeTags.includes('Shade')) {
+        if (preferences?.["shade"] === true && vibeTags.includes('Shade')) {
             score += 10;
             reasons.push('Matches preference: Shaded site');
         }
 
-        if (preferences.nearBathrooms && vibeTags.includes('Near Bathrooms')) {
+        if (preferences?.["nearBathrooms"] === true && vibeTags.includes('Near Bathrooms')) {
             score += 10;
             reasons.push('Close to restrooms (accessibility)');
         }
@@ -73,7 +98,7 @@ export class MatchScoreService {
             reasons.push('ADA accessible site');
         }
 
-        if (vibeTags.includes('Pet Friendly') && preferences.pets) {
+        if (vibeTags.includes('Pet Friendly') && preferences?.["pets"] === true) {
             score += 8;
             reasons.push('Pet-friendly amenities');
         }
@@ -100,8 +125,8 @@ export class MatchScoreService {
         }
 
         // 6. Default rate value indicator
-        if (site.defaultRate && site.siteClass?.defaultRate) {
-            if (site.defaultRate <= site.siteClass.defaultRate * 0.9) {
+        if (site.defaultRate && site.SiteClass?.defaultRate) {
+            if (site.defaultRate <= site.SiteClass.defaultRate * 0.9) {
                 score += 5;
                 reasons.push('Best value in class');
             }
@@ -112,5 +137,12 @@ export class MatchScoreService {
             score: Math.min(100, Math.max(0, score)),
             reasons
         };
+    }
+
+    private normalizePreferences(value: Prisma.JsonValue | null): Prisma.JsonObject | null {
+        if (!value || typeof value !== "object" || Array.isArray(value)) {
+            return null;
+        }
+        return value;
     }
 }

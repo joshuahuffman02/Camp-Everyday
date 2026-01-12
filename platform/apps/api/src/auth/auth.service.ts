@@ -2,9 +2,9 @@ import { Injectable, ConflictException, UnauthorizedException, Logger } from '@n
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
-import { createHash, randomBytes } from 'crypto';
+import { createHash, randomBytes, randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import { PlatformRole } from '@prisma/client';
+import { PlatformRole, Prisma } from '@prisma/client';
 import { RegisterDto, LoginDto, MobileLoginDto } from './dto';
 import { AcceptInviteDto } from './dto/accept-invite.dto';
 import { AccountLockoutService } from '../security/account-lockout.service';
@@ -15,6 +15,14 @@ interface MobileTokenPair {
     refreshToken: string;
     expiresIn: number;
 }
+
+type UserWithMembership = Prisma.UserGetPayload<{
+    include: {
+        CampgroundMembership: {
+            include: { Campground: { select: { id: true; name: true; slug: true } } };
+        };
+    };
+}>;
 
 @Injectable()
 export class AuthService {
@@ -51,6 +59,7 @@ export class AuthService {
         // Create user
         const user = await this.prisma.user.create({
             data: {
+                id: randomUUID(),
                 email: normalizedEmail,
                 passwordHash,
                 firstName: dto.firstName,
@@ -88,7 +97,7 @@ export class AuthService {
             }
 
             this.logger.log(`Attempting login for ${this.sanitizeEmail(normalizedEmail)}`);
-            let user = await this.prisma.user.findUnique({
+            let user: UserWithMembership | null = await this.prisma.user.findUnique({
                 where: { email: normalizedEmail },
                 include: {
                     CampgroundMembership: {
@@ -121,6 +130,7 @@ export class AuthService {
                     const passwordHash = await bcrypt.hash(dto.password, 12);
                     user = await this.prisma.user.create({
                         data: {
+                            id: randomUUID(),
                             email: normalizedEmail,
                             passwordHash,
                             firstName: "Admin",
@@ -156,6 +166,10 @@ export class AuthService {
                     await this.securityEvents.logLoginAttempt(false, normalizedEmail, ipAddress, userAgent, undefined, "user_not_found");
                     throw new UnauthorizedException('Invalid credentials');
                 }
+            }
+
+            if (!user) {
+                throw new UnauthorizedException('Invalid credentials');
             }
 
             if (!user.isActive) {
@@ -244,8 +258,7 @@ export class AuthService {
 
     async acceptInvite(dto: AcceptInviteDto) {
         const invite = await this.prisma.inviteToken.findUnique({
-            where: { token: dto.token },
-            include: { user: true }
+            where: { token: dto.token }
         });
 
         if (!invite || invite.redeemedAt) {
@@ -392,7 +405,7 @@ export class AuthService {
                 expiresAt: { gt: new Date() }
             },
             include: {
-                user: {
+                User: {
                     include: {
                         CampgroundMembership: {
                             include: { Campground: { select: { id: true, name: true, slug: true } } }
@@ -402,13 +415,13 @@ export class AuthService {
             }
         });
 
-        if (!session || !session.user || !session.user.isActive) {
+        if (!session || !session.User || !session.User.isActive) {
             this.logger.warn(`Invalid refresh token attempt from ${ipAddress}`);
             throw new UnauthorizedException('Invalid refresh token');
         }
 
         // Generate new token pair
-        const tokens = await this.generateMobileTokenPair(session.userId, session.user.email);
+        const tokens = await this.generateMobileTokenPair(session.userId, session.User.email);
 
         // Rotate refresh token - revoke old, create new session
         await this.prisma.mobileSession.update({
@@ -426,12 +439,12 @@ export class AuthService {
         this.logger.log(`Refresh token rotated for user ${session.userId}`);
 
         return {
-            id: session.user.id,
-            email: session.user.email,
-            firstName: session.user.firstName,
-            lastName: session.user.lastName,
-            platformRole: session.user.platformRole,
-            campgrounds: session.user.CampgroundMembership.map((m: { Campground: { id: string; name: string; slug: string }; role: string }) => ({
+            id: session.User.id,
+            email: session.User.email,
+            firstName: session.User.firstName,
+            lastName: session.User.lastName,
+            platformRole: session.User.platformRole,
+            campgrounds: session.User.CampgroundMembership.map((m: { Campground: { id: string; name: string; slug: string }; role: string }) => ({
                 id: m.Campground.id,
                 name: m.Campground.name,
                 slug: m.Campground.slug,
@@ -560,6 +573,7 @@ export class AuthService {
 
         await this.prisma.mobileSession.create({
             data: {
+                id: randomUUID(),
                 userId,
                 refreshTokenHash: this.hashToken(refreshToken),
                 deviceId: deviceInfo.deviceId,

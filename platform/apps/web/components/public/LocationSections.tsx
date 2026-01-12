@@ -66,10 +66,11 @@ const regionIcons: Record<string, string> = {
 };
 
 // Animation variants
+const easeOut: "easeOut" = "easeOut";
 const fadeInUp = {
   hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" as const } }
-} as const;
+  visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: easeOut } }
+};
 
 const staggerContainer = {
   hidden: { opacity: 0 },

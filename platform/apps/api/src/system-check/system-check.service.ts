@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
-interface SystemCheckIssue {
+export interface SystemCheckIssue {
     id: string;
     severity: 'error' | 'warning' | 'info';
     category: 'pricing' | 'bookings' | 'access' | 'property' | 'system';
@@ -23,10 +23,10 @@ export class SystemCheckService {
         const campground = await this.prisma.campground.findUnique({
             where: { id: campgroundId },
             include: {
-                sites: true,
-                siteClasses: true,
-                taxRules: { where: { isActive: true } },
-                paymentGatewayConfig: true,
+                Site: true,
+                SiteClass: true,
+                TaxRule: { where: { isActive: true } },
+                CampgroundPaymentGatewayConfig: true,
             },
         });
 
@@ -58,7 +58,7 @@ export class SystemCheckService {
         }
 
         // Check for tax rules
-        if (campground.taxRules.length === 0) {
+        if (campground.TaxRule.length === 0) {
             issues.push({
                 id: `${++issueId}`,
                 severity: 'warning',
@@ -73,7 +73,7 @@ export class SystemCheckService {
         // === BOOKINGS CHECKS ===
 
         // Check for sites
-        if (campground.sites.length === 0) {
+        if (campground.Site.length === 0) {
             issues.push({
                 id: `${++issueId}`,
                 severity: 'error',
@@ -86,7 +86,7 @@ export class SystemCheckService {
         }
 
         // Check for site classes
-        if (campground.siteClasses.length === 0) {
+        if (campground.SiteClass.length === 0) {
             issues.push({
                 id: `${++issueId}`,
                 severity: 'warning',

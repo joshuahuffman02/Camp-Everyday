@@ -1,8 +1,9 @@
 import { Body, Controller, Post, UseGuards, BadRequestException } from "@nestjs/common";
 import { JwtAuthGuard, RolesGuard, Roles } from "../auth/guards";
-import { UserRole } from "@prisma/client";
+import { PlatformRole, UserRole } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import * as bcrypt from "bcryptjs";
+import { randomUUID } from "crypto";
 
 class CreateCampgroundWithAdminDto {
     campground!: {
@@ -30,7 +31,7 @@ export class AdminCampgroundController {
     constructor(private readonly prisma: PrismaService) { }
 
     @Post()
-    @Roles(UserRole.platform_admin)
+    @Roles(PlatformRole.platform_admin)
     async createWithAdmin(@Body() dto: CreateCampgroundWithAdminDto) {
         const { campground, admin } = dto;
 
@@ -60,9 +61,22 @@ export class AdminCampgroundController {
 
         // Create campground and admin user in a transaction
         const result = await this.prisma.$transaction(async (tx) => {
+            const organizationId = randomUUID();
+            const campgroundId = randomUUID();
+            const adminId = randomUUID();
+
+            await tx.organization.create({
+                data: {
+                    id: organizationId,
+                    name: campground.name,
+                },
+            });
+
             // Create the campground
             const newCampground = await tx.campground.create({
                 data: {
+                    id: campgroundId,
+                    organizationId,
                     name: campground.name,
                     slug: campground.slug,
                     city: campground.city,
@@ -72,13 +86,13 @@ export class AdminCampgroundController {
                     phone: campground.phone,
                     email: campground.email,
                     website: campground.website,
-                    isActive: true,
                 },
             });
 
             // Create the admin user with mustChangePassword flag
             const newUser = await tx.user.create({
                 data: {
+                    id: adminId,
                     email: admin.email,
                     passwordHash,
                     firstName: admin.firstName,
@@ -91,9 +105,10 @@ export class AdminCampgroundController {
             // Create membership linking user to campground as admin
             await tx.campgroundMembership.create({
                 data: {
+                    id: randomUUID(),
                     userId: newUser.id,
                     campgroundId: newCampground.id,
-                    role: "admin",
+                    role: UserRole.owner,
                 },
             });
 

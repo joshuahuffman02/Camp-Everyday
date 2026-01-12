@@ -1,6 +1,8 @@
 import { Injectable, Logger, BadRequestException, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
 import { CredentialEncryptionService } from "./credential-encryption.service";
+import { Prisma } from "@prisma/client";
+import { randomUUID } from "crypto";
 import {
   IntegrationProvider,
   IntegrationCredentials,
@@ -9,6 +11,24 @@ import {
   WebhookResult,
   OAuthUrlResult,
 } from "./integration-provider.interface";
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const toStringValue = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+const toNullableJsonInput = (
+  value: unknown
+): Prisma.InputJsonValue | Prisma.NullTypes.DbNull | undefined => {
+  if (value === undefined) return undefined;
+  if (value === null) return Prisma.DbNull;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
+};
 
 /**
  * Integration Framework Service
@@ -105,8 +125,9 @@ export class IntegrationFrameworkService {
 
       return { success: true, connectionId: connection.id };
     } catch (error) {
-      this.logger.error(`OAuth callback error for ${slug}`, (error as Error).stack);
-      return { success: false, error: (error as Error).message };
+      const err = error instanceof Error ? error : new Error(String(error));
+      this.logger.error(`OAuth callback error for ${slug}`, err.stack);
+      return { success: false, error: err.message };
     }
   }
 
@@ -177,7 +198,7 @@ export class IntegrationFrameworkService {
       where: { id: connection.id },
       data: {
         status: "disconnected",
-        credentials: null,
+        credentials: Prisma.DbNull,
         lastSyncAt: new Date(),
         lastSyncStatus: "disconnected",
       },
@@ -199,7 +220,7 @@ export class IntegrationFrameworkService {
   ): Promise<SyncResult> {
     const connection = await this.prisma.marketplaceConnection.findUnique({
       where: { id: connectionId },
-      include: { definition: true },
+      include: { IntegrationDefinition: true },
     });
 
     if (!connection) {
@@ -210,9 +231,9 @@ export class IntegrationFrameworkService {
       throw new BadRequestException("Integration is not connected");
     }
 
-    const provider = this.getProvider(connection.definition.slug);
+    const provider = this.getProvider(connection.IntegrationDefinition.slug);
     if (!provider) {
-      throw new BadRequestException(`Provider ${connection.definition.slug} not available`);
+      throw new BadRequestException(`Provider ${connection.IntegrationDefinition.slug} not available`);
     }
 
     // Decrypt credentials
@@ -267,20 +288,21 @@ export class IntegrationFrameworkService {
           recordsFailed: result.recordsFailed,
           recordsSkipped: result.recordsSkipped,
           completedAt: new Date(),
-          errorDetails: result.errors as any,
-          summary: result.summary as any,
+          errorDetails: toNullableJsonInput(result.errors ?? null),
+          summary: toNullableJsonInput(result.summary ?? null),
         },
       });
 
       return result;
     } catch (error) {
+      const err = error instanceof Error ? error : new Error(String(error));
       // Update sync log with error
       await this.prisma.marketplaceSyncLog.update({
         where: { id: log.id },
         data: {
           status: "failed",
           completedAt: new Date(),
-          errorDetails: [{ message: (error as Error).message }] as any,
+          errorDetails: toNullableJsonInput([{ message: err.message }]),
         },
       });
 
@@ -289,7 +311,7 @@ export class IntegrationFrameworkService {
         data: {
           lastSyncAt: new Date(),
           lastSyncStatus: "failed",
-          errorMessage: (error as Error).message,
+          errorMessage: err.message,
         },
       });
 
@@ -319,7 +341,7 @@ export class IntegrationFrameworkService {
       connection = await this.prisma.marketplaceConnection.findFirst({
         where: {
           campgroundId,
-          definition: { slug },
+          IntegrationDefinition: { slug },
         },
       });
     }
@@ -344,7 +366,9 @@ export class IntegrationFrameworkService {
 
       const webhookPayload: WebhookPayload = {
         provider: slug,
-        eventType: (payload as any)?.type || (payload as any)?.event || "unknown",
+        eventType: toStringValue(isRecord(payload) ? payload.type : undefined)
+          ?? toStringValue(isRecord(payload) ? payload.event : undefined)
+          ?? "unknown",
         payload,
         signature,
         timestamp: Date.now(),
@@ -367,8 +391,9 @@ export class IntegrationFrameworkService {
 
       return result;
     } catch (error) {
-      this.logger.error(`Webhook handler error for ${slug}`, (error as Error).stack);
-      return { handled: false, error: (error as Error).message };
+      const err = error instanceof Error ? error : new Error(String(error));
+      this.logger.error(`Webhook handler error for ${slug}`, err.stack);
+      return { handled: false, error: err.message };
     }
   }
 
@@ -382,14 +407,14 @@ export class IntegrationFrameworkService {
   }> {
     const connection = await this.prisma.marketplaceConnection.findUnique({
       where: { id: connectionId },
-      include: { definition: true },
+      include: { IntegrationDefinition: true },
     });
 
     if (!connection) {
       throw new NotFoundException("Connection not found");
     }
 
-    const provider = this.getProvider(connection.definition.slug);
+    const provider = this.getProvider(connection.IntegrationDefinition.slug);
     if (!provider) {
       return { success: false, message: "Provider not available" };
     }
@@ -459,25 +484,27 @@ export class IntegrationFrameworkService {
     config: Record<string, unknown>
   ) {
     const definitionId = await this.getDefinitionId(slug);
-    const encryptedCredentials = this.encryption.encrypt(credentials as Record<string, unknown>);
+    const encryptedCredentials = this.encryption.encrypt(credentials);
     const webhookSecret = this.encryption.generateWebhookSecret();
 
     return this.prisma.marketplaceConnection.upsert({
       where: { campgroundId_definitionId: { campgroundId, definitionId } },
       create: {
+        id: randomUUID(),
+        updatedAt: new Date(),
         campgroundId,
         definitionId,
         status: "connected",
-        credentials: encryptedCredentials as any,
-        config: config as any,
+        credentials: toNullableJsonInput(encryptedCredentials),
+        config: toNullableJsonInput(config),
         webhookSecret,
         lastSyncAt: new Date(),
         lastSyncStatus: "connected",
       },
       update: {
         status: "connected",
-        credentials: encryptedCredentials as any,
-        config: config as any,
+        credentials: toNullableJsonInput(encryptedCredentials),
+        config: toNullableJsonInput(config),
         errorMessage: null,
         errorCode: null,
         lastSyncAt: new Date(),
@@ -487,20 +514,21 @@ export class IntegrationFrameworkService {
   }
 
   private async updateCredentials(connectionId: string, credentials: IntegrationCredentials) {
-    const encrypted = this.encryption.encrypt(credentials as Record<string, unknown>);
+    const encrypted = this.encryption.encrypt(credentials);
     await this.prisma.marketplaceConnection.update({
       where: { id: connectionId },
-      data: { credentials: encrypted as any },
+      data: { credentials: toNullableJsonInput(encrypted) },
     });
   }
 
   private decryptCredentials(encrypted: unknown): IntegrationCredentials {
     if (!encrypted) return {};
     if (typeof encrypted === "string") {
-      return this.encryption.decrypt(encrypted) as IntegrationCredentials;
+      return this.encryption.decrypt(encrypted);
     }
     // If already an object (e.g., from old format), return as-is
-    return encrypted as IntegrationCredentials;
+    if (isRecord(encrypted)) return encrypted;
+    return {};
   }
 
   private async recordSyncLog(
@@ -517,6 +545,7 @@ export class IntegrationFrameworkService {
   ) {
     return this.prisma.marketplaceSyncLog.create({
       data: {
+        id: randomUUID(),
         connectionId,
         syncType: data.syncType,
         direction: data.direction,
@@ -524,7 +553,7 @@ export class IntegrationFrameworkService {
         recordsProcessed: data.recordsProcessed,
         recordsFailed: data.recordsFailed,
         triggeredBy: data.triggeredBy,
-        metadata: data.metadata as any,
+        metadata: toNullableJsonInput(data.metadata ?? null),
         startedAt: new Date(),
         completedAt: data.status !== "running" ? new Date() : null,
       },

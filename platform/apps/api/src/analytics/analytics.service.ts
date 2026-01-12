@@ -10,6 +10,36 @@ import { randomUUID } from "crypto";
 
 type RequestScope = { campgroundId?: string | null; organizationId?: string | null; userId?: string | null };
 
+const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined => {
+  if (value === undefined || value === null) return undefined;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const toStringValue = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+const toNumberValue = (value: unknown): number | undefined => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return undefined;
+};
+
+const toStringArray = (value: unknown): string[] | undefined => {
+  if (!Array.isArray(value)) return undefined;
+  const entries = value.filter((entry): entry is string => typeof entry === "string");
+  return entries.length > 0 ? entries : undefined;
+};
+
 // MOCK_MODE has been removed - the service now always uses the real database
 // This ensures analytics queries return actual data instead of in-memory mock data
 // that gets cleared on restart
@@ -24,6 +54,7 @@ export class AnalyticsService {
     const occurredAt = dto.occurredAt ? new Date(dto.occurredAt) : new Date();
 
     const data: Prisma.AnalyticsEventCreateInput = {
+      id: randomUUID(),
       sessionId: dto.sessionId,
       eventName: dto.eventName,
       occurredAt,
@@ -32,7 +63,7 @@ export class AnalyticsService {
       referrerUrl: dto.referrerUrl,
       deviceType: dto.deviceType,
       region: dto.region,
-      metadata: dto.metadata,
+      metadata: toJsonValue(dto.metadata),
       createdAt: new Date(),
       Campground: dto.campgroundId
         ? { connect: { id: dto.campgroundId } }
@@ -79,23 +110,63 @@ export class AnalyticsService {
     const dayStart = new Date(params.occurredAt);
     dayStart.setUTCHours(0, 0, 0, 0);
 
-    await this.prisma.analyticsDailyAggregate.upsert({
-      where: {
-        campgroundId_eventName_date: {
-          campgroundId: (params.campgroundId ?? null) as any,
+    if (params.campgroundId) {
+      await this.prisma.analyticsDailyAggregate.upsert({
+        where: {
+          campgroundId_eventName_date: {
+            campgroundId: params.campgroundId,
+            eventName: params.eventName,
+            date: dayStart,
+          },
+        },
+        create: {
+          id: randomUUID(),
+          Campground: { connect: { id: params.campgroundId } },
+          Organization: params.organizationId ? { connect: { id: params.organizationId } } : undefined,
           eventName: params.eventName,
           date: dayStart,
+          count: 1,
+          uniqueSessions: params.sessionId ? 1 : 0,
+          updatedAt: new Date(),
         },
-      },
-      create: {
-        campground: params.campgroundId ? { connect: { id: params.campgroundId } } : undefined,
-        organization: params.organizationId ? { connect: { id: params.organizationId } } : undefined,
+        update: {
+          count: { increment: 1 },
+          uniqueSessions: params.sessionId ? { increment: 1 } : undefined,
+        },
+      });
+      return;
+    }
+
+    if (!params.organizationId) {
+      return;
+    }
+
+    const existing = await this.prisma.analyticsDailyAggregate.findFirst({
+      where: {
+        organizationId: params.organizationId,
         eventName: params.eventName,
         date: dayStart,
-        count: 1,
-        uniqueSessions: params.sessionId ? 1 : 0,
       },
-      update: {
+    });
+
+    if (!existing) {
+      await this.prisma.analyticsDailyAggregate.create({
+        data: {
+          id: randomUUID(),
+          Organization: { connect: { id: params.organizationId } },
+          eventName: params.eventName,
+          date: dayStart,
+          count: 1,
+          uniqueSessions: params.sessionId ? 1 : 0,
+          updatedAt: new Date(),
+        },
+      });
+      return;
+    }
+
+    await this.prisma.analyticsDailyAggregate.update({
+      where: { id: existing.id },
+      data: {
         count: { increment: 1 },
         uniqueSessions: params.sessionId ? { increment: 1 } : undefined,
       },
@@ -130,12 +201,14 @@ export class AnalyticsService {
           },
         },
         create: {
-          campground: row.campgroundId ? { connect: { id: row.campgroundId } } : undefined,
-          organization: row.organizationId ? { connect: { id: row.organizationId } } : undefined,
+          id: randomUUID(),
+          Campground: row.campgroundId ? { connect: { id: row.campgroundId } } : undefined,
+          Organization: row.organizationId ? { connect: { id: row.organizationId } } : undefined,
           eventName: row.eventName,
           date: row.date,
           count: Number(row.count),
           uniqueSessions: Number(row.uniqueSessions),
+          updatedAt: new Date(),
         },
         update: {
           count: Number(row.count),
@@ -276,6 +349,7 @@ export class AnalyticsService {
 
   async applyRecommendation(dto: ApplyRecommendationDto, actor: { id: string; role: UserRole }, scope: RequestScope) {
     if (!dto.campgroundId) throw new BadRequestException("campgroundId is required");
+    const payload = isRecord(dto.payload) ? dto.payload : {};
     await this.audit.record({
       campgroundId: dto.campgroundId,
       actorId: actor.id ?? null,
@@ -293,27 +367,33 @@ export class AnalyticsService {
     });
 
     if (dto.action === "apply_pricing_adjustment") {
-      const percentRaw = Number(dto.payload?.percentAdjust ?? -5);
-      const percentAdjust = Math.max(-30, Math.min(30, Number.isFinite(percentRaw) ? percentRaw : -5));
-      const startDate = dto.payload?.startDate ? new Date(dto.payload.startDate) : new Date();
-      const endDate = dto.payload?.endDate ? new Date(dto.payload.endDate) : undefined;
+      const percentRaw = toNumberValue(payload.percentAdjust) ?? -5;
+      const percentAdjust = Math.max(-30, Math.min(30, percentRaw));
+      const startDateValue = toStringValue(payload.startDate);
+      const endDateValue = toStringValue(payload.endDate);
+      const startDate = startDateValue ? new Date(startDateValue) : new Date();
+      const endDate = endDateValue ? new Date(endDateValue) : undefined;
+      const label = toStringValue(payload.label) ?? "AI pricing adjust";
+      const siteClassId = dto.targetId ?? toStringValue(payload.siteClassId) ?? null;
       const rule = await this.prisma.pricingRule.create({
         data: {
+          id: randomUUID(),
           campgroundId: dto.campgroundId,
-          label: dto.payload?.label || "AI pricing adjust",
+          label,
           ruleType: "percent",
           percentAdjust,
-          siteClassId: dto.targetId || dto.payload?.siteClassId || null,
+          siteClassId,
           startDate,
           endDate: endDate ?? null,
           isActive: true,
+          updatedAt: new Date(),
         },
       });
       return { status: "applied", recommendationId: dto.recommendationId, pricingRuleId: rule.id };
     }
 
     if (dto.action === "reorder_images") {
-      const order = Array.isArray(dto.payload?.imageOrder) ? dto.payload?.imageOrder : null;
+      const order = toStringArray(payload.imageOrder);
       if (!order || order.length === 0) {
         throw new BadRequestException("imageOrder payload is required");
       }
@@ -332,10 +412,11 @@ export class AnalyticsService {
       });
       await this.prisma.analyticsEvent.create({
         data: {
+          id: randomUUID(),
           sessionId: randomUUID(),
-          eventName: "admin_image_reorder" as any,
-          campground: { connect: { id: dto.campgroundId } },
-          metadata: { reordered: order.length, total: photos.length },
+          eventName: AnalyticsEventName.admin_image_reorder,
+          Campground: { connect: { id: dto.campgroundId } },
+          metadata: toJsonValue({ reordered: order.length, total: photos.length }),
         },
       });
       return { status: "applied", recommendationId: dto.recommendationId, photos: updated.photos };
@@ -623,4 +704,3 @@ export class AnalyticsService {
     };
   }
 }
-

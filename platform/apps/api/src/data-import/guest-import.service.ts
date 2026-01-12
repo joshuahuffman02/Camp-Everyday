@@ -1,4 +1,5 @@
 import { Injectable, Logger, BadRequestException } from "@nestjs/common";
+import { randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { CsvParserService, FieldMapping } from "./parsers/csv-parser.service";
 
@@ -45,6 +46,33 @@ export interface GuestImportResult {
   skipped: number;
   errors: Array<{ row: number; message: string }>;
 }
+
+const getStringValue = (value: unknown): string | null =>
+  typeof value === "string" && value.trim() !== "" ? value.trim() : null;
+
+const getOptionalString = (value: unknown): string | undefined => {
+  const normalized = getStringValue(value);
+  return normalized ?? undefined;
+};
+
+const getOptionalNumber = (value: unknown): number | undefined => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+};
+
+const getOptionalBoolean = (value: unknown): boolean | undefined => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true") return true;
+    if (normalized === "false") return false;
+  }
+  return undefined;
+};
 
 @Injectable()
 export class GuestImportService {
@@ -112,8 +140,9 @@ export class GuestImportService {
     const emailCounts = new Map<string, number>();
 
     for (const row of parseResult.rows) {
-      const email = (row.data.email as string)?.toLowerCase()?.trim();
-      if (email) {
+      const emailValue = getStringValue(row.data.email);
+      if (emailValue) {
+        const email = emailValue.toLowerCase();
         importEmails.add(email);
         emailCounts.set(email, (emailCounts.get(email) || 0) + 1);
       }
@@ -122,7 +151,7 @@ export class GuestImportService {
     // Find existing guests by email
     const existingGuests = await this.prisma.guest.findMany({
       where: {
-        campgroundId,
+        Reservation: { some: { campgroundId } },
         emailNormalized: { in: Array.from(importEmails) },
       },
       select: { id: true, email: true, emailNormalized: true },
@@ -142,32 +171,53 @@ export class GuestImportService {
     let duplicateEmails = 0;
 
     for (const row of parseResult.rows) {
-      const data = row.data as unknown as GuestImportRow;
+      const firstName = getStringValue(row.data.firstName);
+      const lastName = getStringValue(row.data.lastName);
+      const email = getStringValue(row.data.email);
+      const data: GuestImportRow = {
+        firstName: firstName ?? "",
+        lastName: lastName ?? "",
+        email: email ?? "",
+        phone: getOptionalString(row.data.phone),
+        address1: getOptionalString(row.data.address1),
+        address2: getOptionalString(row.data.address2),
+        city: getOptionalString(row.data.city),
+        state: getOptionalString(row.data.state),
+        postalCode: getOptionalString(row.data.postalCode),
+        country: getOptionalString(row.data.country),
+        rigType: getOptionalString(row.data.rigType),
+        rigLength: getOptionalNumber(row.data.rigLength),
+        vehiclePlate: getOptionalString(row.data.vehiclePlate),
+        vehicleState: getOptionalString(row.data.vehicleState),
+        notes: getOptionalString(row.data.notes),
+        vip: getOptionalBoolean(row.data.vip),
+        tags: getOptionalString(row.data.tags),
+      };
 
       // Validate required fields
-      if (!data.firstName) {
+      if (!firstName) {
         errors.push({ row: row.rowNumber, message: "First name is required" });
         continue;
       }
 
-      if (!data.lastName) {
+      if (!lastName) {
         errors.push({ row: row.rowNumber, message: "Last name is required" });
         continue;
       }
 
-      if (!data.email) {
+      if (!email) {
         errors.push({ row: row.rowNumber, message: "Email is required" });
         continue;
       }
 
       // Validate email format
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(data.email)) {
-        errors.push({ row: row.rowNumber, message: `Invalid email format: ${data.email}` });
+      if (!emailRegex.test(email)) {
+        errors.push({ row: row.rowNumber, message: `Invalid email format: ${email}` });
         continue;
       }
 
-      const normalizedEmail = data.email.toLowerCase().trim();
+      const normalizedEmail = email.toLowerCase().trim();
 
       // Check for duplicate in this import
       if (seenEmails.has(normalizedEmail)) {
@@ -271,7 +321,7 @@ export class GuestImportService {
         if (item.action === "create") {
           await this.prisma.guest.create({
             data: {
-              campgroundId,
+              id: randomUUID(),
               ...guestData,
             },
           });
@@ -285,9 +335,10 @@ export class GuestImportService {
         } else {
           skipped++;
         }
-      } catch (err: any) {
-        this.logger.error(`Error importing row ${item.rowNumber}: ${err.message}`);
-        errors.push({ row: item.rowNumber, message: err.message });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.error(`Error importing row ${item.rowNumber}: ${message}`);
+        errors.push({ row: item.rowNumber, message });
       }
     }
 

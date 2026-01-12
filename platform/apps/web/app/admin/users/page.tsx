@@ -21,10 +21,6 @@ type Staff = {
     memberships?: Array<{ campgroundId: string; role: string }>;
 };
 
-interface UserWithPlatformRole {
-    platformRole?: string | null;
-}
-
 export default function AdminUsersPage() {
     const { data: whoami, isLoading: whoamiLoading } = useWhoami();
     const { toast } = useToast();
@@ -32,7 +28,7 @@ export default function AdminUsersPage() {
     const [users, setUsers] = useState<Staff[]>([]);
     const [search, setSearch] = useState("");
 
-    const platformRole = (whoami?.user as UserWithPlatformRole | undefined)?.platformRole;
+    const platformRole = whoami?.user?.platformRole;
     const canManage = platformRole === "platform_admin";
 
     const filteredUsers = useMemo(() => {
@@ -51,11 +47,12 @@ export default function AdminUsersPage() {
             const base = process.env.NEXT_PUBLIC_API_BASE || "";
             const res = await fetch(`${base}/support/reports/staff/directory`, { credentials: "include" });
             if (!res.ok) throw new Error(`Failed to load users (${res.status})`);
-            const data = (await res.json()) as Staff[];
+            const data: Staff[] = await res.json();
             // No filter - show all
             setUsers(data);
-        } catch (err: any) {
-            toast({ title: "Load failed", description: err?.message || "Could not load users", variant: "destructive" });
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : "Could not load users";
+            toast({ title: "Load failed", description: message, variant: "destructive" });
             setUsers([]);
         } finally {
             setLoading(false);

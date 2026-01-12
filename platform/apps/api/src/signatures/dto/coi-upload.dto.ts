@@ -1,6 +1,8 @@
 import { IsIn, IsOptional, IsString } from "class-validator";
 
-const COI_STATUSES = ["pending", "active", "expired", "voided"] as const;
+type CoiStatus = "pending" | "active" | "expired" | "voided";
+
+const COI_STATUSES: CoiStatus[] = ["pending", "active", "expired", "voided"];
 
 export class CoiUploadDto {
   @IsString()
@@ -26,8 +28,8 @@ export class CoiUploadDto {
   expiresAt?: string;
 
   @IsOptional()
-  @IsIn(COI_STATUSES as unknown as string[])
-  status?: (typeof COI_STATUSES)[number];
+  @IsIn(COI_STATUSES)
+  status?: CoiStatus;
 
   @IsOptional()
   @IsString()

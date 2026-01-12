@@ -87,7 +87,7 @@ const EXECUTABLE_ACTIONS = new Set([
   "adjust_rate"
 ]);
 
-function formatValue(value: any) {
+function formatValue(value: unknown) {
   if (value === null || value === undefined) return "-";
   if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
     return String(value);
@@ -97,7 +97,7 @@ function formatValue(value: any) {
   return serialized.length > 120 ? `${serialized.slice(0, 117)}...` : serialized;
 }
 
-function formatId(value: any) {
+function formatId(value: unknown) {
   if (value === null || value === undefined) return "-";
   const text = String(value);
   if (text.length <= 12) return text;
@@ -111,10 +111,75 @@ function formatDateRange(start?: string, end?: string) {
   return "";
 }
 
-function isPrimitive(value: any) {
+function isPrimitive(value: unknown) {
   const t = typeof value;
   return t === "string" || t === "number" || t === "boolean";
 }
+
+function toOptionalString(value: unknown) {
+  return typeof value === "string" ? value : undefined;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const isStringArray = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((item) => typeof item === "string");
+
+const isEvidenceLink = (value: unknown): value is EvidenceLink =>
+  isRecord(value) && typeof value.label === "string" && typeof value.url === "string";
+
+const isImpactSummary = (value: unknown): value is ImpactSummary =>
+  isRecord(value) &&
+  (value.level === "low" || value.level === "medium" || value.level === "high") &&
+  typeof value.summary === "string" &&
+  (value.warnings === undefined || isStringArray(value.warnings)) &&
+  (value.saferAlternative === undefined || typeof value.saferAlternative === "string");
+
+const isActionDraft = (value: unknown): value is ActionDraft =>
+  isRecord(value) &&
+  typeof value.id === "string" &&
+  typeof value.actionType === "string" &&
+  typeof value.resource === "string" &&
+  (value.action === "read" || value.action === "write") &&
+  (value.parameters === undefined || isRecord(value.parameters)) &&
+  (value.status === "draft" || value.status === "executed" || value.status === "denied") &&
+  (value.requiresConfirmation === undefined || typeof value.requiresConfirmation === "boolean") &&
+  (value.sensitivity === undefined ||
+    value.sensitivity === "low" ||
+    value.sensitivity === "medium" ||
+    value.sensitivity === "high") &&
+  (value.impact === undefined || isImpactSummary(value.impact)) &&
+  (value.evidenceLinks === undefined ||
+    (Array.isArray(value.evidenceLinks) && value.evidenceLinks.every(isEvidenceLink))) &&
+  (value.result === undefined || isRecord(value.result));
+
+const isConfirmation = (value: unknown): value is { id: string; prompt: string } =>
+  isRecord(value) && typeof value.id === "string" && typeof value.prompt === "string";
+
+const isDenial = (value: unknown): value is { reason: string; guidance?: string } =>
+  isRecord(value) &&
+  typeof value.reason === "string" &&
+  (value.guidance === undefined || typeof value.guidance === "string");
+
+const parsePartnerResponse = (value: unknown) => {
+  if (!isRecord(value)) return {};
+
+  return {
+    message: typeof value.message === "string" ? value.message : undefined,
+    actionDrafts: Array.isArray(value.actionDrafts)
+      ? value.actionDrafts.filter(isActionDraft)
+      : undefined,
+    confirmations: Array.isArray(value.confirmations)
+      ? value.confirmations.filter(isConfirmation)
+      : undefined,
+    denials: Array.isArray(value.denials) ? value.denials.filter(isDenial) : undefined,
+    questions: isStringArray(value.questions) ? value.questions : undefined,
+    evidenceLinks: Array.isArray(value.evidenceLinks)
+      ? value.evidenceLinks.filter(isEvidenceLink)
+      : undefined,
+  };
+};
 
 function toLabel(value: string) {
   const spaced = value.replace(/_/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2");
@@ -123,8 +188,8 @@ function toLabel(value: string) {
 
 function buildActionSummary(draft: ActionDraft) {
   const params = draft.parameters ?? {};
-  const primaryArrival = (params.newArrivalDate ?? params.arrivalDate) as string | undefined;
-  const primaryDeparture = (params.newDepartureDate ?? params.departureDate) as string | undefined;
+  const primaryArrival = toOptionalString(params.newArrivalDate ?? params.arrivalDate);
+  const primaryDeparture = toOptionalString(params.newDepartureDate ?? params.departureDate);
   const dateRange = formatDateRange(primaryArrival, primaryDeparture);
   const siteLabel = params.newSiteNumber
     ? `Site ${params.newSiteNumber}`
@@ -201,7 +266,10 @@ function buildActionHighlights(draft: ActionDraft) {
     items.push({ key: list[0], label, value });
   };
 
-  const dateRange = formatDateRange(params.arrivalDate as string | undefined, params.departureDate as string | undefined);
+  const dateRange = formatDateRange(
+    toOptionalString(params.arrivalDate),
+    toOptionalString(params.departureDate)
+  );
   if (dateRange) addItem(["arrivalDate", "departureDate"], "Dates", dateRange);
 
   if (params.siteNumber) {
@@ -233,7 +301,10 @@ function buildActionHighlights(draft: ActionDraft) {
     addItem("newSiteId", "New site", formatId(params.newSiteId));
   }
 
-  const newDateRange = formatDateRange(params.newArrivalDate as string | undefined, params.newDepartureDate as string | undefined);
+  const newDateRange = formatDateRange(
+    toOptionalString(params.newArrivalDate),
+    toOptionalString(params.newDepartureDate)
+  );
   if (newDateRange) addItem(["newArrivalDate", "newDepartureDate"], "New dates", newDateRange);
 
   const extras = Object.entries(params)
@@ -390,15 +461,16 @@ export function SupportChatWidget() {
       });
     },
     onSuccess: (data) => {
+      const parsed = parsePartnerResponse(data);
       const assistantMessage: PartnerMessage = {
         id: `msg_${Date.now()}`,
         role: "assistant",
-        content: data?.message || "Tell me what you want to do and I will draft the steps.",
-        actionDrafts: data?.actionDrafts,
-        confirmations: data?.confirmations,
-        denials: data?.denials,
-        questions: data?.questions,
-        evidenceLinks: data?.evidenceLinks,
+        content: parsed.message || "Tell me what you want to do and I will draft the steps.",
+        actionDrafts: parsed.actionDrafts,
+        confirmations: parsed.confirmations,
+        denials: parsed.denials,
+        questions: parsed.questions,
+        evidenceLinks: parsed.evidenceLinks,
       };
       setPartnerMessages((prev) => [...prev, assistantMessage]);
     },
@@ -429,15 +501,16 @@ export function SupportChatWidget() {
     },
     onSuccess: (data) => {
       setConfirmingDraftId(null);
+      const parsed = parsePartnerResponse(data);
       const assistantMessage: PartnerMessage = {
         id: `msg_${Date.now()}`,
         role: "assistant",
-        content: data?.message || "Action confirmed.",
-        actionDrafts: data?.actionDrafts,
-        confirmations: data?.confirmations,
-        denials: data?.denials,
-        questions: data?.questions,
-        evidenceLinks: data?.evidenceLinks,
+        content: parsed.message || "Action confirmed.",
+        actionDrafts: parsed.actionDrafts,
+        confirmations: parsed.confirmations,
+        denials: parsed.denials,
+        questions: parsed.questions,
+        evidenceLinks: parsed.evidenceLinks,
       };
       setPartnerMessages((prev) => [...prev, assistantMessage]);
     },
@@ -467,7 +540,7 @@ export function SupportChatWidget() {
       setSupportMessages((prev) => [...prev, userMessage]);
 
       const history = supportMessages.map((m) => ({
-        role: m.role as "user" | "assistant",
+        role: m.role,
         content: m.content,
       }));
 
@@ -499,7 +572,7 @@ export function SupportChatWidget() {
     setPartnerMessages((prev) => [...prev, userMessage]);
 
     const history = partnerMessages.map((m) => ({
-      role: m.role as "user" | "assistant",
+      role: m.role,
       content: m.content,
     }));
 

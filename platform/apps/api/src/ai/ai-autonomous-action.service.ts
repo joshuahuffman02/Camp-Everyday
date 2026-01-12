@@ -1,5 +1,7 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from "@nestjs/common";
+import { randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
+import type { Prisma } from "@prisma/client";
 
 export interface LogAutonomousActionParams {
   campgroundId: string;
@@ -20,6 +22,20 @@ export interface LogAutonomousActionParams {
   reversible?: boolean;
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const isJsonValue = (value: unknown): value is Prisma.InputJsonValue => {
+  if (value === null) return true;
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return true;
+  if (Array.isArray(value)) return value.every(isJsonValue);
+  if (isRecord(value)) return Object.values(value).every(isJsonValue);
+  return false;
+};
+
+const toJsonInput = (value: unknown): Prisma.InputJsonValue | undefined =>
+  isJsonValue(value) ? value : undefined;
+
 @Injectable()
 export class AiAutonomousActionService {
   private readonly logger = new Logger(AiAutonomousActionService.name);
@@ -31,14 +47,16 @@ export class AiAutonomousActionService {
    */
   async logAction(params: LogAutonomousActionParams) {
     try {
+      const details = toJsonInput(params.details) ?? {};
       const action = await this.prisma.aiAutonomousAction.create({
         data: {
+          id: randomUUID(),
           campgroundId: params.campgroundId,
           actionType: params.actionType,
           entityType: params.entityType,
           entityId: params.entityId,
           description: params.description,
-          details: params.details,
+          details,
           confidence: params.confidence,
           reasoning: params.reasoning,
           reversible: params.reversible ?? false,
@@ -71,7 +89,7 @@ export class AiAutonomousActionService {
   ) {
     const { actionType, limit = 50, startDate, endDate } = options;
 
-    const where: any = { campgroundId };
+    const where: Prisma.AiAutonomousActionWhereInput = { campgroundId };
     if (actionType) where.actionType = actionType;
     if (startDate || endDate) {
       where.createdAt = {};

@@ -2,6 +2,21 @@ import { Injectable, BadRequestException, NotFoundException, ForbiddenException 
 import { PrismaService } from "../prisma/prisma.service";
 import { StripeService } from "../payments/stripe.service";
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null;
+
+const getString = (value: unknown): string | undefined =>
+    typeof value === "string" ? value : undefined;
+
+const getStripeClientSecret = (error: unknown): string | undefined => {
+    if (!isRecord(error)) return undefined;
+    const raw = error.raw;
+    if (!isRecord(raw)) return undefined;
+    const paymentIntent = raw.payment_intent;
+    if (!isRecord(paymentIntent)) return undefined;
+    return getString(paymentIntent.client_secret);
+};
+
 export interface ChargeResult {
     paymentIntentId: string;
     status: string;
@@ -40,7 +55,7 @@ export class SavedCardService {
         // Get customer
         const customer = await this.prisma.stripeCustomer.findUnique({
             where: { campgroundId_guestId: { campgroundId, guestId } },
-            include: { paymentMethods: true },
+            include: { GuestPaymentMethod: true },
         });
 
         if (!customer) {
@@ -48,12 +63,14 @@ export class SavedCardService {
         }
 
         // Find the payment method
-        let paymentMethod = customer.paymentMethods.find(pm => pm.id === paymentMethodId);
+        let paymentMethod = customer.GuestPaymentMethod.find(
+            (pm) => pm.id === paymentMethodId
+        );
 
         // Also check by Stripe payment method ID
         if (!paymentMethod) {
-            paymentMethod = customer.paymentMethods.find(
-                pm => pm.stripePaymentMethodId === paymentMethodId,
+            paymentMethod = customer.GuestPaymentMethod.find(
+                (pm) => pm.stripePaymentMethodId === paymentMethodId,
             );
         }
 
@@ -109,17 +126,21 @@ export class SavedCardService {
                 paymentMethodLast4: paymentMethod.last4,
                 paymentMethodBrand: paymentMethod.brand,
             };
-        } catch (error: any) {
+        } catch (error: unknown) {
+            const errorType = isRecord(error) ? getString(error.type) : undefined;
+            const errorCode = isRecord(error) ? getString(error.code) : undefined;
+            const errorMessage = isRecord(error) ? getString(error.message) : undefined;
+
             // Handle specific Stripe errors
-            if (error.type === "StripeCardError") {
-                throw new BadRequestException(`Card declined: ${error.message}`);
+            if (errorType === "StripeCardError") {
+                throw new BadRequestException(`Card declined: ${errorMessage ?? "Unknown error"}`);
             }
-            if (error.code === "authentication_required") {
+            if (errorCode === "authentication_required") {
                 // 3DS required - return client secret for frontend handling
                 throw new BadRequestException({
                     message: "3D Secure authentication required",
                     requiresAction: true,
-                    clientSecret: error.raw?.payment_intent?.client_secret,
+                    clientSecret: getStripeClientSecret(error),
                 });
             }
             throw error;
@@ -141,7 +162,7 @@ export class SavedCardService {
         const customer = await this.prisma.stripeCustomer.findUnique({
             where: { campgroundId_guestId: { campgroundId, guestId } },
             include: {
-                paymentMethods: {
+                GuestPaymentMethod: {
                     where: { isDefault: true },
                     take: 1,
                 },
@@ -152,14 +173,14 @@ export class SavedCardService {
             throw new NotFoundException("Customer not found");
         }
 
-        if (customer.paymentMethods.length === 0) {
+        if (customer.GuestPaymentMethod.length === 0) {
             throw new BadRequestException("No default payment method found for guest");
         }
 
         return this.chargeSavedCard(
             campgroundId,
             guestId,
-            customer.paymentMethods[0].id,
+            customer.GuestPaymentMethod[0].id,
             amountCents,
             currency,
             metadata,
@@ -189,7 +210,7 @@ export class SavedCardService {
         const customer = await this.prisma.stripeCustomer.findUnique({
             where: { campgroundId_guestId: { campgroundId, guestId } },
             include: {
-                paymentMethods: {
+                GuestPaymentMethod: {
                     orderBy: [{ isDefault: "desc" }, { createdAt: "desc" }],
                 },
             },
@@ -203,7 +224,7 @@ export class SavedCardService {
         const currentYear = now.getFullYear();
         const currentMonth = now.getMonth() + 1;
 
-        return customer.paymentMethods.map(pm => {
+        return customer.GuestPaymentMethod.map((pm) => {
             // Check if card is expired
             let isExpired = false;
             if (pm.expYear && pm.expMonth) {
@@ -254,15 +275,17 @@ export class SavedCardService {
     ): Promise<{ canCharge: boolean; reason?: string }> {
         const customer = await this.prisma.stripeCustomer.findUnique({
             where: { campgroundId_guestId: { campgroundId, guestId } },
-            include: { paymentMethods: true },
+            include: { GuestPaymentMethod: true },
         });
 
         if (!customer) {
             return { canCharge: false, reason: "No saved payment methods" };
         }
 
-        const pm = customer.paymentMethods.find(
-            p => p.id === paymentMethodId || p.stripePaymentMethodId === paymentMethodId,
+        const pm = customer.GuestPaymentMethod.find(
+            method =>
+                method.id === paymentMethodId ||
+                method.stripePaymentMethodId === paymentMethodId,
         );
 
         if (!pm) {

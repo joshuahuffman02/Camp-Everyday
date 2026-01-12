@@ -40,15 +40,16 @@ export class ScopeGuard implements CanActivate {
         }
 
         const request = context.switchToHttp().getRequest();
-        const user = request.user;
+        const user: unknown = request.user;
 
         // If no authenticated user, skip validation (might be a public route)
-        if (!user) {
+        if (!this.isRecord(user)) {
             return true;
         }
 
         // Get campground ID from header or request property
-        const campgroundId = request.campgroundId || request.headers['x-campground-id'];
+        const headerCampground = request.headers['x-campground-id'];
+        const campgroundId = request.campgroundId || (Array.isArray(headerCampground) ? headerCampground[0] : headerCampground);
 
         // Get campgroundId from route params if not in header (for routes like /campgrounds/:campgroundId/*)
         const routeCampgroundId = request.params?.campgroundId;
@@ -68,19 +69,21 @@ export class ScopeGuard implements CanActivate {
         }
 
         // Platform admins can access any campground
-        if (user.platformRole && PLATFORM_ADMIN_ROLES.includes(user.platformRole)) {
+        const platformRole = typeof user.platformRole === 'string' ? user.platformRole : undefined;
+        if (platformRole && PLATFORM_ADMIN_ROLES.includes(platformRole)) {
             return true;
         }
 
         // Check if user has membership for this campground
-        if (!user.memberships || !Array.isArray(user.memberships)) {
+        const memberships = Array.isArray(user.memberships) ? user.memberships : [];
+        if (memberships.length === 0) {
             throw new ForbiddenException(
                 'You do not have access to this campground'
             );
         }
 
-        const hasMembership = user.memberships.some(
-            (m: any) => m.campgroundId === effectiveCampgroundId
+        const hasMembership = memberships.some(
+            (member) => this.isMembership(member) && member.campgroundId === effectiveCampgroundId
         );
 
         if (!hasMembership) {
@@ -90,5 +93,15 @@ export class ScopeGuard implements CanActivate {
         }
 
         return true;
+    }
+
+    private isRecord(value: unknown): value is Record<string, unknown> {
+        return typeof value === 'object' && value !== null;
+    }
+
+    private isMembership(value: unknown): value is { campgroundId?: string | null } {
+        if (!this.isRecord(value)) return false;
+        const campgroundId = value.campgroundId;
+        return typeof campgroundId === 'string' || campgroundId === null || campgroundId === undefined;
     }
 }

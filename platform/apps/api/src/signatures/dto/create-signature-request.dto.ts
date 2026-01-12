@@ -1,8 +1,20 @@
 import { IsBoolean, IsEmail, IsIn, IsInt, IsOptional, IsString } from "class-validator";
 
-const SIGNATURE_TYPES = ["long_term_stay", "seasonal", "monthly", "park_rules", "deposit", "waiver", "coi", "other"] as const;
-const DELIVERY_CHANNELS = ["email", "sms", "email_and_sms"] as const;
-const SIGNATURE_METHODS = ["digital", "paper", "waived"] as const;
+type SignatureType =
+  | "long_term_stay"
+  | "seasonal"
+  | "monthly"
+  | "park_rules"
+  | "deposit"
+  | "waiver"
+  | "coi"
+  | "other";
+type DeliveryChannel = "email" | "sms" | "email_and_sms";
+type SignatureMethod = "digital" | "paper" | "waived";
+
+const SIGNATURE_TYPES: SignatureType[] = ["long_term_stay", "seasonal", "monthly", "park_rules", "deposit", "waiver", "coi", "other"];
+const DELIVERY_CHANNELS: DeliveryChannel[] = ["email", "sms", "email_and_sms"];
+const SIGNATURE_METHODS: SignatureMethod[] = ["digital", "paper", "waived"];
 
 export class CreateSignatureRequestDto {
   @IsOptional()
@@ -22,16 +34,16 @@ export class CreateSignatureRequestDto {
   templateId?: string;
 
   @IsOptional()
-  @IsIn(SIGNATURE_TYPES as unknown as string[])
-  documentType?: (typeof SIGNATURE_TYPES)[number];
+  @IsIn(SIGNATURE_TYPES)
+  documentType?: SignatureType;
 
   @IsOptional()
-  @IsIn(DELIVERY_CHANNELS as unknown as string[])
-  deliveryChannel?: (typeof DELIVERY_CHANNELS)[number];
+  @IsIn(DELIVERY_CHANNELS)
+  deliveryChannel?: DeliveryChannel;
 
   @IsOptional()
-  @IsIn(SIGNATURE_METHODS as unknown as string[])
-  signatureMethod?: (typeof SIGNATURE_METHODS)[number];
+  @IsIn(SIGNATURE_METHODS)
+  signatureMethod?: SignatureMethod;
 
   @IsOptional()
   @IsString()

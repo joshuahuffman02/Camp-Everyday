@@ -61,7 +61,9 @@ interface AnalyticsOverview {
   generatedAt: string;
 }
 
-interface RevenueTrend {
+type ChartDatum = Record<string, string | number | null>;
+
+interface RevenueTrend extends ChartDatum {
   month: string;
   revenue: number;
   reservations: number;
@@ -73,7 +75,7 @@ interface AccommodationMixItem {
   color: string;
 }
 
-interface TopCampground {
+interface TopCampground extends ChartDatum {
   name: string;
   state: string;
   revenue: number;
@@ -99,6 +101,46 @@ interface AiInsights {
   recommendations: string[];
 }
 
+type RevenueTrendApiItem = {
+  month?: string;
+  period?: string;
+  revenue?: number;
+  totalRevenue?: number;
+  reservations?: number;
+  bookings?: number;
+};
+
+type TrendsResponse = {
+  monthlyTrends?: RevenueTrendApiItem[];
+};
+
+type AccommodationMixApiItem = {
+  type?: string;
+  name?: string;
+  percentage?: number;
+  value?: number;
+};
+
+type AccommodationsResponse = {
+  distribution?: AccommodationMixApiItem[];
+  byType?: AccommodationMixApiItem[];
+};
+
+type BenchmarkTopPerformer = {
+  name?: string;
+  campgroundName?: string;
+  state?: string;
+  location?: { state?: string };
+  revenue?: number;
+  totalRevenue?: number;
+  reservations?: number;
+  bookings?: number;
+};
+
+type BenchmarksResponse = {
+  topPerformers?: BenchmarkTopPerformer[];
+};
+
 export default function AnalyticsOverviewPage() {
   const [dateRange, setDateRange] = useState("last_12_months");
   const [data, setData] = useState<AnalyticsOverview | null>(null);
@@ -109,6 +151,24 @@ export default function AnalyticsOverviewPage() {
   const [revenueTrends, setRevenueTrends] = useState<RevenueTrend[]>([]);
   const [accommodationMix, setAccommodationMix] = useState<AccommodationMixItem[]>([]);
   const [topCampgrounds, setTopCampgrounds] = useState<TopCampground[]>([]);
+
+  const toNumber = (value: unknown): number | undefined =>
+    typeof value === "number" ? value : undefined;
+  const formatMoney = (value: unknown): string => {
+    const numberValue = toNumber(value);
+    return numberValue !== undefined ? formatCurrency(numberValue) : "—";
+  };
+  const formatCount = (value: unknown): string => {
+    const numberValue = toNumber(value);
+    return numberValue !== undefined ? numberValue.toLocaleString() : "—";
+  };
+  const getAccommodationColor = (value: unknown): string => {
+    if (typeof value === "string") {
+      const key = value.toLowerCase();
+      return ACCOMMODATION_COLORS[key] ?? ACCOMMODATION_COLORS.default;
+    }
+    return ACCOMMODATION_COLORS.default;
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -130,10 +190,11 @@ export default function AnalyticsOverviewPage() {
 
       // Process revenue trends
       if (trendsRes.ok) {
-        const trendsData = await trendsRes.json();
-        if (trendsData.monthlyTrends && Array.isArray(trendsData.monthlyTrends)) {
-          setRevenueTrends(trendsData.monthlyTrends.map((t: any) => ({
-            month: t.month || t.period,
+        const trendsData: TrendsResponse = await trendsRes.json();
+        const monthlyTrends = trendsData.monthlyTrends;
+        if (monthlyTrends && Array.isArray(monthlyTrends)) {
+          setRevenueTrends(monthlyTrends.map((t) => ({
+            month: t.month ?? t.period ?? "",
             revenue: t.revenue || t.totalRevenue || 0,
             reservations: t.reservations || t.bookings || 0,
           })));
@@ -142,27 +203,27 @@ export default function AnalyticsOverviewPage() {
 
       // Process accommodation mix
       if (accommodationsRes.ok) {
-        const accData = await accommodationsRes.json();
+        const accData: AccommodationsResponse = await accommodationsRes.json();
         if (accData.distribution && Array.isArray(accData.distribution)) {
-          setAccommodationMix(accData.distribution.map((item: any) => ({
+          setAccommodationMix(accData.distribution.map((item) => ({
             name: item.type || item.name || "Unknown",
             value: Math.round(item.percentage || item.value || 0),
-            color: ACCOMMODATION_COLORS[item.type?.toLowerCase()] || ACCOMMODATION_COLORS.default,
+            color: getAccommodationColor(item.type ?? item.name),
           })));
         } else if (accData.byType && Array.isArray(accData.byType)) {
-          setAccommodationMix(accData.byType.map((item: any) => ({
+          setAccommodationMix(accData.byType.map((item) => ({
             name: item.type || item.name || "Unknown",
             value: Math.round(item.percentage || item.value || 0),
-            color: ACCOMMODATION_COLORS[item.type?.toLowerCase()] || ACCOMMODATION_COLORS.default,
+            color: getAccommodationColor(item.type ?? item.name),
           })));
         }
       }
 
       // Process top campgrounds from benchmarks
       if (benchmarksRes.ok) {
-        const benchData = await benchmarksRes.json();
+        const benchData: BenchmarksResponse = await benchmarksRes.json();
         if (benchData.topPerformers && Array.isArray(benchData.topPerformers)) {
-          setTopCampgrounds(benchData.topPerformers.slice(0, 5).map((c: any) => ({
+          setTopCampgrounds(benchData.topPerformers.slice(0, 5).map((c) => ({
             name: c.name || c.campgroundName || "Unknown",
             state: c.state || c.location?.state || "—",
             revenue: c.revenue || c.totalRevenue || 0,
@@ -491,13 +552,13 @@ export default function AnalyticsOverviewPage() {
               key: "revenue",
               label: "Revenue",
               align: "right",
-              format: (v) => formatCurrency(v),
+              format: (v) => formatMoney(v),
             },
             {
               key: "reservations",
               label: "Reservations",
               align: "right",
-              format: (v) => v.toLocaleString(),
+              format: (v) => formatCount(v),
             },
           ]}
           data={topCampgrounds}

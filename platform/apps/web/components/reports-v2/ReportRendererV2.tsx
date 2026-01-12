@@ -115,6 +115,10 @@ import {
   SystemErrorsReport
 } from "@/components/reports/definitions/AllPlaceholderReports";
 
+type ReservationsResponse = Awaited<ReturnType<typeof apiClient.getReservations>>;
+type ReservationItem = ReservationsResponse[number];
+type LedgerEntryItem = Awaited<ReturnType<typeof apiClient.getLedgerEntries>>[number];
+
 interface ReportRendererV2Props {
   tab: ReportTabV2;
   subTab: string | null;
@@ -141,67 +145,70 @@ export function ReportRendererV2({
   dateRange,
   reportFilters
 }: ReportRendererV2Props) {
-  const { data: reservations } = useQuery({
+  const { data: reservations } = useQuery<ReservationsResponse>({
     queryKey: ["reservations", campgroundId],
     queryFn: () => apiClient.getReservations(campgroundId),
     enabled: !!campgroundId
   });
 
-  const { data: sites } = useQuery({
+  const { data: sites } = useQuery<Awaited<ReturnType<typeof apiClient.getSites>>>({
     queryKey: ["sites", campgroundId],
     queryFn: () => apiClient.getSites(campgroundId),
     enabled: !!campgroundId
   });
 
-  const { data: ledgerEntries } = useQuery({
+  const { data: ledgerEntries } = useQuery<Awaited<ReturnType<typeof apiClient.getLedgerEntries>>>({
     queryKey: ["ledger", campgroundId],
     queryFn: () => apiClient.getLedgerEntries(campgroundId),
     enabled: !!campgroundId
   });
 
-  const { data: tickets } = useQuery({
+  const { data: tickets } = useQuery<Awaited<ReturnType<typeof apiClient.getMaintenanceTickets>>>({
     queryKey: ["maintenance", campgroundId],
     queryFn: () => apiClient.getMaintenanceTickets(undefined, campgroundId),
     enabled: !!campgroundId
   });
 
-  const stats = useMemo(() => {
-    if (!reservations || !sites) return [] as { label: string; value: string; helper?: string }[];
+  const stats = useMemo<Array<{ label: string; value: string; helper?: string }>>(() => {
+    if (!reservations || !sites) return [];
+    const reservationList: ReservationItem[] = reservations;
+    const ledgerList: LedgerEntryItem[] = ledgerEntries ?? [];
 
     const start = new Date(dateRange.start);
     const end = new Date(dateRange.end);
     end.setHours(23, 59, 59, 999);
 
-    const inRange = reservations.filter((r: any) => {
+    const inRange = reservationList.filter((r) => {
       const created = new Date(r.createdAt || r.arrivalDate);
       return created >= start && created <= end;
     });
 
-    const arrivals = reservations.filter((r: any) => {
+    const arrivals = reservationList.filter((r) => {
       const arrival = new Date(r.arrivalDate);
       return arrival >= start && arrival <= end && r.status !== "cancelled";
     });
 
-    const departures = reservations.filter((r: any) => {
+    const departures = reservationList.filter((r) => {
       const departure = new Date(r.departureDate);
       return departure >= start && departure <= end && r.status !== "cancelled";
     });
 
-    const inHouse = reservations.filter((r: any) => {
+    const inHouse = reservationList.filter((r) => {
       if (r.status === "cancelled") return false;
       const arrival = new Date(r.arrivalDate);
       const departure = new Date(r.departureDate);
       return arrival <= end && departure >= start;
     });
 
-    const revenue = (ledgerEntries || []).reduce((sum: number, entry: any) => {
+    const revenue = ledgerList.reduce((sum, entry) => {
       const occurredAt = new Date(entry.occurredAt || entry.createdAt || Date.now());
       if (occurredAt < start || occurredAt > end) return sum;
-      const amount = (entry.amount || 0) / 100;
+      const amountCents = typeof entry.amountCents === "number" ? entry.amountCents : 0;
+      const amount = amountCents / 100;
       return entry.direction === "debit" ? sum - amount : sum + amount;
     }, 0);
 
-    const outstanding = reservations.reduce((sum: number, r: any) => {
+    const outstanding = reservationList.reduce((sum, r) => {
       const balance = (r.totalAmount || 0) - (r.paidAmount || 0);
       return sum + (balance > 0 ? balance : 0);
     }, 0);
@@ -221,7 +228,7 @@ export function ReportRendererV2({
       return [
         { label: "Total revenue", value: formatCurrency(revenue) },
         { label: "Bookings", value: `${inRange.length}` },
-        { label: "Avg booking", value: inRange.length ? formatCurrency(inRange.reduce((sum: number, r: any) => sum + (r.totalAmount || 0), 0) / 100 / inRange.length) : "--" },
+        { label: "Avg booking", value: inRange.length ? formatCurrency(inRange.reduce((sum, r) => sum + (r.totalAmount || 0), 0) / 100 / inRange.length) : "--" },
         { label: "Outstanding", value: formatCurrency(outstanding / 100) }
       ];
     }
@@ -230,28 +237,34 @@ export function ReportRendererV2({
       return [
         { label: "Occupancy", value: `${occupancy}%` },
         { label: "Active stays", value: `${inHouse.length}` },
-        { label: "Cancellations", value: `${reservations.filter((r: any) => r.status === "cancelled").length}` },
-        { label: "Length of stay", value: inHouse.length ? `${Math.round(inHouse.reduce((sum: number, r: any) => sum + Math.max(1, (new Date(r.departureDate).getTime() - new Date(r.arrivalDate).getTime()) / 86400000), 0) / inHouse.length)} nights` : "--" }
+        { label: "Cancellations", value: `${reservationList.filter((r) => r.status === "cancelled").length}` },
+        { label: "Length of stay", value: inHouse.length ? `${Math.round(inHouse.reduce((sum, r) => sum + Math.max(1, (new Date(r.departureDate).getTime() - new Date(r.arrivalDate).getTime()) / 86400000), 0) / inHouse.length)} nights` : "--" }
       ];
     }
 
     if (tab === "guests") {
-      const uniqueGuests = new Set(reservations.map((r: any) => r.guestId || r.guest?.id).filter(Boolean));
-      const repeatGuests = reservations.filter((r: any) => r.guestId).reduce((acc: Record<string, number>, r: any) => {
-        acc[r.guestId] = (acc[r.guestId] || 0) + 1;
-        return acc;
-      }, {});
+      const uniqueGuests = new Set(reservationList.map((r) => r.guestId || r.guest?.id).filter(Boolean));
+      const repeatGuests: Record<string, number> = {};
+      reservationList.forEach((r) => {
+        if (!r.guestId) return;
+        repeatGuests[r.guestId] = (repeatGuests[r.guestId] || 0) + 1;
+      });
       const repeatCount = Object.values(repeatGuests).filter((count) => count > 1).length;
       return [
         { label: "Guests", value: `${uniqueGuests.size}` },
         { label: "Repeat guests", value: `${repeatCount}` },
-        { label: "Avg party size", value: inRange.length ? `${(inRange.reduce((sum: number, r: any) => sum + (r.partySize || r.numberOfGuests || 0), 0) / inRange.length).toFixed(1)}` : "--" },
+        {
+          label: "Avg party size",
+          value: inRange.length
+            ? `${(inRange.reduce((sum, r) => sum + ((r.adults || 0) + (r.children || 0)), 0) / inRange.length).toFixed(1)}`
+            : "--"
+        },
         { label: "Email capture", value: "Track in report" }
       ];
     }
 
     if (tab === "marketing") {
-      const direct = inRange.filter((r: any) => (r.source || "direct") === "direct").length;
+      const direct = inRange.filter((r) => (r.source || "direct") === "direct").length;
       return [
         { label: "Bookings", value: `${inRange.length}` },
         { label: "Direct share", value: inRange.length ? `${Math.round((direct / inRange.length) * 100)}%` : "--" },

@@ -70,8 +70,26 @@ import {
   TableRow,
 } from "../../../../components/ui/table";
 
+type SiteType = "rv" | "tent" | "cabin" | "group" | "glamping";
+type FilterActive = "all" | "active" | "inactive";
+type SortBy = "name" | "siteNumber" | "type" | "class" | "rate" | "status";
+
+const isSiteType = (value: string): value is SiteType =>
+  value === "rv" || value === "tent" || value === "cabin" || value === "group" || value === "glamping";
+
+const isFilterActive = (value: string): value is FilterActive =>
+  value === "all" || value === "active" || value === "inactive";
+
+const isSortBy = (value: string): value is SortBy =>
+  value === "name" ||
+  value === "siteNumber" ||
+  value === "type" ||
+  value === "class" ||
+  value === "rate" ||
+  value === "status";
+
 // Site type configuration with icons
-const siteTypeConfig: Record<string, { icon: React.ReactNode; label: string; color: string }> = {
+const siteTypeConfig: Record<SiteType, { icon: React.ReactNode; label: string; color: string }> = {
   rv: { icon: <Home className="h-4 w-4" />, label: "RV", color: "bg-status-info/15 text-status-info" },
   tent: { icon: <Tent className="h-4 w-4" />, label: "Tent", color: "bg-status-success/15 text-status-success" },
   cabin: { icon: <Home className="h-4 w-4" />, label: "Cabin", color: "bg-status-warning/15 text-status-warning" },
@@ -80,35 +98,16 @@ const siteTypeConfig: Record<string, { icon: React.ReactNode; label: string; col
 };
 
 // Standard power amp options for RV sites
-const POWER_AMP_OPTIONS = [15, 20, 30, 50, 100] as const;
+const POWER_AMP_OPTIONS: number[] = [15, 20, 30, 50, 100];
 
-type Site = {
-  id: string;
-  name: string;
-  siteNumber: string;
-  siteType: "rv" | "tent" | "cabin" | "group" | "glamping";
-  siteClassId?: string | null;
-  maxOccupancy?: number;
-  rigMaxLength?: number | null;
-  hookupsPower?: boolean;
-  hookupsWater?: boolean;
-  hookupsSewer?: boolean;
-  powerAmps?: number[];
-  petFriendly?: boolean;
-  accessible?: boolean;
-  minNights?: number | null;
-  maxNights?: number | null;
-  photos?: string[];
-  description?: string;
-  tags?: string[];
-  isActive?: boolean;
+type Site = Awaited<ReturnType<typeof apiClient.getSites>>[number] & {
   zone?: string | null;
 };
 
 type SiteFormState = {
   name: string;
   siteNumber: string;
-  siteType: string;
+  siteType: SiteType;
   maxOccupancy: number;
   rigMaxLength: number | "";
   hookupsPower: boolean;
@@ -150,7 +149,8 @@ const defaultSiteForm: SiteFormState = {
 export default function SitesPage() {
   const params = useParams();
   const router = useRouter();
-  const campgroundId = params?.campgroundId as string;
+  const rawCampgroundId = params?.campgroundId;
+  const campgroundId = Array.isArray(rawCampgroundId) ? rawCampgroundId[0] : rawCampgroundId ?? "";
   const { toast } = useToast();
   const prefersReducedMotion = useReducedMotion();
   const campgroundQuery = useQuery({
@@ -158,12 +158,12 @@ export default function SitesPage() {
     queryFn: () => apiClient.getCampground(campgroundId),
     enabled: !!campgroundId
   });
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error } = useQuery<Site[]>({
     queryKey: ["sites", campgroundId],
     queryFn: () => apiClient.getSites(campgroundId),
     enabled: !!campgroundId
   });
-  const classesQuery = useQuery({
+  const classesQuery = useQuery<Awaited<ReturnType<typeof apiClient.getSiteClasses>>>({
     queryKey: ["site-classes", campgroundId],
     queryFn: () => apiClient.getSiteClasses(campgroundId),
     enabled: !!campgroundId
@@ -179,10 +179,10 @@ export default function SitesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState("__all__");
   const [filterClass, setFilterClass] = useState("__all__");
-  const [filterActive, setFilterActive] = useState<"all" | "active" | "inactive">("all");
+  const [filterActive, setFilterActive] = useState<FilterActive>("all");
 
   // Sorting state
-  const [sortBy, setSortBy] = useState<"name" | "siteNumber" | "type" | "class" | "rate" | "status">("siteNumber");
+  const [sortBy, setSortBy] = useState<SortBy>("siteNumber");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   // Bulk selection state
@@ -238,7 +238,7 @@ export default function SitesPage() {
     return {
       name: state.name,
       siteNumber: state.siteNumber,
-      siteType: state.siteType as "rv" | "tent" | "cabin" | "group" | "glamping",
+      siteType: state.siteType,
       maxOccupancy: Number(state.maxOccupancy),
       rigMaxLength: parseOptionalNumber(state.rigMaxLength),
       hookupsPower: state.hookupsPower,
@@ -394,10 +394,10 @@ export default function SitesPage() {
       await queryClient.cancelQueries({ queryKey: ["sites", campgroundId] });
 
       // Snapshot the previous value
-      const previousSites = queryClient.getQueryData(["sites", campgroundId]);
+      const previousSites = queryClient.getQueryData<Site[]>(["sites", campgroundId]);
 
       // Optimistically update the cache
-      queryClient.setQueryData(["sites", campgroundId], (old: any[] | undefined) => {
+      queryClient.setQueryData<Site[]>(["sites", campgroundId], (old) => {
         if (!old) return old;
         return old.map((site) =>
           site.id === variables.id ? { ...site, ...variables.data } : site
@@ -424,7 +424,7 @@ export default function SitesPage() {
           action: (
             <ToastAction altText="Undo" onClick={() => {
               // Optimistically revert
-              queryClient.setQueryData(["sites", campgroundId], (old: any[] | undefined) => {
+              queryClient.setQueryData<Site[]>(["sites", campgroundId], (old) => {
                 if (!old) return old;
                 return old.map((site) =>
                   site.id === id ? { ...site, ...previousData } : site
@@ -659,7 +659,14 @@ export default function SitesPage() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={filterActive} onValueChange={(v) => setFilterActive(v as "all" | "active" | "inactive")}>
+            <Select
+              value={filterActive}
+              onValueChange={(value) => {
+                if (isFilterActive(value)) {
+                  setFilterActive(value);
+                }
+              }}
+            >
               <SelectTrigger className="w-[130px] bg-background border-border" aria-label="Filter by status">
                 <SelectValue />
               </SelectTrigger>
@@ -672,7 +679,14 @@ export default function SitesPage() {
 
             {/* Sorting */}
             <div className="flex items-center gap-1 ml-2 pl-2 border-l border-border">
-              <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
+              <Select
+                value={sortBy}
+                onValueChange={(value) => {
+                  if (isSortBy(value)) {
+                    setSortBy(value);
+                  }
+                }}
+              >
                 <SelectTrigger className="w-[130px] bg-background border-border" aria-label="Sort by">
                   <ArrowUpDown className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
                   <SelectValue />
@@ -846,7 +860,11 @@ export default function SitesPage() {
               />
               <Select
                 value={formState.siteType}
-                onValueChange={(value) => setFormState((s) => ({ ...s, siteType: value }))}
+                onValueChange={(value) => {
+                  if (isSiteType(value)) {
+                    setFormState((s) => ({ ...s, siteType: value }));
+                  }
+                }}
               >
                 <SelectTrigger className="bg-background border-border" aria-label="Site type">
                   <SelectValue />
@@ -1150,8 +1168,7 @@ export default function SitesPage() {
             </TableHeader>
             <TableBody>
               {paginatedSites.map((site, index) => {
-                const typedSite = site as Site;
-                const cls = classesQuery.data?.find((c) => c.id === typedSite.siteClassId) || null;
+                const cls = classesQuery.data?.find((c) => c.id === site.siteClassId) || null;
                 const isEditing = editingId === site.id;
                 const isSelected = selectedSites.has(site.id);
                 const isInactive = site.isActive === false;
@@ -1202,10 +1219,10 @@ export default function SitesPage() {
                       </TableCell>
                       <TableCell>
                         <Select
-                          value={typedSite.siteClassId ?? "none"}
+                          value={site.siteClassId ?? "none"}
                           onValueChange={(value) => {
                             const newClassId = value === "none" ? null : value;
-                            const prevClassId = typedSite.siteClassId ?? null;
+                            const prevClassId = site.siteClassId ?? null;
                             const newClassName = classesQuery.data?.find(c => c.id === newClassId)?.name || "No class";
                             quickUpdateSite.mutate({
                               id: site.id,
@@ -1398,10 +1415,14 @@ export default function SitesPage() {
                                 className="bg-background border-border"
                                 aria-label="Site number"
                               />
-                              <Select
-                                value={editForm.siteType}
-                                onValueChange={(value) => setEditForm((s) => (s ? { ...s, siteType: value } : s))}
-                              >
+                            <Select
+                              value={editForm.siteType}
+                              onValueChange={(value) => {
+                                if (isSiteType(value)) {
+                                  setEditForm((s) => (s ? { ...s, siteType: value } : s));
+                                }
+                              }}
+                            >
                                 <SelectTrigger className="bg-background border-border" aria-label="Site type">
                                   <SelectValue />
                                 </SelectTrigger>

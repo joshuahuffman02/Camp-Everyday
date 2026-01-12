@@ -17,20 +17,20 @@ import { FieldMapping } from "./parsers/csv-parser.service";
 
 // DTOs
 class DetectFormatDto {
-  csvContent: string;
-  entityType: ImportEntityType;
+  csvContent!: string;
+  entityType!: ImportEntityType;
 }
 
 class PreviewImportDto {
-  csvContent: string;
-  entityType: ImportEntityType;
-  fieldMappings: FieldMapping[];
+  csvContent!: string;
+  entityType!: ImportEntityType;
+  fieldMappings!: FieldMapping[];
 }
 
 class ExecuteImportDto {
-  csvContent: string;
-  entityType: ImportEntityType;
-  fieldMappings: FieldMapping[];
+  csvContent!: string;
+  entityType!: ImportEntityType;
+  fieldMappings!: FieldMapping[];
   updateExisting?: boolean;
 }
 
@@ -178,7 +178,7 @@ export class DataImportController {
    */
   private validateEntityType(entityType: string) {
     const validTypes: ImportEntityType[] = ["sites", "guests", "reservations"];
-    if (!validTypes.includes(entityType as ImportEntityType)) {
+    if (!validTypes.some((type) => type === entityType)) {
       throw new BadRequestException(
         `Invalid entity type: ${entityType}. Must be one of: ${validTypes.join(", ")}`
       );

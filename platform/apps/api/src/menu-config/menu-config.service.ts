@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { randomUUID } from "crypto";
 
 @Injectable()
 export class MenuConfigService {
@@ -17,10 +18,12 @@ export class MenuConfigService {
       // Create default config - will be populated with role-based defaults on frontend
       config = await this.prisma.userMenuConfig.create({
         data: {
+          id: randomUUID(),
           userId,
           pinnedPages: [],
           sidebarCollapsed: false,
           migratedFromLocal: false,
+          updatedAt: new Date(),
         },
       });
     }
@@ -42,10 +45,12 @@ export class MenuConfigService {
       where: { userId },
       update: data,
       create: {
+        id: randomUUID(),
         userId,
         pinnedPages: data.pinnedPages ?? [],
         sidebarCollapsed: data.sidebarCollapsed ?? false,
         migratedFromLocal: false,
+        updatedAt: new Date(),
       },
     });
   }
@@ -123,10 +128,12 @@ export class MenuConfigService {
         migratedFromLocal: true,
       },
       create: {
+        id: randomUUID(),
         userId,
         pinnedPages: data.pinnedPages,
         sidebarCollapsed: data.sidebarCollapsed ?? false,
         migratedFromLocal: true,
+        updatedAt: new Date(),
       },
     });
   }

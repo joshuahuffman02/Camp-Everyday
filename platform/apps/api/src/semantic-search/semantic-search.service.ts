@@ -2,7 +2,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { OpenAIService } from '../openai/openai.service';
 
-interface SearchResult {
+export interface SearchResult {
   id: string;
   name: string;
   slug: string;
@@ -11,6 +11,15 @@ interface SearchResult {
   state: string | null;
   similarity: number;
 }
+
+type CampgroundTextSource = {
+  name?: string | null;
+  city?: string | null;
+  state?: string | null;
+  tagline?: string | null;
+  description?: string | null;
+  amenities?: string[] | null;
+};
 
 @Injectable()
 export class SemanticSearchService {
@@ -24,7 +33,7 @@ export class SemanticSearchService {
   /**
    * Generate text for embedding from campground data
    */
-  private buildCampgroundText(campground: any): string {
+  private buildCampgroundText(campground: CampgroundTextSource): string {
     const parts: string[] = [];
 
     // Name (most important)

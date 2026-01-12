@@ -7,6 +7,8 @@ import { apiClient } from "../../../lib/api-client";
 import { DashboardShell } from "../../../components/ui/layout/DashboardShell";
 import { Image as ImageIcon, PlusCircle } from "lucide-react";
 
+type SocialAsset = Awaited<ReturnType<typeof apiClient.listSocialAssets>>[number];
+
 export default function SocialPlannerContentBank() {
   const qc = useQueryClient();
   const [title, setTitle] = useState("");
@@ -20,7 +22,7 @@ export default function SocialPlannerContentBank() {
   });
   const campgroundId = campgrounds[0]?.id;
 
-  const assetsQuery = useQuery({
+  const assetsQuery = useQuery<SocialAsset[]>({
     queryKey: ["social-assets", campgroundId],
     queryFn: () => apiClient.listSocialAssets(campgroundId!),
     enabled: !!campgroundId
@@ -96,7 +98,7 @@ export default function SocialPlannerContentBank() {
       </div>
 
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
-        {assetsQuery.data?.map((asset: any) => (
+        {(assetsQuery.data ?? []).map((asset) => (
           <div key={asset.id} className="card p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -119,4 +121,3 @@ export default function SocialPlannerContentBank() {
     </DashboardShell>
   );
 }
-

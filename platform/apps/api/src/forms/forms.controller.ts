@@ -6,13 +6,17 @@ import { UserRole } from "@prisma/client";
 import { CreateFormTemplateDto, UpdateFormTemplateDto, CreateFormSubmissionDto, UpdateFormSubmissionDto } from "./dto/form-template.dto";
 import type { Request } from "express";
 
+type CampgroundRequest = Request & { campgroundId?: string | null };
+
 @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
 @Controller()
 export class FormsController {
   constructor(private readonly forms: FormsService) {}
 
-  private requireCampgroundId(req: any, fallback?: string): string {
-    const campgroundId = fallback || req?.campgroundId || req?.headers?.["x-campground-id"];
+  private requireCampgroundId(req: CampgroundRequest, fallback?: string): string {
+    const headerValue = req.headers["x-campground-id"];
+    const headerCampgroundId = Array.isArray(headerValue) ? headerValue[0] : headerValue;
+    const campgroundId = fallback ?? req.campgroundId ?? headerCampgroundId;
     if (!campgroundId) {
       throw new BadRequestException("campgroundId is required");
     }

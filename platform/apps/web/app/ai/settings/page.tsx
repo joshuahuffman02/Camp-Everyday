@@ -36,8 +36,8 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 
-const SPRING_CONFIG = {
-  type: "spring" as const,
+const SPRING_CONFIG: { type: "spring"; stiffness: number; damping: number } = {
+  type: "spring",
   stiffness: 300,
   damping: 25,
 };
@@ -118,8 +118,9 @@ export default function AISettingsPage() {
       queryClient.invalidateQueries({ queryKey: ["ai-autopilot-config"] });
       setHasChanges(false);
     },
-    onError: (error: any) => {
-      toast({ title: "Failed to save", description: error.message, variant: "destructive" });
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      toast({ title: "Failed to save", description: message, variant: "destructive" });
     },
   });
 

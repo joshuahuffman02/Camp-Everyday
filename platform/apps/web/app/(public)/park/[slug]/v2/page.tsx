@@ -11,6 +11,15 @@ type Props = {
 
 const baseUrl = (process.env.NEXT_PUBLIC_APP_BASE || "https://keeprstay.com").replace(/\/+$/, "");
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const getString = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+const getNumber = (value: unknown): number | undefined =>
+  typeof value === "number" && Number.isFinite(value) ? value : undefined;
+
 export async function generateMetadata(
   { params, searchParams }: Props,
   parent: ResolvingMetadata
@@ -91,46 +100,73 @@ export default async function Page({ params, searchParams }: Props) {
               reviewCount: initialData.reviewCount ?? 0,
             }
           : undefined,
-        event: (initialData.events || []).map((event: any) => ({
-          "@type": "Event",
-          name: event.title,
-          startDate: event.startDate,
-          endDate: event.endDate || event.startDate,
-          eventStatus: "https://schema.org/EventScheduled",
-          eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
-          location: {
-            "@type": "Place",
-            name: initialData.name,
-            address: {
-              "@type": "PostalAddress",
-              streetAddress: initialData.address1,
-              addressLocality: initialData.city,
-              addressRegion: initialData.state,
-              postalCode: initialData.postalCode,
-              addressCountry: initialData.country,
-            },
-          },
-          image: event.photoUrl || initialData.heroImageUrl || initialData.photos?.[0],
-          description: event.description,
-          offers: {
-            "@type": "Offer",
-            price: event.priceCents ? (event.priceCents / 100).toFixed(2) : "0",
-            priceCurrency: "USD",
-            availability: "https://schema.org/InStock",
-            url: `${baseUrl}/park/${slug}/book?arrivalDate=${event.startDate?.split("T")[0]}&departureDate=${
-              (event.endDate || event.startDate)?.split("T")[0]
-            }`,
-          },
-        })),
-        makesOffer: (initialData.promotions || []).map((promo: any) => ({
-          "@type": "Offer",
-          name: promo.code,
-          description: promo.description,
-          price: promo.value ? (promo.type === "percentage" ? `${promo.value}%` : (promo.value / 100).toFixed(2)) : undefined,
-          priceCurrency: "USD",
-          validThrough: promo.validTo,
-          url: `${baseUrl}/park/${slug}/book?promoCode=${promo.code}`,
-        })),
+        event: (initialData.events || [])
+          .filter(isRecord)
+          .map((event) => {
+            const title = getString(event.title) || "Event";
+            const startDate = getString(event.startDate) || new Date().toISOString();
+            const endDate = getString(event.endDate) || startDate;
+            const priceCents = getNumber(event.priceCents);
+            const photoUrl = getString(event.photoUrl);
+            const description = getString(event.description);
+            const arrivalDate = startDate.split("T")[0];
+            const departureDate = endDate.split("T")[0];
+
+            return {
+              "@type": "Event",
+              name: title,
+              startDate,
+              endDate,
+              eventStatus: "https://schema.org/EventScheduled",
+              eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
+              location: {
+                "@type": "Place",
+                name: initialData.name,
+                address: {
+                  "@type": "PostalAddress",
+                  streetAddress: initialData.address1,
+                  addressLocality: initialData.city,
+                  addressRegion: initialData.state,
+                  postalCode: initialData.postalCode,
+                  addressCountry: initialData.country,
+                },
+              },
+              image: photoUrl || initialData.heroImageUrl || initialData.photos?.[0],
+              description,
+              offers: {
+                "@type": "Offer",
+                price: priceCents ? (priceCents / 100).toFixed(2) : "0",
+                priceCurrency: "USD",
+                availability: "https://schema.org/InStock",
+                url: `${baseUrl}/park/${slug}/book?arrivalDate=${arrivalDate}&departureDate=${departureDate}`,
+              },
+            };
+          }),
+        makesOffer: (initialData.promotions || [])
+          .filter(isRecord)
+          .map((promo) => {
+            const code = getString(promo.code) || "";
+            const description = getString(promo.description);
+            const type = getString(promo.type);
+            const value = getNumber(promo.value);
+            const validThrough = getString(promo.validTo);
+            const price =
+              value !== undefined
+                ? type === "percentage"
+                  ? `${value}%`
+                  : (value / 100).toFixed(2)
+                : undefined;
+
+            return {
+              "@type": "Offer",
+              name: code,
+              description,
+              price,
+              priceCurrency: "USD",
+              validThrough,
+              url: `${baseUrl}/park/${slug}/book?promoCode=${code}`,
+            };
+          }),
       }
     : null;
 
@@ -150,4 +186,3 @@ export default async function Page({ params, searchParams }: Props) {
     </>
   );
 }
-

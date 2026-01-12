@@ -1,4 +1,3 @@
-import type { Request } from "express";
 import {
   Controller,
   Get,
@@ -9,9 +8,11 @@ import {
   Param,
   Headers,
   UseGuards,
-  Request,
+  Req,
   BadRequestException,
+  UnauthorizedException,
 } from "@nestjs/common";
+import type { Request as ExpressRequest } from "express";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { KioskService } from "./kiosk.service";
 
@@ -50,8 +51,9 @@ export class KioskController {
     try {
       const result = await this.kioskService.validateDevice(deviceToken, userAgent);
       return { valid: true, ...result };
-    } catch (error: any) {
-      return { valid: false, error: error.message };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      return { valid: false, error: message };
     }
   }
 
@@ -100,9 +102,13 @@ export class KioskController {
   @UseGuards(JwtAuthGuard)
   async generatePairingCode(
     @Param("campgroundId") campgroundId: string,
-    @Request() req: Request
+    @Req() req: ExpressRequest
   ) {
-    return this.kioskService.generatePairingCode(campgroundId, req.user?.id);
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new UnauthorizedException("User not authenticated");
+    }
+    return this.kioskService.generatePairingCode(campgroundId, userId);
   }
 
   /**

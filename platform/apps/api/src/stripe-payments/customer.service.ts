@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { StripeService } from "../payments/stripe.service";
+import { randomUUID } from "crypto";
 
 @Injectable()
 export class CustomerService {
@@ -62,10 +63,12 @@ export class CustomerService {
         // Store locally
         const customer = await this.prisma.stripeCustomer.create({
             data: {
+                id: randomUUID(),
                 campgroundId,
                 guestId,
                 stripeCustomerId: stripeCustomer.id,
                 email: guest.email,
+                updatedAt: new Date(),
             },
         });
 
@@ -83,7 +86,7 @@ export class CustomerService {
         const customer = await this.prisma.stripeCustomer.findUnique({
             where: { campgroundId_guestId: { campgroundId, guestId } },
             include: {
-                paymentMethods: {
+                GuestPaymentMethod: {
                     orderBy: [{ isDefault: "desc" }, { createdAt: "desc" }],
                 },
             },
@@ -101,8 +104,8 @@ export class CustomerService {
                 campgroundId_stripeCustomerId: { campgroundId, stripeCustomerId },
             },
             include: {
-                paymentMethods: true,
-                guest: {
+                GuestPaymentMethod: true,
+                Guest: {
                     select: {
                         id: true,
                         email: true,

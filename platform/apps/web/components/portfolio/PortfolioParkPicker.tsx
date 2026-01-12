@@ -14,13 +14,89 @@ const authHeaders = () => {
   return headers;
 };
 
+type Park = {
+  id: string;
+  name: string;
+  region?: string | null;
+};
+
+type Portfolio = {
+  id: string;
+  name: string;
+  parks: Park[];
+};
+
+type PortfolioResponse = {
+  portfolios: Portfolio[];
+  activePortfolioId?: string | null;
+  activeParkId?: string | null;
+};
+
+type PortfolioSelectResponse = {
+  activePortfolioId?: string | null;
+  activeParkId?: string | null;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const getString = (value: unknown): string | null => (typeof value === "string" ? value : null);
+
+const toPark = (value: unknown): Park | null => {
+  if (!isRecord(value)) return null;
+  const id = getString(value.id);
+  const name = getString(value.name);
+  if (!id || !name) return null;
+  const region = getString(value.region);
+  return { id, name, region };
+};
+
+const toPortfolio = (value: unknown): Portfolio | null => {
+  if (!isRecord(value)) return null;
+  const id = getString(value.id);
+  const name = getString(value.name);
+  if (!id || !name) return null;
+  const parks = Array.isArray(value.parks)
+    ? value.parks.map(toPark).filter((park): park is Park => park !== null)
+    : [];
+  return { id, name, parks };
+};
+
+const toPortfolioResponse = (value: unknown): PortfolioResponse => {
+  if (!isRecord(value)) {
+    return { portfolios: [] };
+  }
+  const portfolios = Array.isArray(value.portfolios)
+    ? value.portfolios.map(toPortfolio).filter((portfolio): portfolio is Portfolio => portfolio !== null)
+    : [];
+  return {
+    portfolios,
+    activePortfolioId: getString(value.activePortfolioId),
+    activeParkId: getString(value.activeParkId),
+  };
+};
+
+const toPortfolioSelectResponse = (value: unknown): PortfolioSelectResponse => {
+  if (!isRecord(value)) {
+    return {};
+  }
+  return {
+    activePortfolioId: getString(value.activePortfolioId),
+    activeParkId: getString(value.activeParkId),
+  };
+};
+
+const getErrorMessage = (err: unknown) =>
+  err instanceof Error ? err.message : "Please try again";
+
 const portfolioApi = {
-  async getPortfolios() {
+  async getPortfolios(): Promise<PortfolioResponse> {
     const res = await fetch(`${API_BASE}/portfolios`, { headers: authHeaders() });
     if (!res.ok) throw new Error("Failed to load portfolios");
-    return res.json();
+    const data: unknown = await res.json();
+    return toPortfolioResponse(data);
   },
-  async selectPortfolio(payload: { portfolioId: string; parkId?: string | null }) {
+  async selectPortfolio(payload: { portfolioId: string; parkId?: string | null }): Promise<PortfolioSelectResponse> {
     const res = await fetch(`${API_BASE}/portfolios/select`, {
       method: "POST",
       headers: authHeaders(),
@@ -30,7 +106,8 @@ const portfolioApi = {
       const text = await res.text();
       throw new Error(text || "Failed to update portfolio");
     }
-    return res.json();
+    const data: unknown = await res.json();
+    return toPortfolioSelectResponse(data);
   }
 };
 
@@ -52,7 +129,7 @@ export function PortfolioParkPicker({ onContextChange, tone = "dark", compact = 
     parkId: null,
   });
 
-  const portfoliosQuery = useQuery({
+  const portfoliosQuery = useQuery<PortfolioResponse>({
     queryKey: ["portfolios"],
     queryFn: portfolioApi.getPortfolios,
   });
@@ -96,25 +173,26 @@ export function PortfolioParkPicker({ onContextChange, tone = "dark", compact = 
       return;
     }
     if (!parkId && data.activeParkId) {
-      setParkId(data.activeParkId);
-      setAppliedContext((prev) => ({ ...prev, parkId: data.activeParkId }));
-      onContextChange?.({ portfolioId, parkId: data.activeParkId, source: "init" });
+      const nextParkId = data.activeParkId ?? null;
+      setParkId(nextParkId);
+      setAppliedContext((prev) => ({ ...prev, parkId: nextParkId }));
+      onContextChange?.({ portfolioId, parkId: nextParkId, source: "init" });
     }
   }, [applyLocalContext, parkId, portfolioId, portfoliosQuery.data, onContextChange]);
 
-  const selectMutation = useMutation({
+  const selectMutation = useMutation<PortfolioSelectResponse, Error, { portfolioId: string; parkId?: string | null }>({
     mutationFn: portfolioApi.selectPortfolio,
-    onSuccess: (data: any, variables) => {
-      const confirmedPark = variables.parkId ?? (data?.activeParkId as string | undefined) ?? parkId ?? null;
+    onSuccess: (data, variables) => {
+      const confirmedPark = variables.parkId ?? data.activeParkId ?? parkId ?? null;
       applyLocalContext(variables.portfolioId, confirmedPark, "user");
       toast({ title: "Portfolio context updated" });
     },
-    onError: (err: any) => {
+    onError: (err) => {
       setPortfolioId(appliedContext.portfolioId);
       setParkId(appliedContext.parkId);
       toast({
         title: "Unable to update portfolio",
-        description: err?.message ?? "Please try again",
+        description: getErrorMessage(err),
         variant: "destructive",
       });
     },
@@ -122,11 +200,11 @@ export function PortfolioParkPicker({ onContextChange, tone = "dark", compact = 
 
   const activePortfolio = useMemo(() => {
     const portfolios = portfoliosQuery.data?.portfolios ?? [];
-    return portfolios.find((p: any) => p.id === portfolioId) ?? portfolios.find((p: any) => p.id === portfoliosQuery.data?.activePortfolioId) ?? portfolios[0];
+    return portfolios.find((p) => p.id === portfolioId) ?? portfolios.find((p) => p.id === portfoliosQuery.data?.activePortfolioId) ?? portfolios[0];
   }, [portfolioId, portfoliosQuery.data]);
 
   const handlePortfolioChange = (nextPortfolioId: string) => {
-    const fallbackPark = portfoliosQuery.data?.portfolios.find((p: any) => p.id === nextPortfolioId)?.parks?.[0]?.id ?? null;
+    const fallbackPark = portfoliosQuery.data?.portfolios.find((p) => p.id === nextPortfolioId)?.parks?.[0]?.id ?? null;
     setPortfolioId(nextPortfolioId);
     if (fallbackPark) setParkId(fallbackPark);
     selectMutation.mutate({ portfolioId: nextPortfolioId, parkId: fallbackPark ?? undefined });
@@ -173,7 +251,7 @@ export function PortfolioParkPicker({ onContextChange, tone = "dark", compact = 
             onChange={(e) => handlePortfolioChange(e.target.value)}
           >
             {portfolios.length === 0 ? <option value="">Loading portfolios…</option> : null}
-            {portfolios.map((p: any) => (
+            {portfolios.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
               </option>
@@ -190,7 +268,7 @@ export function PortfolioParkPicker({ onContextChange, tone = "dark", compact = 
             onChange={(e) => handleParkChange(e.target.value)}
           >
             {parks.length === 0 ? <option value="">Select a portfolio first</option> : null}
-            {parks.map((park: any) => (
+            {parks.map((park) => (
               <option key={park.id} value={park.id}>
                 {park.name} • {park.region}
               </option>
@@ -201,5 +279,3 @@ export function PortfolioParkPicker({ onContextChange, tone = "dark", compact = 
     </div>
   );
 }
-
-

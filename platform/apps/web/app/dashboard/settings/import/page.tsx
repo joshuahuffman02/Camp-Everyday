@@ -31,6 +31,10 @@ import {
 type EntityType = "sites" | "guests";
 type ImportStep = "upload" | "mapping" | "preview" | "complete";
 
+const entityTypes: EntityType[] = ["sites", "guests"];
+const isEntityType = (value: string): value is EntityType =>
+  entityTypes.some((type) => type === value);
+
 type FieldMapping = {
   sourceField: string;
   targetField: string;
@@ -113,10 +117,11 @@ export default function DataImportPage() {
       setFieldMappings(mappings);
       setStep("mapping");
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
+      const message = err instanceof Error ? err.message : "Unable to parse CSV";
       toast({
         title: "Format detection failed",
-        description: err?.message ?? "Unable to parse CSV",
+        description: message,
         variant: "destructive",
       });
     },
@@ -130,10 +135,11 @@ export default function DataImportPage() {
       setPreview(data);
       setStep("preview");
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
+      const message = err instanceof Error ? err.message : "Unable to preview import";
       toast({
         title: "Preview failed",
-        description: err?.message ?? "Unable to preview import",
+        description: message,
         variant: "destructive",
       });
     },
@@ -151,10 +157,11 @@ export default function DataImportPage() {
         description: `Created ${data.created}, updated ${data.updated}, skipped ${data.skipped}`,
       });
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
+      const message = err instanceof Error ? err.message : "Unable to complete import";
       toast({
         title: "Import failed",
-        description: err?.message ?? "Unable to complete import",
+        description: message,
         variant: "destructive",
       });
     },
@@ -167,8 +174,10 @@ export default function DataImportPage() {
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      const content = event.target?.result as string;
-      setCsvContent(content);
+      const result = event.target?.result;
+      if (typeof result === "string") {
+        setCsvContent(result);
+      }
     };
     reader.readAsText(file);
   }, []);
@@ -184,10 +193,11 @@ export default function DataImportPage() {
       a.download = `${entityType}-import-template.csv`;
       a.click();
       URL.revokeObjectURL(url);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Unable to download template";
       toast({
         title: "Download failed",
-        description: err?.message ?? "Unable to download template",
+        description: message,
         variant: "destructive",
       });
     }
@@ -246,7 +256,15 @@ export default function DataImportPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs value={entityType} onValueChange={(v) => { setEntityType(v as EntityType); reset(); }}>
+            <Tabs
+              value={entityType}
+              onValueChange={(value) => {
+                if (isEntityType(value)) {
+                  setEntityType(value);
+                  reset();
+                }
+              }}
+            >
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="sites" className="flex items-center gap-2">
                   <MapPin className="h-4 w-4" />

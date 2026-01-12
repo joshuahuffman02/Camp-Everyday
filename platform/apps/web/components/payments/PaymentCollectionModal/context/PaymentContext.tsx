@@ -13,6 +13,7 @@ import {
   PaymentResult,
   PaymentConfig,
   SavedCard,
+  CardBrand,
   TerminalReader,
   calculateProcessingFee,
 } from "./types";
@@ -53,6 +54,44 @@ const initialState: PaymentContextState = {
   loading: false,
   processingMethod: null,
 };
+
+type StripeCapability = "active" | "inactive" | "pending";
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const getBoolean = (value: unknown, fallback: boolean) =>
+  typeof value === "boolean" ? value : fallback;
+
+const getNumber = (value: unknown, fallback: number) =>
+  typeof value === "number" && Number.isFinite(value) ? value : fallback;
+
+const getStringArray = (value: unknown): string[] | undefined =>
+  Array.isArray(value) && value.every((item) => typeof item === "string") ? value : undefined;
+
+const isStripeCapability = (value: unknown): value is StripeCapability =>
+  value === "active" || value === "inactive" || value === "pending";
+
+const isCardBrand = (value: string): value is CardBrand =>
+  value === "visa" ||
+  value === "mastercard" ||
+  value === "amex" ||
+  value === "discover" ||
+  value === "diners" ||
+  value === "jcb" ||
+  value === "unionpay";
+
+const toFeeMode = (value: unknown): PaymentConfig["feeMode"] =>
+  value === "absorb" || value === "pass_through" ? value : "absorb";
+
+const toPlatformFeeMode = (value: unknown): PaymentConfig["platformFeeMode"] =>
+  value === "absorb" || value === "pass_through" ? value : "pass_through";
+
+const toBillingPlan = (value: unknown): PaymentConfig["billingPlan"] =>
+  value === "standard" || value === "enterprise" || value === "ota_only" ? value : "ota_only";
+
+const toTerminalStatus = (value: unknown): TerminalReader["status"] =>
+  value === "online" || value === "offline" || value === "busy" ? value : "offline";
 
 // ============================================================================
 // ACTIONS
@@ -270,32 +309,51 @@ export function PaymentProvider({ children, modalProps }: PaymentProviderProps) 
     // Fetch campground payment config
     apiClient
       .getCampground(modalProps.campgroundId)
-      .then((campground: any) => {
-        // Determine default platform fee based on billing plan
-        const billingPlan = campground.billingPlan || "ota_only";
+      .then((campground) => {
+        const billingPlan = toBillingPlan(campground.billingPlan);
         const defaultPlatformFee = billingPlan === "enterprise" ? 100 : billingPlan === "standard" ? 200 : 300;
+        const stripeCapabilitiesRaw = isRecord(campground.stripeCapabilities)
+          ? campground.stripeCapabilities
+          : undefined;
+        const allowedBrands = getStringArray(campground.allowedCardBrands)
+          ?.filter(isCardBrand)
+          .filter((brand, idx, arr) => arr.indexOf(brand) === idx);
 
         const config: PaymentConfig = {
-          stripeCapabilities: campground.stripeCapabilities || {},
-          enableApplePay: campground.enableApplePay ?? true,
-          enableGooglePay: campground.enableGooglePay ?? true,
-          enableACH: campground.enableACH ?? true,
-          enableCardPayments: campground.enableCardPayments ?? true,
-          enableCash: campground.enableCash ?? true,
-          enableCheck: campground.enableCheck ?? true,
-          enableFolio: campground.enableFolio ?? true,
-          enableGiftCards: campground.enableGiftCards ?? true,
-          enableExternalPOS: campground.enableExternalPOS ?? false,
-          allowedCardBrands: campground.allowedCardBrands || ["visa", "mastercard", "amex", "discover"],
-          // CC processing fee (goes to Stripe)
-          feeMode: campground.feeMode || "absorb",
-          feePercentBasisPoints: campground.feePercentBasisPoints ?? 290,
-          feeFlatCents: campground.feeFlatCents ?? 30,
-          showFeeBreakdown: campground.showFeeBreakdown ?? false,
-          // Platform fee (goes to Campreserv)
-          billingPlan: billingPlan,
-          perBookingFeeCents: campground.perBookingFeeCents ?? defaultPlatformFee,
-          platformFeeMode: campground.platformFeeMode || "pass_through", // Default: guest pays platform fee
+          stripeCapabilities: {
+            card_payments: isStripeCapability(stripeCapabilitiesRaw?.card_payments)
+              ? stripeCapabilitiesRaw.card_payments
+              : undefined,
+            us_bank_account_ach_payments: isStripeCapability(stripeCapabilitiesRaw?.us_bank_account_ach_payments)
+              ? stripeCapabilitiesRaw.us_bank_account_ach_payments
+              : undefined,
+            apple_pay: isStripeCapability(stripeCapabilitiesRaw?.apple_pay)
+              ? stripeCapabilitiesRaw.apple_pay
+              : undefined,
+            google_pay: isStripeCapability(stripeCapabilitiesRaw?.google_pay)
+              ? stripeCapabilitiesRaw.google_pay
+              : undefined,
+            link_payments: isStripeCapability(stripeCapabilitiesRaw?.link_payments)
+              ? stripeCapabilitiesRaw.link_payments
+              : undefined,
+          },
+          enableApplePay: getBoolean(campground.enableApplePay, true),
+          enableGooglePay: getBoolean(campground.enableGooglePay, true),
+          enableACH: getBoolean(campground.enableACH, true),
+          enableCardPayments: getBoolean(campground.enableCardPayments, true),
+          enableCash: getBoolean(campground.enableCash, true),
+          enableCheck: getBoolean(campground.enableCheck, true),
+          enableFolio: getBoolean(campground.enableFolio, true),
+          enableGiftCards: getBoolean(campground.enableGiftCards, true),
+          enableExternalPOS: getBoolean(campground.enableExternalPOS, false),
+          allowedCardBrands: allowedBrands?.length ? allowedBrands : ["visa", "mastercard", "amex", "discover"],
+          feeMode: toFeeMode(campground.feeMode),
+          feePercentBasisPoints: getNumber(campground.feePercentBasisPoints, 290),
+          feeFlatCents: getNumber(campground.feeFlatCents, 30),
+          showFeeBreakdown: getBoolean(campground.showFeeBreakdown, false),
+          billingPlan,
+          perBookingFeeCents: getNumber(campground.perBookingFeeCents, defaultPlatformFee),
+          platformFeeMode: toPlatformFeeMode(campground.platformFeeMode),
         };
         dispatch({ type: "SET_CONFIG", payload: config });
       })
@@ -312,8 +370,15 @@ export function PaymentProvider({ children, modalProps }: PaymentProviderProps) 
 
     apiClient
       .getTerminalReaders(modalProps.campgroundId)
-      .then((readers: any[]) => {
-        dispatch({ type: "SET_TERMINAL_READERS", payload: readers });
+      .then((readers) => {
+        const mappedReaders: TerminalReader[] = readers.map((reader) => ({
+          id: reader.id,
+          label: reader.label,
+          status: toTerminalStatus(reader.status),
+          stripeReaderId: reader.stripeReaderId,
+          locationId: reader.locationId ?? undefined
+        }));
+        dispatch({ type: "SET_TERMINAL_READERS", payload: mappedReaders });
       })
       .catch(() => dispatch({ type: "SET_TERMINAL_READERS", payload: [] }));
   }, [modalProps.isOpen, modalProps.campgroundId]);
@@ -324,8 +389,17 @@ export function PaymentProvider({ children, modalProps }: PaymentProviderProps) 
 
     apiClient
       .getChargeablePaymentMethods(modalProps.campgroundId, modalProps.guestId)
-      .then((cards: any[]) => {
-        dispatch({ type: "SET_SAVED_CARDS", payload: cards });
+      .then((cards) => {
+        const mappedCards: SavedCard[] = cards.map((card) => ({
+          id: card.id,
+          last4: card.last4,
+          brand: card.brand,
+          expMonth: null,
+          expYear: null,
+          isDefault: card.isDefault,
+          nickname: card.nickname
+        }));
+        dispatch({ type: "SET_SAVED_CARDS", payload: mappedCards });
       })
       .catch(() => dispatch({ type: "SET_SAVED_CARDS", payload: [] }));
   }, [modalProps.isOpen, modalProps.campgroundId, modalProps.guestId]);
@@ -336,7 +410,7 @@ export function PaymentProvider({ children, modalProps }: PaymentProviderProps) 
 
     apiClient
       .getGuestWallet(modalProps.campgroundId, modalProps.guestId)
-      .then((data: any) => {
+      .then((data) => {
         dispatch({ type: "SET_WALLET_BALANCE", payload: data.balanceCents || 0 });
       })
       .catch(() => dispatch({ type: "SET_WALLET_BALANCE", payload: 0 }));
@@ -427,8 +501,8 @@ export function PaymentProvider({ children, modalProps }: PaymentProviderProps) 
         dispatch({ type: "ADD_DISCOUNT", payload: discount });
         dispatch({ type: "SET_ERROR", payload: null });
         return discount;
-      } catch (err: any) {
-        dispatch({ type: "SET_ERROR", payload: err.message || "Failed to apply promo code" });
+      } catch (err) {
+        dispatch({ type: "SET_ERROR", payload: err instanceof Error ? err.message : "Failed to apply promo code" });
         return null;
       } finally {
         dispatch({ type: "SET_LOADING", payload: false });
@@ -465,8 +539,8 @@ export function PaymentProvider({ children, modalProps }: PaymentProviderProps) 
       // This will be implemented in individual payment method components
       // For now, return a placeholder
       throw new Error("Payment processing not implemented");
-    } catch (err: any) {
-      dispatch({ type: "SET_ERROR", payload: err.message });
+    } catch (err) {
+      dispatch({ type: "SET_ERROR", payload: err instanceof Error ? err.message : "Payment failed" });
       dispatch({ type: "SET_STEP", payload: "error" });
       throw err;
     } finally {

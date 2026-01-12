@@ -1,9 +1,8 @@
-import { Injectable, BadRequestException, NotFoundException } from "@nestjs/common";
-import { PrismaService } from "../prisma/prisma.service";
+import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { CreatePricingRuleV2Dto } from "./dto/create-pricing-rule-v2.dto";
 import { UpdatePricingRuleV2Dto } from "./dto/update-pricing-rule-v2.dto";
-import { PricingRuleType, PricingStackMode, AdjustmentType } from "@prisma/client";
-import { Decimal } from "@prisma/client/runtime/library";
+import { PricingRuleType, PricingStackMode, AdjustmentType, PricingRuleV2, Prisma } from "@prisma/client";
+import { PrismaService } from "../prisma/prisma.service";
 import { AuditService } from "../audit/audit.service";
 
 export interface PricingBreakdown {
@@ -17,11 +16,76 @@ export interface PricingBreakdown {
   pricingRuleVersion: string;
 }
 
+export type PricingRuleConstraints = {
+  startDate?: Date | null;
+  endDate?: Date | null;
+  dowMask?: number[] | null;
+  calendarRefId?: string | null;
+};
+
+export function computeNights(arrival: Date, departure: Date): number {
+  const ms = departure.getTime() - arrival.getTime();
+  if (!Number.isFinite(ms) || ms <= 0) return 1;
+  return Math.max(1, Math.round(ms / (1000 * 60 * 60 * 24)));
+}
+
+export function extractMinNights(calendarRefId?: string | null): number | null {
+  if (!calendarRefId) return null;
+  const match = calendarRefId.match(/minNights:(\d+)/i);
+  if (!match) return null;
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+export function ruleApplies(rule: PricingRuleConstraints, day: Date, dow: number, nights: number): boolean {
+  if (rule.startDate && day < rule.startDate) return false;
+  if (rule.endDate && day > rule.endDate) return false;
+  if (rule.dowMask && rule.dowMask.length > 0 && !rule.dowMask.includes(dow)) return false;
+  const minNights = extractMinNights(rule.calendarRefId);
+  if (minNights && nights < minNights) return false;
+  return true;
+}
+
+export function computeAdjustment(adjustmentType: AdjustmentType, value: Prisma.Decimal, baseCents: number): number {
+  const val = Number(value);
+  if (adjustmentType === AdjustmentType.percent) {
+    return Math.round(baseCents * val);
+  }
+  return Math.round(val); // flat adjustment in cents
+}
+
+type AsyncResult<T> = (...args: unknown[]) => Promise<T>;
+type DemandBandLike = {
+  id: string;
+  thresholdPct: number;
+  adjustmentType: AdjustmentType;
+  adjustmentValue: Prisma.Decimal;
+  active: boolean;
+};
+
+export type PricingV2Store = {
+  pricingRuleV2: {
+    findMany: AsyncResult<PricingRuleV2[]>;
+    findFirst: AsyncResult<PricingRuleV2 | null>;
+    create: AsyncResult<PricingRuleV2>;
+    update: AsyncResult<PricingRuleV2>;
+    delete: AsyncResult<PricingRuleV2>;
+    count: AsyncResult<number>;
+  };
+  demandBand: {
+    findUnique: AsyncResult<DemandBandLike | null>;
+  };
+};
+
+export type PricingAuditWriter = {
+  record: AsyncResult<void>;
+};
+
 @Injectable()
 export class PricingV2Service {
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly audit: AuditService
+    @Inject(PrismaService) private readonly prisma: PricingV2Store,
+    @Inject(AuditService) private readonly audit: PricingAuditWriter
   ) {}
 
   list(campgroundId: string) {
@@ -43,7 +107,7 @@ export class PricingV2Service {
     departureDate: Date,
     occupancyPct?: number
   ): Promise<PricingBreakdown> {
-    const nights = this.computeNights(arrivalDate, departureDate);
+    const nights = computeNights(arrivalDate, departureDate);
 
     // Fetch active rules for campground/siteClass, sorted by priority
     const rules = await this.prisma.pricingRuleV2.findMany({
@@ -76,9 +140,9 @@ export class PricingV2Service {
 
       // Apply standard rules (priority order, stack/override logic)
       for (const rule of standardRules) {
-        if (!this.ruleApplies(rule, day, dow, nights)) continue;
+        if (!ruleApplies(rule, day, dow, nights)) continue;
 
-        const adj = this.computeAdjustment(rule.adjustmentType, rule.adjustmentValue, nightlyRate);
+        const adj = computeAdjustment(rule.adjustmentType, rule.adjustmentValue, nightlyRate);
 
         if (rule.stackMode === PricingStackMode.override) {
           nightlyAdjustment = adj;
@@ -115,7 +179,7 @@ export class PricingV2Service {
         const band = await this.prisma.demandBand.findUnique({ where: { id: rule.demandBandId } });
         if (!band || !band.active) continue;
         if (occupancyPct >= band.thresholdPct) {
-          const adj = this.computeAdjustment(band.adjustmentType, band.adjustmentValue, totalCents / nights) * nights;
+          const adj = computeAdjustment(band.adjustmentType, band.adjustmentValue, totalCents / nights) * nights;
           demandAdjustmentCents += adj;
           appliedRules.push({ id: rule.id, name: rule.name, type: "demand", adjustmentCents: adj });
         }
@@ -156,37 +220,6 @@ export class PricingV2Service {
     };
   }
 
-  private computeNights(arrival: Date, departure: Date): number {
-    const ms = departure.getTime() - arrival.getTime();
-    if (!Number.isFinite(ms) || ms <= 0) return 1;
-    return Math.max(1, Math.round(ms / (1000 * 60 * 60 * 24)));
-  }
-
-  private ruleApplies(rule: any, day: Date, dow: number, nights: number): boolean {
-    if (rule.startDate && day < rule.startDate) return false;
-    if (rule.endDate && day > rule.endDate) return false;
-    if (rule.dowMask && rule.dowMask.length > 0 && !rule.dowMask.includes(dow)) return false;
-    const minNights = this.extractMinNights(rule.calendarRefId);
-    if (minNights && nights < minNights) return false;
-    return true;
-  }
-
-  private extractMinNights(calendarRefId?: string | null): number | null {
-    if (!calendarRefId) return null;
-    const match = calendarRefId.match(/minNights:(\d+)/i);
-    if (!match) return null;
-    const parsed = Number(match[1]);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-  }
-
-  private computeAdjustment(adjustmentType: AdjustmentType, value: Decimal, baseCents: number): number {
-    const val = Number(value);
-    if (adjustmentType === AdjustmentType.percent) {
-      return Math.round(baseCents * val);
-    }
-    return Math.round(val); // flat adjustment in cents
-  }
-
   async create(campgroundId: string, dto: CreatePricingRuleV2Dto, actorId?: string | null) {
     await this.validateRule(campgroundId, dto);
     const rule = await this.prisma.pricingRuleV2.create({
@@ -218,8 +251,23 @@ export class PricingV2Service {
   async update(campgroundId: string, id: string, dto: UpdatePricingRuleV2Dto, actorId?: string | null) {
     const existing = await this.prisma.pricingRuleV2.findFirst({ where: { id, campgroundId } });
     if (!existing) throw new NotFoundException("Pricing rule not found");
-    const { campgroundId: _campgroundId, ...rest } =
-      dto as UpdatePricingRuleV2Dto & { campgroundId?: string };
+    const rest: UpdatePricingRuleV2Dto = {
+      name: dto.name,
+      type: dto.type,
+      priority: dto.priority,
+      stackMode: dto.stackMode,
+      adjustmentType: dto.adjustmentType,
+      adjustmentValue: dto.adjustmentValue,
+      siteClassId: dto.siteClassId,
+      calendarRefId: dto.calendarRefId,
+      demandBandId: dto.demandBandId,
+      dowMask: dto.dowMask,
+      startDate: dto.startDate,
+      endDate: dto.endDate,
+      minRateCap: dto.minRateCap,
+      maxRateCap: dto.maxRateCap,
+      active: dto.active
+    };
     const existingForValidation = {
       ...existing,
       adjustmentValue: Number(existing.adjustmentValue),
@@ -272,13 +320,13 @@ export class PricingV2Service {
     return existing;
   }
 
-  private async validateRule(campgroundId: string, dto: Partial<CreatePricingRuleV2Dto>) {
+  private async validateRule(campgroundId: string, dto: Partial<CreatePricingRuleV2Dto> & { id?: string }) {
     // Prevent overlapping overrides in same site class and date window
     if (dto.stackMode === PricingStackMode.override) {
       const overlapping = await this.prisma.pricingRuleV2.count({
         where: {
           campgroundId,
-          id: (dto as any).id ? { not: (dto as any).id } : undefined,
+          id: dto.id ? { not: dto.id } : undefined,
           siteClassId: dto.siteClassId ?? null,
           stackMode: PricingStackMode.override,
           active: dto.active ?? true,

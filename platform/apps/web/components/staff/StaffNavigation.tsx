@@ -132,7 +132,9 @@ export function StaffNavigation({ campgroundId }: StaffNavigationProps) {
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (navRef.current && !navRef.current.contains(event.target as Node)) {
+      const target = event.target;
+      if (!target || !(target instanceof Node)) return;
+      if (navRef.current && !navRef.current.contains(target)) {
         setOpenGroup(null);
       }
     };

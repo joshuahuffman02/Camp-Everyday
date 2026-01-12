@@ -16,6 +16,12 @@ import { IssueStoredValueDto, RedeemStoredValueDto, AdjustStoredValueDto } from 
 import { StoredValueService } from "./stored-value.service";
 import { ScopeGuard } from "../permissions/scope.guard";
 import { UserRole } from "@prisma/client";
+import type { AuthUser } from "../auth/auth.types";
+
+type CampgroundRequest = Request & { campgroundId?: string };
+
+const getHeaderValue = (value: string | string[] | undefined): string | undefined =>
+  Array.isArray(value) ? value[0] : value;
 
 // These routes assume Idempotency-Key header handled in the service layer.
 @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
@@ -23,23 +29,27 @@ import { UserRole } from "@prisma/client";
 export class StoredValueController {
   constructor(private readonly service: StoredValueService) {}
 
-  private requireCampgroundId(req: any, fallback?: string): string {
-    const campgroundId = fallback || req?.campgroundId || req?.headers?.["x-campground-id"];
+  private requireCampgroundId(req: CampgroundRequest, fallback?: string): string {
+    const headerCampgroundId = getHeaderValue(req.headers?.["x-campground-id"]);
+    const campgroundId = fallback ?? req.campgroundId ?? headerCampgroundId;
     if (!campgroundId) {
       throw new BadRequestException("campgroundId is required");
     }
     return campgroundId;
   }
 
-  private assertCampgroundAccess(campgroundId: string, user: any): void {
-    const isPlatformStaff = user?.platformRole === "platform_admin" ||
-                            user?.platformRole === "platform_superadmin" ||
-                            user?.platformRole === "support_agent";
+  private assertCampgroundAccess(campgroundId: string, user: AuthUser | undefined): void {
+    if (!user) {
+      throw new BadRequestException("You do not have access to this campground");
+    }
+
+    const platformRole = user.platformRole ?? "";
+    const isPlatformStaff = ["platform_admin", "platform_superadmin", "support_agent"].includes(platformRole);
     if (isPlatformStaff) {
       return;
     }
 
-    const userCampgroundIds = user?.memberships?.map((m: any) => m.campgroundId) ?? [];
+    const userCampgroundIds = user.memberships.map((membership) => membership.campgroundId);
     if (!userCampgroundIds.includes(campgroundId)) {
       throw new BadRequestException("You do not have access to this campground");
     }
@@ -51,7 +61,7 @@ export class StoredValueController {
     const requiredCampgroundId = this.requireCampgroundId(req);
     this.assertCampgroundAccess(requiredCampgroundId, req.user);
     const actor = { ...req.user, campgroundId: requiredCampgroundId };
-    return this.service.issue(dto, req.headers["idempotency-key"], actor);
+    return this.service.issue(dto, getHeaderValue(req.headers["idempotency-key"]), actor);
   }
 
   @Post("redeem")
@@ -60,7 +70,7 @@ export class StoredValueController {
     const requiredCampgroundId = this.requireCampgroundId(req, dto.redeemCampgroundId);
     this.assertCampgroundAccess(requiredCampgroundId, req.user);
     const actor = { ...req.user, campgroundId: requiredCampgroundId };
-    return this.service.redeem(dto, req.headers["idempotency-key"], actor);
+    return this.service.redeem(dto, getHeaderValue(req.headers["idempotency-key"]), actor);
   }
 
   @Post("holds/:id/capture")
@@ -69,7 +79,7 @@ export class StoredValueController {
     const requiredCampgroundId = this.requireCampgroundId(req);
     this.assertCampgroundAccess(requiredCampgroundId, req.user);
     const actor = { ...req.user, campgroundId: requiredCampgroundId };
-    return this.service.captureHold(id, req.headers["idempotency-key"], actor);
+    return this.service.captureHold(id, getHeaderValue(req.headers["idempotency-key"]), actor);
   }
 
   @Post("holds/:id/release")
@@ -78,7 +88,7 @@ export class StoredValueController {
     const requiredCampgroundId = this.requireCampgroundId(req);
     this.assertCampgroundAccess(requiredCampgroundId, req.user);
     const actor = { ...req.user, campgroundId: requiredCampgroundId };
-    return this.service.releaseHold(id, req.headers["idempotency-key"], actor);
+    return this.service.releaseHold(id, getHeaderValue(req.headers["idempotency-key"]), actor);
   }
 
   @Post("adjust")
@@ -87,7 +97,7 @@ export class StoredValueController {
     const requiredCampgroundId = this.requireCampgroundId(req);
     this.assertCampgroundAccess(requiredCampgroundId, req.user);
     const actor = { ...req.user, campgroundId: requiredCampgroundId };
-    return this.service.adjust(dto, req.headers["idempotency-key"], actor);
+    return this.service.adjust(dto, getHeaderValue(req.headers["idempotency-key"]), actor);
   }
 
   @Get("campgrounds/:campgroundId/accounts")

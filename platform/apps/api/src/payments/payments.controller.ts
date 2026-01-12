@@ -19,6 +19,7 @@ import {
   UsePipes,
 } from "@nestjs/common";
 import Stripe from "stripe";
+import { randomUUID } from "crypto";
 import type { Request, Response } from "express";
 import { ReservationsService } from "../reservations/reservations.service";
 import { CreatePaymentIntentDto } from "./dto/create-payment-intent.dto";
@@ -27,8 +28,7 @@ import { JwtAuthGuard } from "../auth/guards";
 import { RolesGuard, Roles } from "../auth/guards/roles.guard";
 import { ScopeGuard } from "../permissions/scope.guard";
 import { RequireScope } from "../permissions/scope.decorator";
-import { UserRole, IdempotencyStatus } from "@prisma/client";
-import type { Prisma } from "@prisma/client";
+import { Prisma, UserRole, IdempotencyStatus } from "@prisma/client";
 type BillingPlan = "ota_only" | "standard" | "enterprise";
 type PaymentFeeMode = "absorb" | "pass_through";
 type DisputeStatus = "warning_needs_response" | "warning_under_review" | "needs_response" | "under_review" | "charge_refunded" | "won" | "lost";
@@ -77,6 +77,54 @@ const isStripeCharge = (value: unknown): value is Stripe.Charge =>
 
 const getErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
+
+type ThreeDsConfig = {
+  additionalConfig?: Record<string, unknown> | null;
+  region?: string | null;
+};
+
+const DISPUTE_STATUS_VALUES: DisputeStatus[] = [
+  "warning_needs_response",
+  "warning_under_review",
+  "needs_response",
+  "under_review",
+  "charge_refunded",
+  "won",
+  "lost"
+];
+
+const parseDisputeStatus = (value?: string): DisputeStatus | undefined =>
+  DISPUTE_STATUS_VALUES.find((status) => status === value);
+
+const toNullableJsonInput = (
+  value: Prisma.InputJsonValue | null | undefined
+): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined => {
+  if (value === undefined) return undefined;
+  if (value === null) return Prisma.JsonNull;
+  return value;
+};
+
+const normalizeStripeCapabilities = (
+  capabilities: Stripe.Account.Capabilities | null | undefined
+): StripeCapabilities | undefined => {
+  if (!capabilities) return undefined;
+  const normalized: StripeCapabilities = {};
+  for (const [key, value] of Object.entries(capabilities)) {
+    if (typeof value === "string") {
+      normalized[key] = value;
+    }
+  }
+  return Object.keys(normalized).length ? normalized : undefined;
+};
+
+const resolveHeaderValue = (value: string | string[] | undefined): string | undefined =>
+  Array.isArray(value) ? value[0] : value;
+
+const toStripeId = (value: unknown): string | null => {
+  if (typeof value === "string") return value;
+  if (isRecord(value) && typeof value.id === "string") return value.id;
+  return null;
+};
 
 // DTO for public payment intent creation
 // Note: amountCents is NOT accepted - the server computes the amount from the reservation balance
@@ -184,7 +232,7 @@ export class PaymentsController {
         return { capabilities: currentCapabilities ?? null, fetchedAt: fetchedAt ?? null, refreshed: false, skipped: true };
       }
 
-      const capabilitiesJson: Prisma.InputJsonValue = capabilities ?? null;
+      const capabilitiesJson = toNullableJsonInput(capabilities);
       const updated = await this.prisma.campground.update({
         where: { id: campgroundId },
         data: {
@@ -305,7 +353,7 @@ export class PaymentsController {
     };
   }
 
-  private getPaymentMethodTypes(capabilities?: Record<string, string> | undefined | null) {
+  public getPaymentMethodTypes(capabilities?: Record<string, string> | undefined | null) {
     const achActive = capabilities?.us_bank_account_ach_payments === "active";
     const cardActive = capabilities?.card_payments === "active";
     const types: string[] = [];
@@ -320,7 +368,7 @@ export class PaymentsController {
     return Math.max(0, percentPortion + flatPortion);
   }
 
-  private computeChargeAmounts(opts: {
+  public computeChargeAmounts(opts: {
     reservation: { balanceAmount?: number | null; totalAmount?: number | null; paidAmount?: number | null };
     platformFeeMode: PaymentFeeMode | string;
     applicationFeeCents: number;
@@ -668,7 +716,8 @@ export class PaymentsController {
     // IDEMPOTENCY FIX (PAY-LOW-002): Use stable key derived from paymentIntentId + reservationId
     // Never use Date.now() as it creates different keys on retries, defeating idempotency
     // paymentIntentId is unique per payment attempt, combined with reservationId ensures stability
-    const idempotencyKey = req.headers["idempotency-key"] || `confirm-${paymentIntentId}-${body.reservationId}`;
+    const idempotencyHeader = resolveHeaderValue(req.headers["idempotency-key"]);
+    const idempotencyKey = idempotencyHeader ?? `confirm-${paymentIntentId}-${body.reservationId}`;
 
     // Check if already processed (idempotency)
     const existing = await this.idempotency.start(idempotencyKey, { paymentIntentId, ...body }, null, {
@@ -695,7 +744,9 @@ export class PaymentsController {
       } = ctx;
 
       // Retrieve payment intent from Stripe to verify status
-      const intent = await this.stripeService.retrievePaymentIntent(paymentIntentId, stripeAccountId);
+      const intent = stripeAccountId
+        ? await this.stripeService.retrievePaymentIntentOnConnectedAccount(stripeAccountId, paymentIntentId)
+        : await this.stripeService.retrievePaymentIntent(paymentIntentId);
 
       // SECURITY: Validate payment intent metadata matches the reservation
       // This prevents attackers from applying a different payment intent to a reservation
@@ -808,7 +859,7 @@ export class PaymentsController {
       if (reservation.status === "pending") {
         await this.prisma.reservation.update({
           where: { id: body.reservationId },
-          data: { status: "confirmed", confirmedAt: new Date() }
+          data: { status: "confirmed" }
         });
       }
 
@@ -863,7 +914,7 @@ export class PaymentsController {
     // Fetch capabilities after onboarding link creation
     try {
       const capabilities = await this.stripeService.retrieveAccountCapabilities(accountId);
-      const capabilitiesJson: Prisma.InputJsonValue = capabilities ?? null;
+      const capabilitiesJson = toNullableJsonInput(capabilities ?? null);
       await this.prisma.campground.update({
         where: { id: campgroundId },
         data: {
@@ -880,12 +931,17 @@ export class PaymentsController {
    * Determine 3DS policy based on currency/region and gateway config.
    * EU/UK currencies default to "any" while others stay "automatic".
    */
-  private buildThreeDsPolicy(
-    currency: string,
-    gatewayConfig?: import("./gateway-config.mapper").GatewayConfigView | null
+  public buildThreeDsPolicy(
+    currency?: string | null,
+    gatewayConfig?: ThreeDsConfig | null
   ): "any" | "automatic" {
     const cur = currency?.toLowerCase?.() ?? "usd";
-    const region = gatewayConfig?.additionalConfig?.region ?? gatewayConfig?.region ?? null;
+    const additionalRegion =
+      isRecord(gatewayConfig?.additionalConfig) && typeof gatewayConfig.additionalConfig.region === "string"
+        ? gatewayConfig.additionalConfig.region
+        : null;
+    const regionValue = additionalRegion ?? gatewayConfig?.region ?? null;
+    const region = typeof regionValue === "string" ? regionValue.toLowerCase() : null;
     const euLikeCurrencies = ["eur", "gbp", "chf", "sek", "nok"];
     if (euLikeCurrencies.includes(cur) || region === "eu" || region === "uk") {
       return "any";
@@ -1252,14 +1308,17 @@ export class PaymentsController {
           if (platformFee > 0) lineItems.push({ label: "Platform fee", amountCents: platformFee });
           if (gatewayFee > 0) lineItems.push({ label: "Gateway fee", amountCents: gatewayFee });
           const taxCents = toNumber(paymentIntent.metadata?.taxCents);
+          const latestCharge = paymentIntent.latest_charge;
           const latestChargeId =
-            typeof paymentIntent.latest_charge === "string"
-              ? paymentIntent.latest_charge
-              : paymentIntent.latest_charge?.id;
+            typeof latestCharge === "string"
+              ? latestCharge
+              : latestCharge?.id;
           const balanceTransactionId =
-            typeof paymentIntent.charges?.data?.[0]?.balance_transaction === "string"
-              ? paymentIntent.charges?.data?.[0]?.balance_transaction
-              : paymentIntent.charges?.data?.[0]?.balance_transaction?.id;
+            typeof latestCharge === "string" || !latestCharge
+              ? undefined
+              : typeof latestCharge.balance_transaction === "string"
+                ? latestCharge.balance_transaction
+                : latestCharge.balance_transaction?.id;
 
           await this.reservations.recordPayment(reservationId, amountCents, {
             transactionId: paymentIntent.id,
@@ -1300,8 +1359,8 @@ export class PaymentsController {
       const acct = event.data.object;
       const acctId = acct.id;
       try {
-        const capabilities = acct.capabilities;
-        const capabilitiesJson: Prisma.InputJsonValue = capabilities ?? null;
+        const capabilities = normalizeStripeCapabilities(acct.capabilities);
+        const capabilitiesJson = toNullableJsonInput(capabilities ?? null);
         await this.prisma.campground.updateMany({
           where: { stripeAccountId: acctId },
           data: {
@@ -1320,7 +1379,18 @@ export class PaymentsController {
         throw new BadRequestException("Webhook Error: invalid payout payload");
       }
       const payout = event.data.object;
-      await this.recon.reconcilePayout(payout);
+      const payoutPayload = {
+        id: payout.id,
+        amount: payout.amount,
+        fee: null,
+        status: payout.status,
+        arrival_date: payout.arrival_date,
+        currency: payout.currency,
+        destination: toStripeId(payout.destination),
+        stripe_account: event.account ?? null,
+        statement_descriptor: payout.statement_descriptor ?? null
+      };
+      await this.recon.reconcilePayout(payoutPayload);
     }
 
     if (event.type === "charge.dispute.created" || event.type === "charge.dispute.updated" || event.type === "charge.dispute.closed") {
@@ -1328,7 +1398,20 @@ export class PaymentsController {
         throw new BadRequestException("Webhook Error: invalid dispute payload");
       }
       const dispute = event.data.object;
-      await this.recon.upsertDispute(dispute);
+      const disputePayload = {
+        id: dispute.id,
+        amount: dispute.amount,
+        charge: toStripeId(dispute.charge),
+        payment_intent: toStripeId(dispute.payment_intent),
+        account: event.account ?? null,
+        metadata: dispute.metadata ?? null,
+        status: dispute.status,
+        reason: dispute.reason,
+        currency: dispute.currency,
+        evidence_details: dispute.evidence_details ?? null,
+        evidence: dispute.evidence ?? null
+      };
+      await this.recon.upsertDispute(disputePayload);
     }
 
     // Handle refund events - use individual refund objects to avoid double-processing
@@ -1337,7 +1420,7 @@ export class PaymentsController {
         throw new BadRequestException("Webhook Error: invalid charge payload");
       }
       const charge = event.data.object;
-      const paymentIntentId = charge.payment_intent;
+      const paymentIntentId = toStripeId(charge.payment_intent);
 
       if (paymentIntentId) {
         try {
@@ -1423,10 +1506,13 @@ export class PaymentsController {
       take: limit,
       skip: offset,
       include: {
-        lines: true
+        PayoutLine: true
       }
     });
-    return payouts;
+    return payouts.map(({ PayoutLine, ...payout }) => ({
+      ...payout,
+      lines: PayoutLine
+    }));
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
@@ -1441,10 +1527,11 @@ export class PaymentsController {
     this.ensureCampgroundMembership(req?.user, campgroundId);
     const payout = await this.prisma.payout.findFirst({
       where: { id: payoutId, campgroundId },
-      include: { lines: true }
+      include: { PayoutLine: true }
     });
     if (!payout) throw new NotFoundException("Payout not found");
-    return payout;
+    const { PayoutLine, ...rest } = payout;
+    return { ...rest, lines: PayoutLine };
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
@@ -1478,7 +1565,7 @@ export class PaymentsController {
     this.ensureCampgroundMembership(req?.user, campgroundId);
     const payout = await this.prisma.payout.findFirst({
       where: { id: payoutId, campgroundId },
-      include: { lines: true }
+      include: { PayoutLine: true }
     });
     if (!payout) throw new NotFoundException("Payout not found");
 
@@ -1493,7 +1580,7 @@ export class PaymentsController {
       "balance_transaction_id",
       "created_at",
     ];
-    const rows = payout.lines.map((line) => [
+    const rows = payout.PayoutLine.map((line) => [
       line.type,
       line.amountCents,
       line.currency,
@@ -1523,12 +1610,12 @@ export class PaymentsController {
     this.ensureCampgroundMembership(req?.user, campgroundId);
     const payout = await this.prisma.payout.findFirst({
       where: { id: payoutId, campgroundId },
-      include: { lines: true }
+      include: { PayoutLine: true }
     });
     if (!payout) throw new NotFoundException("Payout not found");
     const reservationIds = Array.from(
       new Set(
-        payout.lines
+        payout.PayoutLine
           .map((line) => line.reservationId)
           .filter((id): id is string => Boolean(id))
       )
@@ -1559,7 +1646,7 @@ export class PaymentsController {
   @Get("campgrounds/:campgroundId/disputes")
   async listDisputes(
     @Param("campgroundId") campgroundId: string,
-    @Query("status") status?: DisputeStatus,
+    @Query("status") status?: string,
     @Query("limit") limitStr?: string,
     @Query("offset") offsetStr?: string,
     @Req() req?: Request
@@ -1567,11 +1654,12 @@ export class PaymentsController {
     this.ensureCampgroundMembership(req?.user, campgroundId);
     const limit = Math.min(parseInt(limitStr ?? "100", 10) || 100, 500);
     const offset = parseInt(offsetStr ?? "0", 10) || 0;
+    const statusFilter = parseDisputeStatus(status);
 
     const disputes = await this.prisma.dispute.findMany({
       where: {
         campgroundId,
-        status: status ?? undefined
+        status: statusFilter ?? undefined
       },
       orderBy: { createdAt: "desc" },
       take: limit,
@@ -1608,8 +1696,9 @@ export class PaymentsController {
     @Req() req?: Request
   ) {
     this.ensureCampgroundMembership(req?.user, campgroundId);
+    const statusFilter = parseDisputeStatus(status);
     const disputes = await this.prisma.dispute.findMany({
-      where: { campgroundId, status: status ?? undefined }
+      where: { campgroundId, status: statusFilter ?? undefined }
     });
     const headers = ["stripe_dispute_id", "status", "amount_cents", "currency", "reason", "reservation_id", "charge_id", "payment_intent_id", "evidence_due_by"];
     const rows = disputes.map((dispute) => [
@@ -1726,6 +1815,7 @@ export class PaymentsController {
       // Create balanced ledger entries for the ACH return
       await this.prisma.ledgerEntry.create({
         data: {
+          id: randomUUID(),
           campgroundId,
           reservationId,
           glCode: "CHARGEBACK",
@@ -1739,6 +1829,7 @@ export class PaymentsController {
 
       await this.prisma.ledgerEntry.create({
         data: {
+          id: randomUUID(),
           campgroundId,
           reservationId,
           glCode: "CASH",

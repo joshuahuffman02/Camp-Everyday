@@ -170,10 +170,14 @@ export function OccupancyReport({ campgroundId, dateRange }: OccupancyReportProp
                             <Tooltip
                                 contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                                 labelStyle={{ color: '#64748b', marginBottom: '4px' }}
-                                formatter={(value: number, name: string, props: any) => [
-                                    `${value}% (${props.payload.count}/${props.payload.total} sites)`,
-                                    "Occupancy"
-                                ]}
+                                formatter={(value: number, name: string, props: { payload?: { count?: number; total?: number } }) => {
+                                    const count = typeof props.payload?.count === "number" ? props.payload.count : 0;
+                                    const total = typeof props.payload?.total === "number" ? props.payload.total : 0;
+                                    return [
+                                        `${value}% (${count}/${total} sites)`,
+                                        "Occupancy"
+                                    ];
+                                }}
                             />
                             <Line
                                 type="monotone"

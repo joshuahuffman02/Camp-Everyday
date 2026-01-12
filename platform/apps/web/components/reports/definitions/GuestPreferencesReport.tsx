@@ -21,25 +21,22 @@ export function GuestPreferencesReport({ campgroundId }: GuestPreferencesReportP
         if (!guests) return null;
 
         const preferencesCounts: Record<string, number> = {};
-        interface GuestWithPreferences {
-            preferences?: {
-                siteType?: string;
-                [key: string]: unknown;
-            };
-        }
+        const isRecord = (value: unknown): value is Record<string, unknown> =>
+            typeof value === "object" && value !== null;
 
         const siteTypeCounts: Record<string, number> = {};
         let guestsWithPreferences = 0;
 
         guests.forEach(guest => {
-            const guestWithPrefs = guest as GuestWithPreferences;
-            const prefs = guestWithPrefs.preferences;
-            if (prefs) {
+            if (!("preferences" in guest)) return;
+            const prefs = guest.preferences;
+            if (isRecord(prefs)) {
                 let hasPref = false;
 
                 // Track site types
-                if (prefs.siteType) {
-                    siteTypeCounts[prefs.siteType] = (siteTypeCounts[prefs.siteType] || 0) + 1;
+                const siteType = prefs["siteType"];
+                if (typeof siteType === "string") {
+                    siteTypeCounts[siteType] = (siteTypeCounts[siteType] || 0) + 1;
                     hasPref = true;
                 }
 

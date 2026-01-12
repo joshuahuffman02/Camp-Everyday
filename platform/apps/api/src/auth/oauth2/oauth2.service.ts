@@ -7,8 +7,9 @@ import {
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
+import type { OAuthClient } from "@prisma/client";
 import { PrismaService } from "../../prisma/prisma.service";
-import { randomBytes, createHash } from "crypto";
+import { randomBytes, createHash, randomUUID } from "crypto";
 import * as bcrypt from "bcryptjs";
 import {
   OAuth2GrantType,
@@ -84,7 +85,7 @@ export class OAuth2Service {
 
     // Validate scopes
     const requestedScopes = parseScopes(opts.scope);
-    const allowedScopes = client.scopes || DEFAULT_API_SCOPES.map(s => s as string);
+    const allowedScopes = client.scopes.length > 0 ? client.scopes : DEFAULT_API_SCOPES;
     const grantedScopes = requestedScopes.length > 0
       ? validateScopes(requestedScopes, allowedScopes)
       : allowedScopes;
@@ -219,7 +220,7 @@ export class OAuth2Service {
       if (!opts.codeVerifier) {
         this.throwOAuth2Error("invalid_grant", "PKCE code_verifier required");
       }
-      const method = (codeData.codeChallengeMethod as "S256" | "plain") || "S256";
+      const method = codeData.codeChallengeMethod === "plain" ? "plain" : "S256";
       if (!verifyCodeChallenge(opts.codeVerifier, codeData.codeChallenge, method)) {
         this.throwOAuth2Error("invalid_grant", "Invalid code_verifier");
       }
@@ -253,10 +254,10 @@ export class OAuth2Service {
         revokedAt: null,
         refreshExpiresAt: { gt: new Date() },
       },
-      include: { oAuthClient: true },
+      include: { OAuthClient: true },
     });
 
-    if (!token || !token.oAuthClient || !token.oAuthClient.isActive) {
+    if (!token || !token.OAuthClient || !token.OAuthClient.isActive) {
       this.throwOAuth2Error("invalid_grant", "Invalid refresh token");
     }
 
@@ -264,7 +265,7 @@ export class OAuth2Service {
     const scopes = token.scopes || [];
     const tokens = await this.generateTokens(
       token.oAuthClientId,
-      token.oAuthClient.campgroundId,
+      token.OAuthClient.campgroundId,
       scopes,
       token.userId || undefined
     );
@@ -284,7 +285,7 @@ export class OAuth2Service {
       refresh_token: tokens.refreshToken,
       expires_in: tokens.expiresIn,
       scope: scopesToString(scopes),
-      campground_id: token.oAuthClient.campgroundId,
+      campground_id: token.OAuthClient.campgroundId,
     };
   }
 
@@ -371,24 +372,24 @@ export class OAuth2Service {
         revokedAt: null,
         expiresAt: { gt: new Date() },
       },
-      include: { oAuthClient: true },
+      include: { OAuthClient: true },
     });
 
-    if (!tokenRecord || !tokenRecord.oAuthClient || !tokenRecord.oAuthClient.isActive) {
+    if (!tokenRecord || !tokenRecord.OAuthClient || !tokenRecord.OAuthClient.isActive) {
       return { active: false };
     }
 
     return {
       active: true,
       scope: scopesToString(tokenRecord.scopes || []),
-      client_id: tokenRecord.oAuthClient.clientId,
+      client_id: tokenRecord.OAuthClient.clientId,
       exp: Math.floor(tokenRecord.expiresAt.getTime() / 1000),
       iat: Math.floor(tokenRecord.createdAt.getTime() / 1000),
       sub: tokenRecord.userId || tokenRecord.oAuthClientId,
-      aud: tokenRecord.oAuthClient.clientId,
+      aud: tokenRecord.OAuthClient.clientId,
       iss: this.issuer,
       token_type: "Bearer",
-      campground_id: tokenRecord.oAuthClient.campgroundId,
+      campground_id: tokenRecord.OAuthClient.campgroundId,
     };
   }
 
@@ -411,17 +412,17 @@ export class OAuth2Service {
         revokedAt: null,
         expiresAt: { gt: new Date() },
       },
-      include: { oAuthClient: true },
+      include: { OAuthClient: true },
     });
 
-    if (!tokenRecord || !tokenRecord.oAuthClient || !tokenRecord.oAuthClient.isActive) {
+    if (!tokenRecord || !tokenRecord.OAuthClient || !tokenRecord.OAuthClient.isActive) {
       return { valid: false };
     }
 
     return {
       valid: true,
-      clientId: tokenRecord.oAuthClient.clientId,
-      campgroundId: tokenRecord.oAuthClient.campgroundId,
+      clientId: tokenRecord.OAuthClient.clientId,
+      campgroundId: tokenRecord.OAuthClient.campgroundId,
       scopes: tokenRecord.scopes || [],
       userId: tokenRecord.userId || undefined,
       tokenId: tokenRecord.id,
@@ -438,29 +439,31 @@ export class OAuth2Service {
     scopes?: string[];
     grantTypes?: OAuth2GrantType[];
     isConfidential?: boolean;
-  }): Promise<{ client: any; clientSecret?: string }> {
+  }): Promise<{ client: OAuthClient; clientSecret?: string }> {
     const clientId = `cs_${randomBytes(12).toString("hex")}`;
     const clientSecret = randomBytes(32).toString("hex");
     const hashedSecret = await bcrypt.hash(clientSecret, 12);
 
-    const scopes = opts.scopes && opts.scopes.length > 0
-      ? opts.scopes
-      : DEFAULT_API_SCOPES.map(s => s as string);
+    const scopes = opts.scopes && opts.scopes.length > 0 ? opts.scopes : DEFAULT_API_SCOPES;
 
-    const grantTypes = opts.grantTypes || [OAuth2GrantType.CLIENT_CREDENTIALS];
+    const grantTypes = opts.grantTypes && opts.grantTypes.length > 0
+      ? opts.grantTypes
+      : [OAuth2GrantType.CLIENT_CREDENTIALS];
     const isConfidential = opts.isConfidential ?? true;
 
     const client = await this.prisma.oAuthClient.create({
       data: {
+        id: randomUUID(),
         campgroundId: opts.campgroundId,
         name: opts.name,
         clientId,
         clientSecretHash: hashedSecret,
         redirectUris: opts.redirectUris,
         scopes,
-        grantTypes: grantTypes.map(g => g as string),
+        grantTypes,
         isConfidential,
         isActive: true,
+        updatedAt: new Date(),
       },
     });
 
@@ -541,6 +544,7 @@ export class OAuth2Service {
 
     await this.prisma.oAuthToken.create({
       data: {
+        id: randomUUID(),
         oAuthClientId: clientDbId,
         accessTokenHash: this.hashToken(tokens.accessToken),
         refreshTokenHash: tokens.refreshToken ? this.hashToken(tokens.refreshToken) : null,

@@ -19,29 +19,35 @@ import { PoliciesService } from "./policies.service";
 import { CreatePolicyTemplateDto } from "./dto/create-policy-template.dto";
 import { UpdatePolicyTemplateDto } from "./dto/update-policy-template.dto";
 import { ScopeGuard } from "../permissions/scope.guard";
+import type { AuthUser } from "../auth/auth.types";
 
 @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
 @Controller()
 export class PoliciesController {
   constructor(private readonly policies: PoliciesService) {}
 
-  private requireCampgroundId(req: any, fallback?: string): string {
-    const campgroundId = fallback || req?.campgroundId || req?.headers?.["x-campground-id"];
+  private requireCampgroundId(req: Request & { campgroundId?: string }, fallback?: string): string {
+    const headerValue = req.headers?.["x-campground-id"];
+    const headerCampgroundId = Array.isArray(headerValue) ? headerValue[0] : headerValue;
+    const campgroundId = fallback ?? req.campgroundId ?? headerCampgroundId;
     if (!campgroundId) {
       throw new BadRequestException("campgroundId is required");
     }
     return campgroundId;
   }
 
-  private assertCampgroundAccess(campgroundId: string, user: any): void {
-    const isPlatformStaff = user?.platformRole === "platform_admin" ||
-                            user?.platformRole === "platform_superadmin" ||
-                            user?.platformRole === "support_agent";
+  private assertCampgroundAccess(campgroundId: string, user: AuthUser | undefined): void {
+    if (!user) {
+      throw new BadRequestException("You do not have access to this campground");
+    }
+
+    const platformRole = user.platformRole ?? "";
+    const isPlatformStaff = ["platform_admin", "platform_superadmin", "support_agent"].includes(platformRole);
     if (isPlatformStaff) {
       return;
     }
 
-    const userCampgroundIds = user?.memberships?.map((m: any) => m.campgroundId) ?? [];
+    const userCampgroundIds = user.memberships.map((membership) => membership.campgroundId);
     if (!userCampgroundIds.includes(campgroundId)) {
       throw new BadRequestException("You do not have access to this campground");
     }

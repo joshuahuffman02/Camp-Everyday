@@ -11,6 +11,15 @@ import { apiClient } from "@/lib/api-client";
 import { useToast } from "@/components/ui/use-toast";
 import { CheckCircle2, Cloud, FileDown, RefreshCcw, RotateCcw, Shield, ShieldCheck, ShieldOff } from "lucide-react";
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object";
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (typeof error === "string") return error;
+  if (isRecord(error) && typeof error.message === "string") return error.message;
+  return fallback;
+};
+
 type PrivacySettings = {
   redactPII: boolean;
   consentRequired: boolean;
@@ -73,10 +82,10 @@ export default function SecuritySettingsPage() {
         });
       }
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       toast({
         title: "Restore simulation failed",
-        description: err?.message ?? "Unexpected error while running the stub drill.",
+        description: getErrorMessage(err, "Unexpected error while running the stub drill."),
         variant: "destructive"
       });
     }
@@ -146,7 +155,7 @@ export default function SecuritySettingsPage() {
     );
   };
 
-  const settings = quickAuditQuery.data?.privacyDefaults as PrivacySettings | undefined;
+  const settings = quickAuditQuery.data?.privacyDefaults;
   const backupStatus = backupQuery.data;
 
   return (
@@ -323,7 +332,7 @@ export default function SecuritySettingsPage() {
                       <div className="text-sm font-semibold text-foreground">Restore simulation (stub)</div>
                       <p className="text-xs text-muted-foreground">Records a drill only — no data moved.</p>
                     </div>
-                    {restoreStatusBadge(backupStatus.restoreSimulation?.status as "idle" | "running" | "ok" | "error" | undefined)}
+                    {restoreStatusBadge(backupStatus?.restoreSimulation.status)}
                   </div>
                   <div className="text-xs text-muted-foreground mt-2">
                     Last run: {formatDate(backupStatus.restoreSimulation?.lastRunAt)}

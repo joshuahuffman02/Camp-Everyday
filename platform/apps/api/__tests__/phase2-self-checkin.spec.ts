@@ -19,9 +19,17 @@ describe('SelfCheckinService', () => {
     checkOutStatus: 'not_started',
     totalAmount: 10000,
     balanceAmount: 0,
-    campground: { name: 'Test Camp' },
-    guest: { email: 'test@test.com', primaryFirstName: 'Test', primaryLastName: 'User' },
-    site: { siteNumber: '12' },
+    Campground: {
+      id: 'cg-1',
+      name: 'Test Camp',
+      stripeAccountId: null,
+      applicationFeeFlatCents: null,
+      perBookingFeeCents: null,
+      billingPlan: null,
+      feeMode: null,
+    },
+    Guest: { email: 'test@test.com', primaryFirstName: 'Test', primaryLastName: 'User' },
+    Site: { siteNumber: '12' },
   };
 
   const mockPrisma = {
@@ -190,7 +198,7 @@ describe('SelfCheckinService', () => {
       const result = await service.selfCheckout('res-1');
 
       expect(result.status).toBe('failed');
-      expect(result.reason).toBe('payment_capture_failed');
+      expect(result.reason).toBe('payment_not_configured');
     });
 
     it('creates damage task when damage reported', async () => {
@@ -216,4 +224,3 @@ describe('SelfCheckinService', () => {
     });
   });
 });
-

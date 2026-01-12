@@ -3,6 +3,18 @@ import { JwtAuthGuard } from "../auth/guards"; // Assuming standard guard exists
 import { TaskBundlerService } from "./task-bundler.service";
 import type { Request } from "express";
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const getUserTenantId = (user: unknown): string | null => {
+  if (!isRecord(user)) return null;
+  const campgroundId = user.campgroundId;
+  if (typeof campgroundId === "string") return campgroundId;
+  const tenantId = user.tenantId;
+  if (typeof tenantId === "string") return tenantId;
+  return null;
+};
+
 @UseGuards(JwtAuthGuard)
 @Controller("tasks/bundles")
 export class TaskBundlerController {
@@ -10,11 +22,7 @@ export class TaskBundlerController {
 
     @Get()
     async getBundles(@Req() req: Request) {
-        // Assuming standard user object has campgroundId or tenantId
-        // In many parts of this codebase campgroundId is used.
-        // Task model has 'tenantId'. We should check if campgroundId maps to tenantId.
-        // Usually they are the same in single-tenant-per-campground context.
-        const tenantId = req.user?.campgroundId || req.user?.tenantId;
+        const tenantId = getUserTenantId(req.user);
 
         // Fallback if not strictly defined on user
         if (!tenantId) {

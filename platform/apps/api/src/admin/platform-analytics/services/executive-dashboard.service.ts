@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../../../prisma/prisma.service";
 import { DateRange } from "../platform-analytics.service";
 
-interface ExecutiveKpi {
+export interface ExecutiveKpi {
   label: string;
   value: number | string;
   previousValue?: number | string;
@@ -12,7 +12,7 @@ interface ExecutiveKpi {
   status: "good" | "warning" | "critical" | "neutral";
 }
 
-interface ExecutiveSummary {
+export interface ExecutiveSummary {
   kpis: ExecutiveKpi[];
   alerts: Alert[];
   topPerformers: TopPerformer[];
@@ -20,7 +20,7 @@ interface ExecutiveSummary {
   recentActivity: RecentActivity[];
 }
 
-interface Alert {
+export interface Alert {
   id: string;
   type: "nps" | "revenue" | "occupancy" | "cancellation";
   severity: "warning" | "critical";
@@ -31,7 +31,7 @@ interface Alert {
   createdAt: Date;
 }
 
-interface TopPerformer {
+export interface TopPerformer {
   campgroundId: string;
   campgroundName: string;
   metric: string;
@@ -39,7 +39,7 @@ interface TopPerformer {
   rank: number;
 }
 
-interface NeedsAttention {
+export interface NeedsAttention {
   campgroundId: string;
   campgroundName: string;
   issue: string;
@@ -48,7 +48,7 @@ interface NeedsAttention {
   recommendation: string;
 }
 
-interface RecentActivity {
+export interface RecentActivity {
   type: "reservation" | "cancellation" | "nps_response" | "alert";
   description: string;
   campgroundName: string;
@@ -250,7 +250,7 @@ export class ExecutiveDashboardService {
       select: {
         score: true,
         campgroundId: true,
-        campground: { select: { name: true } },
+        Campground: { select: { name: true } },
       },
     });
 
@@ -258,7 +258,7 @@ export class ExecutiveDashboardService {
     const byCampground: Record<string, { name: string; scores: number[] }> = {};
     for (const r of npsResponses) {
       if (!byCampground[r.campgroundId]) {
-        byCampground[r.campgroundId] = { name: r.campground.name, scores: [] };
+        byCampground[r.campgroundId] = { name: r.Campground.name, scores: [] };
       }
       byCampground[r.campgroundId].scores.push(r.score);
     }
@@ -379,14 +379,14 @@ export class ExecutiveDashboardService {
       select: {
         score: true,
         campgroundId: true,
-        campground: { select: { name: true } },
+        Campground: { select: { name: true } },
       },
     });
 
     const byCampground: Record<string, { name: string; scores: number[] }> = {};
     for (const r of npsResponses) {
       if (!byCampground[r.campgroundId]) {
-        byCampground[r.campgroundId] = { name: r.campground.name, scores: [] };
+        byCampground[r.campgroundId] = { name: r.Campground.name, scores: [] };
       }
       byCampground[r.campgroundId].scores.push(r.score);
     }
@@ -427,7 +427,7 @@ export class ExecutiveDashboardService {
       select: {
         totalAmount: true,
         createdAt: true,
-        campground: { select: { name: true } },
+        Campground: { select: { name: true } },
       },
     });
 
@@ -435,7 +435,7 @@ export class ExecutiveDashboardService {
       activities.push({
         type: "reservation",
         description: `New reservation - $${r.totalAmount?.toFixed(2) || 0}`,
-        campgroundName: r.campground.name,
+        campgroundName: r.Campground.name,
         timestamp: r.createdAt,
         value: r.totalAmount || 0,
       });
@@ -448,7 +448,7 @@ export class ExecutiveDashboardService {
       select: {
         score: true,
         createdAt: true,
-        campground: { select: { name: true } },
+        Campground: { select: { name: true } },
       },
     });
 
@@ -457,7 +457,7 @@ export class ExecutiveDashboardService {
       activities.push({
         type: "nps_response",
         description: `NPS Response: ${n.score}/10 (${category})`,
-        campgroundName: n.campground.name,
+        campgroundName: n.Campground.name,
         timestamp: n.createdAt,
         value: n.score,
       });

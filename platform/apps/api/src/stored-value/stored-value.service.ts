@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, Injectable,
 import { PrismaService } from "../prisma/prisma.service";
 import { IdempotencyService } from "../payments/idempotency.service";
 import { IssueStoredValueDto, RedeemStoredValueDto, AdjustStoredValueDto, ReloadStoredValueDto, RefundStoredValueDto, VoidStoredValueDto } from "./stored-value.dto";
-import { IdempotencyStatus, StoredValueDirection, StoredValueStatus, TaxRuleType } from "@prisma/client";
+import { IdempotencyStatus, StoredValueDirection, StoredValueScopeType, StoredValueStatus, TaxRuleType } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 import crypto from "crypto";
 import { ObservabilityService } from "../observability/observability.service";
@@ -19,11 +19,11 @@ type StoredValueActor = {
 type StoredValueAccount = {
   id: string;
   campgroundId: string | null;
-  scopeType: string;
+  scopeType: StoredValueScopeType;
   scopeId: string | null;
   status: StoredValueStatus;
   currency: string;
-  metadata: unknown;
+  metadata: Prisma.JsonValue | null;
   expiresAt?: Date | null;
 };
 
@@ -31,6 +31,24 @@ type StoredValueClient = Prisma.TransactionClient | PrismaService;
 
 const getErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
+
+const toStringValue = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined => {
+  if (value === undefined || value === null) return undefined;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
+};
+
+const parseScopeType = (value: string | undefined): StoredValueScopeType => {
+  if (value === StoredValueScopeType.organization) return StoredValueScopeType.organization;
+  if (value === StoredValueScopeType.global) return StoredValueScopeType.global;
+  return StoredValueScopeType.campground;
+};
 
 @Injectable()
 export class StoredValueService {
@@ -82,6 +100,7 @@ export class StoredValueService {
           existingAccount ??
           (await tx.storedValueAccount.create({
             data: {
+              id: crypto.randomUUID(),
               campgroundId: issuerCampgroundId ?? dto.tenantId,
               scopeType: issueScope.scopeType,
               scopeId: issueScope.scopeId,
@@ -92,13 +111,15 @@ export class StoredValueService {
               expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
               createdBy: actor?.id,
               createdVia: "api",
-              metadata: this.mergeMetadata(dto.metadata, dto.taxableLoad)
+              metadata: this.mergeMetadata(dto.metadata, dto.taxableLoad),
+              updatedAt: now,
             }
           }));
 
         if (codeValue) {
           await tx.storedValueCode.create({
             data: {
+              id: crypto.randomUUID(),
               accountId: account.id,
               code: codeValue,
               pinHash: pinValue ? this.hashPin(pinValue) : undefined
@@ -112,6 +133,7 @@ export class StoredValueService {
 
         await tx.storedValueLedger.create({
           data: {
+            id: crypto.randomUUID(),
             campgroundId: account.campgroundId,
             issuerCampgroundId: account.campgroundId,
             scopeType: issueScope.scopeType,
@@ -127,7 +149,7 @@ export class StoredValueService {
             idempotencyKey: idempotencyKey ?? `issue-${account.id}-${now.getTime()}`,
             actorType: actor?.role,
             actorId: actor?.id,
-            channel: dto.metadata?.channel ?? "staff",
+            channel: toStringValue(isRecord(dto.metadata) ? dto.metadata.channel : undefined) ?? "staff",
             reason: dto.taxableLoad ? "taxable_load" : "nontaxable_load"
           }
         });
@@ -186,6 +208,7 @@ export class StoredValueService {
 
         await tx.storedValueLedger.create({
           data: {
+            id: crypto.randomUUID(),
             campgroundId: transactionCampgroundId,
             issuerCampgroundId: account.campgroundId,
             scopeType: accountScope.scopeType,
@@ -233,7 +256,7 @@ export class StoredValueService {
     const account = await this.getAccount(dto);
     this.ensureActive(account);
     this.ensureCurrency(account, dto.currency);
-    let redeemContext: { transactionCampgroundId: string; scopeType: string; scopeId: string | null } | null = null;
+    let redeemContext: { transactionCampgroundId: string; scopeType: StoredValueScopeType; scopeId: string | null } | null = null;
 
     try {
       const context = await this.resolveRedeemContext(account, dto.redeemCampgroundId, actor);
@@ -262,13 +285,15 @@ export class StoredValueService {
         if (dto.holdOnly) {
           const hold = await tx.storedValueHold.create({
             data: {
+              id: crypto.randomUUID(),
               accountId: account.id,
               amountCents: dto.amountCents,
               status: "open",
               expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15 min default
               referenceType: dto.referenceType,
               referenceId: dto.referenceId,
-              idempotencyKey: idempotencyKey ?? `hold-${account.id}-${Date.now()}`
+              idempotencyKey: idempotencyKey ?? `hold-${account.id}-${Date.now()}`,
+              updatedAt: new Date()
             }
           });
           return { accountId: account.id, availableCents: availableCents - dto.amountCents, holdId: hold.id };
@@ -279,6 +304,7 @@ export class StoredValueService {
 
         await tx.storedValueLedger.create({
           data: {
+            id: crypto.randomUUID(),
             campgroundId: context.transactionCampgroundId,
             issuerCampgroundId: account.campgroundId,
             scopeType: context.scopeType,
@@ -351,6 +377,7 @@ export class StoredValueService {
 
         await tx.storedValueLedger.create({
           data: {
+            id: crypto.randomUUID(),
             campgroundId: transactionCampgroundId,
             issuerCampgroundId: account.campgroundId,
             scopeType: accountScope.scopeType,
@@ -416,6 +443,7 @@ export class StoredValueService {
         const after = balanceCents + dto.amountCents;
         await tx.storedValueLedger.create({
           data: {
+            id: crypto.randomUUID(),
             campgroundId: transactionCampgroundId,
             issuerCampgroundId: account.campgroundId,
             scopeType: accountScope.scopeType,
@@ -467,6 +495,7 @@ export class StoredValueService {
 
         await tx.storedValueLedger.create({
           data: {
+            id: crypto.randomUUID(),
             campgroundId: transactionCampgroundId,
             issuerCampgroundId: account.campgroundId,
             scopeType: accountScope.scopeType,
@@ -584,6 +613,7 @@ export class StoredValueService {
         const accountScope = this.normalizeScope(acc);
         await tx.storedValueLedger.create({
           data: {
+            id: crypto.randomUUID(),
             campgroundId: acc.campgroundId,
             issuerCampgroundId: acc.campgroundId,
             scopeType: accountScope.scopeType,
@@ -633,6 +663,7 @@ export class StoredValueService {
 
         await tx.storedValueLedger.create({
           data: {
+            id: crypto.randomUUID(),
             campgroundId: transactionCampgroundId,
             issuerCampgroundId: account.campgroundId,
             scopeType: accountScope.scopeType,
@@ -705,9 +736,9 @@ export class StoredValueService {
       where: {
         guestId: null,
         OR: [
-          { scopeType: "campground", scopeId: campgroundId },
-          { scopeType: "organization", scopeId: scopeCampground.organizationId },
-          { scopeType: "global" }
+          { scopeType: StoredValueScopeType.campground, scopeId: campgroundId },
+          { scopeType: StoredValueScopeType.organization, scopeId: scopeCampground.organizationId },
+          { scopeType: StoredValueScopeType.global }
         ]
       },
       select: {
@@ -723,8 +754,8 @@ export class StoredValueService {
         metadata: true,
         createdAt: true,
         updatedAt: true,
-        campground: { select: { id: true, name: true } },
-        codes: {
+        Campground: { select: { id: true, name: true } },
+        StoredValueCode: {
           select: { id: true, code: true, active: true, createdAt: true },
           orderBy: { createdAt: "desc" }
         }
@@ -750,16 +781,21 @@ export class StoredValueService {
       }
     }
 
-    return accounts.map((account) => ({
-      ...account,
-      balanceCents: balances.get(account.id) ?? 0,
-      issuedCents: issued.get(account.id) ?? 0
-    }));
+    return accounts.map((account) => {
+      const { Campground, StoredValueCode, ...rest } = account;
+      return {
+        ...rest,
+        campground: Campground,
+        codes: StoredValueCode,
+        balanceCents: balances.get(account.id) ?? 0,
+        issuedCents: issued.get(account.id) ?? 0
+      };
+    });
   }
 
   async listLedger(campgroundId: string) {
     return this.prisma.storedValueLedger.findMany({
-      where: { campgroundId, account: { guestId: null } },
+      where: { campgroundId, StoredValueAccount: { guestId: null } },
       select: {
         id: true,
         accountId: true,
@@ -828,9 +864,18 @@ export class StoredValueService {
   }
 
   private directionToSigned(direction: StoredValueDirection, amount: number) {
-    if ([StoredValueDirection.issue, StoredValueDirection.refund, StoredValueDirection.adjust].includes(direction)) return amount;
-    if ([StoredValueDirection.redeem, StoredValueDirection.expire, StoredValueDirection.hold_capture].includes(direction)) return -Math.abs(amount);
-    return 0;
+    switch (direction) {
+      case StoredValueDirection.issue:
+      case StoredValueDirection.refund:
+      case StoredValueDirection.adjust:
+        return amount;
+      case StoredValueDirection.redeem:
+      case StoredValueDirection.expire:
+      case StoredValueDirection.hold_capture:
+        return -Math.abs(amount);
+      default:
+        return 0;
+    }
   }
 
   private async getBalances(tx: StoredValueClient, accountId: string) {
@@ -895,7 +940,7 @@ export class StoredValueService {
       throw new BadRequestException("taxable_load requires campground context");
     }
     const activeRate = await this.prisma.taxRule.findFirst({
-      where: { campgroundId, type: TaxRuleType.rate, isActive: true }
+      where: { campgroundId, type: TaxRuleType.percentage, isActive: true }
     });
     if (!activeRate) {
       throw new BadRequestException("Taxable load requires an active tax rule");
@@ -912,20 +957,20 @@ export class StoredValueService {
     if (taxableLoad !== undefined) {
       merged.taxableLoad = taxableLoad;
     }
-    return merged;
+    return toJsonValue(merged);
   }
 
-  private normalizeScope(account: { scopeType?: string | null; scopeId?: string | null; campgroundId?: string | null }) {
-    const scopeType = account?.scopeType ?? "campground";
-    if (scopeType === "global") {
+  private normalizeScope(account: { scopeType?: StoredValueScopeType | string | null; scopeId?: string | null; campgroundId?: string | null }) {
+    const scopeType = parseScopeType(typeof account?.scopeType === "string" ? account.scopeType : undefined);
+    if (scopeType === StoredValueScopeType.global) {
       const scopeId: string | null = null;
-      return { scopeType: "global", scopeId };
+      return { scopeType, scopeId };
     }
-    if (scopeType === "organization") {
-      return { scopeType: "organization", scopeId: account?.scopeId ?? null };
+    if (scopeType === StoredValueScopeType.organization) {
+      return { scopeType, scopeId: account?.scopeId ?? null };
     }
     const scopeId = account?.scopeId ?? account?.campgroundId ?? null;
-    return { scopeType: "campground", scopeId };
+    return { scopeType: StoredValueScopeType.campground, scopeId };
   }
 
   private async assertCampgroundScope(
@@ -933,10 +978,10 @@ export class StoredValueService {
     campgroundId: string
   ) {
     const accountScope = this.normalizeScope(account);
-    if (accountScope.scopeType === "global") {
+    if (accountScope.scopeType === StoredValueScopeType.global) {
       return;
     }
-    if (accountScope.scopeType === "organization") {
+    if (accountScope.scopeType === StoredValueScopeType.organization) {
       const orgId = await this.getOrganizationIdForCampground(campgroundId);
       if (!orgId || orgId !== accountScope.scopeId) {
         throw new ForbiddenException("Stored value not valid for this campground");
@@ -950,8 +995,8 @@ export class StoredValueService {
   }
 
   private ensureScopeMatches(
-    account: { scopeType?: string | null; scopeId?: string | null; campgroundId?: string | null },
-    expected: { scopeType: string; scopeId: string | null }
+    account: { scopeType?: StoredValueScopeType | string | null; scopeId?: string | null; campgroundId?: string | null },
+    expected: { scopeType: StoredValueScopeType; scopeId: string | null }
   ) {
     const normalized = this.normalizeScope(account);
     if (normalized.scopeType !== expected.scopeType || (normalized.scopeId ?? null) !== (expected.scopeId ?? null)) {
@@ -960,25 +1005,25 @@ export class StoredValueService {
   }
 
   private async resolveIssueScope(issuerCampgroundId: string | null, dto: IssueStoredValueDto) {
-    const scopeType = dto.scopeType ?? "campground";
-    if (scopeType === "global") {
+    const scopeType = parseScopeType(dto.scopeType);
+    if (scopeType === StoredValueScopeType.global) {
       const scopeId: string | null = null;
-      return { scopeType: "global", scopeId };
+      return { scopeType, scopeId };
     }
-    if (scopeType === "organization") {
+    if (scopeType === StoredValueScopeType.organization) {
       const scopeId =
         dto.scopeId ??
         (issuerCampgroundId ? await this.getOrganizationIdForCampground(issuerCampgroundId) : null);
       if (!scopeId) {
         throw new BadRequestException("organization scope requires scopeId");
       }
-      return { scopeType: "organization", scopeId };
+      return { scopeType, scopeId };
     }
     const scopeId = dto.scopeId ?? issuerCampgroundId ?? dto.tenantId ?? null;
     if (!scopeId) {
       throw new BadRequestException("campground scope requires scopeId");
     }
-    return { scopeType: "campground", scopeId };
+    return { scopeType: StoredValueScopeType.campground, scopeId };
   }
 
   private async resolveRedeemContext(
@@ -992,12 +1037,12 @@ export class StoredValueService {
     }
 
     const accountScope = this.normalizeScope(account);
-    if (accountScope.scopeType === "campground") {
+    if (accountScope.scopeType === StoredValueScopeType.campground) {
       const scopeId = accountScope.scopeId ?? account?.campgroundId ?? null;
       if (scopeId && scopeId !== transactionCampgroundId) {
         throw new ForbiddenException("Stored value not valid for this campground");
       }
-    } else if (accountScope.scopeType === "organization") {
+    } else if (accountScope.scopeType === StoredValueScopeType.organization) {
       if (!accountScope.scopeId) {
         throw new BadRequestException("organization scope missing scopeId");
       }
@@ -1048,15 +1093,15 @@ export class StoredValueService {
       where: { code: dto.code! },
       select: {
         pinHash: true,
-        account: true
+        StoredValueAccount: true
       }
     });
-    if (!code?.account) throw new NotFoundException("Account not found");
+    if (!code?.StoredValueAccount) throw new NotFoundException("Account not found");
     if (code.pinHash) {
       if (!dto.pin) throw new ForbiddenException("PIN required");
       if (!this.verifyPin(dto.pin, code.pinHash)) throw new ForbiddenException("Invalid PIN");
     }
-    return code.account;
+    return code.StoredValueAccount;
   }
 
   private hashPin(pin: string) {

@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/components/ui/use-toast";
-import { apiClient } from "@/lib/api-client";
+import { apiClient, type OtaChannel, type OtaMapping } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import {
@@ -35,6 +35,23 @@ const statusOptions = [
   { value: "pull", label: "Pull bookings only", description: "Import reservations from OTA" },
   { value: "two_way", label: "Two-way sync", description: "Full availability & booking sync" }
 ];
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object";
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (typeof error === "string") return error;
+  if (isRecord(error) && typeof error.message === "string") return error.message;
+  return fallback;
+};
+
+const isOtaMapping = (value: unknown): value is OtaMapping =>
+  isRecord(value) &&
+  typeof value.id === "string" &&
+  typeof value.externalId === "string";
+
+const getChannelMappings = (mappings: OtaChannel["mappings"]) =>
+  Array.isArray(mappings) ? mappings.filter(isOtaMapping) : [];
 
 // Empty state component with guidance
 function EmptyChannelsState({ onCreateClick }: { onCreateClick: () => void }) {
@@ -157,13 +174,13 @@ function ChannelCard({
   onSelect,
   errorCount
 }: {
-  channel: any;
+  channel: OtaChannel;
   isSelected: boolean;
   onSelect: () => void;
   errorCount: number;
 }) {
   const provider = providerOptions.find(p => p.value === channel.provider);
-  const mappingCount = channel.mappings?.length ?? 0;
+  const mappingCount = getChannelMappings(channel.mappings).length;
   const needsSetup = mappingCount === 0;
 
   return (
@@ -540,10 +557,10 @@ export default function OtaSettingsPage() {
           description: "All mappings are already up to date."
         });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({
         title: "Failed to save mappings",
-        description: err.message || "An error occurred",
+        description: getErrorMessage(err, "An error occurred"),
         variant: "destructive"
       });
     } finally {
@@ -723,7 +740,8 @@ export default function OtaSettingsPage() {
     });
   };
 
-  const channelErrorCount = (ch: any) => (ch?.mappings ?? []).filter((m: any) => m?.lastError).length;
+  const channelErrorCount = (ch: OtaChannel) =>
+    getChannelMappings(ch.mappings).filter((m) => m.lastError).length;
   const hasChannels = channelsQuery.data && channelsQuery.data.length > 0;
 
   return (

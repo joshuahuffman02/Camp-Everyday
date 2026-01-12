@@ -4,7 +4,40 @@ import { PrismaService } from "../prisma/prisma.service";
 import { IdempotencyService } from "../payments/idempotency.service";
 import { StripeService } from "../payments/stripe.service";
 import { ReservationStatus, BackoffStrategy } from "@prisma/client";
+import type { AutoCollectSchedule, Prisma } from "@prisma/client";
 import { postBalancedLedgerEntries } from "../ledger/ledger-posting.util";
+import { randomUUID } from "crypto";
+
+type ReservationWithCampgroundAndSite = Prisma.ReservationGetPayload<{
+  include: {
+    Campground: {
+      select: {
+        id: true;
+        stripeAccountId: true;
+        defaultDepositPolicyId: true;
+        applicationFeeFlatCents: true;
+        perBookingFeeCents: true;
+      };
+    };
+    Site: { select: { siteClassId: true } };
+  };
+}>;
+
+type AutoCollectRetryPlan = AutoCollectSchedule & {
+  retryDelayHours?: number | null;
+};
+
+type AutoCollectPayload = { campgroundId?: string | null } & Record<string, unknown>;
+type PaymentIntentResult = Awaited<ReturnType<StripeService["createPaymentIntent"]>>;
+
+const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined => {
+  if (value === undefined || value === null) return undefined;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
+};
 
 @Injectable()
 export class AutoCollectService {
@@ -34,7 +67,7 @@ export class AutoCollectService {
         nextAutoCollectAttemptAt: { lte: now }
       },
       include: {
-        campground: {
+        Campground: {
           select: {
             id: true,
             stripeAccountId: true,
@@ -43,7 +76,7 @@ export class AutoCollectService {
             perBookingFeeCents: true
           }
         },
-        site: {
+        Site: {
           select: { siteClassId: true }
         }
       },
@@ -60,7 +93,7 @@ export class AutoCollectService {
   /**
    * Attempt to collect balance for a single reservation.
    */
-  async attemptCollection(reservation: any) {
+  async attemptCollection(reservation: ReservationWithCampgroundAndSite) {
     const idempotencyKey = `auto-collect:${reservation.id}:${Date.now()}`;
 
     try {
@@ -75,16 +108,16 @@ export class AutoCollectService {
         return existing.responseJson;
       }
 
-      const stripeAccountId = reservation.campground?.stripeAccountId;
+      const stripeAccountId = reservation.Campground?.stripeAccountId;
       if (!stripeAccountId) {
         this.logger.warn(`[AutoCollect] No Stripe account for campground ${reservation.campgroundId}`);
-        await this.scheduleNextAttempt(reservation, "no_stripe_account");
+        await this.scheduleNextAttempt(reservation, "no_stripe_account", null);
         return;
       }
 
       // Get deposit policy for retry schedule
       const policy = await this.getDepositPolicy(reservation);
-      const retryPlan = policy?.retryPlanId
+      const retryPlan: AutoCollectRetryPlan | null = policy?.retryPlanId
         ? await this.prisma.autoCollectSchedule.findUnique({ where: { id: policy.retryPlanId } })
         : null;
 
@@ -101,8 +134,8 @@ export class AutoCollectService {
 
       // Calculate application fee
       const applicationFeeCents =
-        reservation.campground?.perBookingFeeCents ??
-        reservation.campground?.applicationFeeFlatCents ??
+        reservation.Campground?.perBookingFeeCents ??
+        reservation.Campground?.applicationFeeFlatCents ??
         200;
 
       // Create and confirm payment intent
@@ -140,22 +173,23 @@ export class AutoCollectService {
           intentId: intent.id
         });
       }
-    } catch (error: any) {
-      this.logger.error(`[AutoCollect] Failed for ${reservation.id}: ${error.message}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`[AutoCollect] Failed for ${reservation.id}: ${message}`);
       await this.idempotency.fail(idempotencyKey);
 
       // Get retry plan and schedule next attempt with backoff
       const policy = await this.getDepositPolicy(reservation);
-      const retryPlan = policy?.retryPlanId
+      const retryPlan: AutoCollectRetryPlan | null = policy?.retryPlanId
         ? await this.prisma.autoCollectSchedule.findUnique({ where: { id: policy.retryPlanId } })
         : null;
       await this.scheduleNextAttempt(reservation, "error", retryPlan);
     }
   }
 
-  private async getDepositPolicy(reservation: any) {
+  private async getDepositPolicy(reservation: ReservationWithCampgroundAndSite) {
     // Try site-class specific, then campground default
-    const siteClassId = reservation.site?.siteClassId;
+    const siteClassId = reservation.Site?.siteClassId;
 
     if (siteClassId) {
       const siteClassPolicy = await this.prisma.depositPolicy.findFirst({
@@ -164,9 +198,9 @@ export class AutoCollectService {
       if (siteClassPolicy) return siteClassPolicy;
     }
 
-    if (reservation.campground?.defaultDepositPolicyId) {
+    if (reservation.Campground?.defaultDepositPolicyId) {
       return this.prisma.depositPolicy.findUnique({
-        where: { id: reservation.campground.defaultDepositPolicyId }
+        where: { id: reservation.Campground.defaultDepositPolicyId }
       });
     }
 
@@ -175,7 +209,7 @@ export class AutoCollectService {
     });
   }
 
-  private async recordSuccessfulPayment(reservation: any, intent: any) {
+  private async recordSuccessfulPayment(reservation: ReservationWithCampgroundAndSite, intent: PaymentIntentResult) {
     const newPaid = (reservation.paidAmount ?? 0) + reservation.balanceAmount;
     const amountCents = reservation.balanceAmount;
 
@@ -191,6 +225,7 @@ export class AutoCollectService {
 
     await this.prisma.payment.create({
       data: {
+        id: randomUUID(),
         campgroundId: reservation.campgroundId,
         reservationId: reservation.id,
         amountCents,
@@ -211,7 +246,7 @@ export class AutoCollectService {
         account: "Cash",
         description: `Auto-collect payment ${intent.id}`,
         amountCents,
-        direction: "debit" as const,
+        direction: "debit",
         dedupeKey: `${dedupeKey}:debit`
       },
       {
@@ -221,7 +256,7 @@ export class AutoCollectService {
         account: "Site Revenue",
         description: `Auto-collect payment ${intent.id}`,
         amountCents,
-        direction: "credit" as const,
+        direction: "credit",
         dedupeKey: `${dedupeKey}:credit`
       }
     ]);
@@ -229,7 +264,11 @@ export class AutoCollectService {
     this.logger.log(`[AutoCollect] Successfully collected ${amountCents} cents for ${reservation.id}`);
   }
 
-  private async scheduleNextAttempt(reservation: any, reason: string, retryPlan?: any) {
+  private async scheduleNextAttempt(
+    reservation: ReservationWithCampgroundAndSite,
+    reason: string,
+    retryPlan: AutoCollectRetryPlan | null
+  ) {
     const maxAttempts = retryPlan?.maxAttempts ?? 3;
     const backoffStrategy = retryPlan?.backoffStrategy ?? BackoffStrategy.exponential;
     const baseDelayHours = retryPlan?.retryDelayHours ?? 24;
@@ -279,7 +318,7 @@ export class AutoCollectService {
   /**
    * Manual trigger for a specific reservation (e.g., from admin UI)
    */
-  async runAttempt(reservationId: string, attemptNo: number, payload: any = {}) {
+  async runAttempt(reservationId: string, attemptNo: number, payload: AutoCollectPayload = {}) {
     const key = `auto-collect:${reservationId}:${attemptNo}`;
     const existing = await this.idempotency.start(key, payload, payload?.campgroundId);
     if (existing.status === "succeeded") {
@@ -289,8 +328,16 @@ export class AutoCollectService {
     const reservation = await this.prisma.reservation.findUnique({
       where: { id: reservationId },
       include: {
-        campground: { select: { id: true, stripeAccountId: true } },
-        site: { select: { siteClassId: true } }
+        Campground: {
+          select: {
+            id: true,
+            stripeAccountId: true,
+            defaultDepositPolicyId: true,
+            applicationFeeFlatCents: true,
+            perBookingFeeCents: true
+          }
+        },
+        Site: { select: { siteClassId: true } }
       }
     });
 
@@ -306,51 +353,53 @@ export class AutoCollectService {
   /**
    * Send notification when all auto-collect attempts have failed
    */
-  private async sendFailedCollectionNotification(reservation: any, reason: string) {
+  private async sendFailedCollectionNotification(reservation: ReservationWithCampgroundAndSite, reason: string) {
     try {
       const balanceFormatted = (reservation.balanceAmount / 100).toFixed(2);
 
-      // Create guest notification
-      await this.prisma.communication.create({
-        data: {
-          campgroundId: reservation.campgroundId,
-          guestId: reservation.guestId,
-          reservationId: reservation.id,
-          type: 'email',
-          subject: 'Payment Required for Your Reservation',
-          body: `We were unable to automatically collect your outstanding balance of $${balanceFormatted}. Please update your payment method or contact us to resolve this before your arrival.`,
-          status: 'queued',
-          direction: 'outbound',
-          metadata: {
-            template: 'failed_auto_collect',
-            balanceAmount: reservation.balanceAmount,
-            reason
-          }
-        }
-      });
+    // Create guest notification
+    await this.prisma.communication.create({
+      data: {
+        id: randomUUID(),
+        campgroundId: reservation.campgroundId,
+        guestId: reservation.guestId,
+        reservationId: reservation.id,
+        type: 'email',
+        subject: 'Payment Required for Your Reservation',
+        body: `We were unable to automatically collect your outstanding balance of $${balanceFormatted}. Please update your payment method or contact us to resolve this before your arrival.`,
+        status: 'queued',
+        direction: 'outbound',
+        metadata: toJsonValue({
+          template: 'failed_auto_collect',
+          balanceAmount: reservation.balanceAmount,
+          reason
+        })
+      }
+    });
 
       // Create internal alert for staff
-      await this.prisma.communication.create({
-        data: {
-          campgroundId: reservation.campgroundId,
-          reservationId: reservation.id,
-          type: 'internal_alert',
-          subject: 'Auto-Collect Failed - Manual Review Required',
-          body: `Auto-collect failed for reservation ${reservation.id} after maximum attempts. Outstanding balance: $${balanceFormatted}. Reason: ${reason}`,
-          status: 'queued',
-          direction: 'internal',
-          metadata: {
-            alertType: 'payment_failed',
-            balanceAmount: reservation.balanceAmount,
-            reason
-          }
-        }
-      });
+    await this.prisma.communication.create({
+      data: {
+        id: randomUUID(),
+        campgroundId: reservation.campgroundId,
+        reservationId: reservation.id,
+        type: 'internal_alert',
+        subject: 'Auto-Collect Failed - Manual Review Required',
+        body: `Auto-collect failed for reservation ${reservation.id} after maximum attempts. Outstanding balance: $${balanceFormatted}. Reason: ${reason}`,
+        status: 'queued',
+        direction: 'internal',
+        metadata: toJsonValue({
+          alertType: 'payment_failed',
+          balanceAmount: reservation.balanceAmount,
+          reason
+        })
+      }
+    });
 
       this.logger.log(`[AutoCollect] Sent failed collection notifications for ${reservation.id}`);
     } catch (err) {
-      this.logger.error(`[AutoCollect] Failed to send notification for ${reservation.id}: ${err}`);
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.error(`[AutoCollect] Failed to send notification for ${reservation.id}: ${message}`);
     }
   }
 }
-

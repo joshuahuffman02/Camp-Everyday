@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import * as crypto from "crypto";
+import { AccessGrantStatus, AccessProviderType } from "@prisma/client";
 import {
   AccessIntegrationConfig,
   AccessProviderAdapter,
@@ -7,23 +8,6 @@ import {
   RevokeRequest,
   WebhookVerificationInput
 } from "./access-provider.types";
-
-const AccessProviderType = {
-  kisi: "kisi",
-  brivo: "brivo",
-  cloudkey: "cloudkey"
-} as const;
-type AccessProviderType = (typeof AccessProviderType)[keyof typeof AccessProviderType];
-
-const AccessGrantStatus = {
-  pending: "pending",
-  active: "active",
-  revoked: "revoked",
-  blocked: "blocked",
-  expired: "expired",
-  failed: "failed"
-} as const;
-type AccessGrantStatus = (typeof AccessGrantStatus)[keyof typeof AccessGrantStatus];
 
 abstract class BaseAdapter implements AccessProviderAdapter {
   abstract readonly provider: AccessProviderType;

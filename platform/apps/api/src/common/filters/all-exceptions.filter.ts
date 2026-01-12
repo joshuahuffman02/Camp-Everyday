@@ -19,6 +19,9 @@ interface ErrorResponse {
   requestId?: string;
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger(AllExceptionsFilter.name);
@@ -42,10 +45,15 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
       if (typeof response === 'string') {
         message = response;
-      } else if (typeof response === 'object' && response !== null) {
-        const responseObj = response as Record<string, unknown>;
-        message = (responseObj.message as string) || message;
-        error = (responseObj.error as string) || exception.name;
+      } else if (isRecord(response)) {
+        if (typeof response.message === 'string') {
+          message = response.message;
+        }
+        if (typeof response.error === 'string') {
+          error = response.error;
+        } else {
+          error = exception.name;
+        }
       }
     }
     // Handle Prisma known errors

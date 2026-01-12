@@ -49,6 +49,29 @@ interface FunnelState {
   startedAt: string;
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const parseSessionData = (value: unknown): SessionData | null => {
+  if (!isRecord(value)) return null;
+  if (typeof value.sessionId !== "string") return null;
+  if (typeof value.startedAt !== "string") return null;
+  if (typeof value.lastActivityAt !== "string") return null;
+
+  return {
+    sessionId: value.sessionId,
+    startedAt: value.startedAt,
+    lastActivityAt: value.lastActivityAt,
+    pageViews: typeof value.pageViews === "number" ? value.pageViews : 0,
+    actions: typeof value.actions === "number" ? value.actions : 0,
+    errors: typeof value.errors === "number" ? value.errors : 0,
+    pages: Array.isArray(value.pages)
+      ? value.pages.filter((page): page is string => typeof page === "string")
+      : [],
+    entryPage: typeof value.entryPage === "string" ? value.entryPage : undefined,
+  };
+};
+
 // Helpers
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -131,11 +154,13 @@ export function useAnalytics() {
 
     const stored = localStorage.getItem(SESSION_DATA_KEY);
     if (stored) {
-      const session = JSON.parse(stored) as SessionData;
+      const session = parseSessionData(JSON.parse(stored));
       // Check if session is still valid (within 30 minutes of last activity)
-      const lastActivity = new Date(session.lastActivityAt).getTime();
-      if (Date.now() - lastActivity < 30 * 60 * 1000) {
-        return session;
+      if (session) {
+        const lastActivity = new Date(session.lastActivityAt).getTime();
+        if (Date.now() - lastActivity < 30 * 60 * 1000) {
+          return session;
+        }
       }
     }
 

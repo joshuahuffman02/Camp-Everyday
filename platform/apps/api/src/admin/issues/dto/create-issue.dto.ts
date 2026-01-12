@@ -4,7 +4,7 @@ import { IssueCategory, IssuePriority } from "@prisma/client";
 export class CreateIssueDto {
   @IsString()
   @MaxLength(200)
-  title: string;
+  title!: string;
 
   @IsOptional()
   @IsString()
@@ -12,7 +12,7 @@ export class CreateIssueDto {
   description?: string;
 
   @IsEnum(IssueCategory)
-  category: IssueCategory;
+  category!: IssueCategory;
 
   @IsOptional()
   @IsEnum(IssuePriority)

@@ -44,7 +44,7 @@ export const PRICING = {
       requiresDemo: true,
     },
   },
-} as const;
+};
 
 // =============================================================================
 // BRAND POSITIONING
@@ -73,7 +73,7 @@ export const POSITIONING = {
     targetAudience: "Parks planning expansion",
     keyMessage: "Multi-property, portfolio analytics, central rate management",
   },
-} as const;
+};
 
 // =============================================================================
 // HEADLINES & COPY
@@ -115,7 +115,7 @@ export const HEADLINES = {
     "Finally, Staff Scheduling That Syncs With Reservations",
     "Stop Using Spreadsheets for Staff Schedules",
   ],
-} as const;
+};
 
 // =============================================================================
 // KEY DIFFERENTIATORS
@@ -173,7 +173,7 @@ export const DIFFERENTIATORS = {
       impact: "Start taking bookings immediately",
     },
   ],
-} as const;
+};
 
 // =============================================================================
 // PROOF POINTS & SOCIAL PROOF
@@ -211,7 +211,7 @@ export const PROOF_POINTS = {
       template: "increased revenue X% with dynamic pricing",
     },
   ],
-} as const;
+};
 
 // =============================================================================
 // COMPETITOR PAIN POINTS
@@ -245,7 +245,7 @@ export const COMPETITOR_PAIN_POINTS = {
     "No multi-property support",
     "Opaque pricing requires demo",
   ],
-} as const;
+};
 
 // =============================================================================
 // FEATURE COMPARISON DATA
@@ -303,7 +303,7 @@ export const FEATURE_COMPARISON = {
       ],
     },
   ],
-} as const;
+};
 
 // =============================================================================
 // SEO KEYWORDS
@@ -331,7 +331,7 @@ export const SEO_KEYWORDS = {
     "campground software with ai pricing",
     "modern campground management system",
   ],
-} as const;
+};
 
 // =============================================================================
 // CTA COPY
@@ -362,7 +362,7 @@ export const CTA_COPY = {
     button: "Switch in 48 Hours",
     subtext: "Free migration from Campspot, Newbook, or any system.",
   },
-} as const;
+};
 
 // =============================================================================
 // HELPER FUNCTIONS

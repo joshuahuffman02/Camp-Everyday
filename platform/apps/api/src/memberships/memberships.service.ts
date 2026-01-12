@@ -2,9 +2,10 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { MembershipType, GuestMembership, Prisma } from '@prisma/client';
 import { addDays } from 'date-fns';
+import { randomUUID } from 'crypto';
 
 type GuestMembershipWithType = Prisma.GuestMembershipGetPayload<{
-    include: { membershipType: true };
+    include: { MembershipType: true };
 }>;
 
 @Injectable()
@@ -12,9 +13,13 @@ export class MembershipsService {
     constructor(private prisma: PrismaService) { }
 
     // Membership Types
-    async createType(campgroundId: string, data: any): Promise<MembershipType> {
+    async createType(
+        campgroundId: string,
+        data: Omit<Prisma.MembershipTypeUncheckedCreateInput, "id" | "campgroundId">
+    ): Promise<MembershipType> {
         return this.prisma.membershipType.create({
             data: {
+                id: randomUUID(),
                 ...data,
                 campgroundId,
             },
@@ -28,7 +33,7 @@ export class MembershipsService {
         });
     }
 
-    async updateType(id: string, data: any): Promise<MembershipType> {
+    async updateType(id: string, data: Prisma.MembershipTypeUncheckedUpdateInput): Promise<MembershipType> {
         return this.prisma.membershipType.update({
             where: { id },
             data,
@@ -51,6 +56,7 @@ export class MembershipsService {
 
         return this.prisma.guestMembership.create({
             data: {
+                id: randomUUID(),
                 guestId,
                 membershipTypeId,
                 startDate,
@@ -69,7 +75,7 @@ export class MembershipsService {
                 status: 'active',
                 endDate: { gt: now },
             },
-            include: { membershipType: true },
+            include: { MembershipType: true },
             orderBy: { endDate: 'desc' },
         });
     }
@@ -82,14 +88,14 @@ export class MembershipsService {
                 status: 'active',
                 endDate: { gt: now },
             },
-            include: { membershipType: true },
+            include: { MembershipType: true },
         });
     }
 
     async getGuestMemberships(guestId: string): Promise<GuestMembership[]> {
         return this.prisma.guestMembership.findMany({
             where: { guestId },
-            include: { membershipType: true },
+            include: { MembershipType: true },
             orderBy: { startDate: 'desc' },
         });
     }

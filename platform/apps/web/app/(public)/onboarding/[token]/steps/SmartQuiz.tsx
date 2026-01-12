@@ -57,8 +57,8 @@ interface SmartQuizProps {
   onSkip: () => void;
 }
 
-const SPRING_CONFIG = {
-  type: "spring" as const,
+const SPRING_CONFIG: { type: "spring"; stiffness: number; damping: number } = {
+  type: "spring",
   stiffness: 300,
   damping: 25,
 };
@@ -316,9 +316,12 @@ export function SmartQuiz({
 
   // Toggle array value (for multi-select)
   const toggleArrayValue = useCallback(
-    <T extends string>(key: "operations" | "amenities", value: T) => {
+    <K extends "operations" | "amenities">(
+      key: K,
+      value: QuizAnswers[K][number]
+    ) => {
       setAnswers((prev) => {
-        const current = (prev[key] as T[]) || [];
+        const current = Array.isArray(prev[key]) ? prev[key] : [];
         const updated = current.includes(value)
           ? current.filter((v) => v !== value)
           : [...current, value];

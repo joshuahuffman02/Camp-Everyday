@@ -18,11 +18,14 @@ export function recordMetric(name: string, detail: MetricPayload = {}) {
 }
 
 export function recordError(stage: string, error: unknown) {
-  const err = error as Error & { status?: number };
+  const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null;
+  const message = error instanceof Error ? error.message : "unknown error";
+  const status = isRecord(error) && typeof error.status === "number" ? error.status : undefined;
   dispatchMetric("calendar.error", {
     stage,
-    message: err?.message ?? "unknown error",
-    status: err?.status
+    message,
+    status
   });
 }
 
@@ -37,4 +40,3 @@ export function startTiming(label: string) {
     }
   };
 }
-

@@ -1,6 +1,8 @@
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateContextItemDto, UpdateContextItemDto, UpdateAutopilotConfigDto } from "./dto/autopilot.dto";
+import type { Prisma } from "@prisma/client";
 
 @Injectable()
 export class AiAutopilotConfigService {
@@ -20,7 +22,7 @@ export class AiAutopilotConfigService {
 
     if (!config) {
       config = await this.prisma.aiAutopilotConfig.create({
-        data: { campgroundId },
+        data: { id: randomUUID(), campgroundId, updatedAt: new Date() },
       });
     }
 
@@ -46,7 +48,7 @@ export class AiAutopilotConfigService {
    * Get all context items for a campground
    */
   async getContextItems(campgroundId: string, type?: string, category?: string, activeOnly = true) {
-    const where: any = { campgroundId };
+    const where: Prisma.AiCampgroundContextWhereInput = { campgroundId };
     if (type) where.type = type;
     if (category) where.category = category;
     if (activeOnly) where.isActive = true;
@@ -63,9 +65,11 @@ export class AiAutopilotConfigService {
   async createContextItem(campgroundId: string, data: CreateContextItemDto) {
     return this.prisma.aiCampgroundContext.create({
       data: {
+        id: randomUUID(),
         campgroundId,
         ...data,
         source: "manual",
+        updatedAt: new Date(),
       },
     });
   }
@@ -103,9 +107,9 @@ export class AiAutopilotConfigService {
     const campground = await this.prisma.campground.findUnique({
       where: { id: campgroundId },
       include: {
-        siteClasses: {
-          where: { deletedAt: null },
-          select: { name: true, amenities: true, description: true },
+        SiteClass: {
+          where: { isActive: true },
+          select: { name: true, amenityTags: true, description: true },
         },
       },
     });
@@ -172,24 +176,6 @@ export class AiAutopilotConfigService {
       });
     }
 
-    // Pet policy
-    if (campground.petPolicy) {
-      contextItems.push({
-        type: "policy",
-        answer: campground.petPolicy,
-        category: "pets",
-        priority: 85,
-      });
-
-      contextItems.push({
-        type: "faq",
-        question: "Are pets allowed?",
-        answer: campground.petPolicy,
-        category: "pets",
-        priority: 85,
-      });
-    }
-
     // Deposit/payment policy
     if (campground.depositRule && campground.depositRule !== "none") {
       let depositText = "";
@@ -230,7 +216,7 @@ export class AiAutopilotConfigService {
     }
 
     // Site types/amenities
-    for (const siteClass of campground.siteClasses) {
+    for (const siteClass of campground.SiteClass) {
       if (siteClass.description) {
         contextItems.push({
           type: "faq",
@@ -241,8 +227,9 @@ export class AiAutopilotConfigService {
         });
       }
 
-      if (siteClass.amenities && Array.isArray(siteClass.amenities) && siteClass.amenities.length > 0) {
-        const amenitiesList = (siteClass.amenities as string[]).join(", ");
+      const amenities = siteClass.amenityTags.filter((amenity) => amenity.length > 0);
+      if (amenities.length > 0) {
+        const amenitiesList = amenities.join(", ");
         contextItems.push({
           type: "faq",
           question: `What amenities do ${siteClass.name} sites have?`,
@@ -276,9 +263,11 @@ export class AiAutopilotConfigService {
       contextItems.map((item) =>
         this.prisma.aiCampgroundContext.create({
           data: {
+            id: randomUUID(),
             campgroundId,
             ...item,
             source: "auto_import",
+            updatedAt: new Date(),
           },
         })
       )

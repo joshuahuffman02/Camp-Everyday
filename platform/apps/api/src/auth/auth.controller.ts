@@ -1,11 +1,19 @@
-import { Controller, Post, Body, Get, Delete, Param, UseGuards, Request, Headers, Req, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Body, Get, Delete, Param, UseGuards, Headers, Req, HttpCode, HttpStatus, UnauthorizedException } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { RegisterDto, LoginDto, MobileLoginDto, RefreshTokenDto } from './dto';
 import { JwtAuthGuard } from './guards';
 import { AcceptInviteDto } from './dto/accept-invite.dto';
 import { extractClientIpFromRequest } from '../common/ip-utils';
-import type { Request } from "express";
+import type { Request as ExpressRequest } from "express";
+
+const requireUserId = (req: ExpressRequest): string => {
+    const id = req.user?.id;
+    if (!id) {
+        throw new UnauthorizedException("User not found");
+    }
+    return id;
+};
 
 @Controller('auth')
 export class AuthController {
@@ -21,7 +29,7 @@ export class AuthController {
     @Throttle({ default: { limit: 5, ttl: 60000 } })
     login(
         @Body() dto: LoginDto,
-        @Req() req: Request,
+        @Req() req: ExpressRequest,
         @Headers('user-agent') userAgent: string
     ) {
         // Extract and validate client IP to prevent spoofing via x-forwarded-for
@@ -31,8 +39,8 @@ export class AuthController {
 
     @Get('me')
     @UseGuards(JwtAuthGuard)
-    getProfile(@Request() req: Request) {
-        return this.authService.getProfile(req.user.id);
+    getProfile(@Req() req: ExpressRequest) {
+        return this.authService.getProfile(requireUserId(req));
     }
 
   @Post('invitations/accept')
@@ -49,7 +57,7 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   mobileLogin(
     @Body() dto: MobileLoginDto,
-    @Req() req: Request,
+    @Req() req: ExpressRequest,
     @Headers('user-agent') userAgent: string
   ) {
     // Extract and validate client IP to prevent spoofing via x-forwarded-for
@@ -61,7 +69,7 @@ export class AuthController {
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   refreshToken(
     @Body() dto: RefreshTokenDto,
-    @Req() req: Request,
+    @Req() req: ExpressRequest,
     @Headers('user-agent') userAgent: string
   ) {
     // Extract and validate client IP to prevent spoofing via x-forwarded-for
@@ -77,17 +85,17 @@ export class AuthController {
 
   @Get('mobile/sessions')
   @UseGuards(JwtAuthGuard)
-  getMobileSessions(@Request() req: Request) {
-    return this.authService.getMobileSessions(req.user.id);
+  getMobileSessions(@Req() req: ExpressRequest) {
+    return this.authService.getMobileSessions(requireUserId(req));
   }
 
   @Delete('mobile/sessions/:sessionId')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   revokeMobileSession(
-    @Request() req: Request,
+    @Req() req: ExpressRequest,
     @Param('sessionId') sessionId: string
   ) {
-    return this.authService.revokeMobileSession(req.user.id, sessionId);
+    return this.authService.revokeMobileSession(requireUserId(req), sessionId);
   }
 }

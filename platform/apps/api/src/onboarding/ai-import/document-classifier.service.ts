@@ -74,6 +74,8 @@ const ENTITY_COLUMN_PATTERNS: Record<TargetEntity, string[]> = {
     ],
 };
 
+const ENTITY_KEYS: TargetEntity[] = ["sites", "guests", "reservations", "rates", "policies"];
+
 @Injectable()
 export class DocumentClassifierService {
     private readonly logger = new Logger(DocumentClassifierService.name);
@@ -137,36 +139,46 @@ export class DocumentClassifierService {
         };
 
         // Score each entity type based on column matches
-        for (const [entity, patterns] of Object.entries(ENTITY_COLUMN_PATTERNS)) {
+        for (const entity of ENTITY_KEYS) {
+            const patterns = ENTITY_COLUMN_PATTERNS[entity];
             for (const pattern of patterns) {
                 const matchCount = normalizedColumns.filter(col =>
                     col.includes(pattern) || pattern.includes(col)
                 ).length;
-                scores[entity as TargetEntity] += matchCount;
+                scores[entity] += matchCount;
             }
         }
 
         // Find the best match
-        const entries = Object.entries(scores) as [TargetEntity, number][];
-        const sorted = entries.sort((a, b) => b[1] - a[1]);
-        const best = sorted[0];
-        const second = sorted[1];
+        let bestEntity: TargetEntity | null = null;
+        let bestScore = -1;
+        let secondScore = -1;
+        for (const entity of ENTITY_KEYS) {
+            const score = scores[entity];
+            if (score > bestScore) {
+                secondScore = bestScore;
+                bestScore = score;
+                bestEntity = entity;
+            } else if (score > secondScore) {
+                secondScore = score;
+            }
+        }
 
         // Calculate confidence based on margin
         const totalScore = Object.values(scores).reduce((a, b) => a + b, 0);
         let confidence = 0;
-        if (totalScore > 0) {
-            confidence = best[1] / totalScore;
+        if (totalScore > 0 && bestEntity) {
+            confidence = bestScore / totalScore;
             // Boost confidence if clear winner
-            if (second && best[1] > second[1] * 2) {
+            if (secondScore > -1 && bestScore > secondScore * 2) {
                 confidence = Math.min(1, confidence * 1.3);
             }
         }
 
         // Determine content type
         let contentType: ContentType = 'unknown';
-        if (best[1] > 0) {
-            switch (best[0]) {
+        if (bestEntity && bestScore > 0) {
+            switch (bestEntity) {
                 case 'sites':
                     contentType = 'site_list';
                     break;
@@ -186,7 +198,7 @@ export class DocumentClassifierService {
         }
 
         return {
-            suggestedEntity: best[1] > 0 ? best[0] : null,
+            suggestedEntity: bestEntity && bestScore > 0 ? bestEntity : null,
             confidence: Math.round(confidence * 100) / 100,
             contentType,
         };

@@ -13,6 +13,68 @@ import { Textarea } from "@/components/ui/textarea";
 import { FileDown } from "lucide-react";
 import { TableEmpty } from "@/components/ui/table";
 
+type PrivacySettingsUpdate = Parameters<typeof apiClient.updatePrivacySettings>[1];
+
+type PiiTag = {
+  resource: string;
+  field: string;
+  classification: string;
+  redactionMode?: string;
+};
+
+type RecentRedaction = {
+  id: string;
+  action: string;
+  entity: string;
+  createdAt: string;
+  entityId?: string | null;
+  sample?: unknown;
+};
+
+type CsvExportPayload = {
+  content: string;
+  contentType?: string;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const isPiiTag = (value: unknown): value is PiiTag => {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.resource === "string" &&
+    typeof value.field === "string" &&
+    typeof value.classification === "string" &&
+    (value.redactionMode === undefined || typeof value.redactionMode === "string")
+  );
+};
+
+const parsePiiTags = (value: unknown): PiiTag[] => {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isPiiTag);
+};
+
+const isRecentRedaction = (value: unknown): value is RecentRedaction => {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.id === "string" &&
+    typeof value.action === "string" &&
+    typeof value.entity === "string" &&
+    typeof value.createdAt === "string" &&
+    (value.entityId === undefined || typeof value.entityId === "string" || value.entityId === null)
+  );
+};
+
+const parseRecentRedactions = (value: unknown): RecentRedaction[] => {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isRecentRedaction);
+};
+
+const isCsvExportPayload = (value: unknown): value is CsvExportPayload => {
+  if (!isRecord(value)) return false;
+  return typeof value.content === "string" && (value.contentType === undefined || typeof value.contentType === "string");
+};
+
 export default function PrivacySettingsPage() {
   const [campgroundId, setCampgroundId] = useState<string | null>(null);
   const [consentForm, setConsentForm] = useState({ subject: "", consentType: "marketing", method: "digital", purpose: "marketing", grantedBy: "" });
@@ -31,7 +93,7 @@ export default function PrivacySettingsPage() {
       2
     )
   );
-  const [previewResult, setPreviewResult] = useState<any>(null);
+  const [previewResult, setPreviewResult] = useState<unknown | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const qc = useQueryClient();
 
@@ -65,18 +127,18 @@ export default function PrivacySettingsPage() {
 
   const tagsQuery = useQuery({
     queryKey: ["pii-tags", campgroundId],
-    queryFn: () => apiClient.listPiiTags(campgroundId!),
+    queryFn: async () => parsePiiTags(await apiClient.listPiiTags(campgroundId!)),
     enabled: !!campgroundId
   });
 
   const redactionsQuery = useQuery({
     queryKey: ["recent-redactions", campgroundId],
-    queryFn: () => apiClient.listRecentRedactions(campgroundId!),
+    queryFn: async () => parseRecentRedactions(await apiClient.listRecentRedactions(campgroundId!)),
     enabled: !!campgroundId
   });
 
   const updateSettings = useMutation({
-    mutationFn: (payload: any) => apiClient.updatePrivacySettings(campgroundId!, payload),
+    mutationFn: (payload: PrivacySettingsUpdate) => apiClient.updatePrivacySettings(campgroundId!, payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["privacy-settings", campgroundId] })
   });
 
@@ -88,8 +150,8 @@ export default function PrivacySettingsPage() {
     onSuccess: ({ format, payload }) => {
       if (!campgroundId) return;
       if (format === "csv") {
-        const csv = payload as { content: string; contentType?: string };
-        downloadFile(csv.content, `privacy-consent-${campgroundId}.csv`, csv.contentType ?? "text/csv");
+        if (!isCsvExportPayload(payload)) return;
+        downloadFile(payload.content, `privacy-consent-${campgroundId}.csv`, payload.contentType ?? "text/csv");
         return;
       }
       downloadFile(JSON.stringify(payload, null, 2), `privacy-consent-${campgroundId}.json`, "application/json");
@@ -112,14 +174,19 @@ export default function PrivacySettingsPage() {
   const previewRedaction = useMutation({
     mutationFn: async () => {
       setPreviewError(null);
-      let parsed: any;
+      let parsed: unknown;
       try {
         parsed = JSON.parse(testPayload);
-      } catch (err: any) {
+      } catch {
         setPreviewError("Test payload must be valid JSON");
-        throw err;
+        throw new Error("Invalid JSON");
       }
-      return apiClient.previewRedaction(campgroundId!, parsed);
+      if (!isRecord(parsed) || !("sample" in parsed)) {
+        setPreviewError("Test payload must include a sample field");
+        throw new Error("Invalid payload");
+      }
+      const resource = typeof parsed.resource === "string" ? parsed.resource : undefined;
+      return apiClient.previewRedaction(campgroundId!, { resource, sample: parsed.sample });
     },
     onSuccess: (data) => setPreviewResult(data),
     onError: () => setPreviewResult(null)
@@ -127,9 +194,10 @@ export default function PrivacySettingsPage() {
 
   const settings = settingsQuery.data;
 
-  const updateField = (key: string, value: any) => {
+  const updateField = <K extends keyof PrivacySettingsUpdate>(key: K, value: PrivacySettingsUpdate[K]) => {
     if (!settings) return;
-    updateSettings.mutate({ [key]: value });
+    const update: PrivacySettingsUpdate = { [key]: value };
+    updateSettings.mutate(update);
   };
 
   const retentionLabel = useMemo(() => `${settings?.backupRetentionDays ?? 0} days`, [settings?.backupRetentionDays]);
@@ -212,7 +280,7 @@ export default function PrivacySettingsPage() {
                 <div className="text-sm font-semibold mb-2">Current redaction rules</div>
                 <div className="text-xs text-muted-foreground mb-2">Showing the first few PII tags (full list below).</div>
                 <div className="flex flex-col gap-2">
-                  {(tagsQuery.data ?? []).slice(0, 5).map((tag: any) => (
+                  {(tagsQuery.data ?? []).slice(0, 5).map((tag) => (
                     <div key={`${tag.resource}:${tag.field}`} className="flex items-center justify-between text-sm">
                       <span className="text-foreground">{tag.resource}.{tag.field}</span>
                       <span className="text-muted-foreground uppercase text-[11px]">{tag.classification} • {tag.redactionMode}</span>
@@ -234,7 +302,7 @@ export default function PrivacySettingsPage() {
                 <div className="text-sm font-semibold mb-2">Recent redactions</div>
                 <div className="text-xs text-muted-foreground mb-2">Audit samples scrubbed for PII.</div>
                 <div className="space-y-2 max-h-64 overflow-auto">
-                  {(redactionsQuery.data ?? []).map((row: any) => (
+                  {(redactionsQuery.data ?? []).map((row) => (
                     <div key={row.id} className="border border-border rounded p-2 text-sm">
                       <div className="flex items-center justify-between text-foreground">
                         <span>{row.action} {row.entity}</span>
@@ -461,7 +529,7 @@ export default function PrivacySettingsPage() {
                 </tr>
               </thead>
               <tbody>
-                {(tagsQuery.data ?? []).map((tag: any) => (
+                {(tagsQuery.data ?? []).map((tag) => (
                   <tr key={`${tag.resource}:${tag.field}`} className="border-b last:border-b-0">
                     <td className="py-2">{tag.resource}</td>
                     <td className="py-2">{tag.field}</td>

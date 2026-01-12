@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { LockCodeType, LockCodeRotationSchedule } from '@prisma/client';
+import { randomUUID } from "crypto";
 
 @Injectable()
 export class LockCodesService {
@@ -19,6 +20,8 @@ export class LockCodesService {
     }) {
         return this.prisma.lockCode.create({
             data: {
+                id: randomUUID(),
+                updatedAt: new Date(),
                 campgroundId: data.campgroundId,
                 name: data.name,
                 code: data.code,
@@ -104,7 +107,7 @@ export class LockCodesService {
         const where = {
             campgroundId,
             isActive: true,
-            type: { not: 'master' as LockCodeType }, // Never show master codes to guests
+            type: { not: LockCodeType.master }, // Never show master codes to guests
         };
 
         if (context === 'confirmation') {

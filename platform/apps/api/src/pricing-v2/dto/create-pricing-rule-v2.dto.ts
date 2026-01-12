@@ -2,12 +2,26 @@ import { IsBoolean, IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, M
 import { AdjustmentType, PricingRuleType, PricingStackMode } from "@prisma/client";
 
 // Fallback enums in case @prisma/client enums are undefined at runtime (e.g. missing generate)
-const PricingRuleTypeGuard =
-  PricingRuleType ?? ({ season: "season", weekend: "weekend", holiday: "holiday", event: "event", demand: "demand" } as const);
-const PricingStackModeGuard =
-  PricingStackMode ?? ({ additive: "additive", max: "max", override: "override" } as const);
-const AdjustmentTypeGuard =
-  AdjustmentType ?? ({ percent: "percent", flat: "flat" } as const);
+const PricingRuleTypeFallback: Record<string, string> = {
+  season: "season",
+  weekend: "weekend",
+  holiday: "holiday",
+  event: "event",
+  demand: "demand"
+};
+const PricingStackModeFallback: Record<string, string> = {
+  additive: "additive",
+  max: "max",
+  override: "override"
+};
+const AdjustmentTypeFallback: Record<string, string> = {
+  percent: "percent",
+  flat: "flat"
+};
+
+const PricingRuleTypeGuard = PricingRuleType ?? PricingRuleTypeFallback;
+const PricingStackModeGuard = PricingStackMode ?? PricingStackModeFallback;
+const AdjustmentTypeGuard = AdjustmentType ?? AdjustmentTypeFallback;
 
 export class CreatePricingRuleV2Dto {
   @IsString()
@@ -68,4 +82,3 @@ export class CreatePricingRuleV2Dto {
   @IsBoolean()
   active?: boolean;
 }
-

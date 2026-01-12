@@ -1,12 +1,10 @@
 import { Controller, Get, Post, Body, UseGuards, Req, Query } from '@nestjs/common';
-import { Request } from 'express';
 import { InternalConversationsService } from './internal-conversations.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import type { Request } from "express";
+import type { AuthUser } from "../auth/auth.types";
 
-interface AuthenticatedRequest extends Request {
-    user: { id: string; email: string };
-}
+type AuthenticatedRequest = Request & { user: AuthUser };
 
 @Controller('internal-conversations')
 @UseGuards(JwtAuthGuard)

@@ -1,8 +1,12 @@
-# Campreserv - Claude Code Configuration
+# CLAUDE.md
 
-Campground reservation management platform. Multi-tenant SaaS for campgrounds, RV parks, and lodging.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Quick Start (Read This First!)
+## Project Overview
+
+Campreserv: Multi-tenant SaaS for campground, RV park, and lodging reservations. pnpm monorepo with NestJS API and Next.js frontend.
+
+## Quick Start
 
 **Working on specific areas? Load the right skill:**
 - API/Backend (Node) → Use `nestjs-api` skill
@@ -19,21 +23,40 @@ Campground reservation management platform. Multi-tenant SaaS for campgrounds, R
 5. ✅ Icons: Use Lucide SVG, never emojis
 6. ✅ Validate all external data with Zod (user input, APIs, webhooks)
 
-**Development commands:**
+## Prerequisites
+
+- Node 22.x (required for Prisma 7)
+- pnpm 7.33.6 (`npm install -g pnpm@7.33.6`)
+
+## Essential Commands
+
 ```bash
-pnpm dev                    # Run both API + Web
-pnpm build                  # Build and verify everything works
-pnpm test                   # Run all tests
-pnpm --dir platform/apps/api prisma:generate  # After schema changes
+# Development
+pnpm dev                    # Run both API (4000) + Web (3000)
+pnpm api                    # API only
+pnpm web                    # Web only
+
+# Build (always run after changes)
+pnpm build                  # Build all: shared -> API -> Web
+
+# Testing
+pnpm test:api               # All API tests
+pnpm test:api:path src/__tests__/reservations.spec.ts  # Single test file
+pnpm --dir platform/apps/api test:smoke               # Smoke tests only
+pnpm --dir platform/apps/web test                     # Web unit tests
+pnpm --dir platform/apps/web test:e2e                 # Playwright E2E
+
+# Database
+pnpm --dir platform/apps/api prisma:generate   # After schema changes
+pnpm --dir platform/apps/api prisma:migrate    # Run migrations
+pnpm --dir platform/apps/api prisma:seed       # Seed sample data
+pnpm --dir platform/apps/api prisma:studio     # Visual DB browser
+pnpm prisma:reset-seed                         # Full reset + reseed
+
+# Linting (pre-commit hook runs lint:web automatically)
+pnpm lint:web               # Lint web app
+pnpm lint:fix               # Auto-fix lint issues
 ```
-
-**AI-First Safety Net:**
-- 🛡️ **Zod** - Runtime validation (catches bad data)
-- 🔍 **Sentry** - Error tracking (know when things break)
-- ✅ **Vitest** - Automated testing (catch bugs before deploy)
-- 🎭 **Playwright** - E2E testing (test like a user)
-
-See `docs/AI_FIRST_DEVELOPMENT.md` for complete guide.
 
 ## Project Structure
 
@@ -65,35 +88,6 @@ platform/
 - Availability calculator (complex logic)
 - Authentication (critical)
 - Math-heavy features (pricing, calculations)
-
-## Quick Commands
-
-```bash
-# Development
-pnpm dev                    # Run both API + Web concurrently
-pnpm api                    # API only (port 4000)
-pnpm web                    # Web only (port 3000)
-
-# Database
-pnpm --dir platform/apps/api prisma:generate   # Generate Prisma client
-pnpm --dir platform/apps/api prisma:migrate    # Run migrations
-pnpm --dir platform/apps/api prisma:seed       # Seed sample data
-pnpm --dir platform/apps/api prisma:studio     # Open Prisma Studio
-pnpm prisma:reset-seed                         # Full reset + reseed
-
-# Build
-pnpm build                  # Build all (shared -> API -> Web)
-pnpm build:shared           # Build shared package only
-pnpm build:api              # Build API only
-pnpm build:web              # Build Web only
-
-# Testing
-pnpm test:api               # Run API tests
-pnpm --dir platform/apps/api test:smoke    # Smoke tests only
-pnpm lint:web               # Lint web app
-```
-
----
 
 ## CRITICAL GUARDRAILS
 
@@ -150,20 +144,18 @@ The centralized config is in `platform/apps/web/lib/api-config.ts`.
 
 ---
 
-## Code Patterns
+## Area-Specific Rules
 
-Detailed coding patterns are in `.claude/rules/`:
-- **API (NestJS)**: `.claude/rules/api.md` - Services, controllers, DTOs, auth guards
-- **API (Rust)**: `.claude/rules/rust.md` - Safety-critical code, error handling, async
-- **Frontend (Next.js)**: `.claude/rules/web.md` - Components, queries, forms, accessibility
-- **Prisma**: `.claude/rules/prisma.md` - Schema changes, migrations, query patterns
-- **Payments**: `.claude/rules/payments.md` - Money handling, Stripe, ledger entries
-
-These rules are automatically loaded when working in the relevant directories.
+Detailed patterns in `.claude/rules/` (auto-loaded by directory):
+- `.claude/rules/api.md` - NestJS services, controllers, DTOs, auth guards
+- `.claude/rules/rust.md` - Safety-critical code, error handling, async
+- `.claude/rules/web.md` - Components, queries, forms, accessibility
+- `.claude/rules/prisma.md` - Schema changes, migrations, query patterns
+- `.claude/rules/payments.md` - Money handling, Stripe, ledger entries
 
 **When to use Rust vs TypeScript:**
-- 🦀 **Rust** → Payment processing, auth, availability calculator, anything with money/security
-- 📘 **TypeScript** → CRUD operations, admin dashboards, business logic, integrations
+- Rust → Payment processing, auth, availability calculator, money/security
+- TypeScript → CRUD, admin dashboards, business logic, integrations
 
 ---
 
@@ -273,39 +265,7 @@ DATABASE_URL="..." npx prisma migrate resolve --applied "migration_name"
 
 ---
 
-## Workflow & Verification (CRITICAL)
-
-### Step-by-Step Process for ALL Tasks
-
-1. **Understand First**
-   - Read relevant files completely before making changes
-   - Check Prisma schema for data model context
-   - Look at similar features to understand patterns
-   - Ask clarifying questions if requirements are unclear
-
-2. **Plan the Work**
-   - For multi-step tasks, create a todo list with TodoWrite
-   - Mark tasks as in_progress BEFORE starting work
-   - Only ONE task should be in_progress at a time
-
-3. **Make Changes**
-   - Follow existing code patterns
-   - Apply rules from .claude/rules/ directory
-   - Keep changes minimal and focused
-
-4. **VERIFY YOUR WORK** (This is the most important step!)
-   - Run `pnpm build` to check for compile errors
-   - For API changes: manually test the endpoint works
-   - For DB changes: run `pnpm --dir platform/apps/api prisma:generate`
-   - For frontend: check that the UI renders without errors
-   - Check that you completed ALL parts of the task
-
-5. **Mark Complete**
-   - Only mark todo items as completed when FULLY done
-   - If you encounter errors or blockers, keep it in_progress
-   - Report any issues you couldn't resolve
-
-### Verification Commands by Feature Area
+## Verification by Feature Area
 
 | Change Type | Verification Command |
 |-------------|---------------------|
@@ -315,33 +275,7 @@ DATABASE_URL="..." npx prisma migrate resolve --applied "migration_name"
 | Shared types | `pnpm build:shared` |
 | Everything | `pnpm build` |
 
-### Never Skip These Steps
-
-- Don't skip verification - always check your work compiles
-- Don't skip reading files before editing them
-- Don't skip marking todos as complete when done
-- Don't skip asking questions when unclear
-- Don't assume code works without verifying
-
-### When to Use Plan Mode
-
-**Use Plan mode (shift+tab twice in Claude Code) for:**
-- Multi-file changes (3+ files)
-- New feature implementation
-- Architectural changes
-- Database schema modifications
-- Anything you're uncertain about
-
-**Plan mode workflow:**
-1. Enter Plan mode at the start
-2. Explore the codebase and design an approach
-3. Iterate on the plan with the user until it's solid
-4. Exit Plan mode and implement (can use auto-accept edits)
-5. Verify the implementation works
-
-**A good plan is critical** - investing time upfront prevents wasted work.
-
-### Advanced Workflows
+## Advanced Workflows
 
 **Parallel Execution:**
 - Run multiple Claude sessions in parallel for faster iteration
@@ -366,28 +300,25 @@ For long-running tasks, use a background agent to verify:
 - Invoke with: `Task(subagent_type="verify-app")`
 - Or use a Stop hook to run verification automatically
 
-## Code Generation Rules
+---
 
-1. **Always null-check** after `findUnique` / `findFirst`
-2. **Normalize strings** with `.trim().toLowerCase()` for emails
-3. **Use specific exceptions** (BadRequest, NotFound, etc.)
-4. **Include campgroundId** in all tenant-scoped queries
-5. **Invalidate queries** on mutation success
-6. **Check `typeof window`` before localStorage access
+## Code Patterns
 
-## Preferred Patterns (Do These)
+**Always do:**
+- Null-check after `findUnique`/`findFirst`
+- Normalize emails: `.trim().toLowerCase()`
+- Include `campgroundId` in tenant-scoped queries
+- Invalidate TanStack queries on mutation success
+- Check `typeof window !== 'undefined'` before localStorage
+- Use Zod for money, user input, external data validation
+- Use NestJS Logger (`this.logger.log()`), not console.log
+- Add guards to endpoints: `@UseGuards(JwtAuthGuard, RolesGuard)`
+- Use specific exceptions: `BadRequestException`, `NotFoundException`
+- Wrap risky ops in try/catch + `Sentry.captureException()`
 
-- **Validation**: Always use Zod for money, user input, and external data
-- **Logging**: Use NestJS Logger (`this.logger.log()`) instead of console.log
-- **Money**: Use integers for cents (`9999` = $99.99) + Zod validation
-- **Auth**: Add guards to all endpoints (`@UseGuards(JwtAuthGuard, RolesGuard)`)
-- **Testing**: Write tests for critical features (payments, auth, reservations)
-- **Transactions**: Use single transaction with callback pattern, not nested
-- **Dependencies**: Ask before adding new packages
-- **Icons**: Use Lucide SVG icons, never emojis
-- **Verification**: Always run build + tests after changes
-- **Error Tracking**: Wrap risky operations in try/catch + Sentry.captureException()
-- **Real Solutions Only**: No band-aid fixes or workarounds - find and fix the root cause. If something is broken, understand why before fixing it.
+**Ask before:**
+- Adding new npm packages
+- Adding `@Cron` or `@Interval` decorators (Railway has limited DB connections)
 
 ---
 

@@ -13,6 +13,14 @@ import { loadQueue as loadQueueGeneric, saveQueue as saveQueueGeneric, registerB
 import { randomId } from "@/lib/random-id";
 import { TableEmpty } from "@/components/ui/table";
 
+type Reservation = Awaited<ReturnType<typeof apiClient.getCampgroundReservations>>[number];
+type ReservationWithCampground = Reservation & {
+  campground?: { name?: string | null } | null;
+};
+type ReservationMessage = Awaited<ReturnType<typeof apiClient.getReservationMessages>>[number];
+type SiteStatusData = Awaited<ReturnType<typeof apiClient.getSitesWithStatus>>[number];
+type Campground = Awaited<ReturnType<typeof apiClient.getCampground>>;
+
 type Stay = {
   id: string;
   campground: string;
@@ -33,12 +41,7 @@ type EventItem = {
   location?: string | null;
 };
 
-type Message = {
-  id: string;
-  content: string;
-  senderType: "guest" | "staff";
-  createdAt: string;
-};
+type Message = Pick<ReservationMessage, "id" | "content" | "senderType" | "createdAt">;
 
 type QueuedMessage = {
   id: string;
@@ -52,13 +55,30 @@ type QueuedMessage = {
   conflict?: boolean;
 };
 
-type SiteStatusData = {
-  id: string;
-  name: string;
-  siteNumber?: string;
-  status: "available" | "occupied" | "maintenance";
-  latitude?: number | null;
-  longitude?: number | null;
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const getOptionalString = (value: unknown, key: string) => {
+  if (!isRecord(value)) return null;
+  const candidate = value[key];
+  return typeof candidate === "string" ? candidate : null;
+};
+
+const getErrorMessage = (error: unknown) => {
+  if (error instanceof Error && error.message) return error.message;
+  if (isRecord(error) && typeof error.message === "string") return error.message;
+  return "Something went wrong";
+};
+
+const getErrorStatus = (error: unknown) => {
+  if (!isRecord(error)) return null;
+  const status = error.status;
+  if (typeof status === "number") return status;
+  if (typeof status === "string") {
+    const parsed = Number(status);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+  return null;
 };
 
 export default function GuestPwaPage() {
@@ -90,13 +110,21 @@ export default function GuestPwaPage() {
       setError(null);
       try {
         // reuse reservations endpoint; pick the most recent upcoming/active reservation
-        const reservations = await apiClient.getCampgroundReservations?.().catch(() => []);
+        const emptyReservations: ReservationWithCampground[] = [];
+        const reservations: ReservationWithCampground[] = apiClient.getCampgroundReservations
+          ? await apiClient.getCampgroundReservations().catch(() => emptyReservations)
+          : emptyReservations;
         if (!isMounted) return;
-        const candidate = (reservations || []).find((r: any) => r.status !== "cancelled");
+        const candidate = reservations.find((reservation) => reservation.status !== "cancelled");
         if (candidate) {
+          const campgroundValue = isRecord(candidate) ? candidate.campground : null;
+          const campgroundName =
+            isRecord(campgroundValue) && typeof campgroundValue.name === "string"
+              ? campgroundValue.name
+              : candidate.campgroundId ?? "Your campground";
           setStay({
             id: candidate.id,
-            campground: (candidate as any).campground?.name ?? candidate.campgroundId ?? "Your campground",
+            campground: campgroundName,
             campgroundId: candidate.campgroundId,
             guestId: candidate.guestId,
             site: candidate.site?.name ?? "Your site",
@@ -108,9 +136,10 @@ export default function GuestPwaPage() {
         } else {
           setStay(null);
         }
-      } catch (e: any) {
+      } catch (error) {
         if (!isMounted) return;
-        setError(e?.message || "Failed to load your stay");
+        const message = getErrorMessage(error);
+        setError(message || "Failed to load your stay");
       } finally {
         if (!isMounted) return;
         setLoading(false);
@@ -134,13 +163,18 @@ export default function GuestPwaPage() {
         const data = await apiClient.getEvents(stay.campgroundId, start, end);
         if (!isMounted) return;
         setEvents(
-          data.map((e: any) => ({
-            id: e.id,
-            name: e.name ?? "Event",
-            startAt: e.startAt ?? e.startDate ?? e.start,
-            endAt: e.endAt ?? e.endDate ?? e.end ?? null,
-            location: e.location ?? null
-          }))
+          data.map((event) => {
+            const name = getOptionalString(event, "name") ?? event.title ?? "Event";
+            const startAt = getOptionalString(event, "startAt") ?? event.startDate ?? getOptionalString(event, "start") ?? "";
+            const endAt = getOptionalString(event, "endAt") ?? event.endDate ?? getOptionalString(event, "end");
+            return {
+              id: event.id,
+              name,
+              startAt,
+              endAt,
+              location: event.location ?? null
+            };
+          })
         );
       } catch {
         if (!isMounted) return;
@@ -167,7 +201,12 @@ export default function GuestPwaPage() {
         setMessages(
           data
             .slice(-10)
-            .map((m: any) => ({ id: m.id, content: m.content, senderType: m.senderType, createdAt: m.createdAt }))
+            .map((message) => ({
+              id: message.id,
+              content: message.content,
+              senderType: message.senderType,
+              createdAt: message.createdAt
+            }))
             .reverse()
         );
       } catch {
@@ -206,18 +245,25 @@ export default function GuestPwaPage() {
       if (!stay?.campgroundId || !stay.arrivalDate || !stay.departureDate) return;
       setMapLoading(true);
       try {
-        const [statusData, campground] = await Promise.all([
-          apiClient.getSitesWithStatus(stay.campgroundId, {
+        const emptySiteStatus: SiteStatusData[] = [];
+        const statusPromise = apiClient
+          .getSitesWithStatus(stay.campgroundId, {
             arrivalDate: stay.arrivalDate,
             departureDate: stay.departureDate
-          }).catch(() => [] as SiteStatusData[]),
-          apiClient.getCampground?.(stay.campgroundId).catch(() => null)
+          })
+          .catch(() => emptySiteStatus);
+        const campgroundPromise = apiClient.getCampground
+          ? apiClient.getCampground(stay.campgroundId).catch(() => null)
+          : Promise.resolve<Campground | null>(null);
+        const [statusData, campground] = await Promise.all([
+          statusPromise,
+          campgroundPromise
         ]);
-        setSiteStatus(statusData as SiteStatusData[]);
+        setSiteStatus(statusData);
         if (campground) {
           setCampgroundCenter({
-            latitude: campground.latitude ? Number(campground.latitude) : null,
-            longitude: campground.longitude ? Number(campground.longitude) : null
+            latitude: typeof campground.latitude === "number" ? campground.latitude : null,
+            longitude: typeof campground.longitude === "number" ? campground.longitude : null
           });
         }
       } finally {
@@ -239,17 +285,19 @@ export default function GuestPwaPage() {
       }
       try {
         await apiClient.sendReservationMessage(item.reservationId, item.content, "guest", item.guestId);
-      } catch (err: any) {
+      } catch (error) {
         const attempt = (item.attempt ?? 0) + 1;
         const delay = Math.min(300000, 1000 * 2 ** attempt) + Math.floor(Math.random() * 500);
-        const isConflict = err?.status === 409 || err?.status === 412 || /conflict/i.test(err?.message ?? "");
-        remaining.push({ ...item, attempt, nextAttemptAt: Date.now() + delay, lastError: err?.message, conflict: isConflict });
+        const message = getErrorMessage(error);
+        const status = getErrorStatus(error);
+        const isConflict = status === 409 || status === 412 || /conflict/i.test(message);
+        remaining.push({ ...item, attempt, nextAttemptAt: Date.now() + delay, lastError: message, conflict: isConflict });
         recordTelemetry({
           source: "guest-pwa",
           type: isConflict ? "conflict" : "error",
           status: isConflict ? "conflict" : "failed",
           message: isConflict ? "Message conflict, needs review" : "Message retry scheduled",
-          meta: { error: err?.message },
+          meta: { error: message },
         });
       }
     }
@@ -315,10 +363,13 @@ export default function GuestPwaPage() {
         });
       } else {
         await apiClient.sendReservationMessage(stay.id, trimmed, "guest", stay.guestId);
-        setMessages((prev) => [
-          { id: randomId(), content: trimmed, senderType: "guest" as const, createdAt: new Date().toISOString() },
-          ...prev
-        ].slice(0, 12));
+        const newMessage: Message = {
+          id: randomId(),
+          content: trimmed,
+          senderType: "guest",
+          createdAt: new Date().toISOString()
+        };
+        setMessages((prev) => [newMessage, ...prev].slice(0, 12));
         recordTelemetry({
           source: "guest-pwa",
           type: "sync",
@@ -331,9 +382,9 @@ export default function GuestPwaPage() {
       setOrderNote("");
       setPaying(false);
       await flushQueue();
-    } catch (e: any) {
+    } catch (error) {
       const queuedItem: QueuedMessage = {
-      id: randomId(),
+        id: randomId(),
         reservationId: stay.id,
         guestId: stay.guestId,
         content: trimmed,
@@ -345,13 +396,14 @@ export default function GuestPwaPage() {
       };
       const updated = [...loadQueue(), queuedItem];
       saveQueue(updated);
-      setError(e?.message || "Saved to send later");
+      const message = getErrorMessage(error);
+      setError(message || "Saved to send later");
       recordTelemetry({
         source: "guest-pwa",
         type: "error",
         status: "failed",
         message: "Send failed, queued for retry",
-        meta: { error: e?.message },
+        meta: { error: message },
       });
     } finally {
       setSending(false);
@@ -372,13 +424,15 @@ export default function GuestPwaPage() {
   const offline = typeof navigator !== "undefined" && !navigator.onLine;
 
   const mapSites: MapSite[] = useMemo(() => {
-    return (siteStatus || []).map((s, idx: number) => ({
-      id: s.id,
-      name: s.name,
-      siteNumber: s.siteNumber || "",
-      status: s.status,
-      latitude: s.latitude ?? (Number.isFinite(campgroundCenter.latitude) ? (campgroundCenter.latitude as number) + 0.0004 * Math.sin(idx) : null),
-      longitude: s.longitude ?? (Number.isFinite(campgroundCenter.longitude) ? (campgroundCenter.longitude as number) + 0.0004 * Math.cos(idx) : null)
+    const baseLatitude = typeof campgroundCenter.latitude === "number" ? campgroundCenter.latitude : null;
+    const baseLongitude = typeof campgroundCenter.longitude === "number" ? campgroundCenter.longitude : null;
+    return (siteStatus || []).map((site, idx) => ({
+      id: site.id,
+      name: site.name,
+      siteNumber: site.siteNumber || "",
+      status: site.status,
+      latitude: site.latitude ?? (baseLatitude !== null ? baseLatitude + 0.0004 * Math.sin(idx) : null),
+      longitude: site.longitude ?? (baseLongitude !== null ? baseLongitude + 0.0004 * Math.cos(idx) : null)
     }));
   }, [siteStatus, campgroundCenter]);
 
@@ -635,4 +689,3 @@ export default function GuestPwaPage() {
     </div>
   );
 }
-

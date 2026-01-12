@@ -2,22 +2,61 @@ import { Injectable, Logger, BadRequestException, NotFoundException } from '@nes
 import { PrismaService } from '../../prisma/prisma.service';
 import { OnboardingTokenGateService } from '../onboarding-token-gate.service';
 import { DocumentClassifierService, ClassificationResult, TargetEntity } from './document-classifier.service';
-import { ImportDraftStatus } from '@prisma/client';
+import { ImportDraftStatus, Prisma, SiteType } from '@prisma/client';
 import OpenAI from 'openai';
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as XLSX from 'xlsx';
 
+type FieldValue = string | number | boolean | null;
+export type UploadDocumentFile = { originalname: string; mimetype: string; buffer: Buffer };
+
+const TARGET_ENTITIES: TargetEntity[] = ['sites', 'guests', 'reservations', 'rates', 'policies'];
+const SITE_TYPES: SiteType[] = [
+    SiteType.rv,
+    SiteType.tent,
+    SiteType.cabin,
+    SiteType.group,
+    SiteType.glamping,
+    SiteType.hotel_room,
+];
+
+const isTargetEntity = (value: unknown): value is TargetEntity =>
+    typeof value === 'string' && TARGET_ENTITIES.some((entity) => entity === value);
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const isSiteType = (value: string): value is SiteType =>
+    SITE_TYPES.some((type) => type === value);
+
+const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined => {
+    if (value === undefined || value === null) return undefined;
+    try {
+        return JSON.parse(JSON.stringify(value));
+    } catch {
+        return undefined;
+    }
+};
+
+const toNullableJsonInput = (
+    value: unknown,
+): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined => {
+    if (value === undefined) return undefined;
+    if (value === null) return Prisma.JsonNull;
+    return toJsonValue(value) ?? Prisma.JsonNull;
+};
+
 /**
  * Field confidence information
  */
 export interface FieldConfidence {
     field: string;
-    value: string | number | boolean | null;
+    value: FieldValue;
     confidence: number; // 0-1
     source: 'extracted' | 'inferred' | 'default';
-    alternatives?: { value: any; confidence: number }[];
+    alternatives?: { value: FieldValue; confidence: number }[];
     requiresReview: boolean;
 }
 
@@ -52,6 +91,30 @@ export interface ExtractionResult {
     aiTokensUsed: { input: number; output: number };
 }
 
+type ExtractionSummary = ExtractionResult["summary"];
+
+const isRowConfidence = (value: unknown): value is RowConfidence => {
+    if (!isRecord(value)) return false;
+    if (typeof value.rowNumber !== "number") return false;
+    if (!isRecord(value.fields)) return false;
+    if (typeof value.overallConfidence !== "number") return false;
+    if (!Array.isArray(value.issues)) return false;
+    return value.action === "create" || value.action === "update" || value.action === "skip";
+};
+
+const isExtractionSummary = (value: unknown): value is ExtractionSummary => {
+    if (!isRecord(value)) return false;
+    return (
+        typeof value.totalRows === "number" &&
+        typeof value.validRows === "number" &&
+        typeof value.createCount === "number" &&
+        typeof value.updateCount === "number" &&
+        typeof value.skipCount === "number" &&
+        Array.isArray(value.missingRequired) &&
+        Array.isArray(value.warnings)
+    );
+};
+
 /**
  * Upload result
  */
@@ -62,6 +125,15 @@ export interface UploadResult {
     classification: ClassificationResult;
     status: ImportDraftStatus;
 }
+
+type DraftPreview = {
+    documentId: string;
+    fileName: string | null;
+    documentType: string;
+    targetEntity: string;
+    status: ImportDraftStatus;
+    createdAt: Date;
+};
 
 /**
  * Target field definitions for each entity type
@@ -155,7 +227,7 @@ export class OnboardingAiImportService {
      */
     async uploadDocument(
         sessionId: string,
-        file: Express.Multer.File,
+        file: UploadDocumentFile,
     ): Promise<UploadResult> {
         // Check AI access
         await this.tokenGate.requireAiAccess(sessionId);
@@ -214,11 +286,11 @@ export class OnboardingAiImportService {
                 targetEntity: classification.suggestedEntity || 'sites',
                 originalFile: filePath,
                 fileName: file.originalname,
-                extractedData: {
+                extractedData: toNullableJsonInput({
                     columns,
                     sampleRows,
                     classification,
-                },
+                }),
                 status: 'pending_extraction',
                 expiresAt,
             },
@@ -269,7 +341,7 @@ export class OnboardingAiImportService {
             throw new NotFoundException('Document not found');
         }
 
-        const entity = targetEntity || (draft.targetEntity as TargetEntity);
+        const entity = targetEntity ?? (isTargetEntity(draft.targetEntity) ? draft.targetEntity : 'sites');
         const fields = TARGET_FIELDS[entity];
 
         // Read the file
@@ -325,7 +397,7 @@ export class OnboardingAiImportService {
 
             for (const field of fields) {
                 const sourceColumn = columnMapping[field.name];
-                let value: any = sourceColumn ? row[sourceColumn] : null;
+                let value: FieldValue | null = sourceColumn ? row[sourceColumn] : null;
                 let confidence = 0;
                 let source: 'extracted' | 'inferred' | 'default' = 'extracted';
 
@@ -386,12 +458,12 @@ export class OnboardingAiImportService {
             where: { documentId },
             data: {
                 targetEntity: entity,
-                extractedData: {
+                extractedData: toNullableJsonInput({
                     columns,
                     columnMapping,
                     rows: processedRows,
                     summary,
-                },
+                }),
                 status: 'extraction_complete',
                 aiCallsUsed: { increment: 1 },
             },
@@ -413,7 +485,7 @@ export class OnboardingAiImportService {
     async getPreview(
         sessionId: string,
         documentId: string,
-    ): Promise<{ draft: any; rows: RowConfidence[]; summary: any }> {
+    ): Promise<{ draft: DraftPreview; rows: RowConfidence[]; summary: ExtractionSummary }> {
         const draft = await this.prisma.onboardingImportDraft.findUnique({
             where: { documentId },
         });
@@ -422,7 +494,8 @@ export class OnboardingAiImportService {
             throw new NotFoundException('Document not found');
         }
 
-        const extractedData = draft.extractedData as any;
+        const extractedData = this.parseExtractedData(draft.extractedData);
+        const summary = extractedData.summary ?? this.emptySummary();
 
         return {
             draft: {
@@ -433,8 +506,8 @@ export class OnboardingAiImportService {
                 status: draft.status,
                 createdAt: draft.createdAt,
             },
-            rows: extractedData?.rows || [],
-            summary: extractedData?.summary || {},
+            rows: extractedData.rows,
+            summary,
         };
     }
 
@@ -460,13 +533,14 @@ export class OnboardingAiImportService {
             select: { campgroundId: true },
         });
 
-        if (!session?.campgroundId) {
+        const campgroundId = session?.campgroundId ?? null;
+        if (!campgroundId) {
             throw new BadRequestException('Campground not created yet');
         }
 
-        const extractedData = draft.extractedData as any;
-        const rows: RowConfidence[] = extractedData?.rows || [];
-        const entity = draft.targetEntity as TargetEntity;
+        const extractedData = this.parseExtractedData(draft.extractedData);
+        const rows: RowConfidence[] = extractedData.rows;
+        const entity = isTargetEntity(draft.targetEntity) ? draft.targetEntity : 'sites';
 
         // Apply corrections
         for (const [rowIndex, fieldCorrections] of Object.entries(corrections)) {
@@ -474,7 +548,7 @@ export class OnboardingAiImportService {
             if (rows[idx]) {
                 for (const [field, value] of Object.entries(fieldCorrections)) {
                     if (rows[idx].fields[field]) {
-                        rows[idx].fields[field].value = value;
+                        rows[idx].fields[field].value = this.coerceFieldValue(value);
                         rows[idx].fields[field].source = 'extracted';
                         rows[idx].fields[field].confidence = 1;
                         rows[idx].fields[field].requiresReview = false;
@@ -499,12 +573,12 @@ export class OnboardingAiImportService {
                     if (row.action === 'skip') continue;
 
                     try {
-                        const data = this.buildEntityData(entity, row.fields, session.campgroundId!);
-
                         if (entity === 'sites') {
-                            await tx.site.create({ data: data as any });
+                            const data = this.buildEntityData('sites', row.fields, campgroundId);
+                            await tx.site.create({ data });
                         } else if (entity === 'guests') {
-                            await tx.guest.create({ data: data as any });
+                            const data = this.buildEntityData('guests', row.fields, campgroundId);
+                            await tx.guest.create({ data });
                         }
                         // Add other entity types as needed
 
@@ -520,7 +594,7 @@ export class OnboardingAiImportService {
                 where: { documentId },
                 data: {
                     status: errors.length === 0 ? 'imported' : 'failed',
-                    corrections,
+                    corrections: toNullableJsonInput(corrections),
                 },
             });
         } catch (err) {
@@ -558,13 +632,13 @@ Be concise and helpful. If users want to change data, explain how to use the inl
                 where: { documentId: context.documentId },
             });
             if (draft) {
-                const extractedData = draft.extractedData as any;
+                const extractedData = this.parseExtractedData(draft.extractedData);
                 systemContext += `\n\nCurrent import context:
 - File: ${draft.fileName}
 - Type: ${draft.documentType}
 - Target: ${draft.targetEntity}
-- Rows: ${extractedData?.summary?.totalRows || 0}
-- Valid: ${extractedData?.summary?.validRows || 0}`;
+- Rows: ${extractedData.summary?.totalRows ?? 0}
+- Valid: ${extractedData.summary?.validRows ?? 0}`;
             }
         }
 
@@ -602,6 +676,58 @@ Be concise and helpful. If users want to change data, explain how to use the inl
     // ============================================
     // Private helper methods
     // ============================================
+
+    private emptySummary(): ExtractionSummary {
+        return {
+            totalRows: 0,
+            validRows: 0,
+            createCount: 0,
+            updateCount: 0,
+            skipCount: 0,
+            missingRequired: [],
+            warnings: [],
+        };
+    }
+
+    private parseExtractedData(value: unknown): {
+        columns: string[];
+        columnMapping: Record<string, string>;
+        rows: RowConfidence[];
+        summary: ExtractionSummary | null;
+    } {
+        if (!isRecord(value)) {
+            return { columns: [], columnMapping: {}, rows: [], summary: null };
+        }
+
+        const columns = Array.isArray(value.columns)
+            ? value.columns.map((column) => String(column ?? ''))
+            : [];
+
+        const columnMapping: Record<string, string> = {};
+        if (isRecord(value.columnMapping)) {
+            Object.entries(value.columnMapping).forEach(([key, column]) => {
+                if (typeof column === 'string') {
+                    columnMapping[key] = column;
+                }
+            });
+        }
+
+        const rows = Array.isArray(value.rows)
+            ? value.rows.filter((row) => isRowConfidence(row))
+            : [];
+
+        const summary = isExtractionSummary(value.summary) ? value.summary : null;
+
+        return { columns, columnMapping, rows, summary };
+    }
+
+    private coerceFieldValue(value: unknown): FieldValue {
+        if (value === null || value === undefined) return null;
+        if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+            return value;
+        }
+        return String(value);
+    }
 
     private parseCSV(content: string): { columns: string[]; rows: Record<string, string>[] } {
         const lines = content.trim().split('\n');
@@ -647,16 +773,17 @@ Be concise and helpful. If users want to change data, explain how to use the inl
         const workbook = XLSX.read(buffer, { type: 'buffer' });
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
-        const data = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { header: 1 });
+        const data = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1 });
 
         if (data.length === 0) return { columns: [], rows: [] };
 
-        const columns = (data[0] as any[]).map(c => String(c || ''));
+        const headerRow = Array.isArray(data[0]) ? data[0] : [];
+        const columns = headerRow.map(c => String(c || ''));
         const rows: Record<string, string>[] = [];
 
         for (let i = 1; i < data.length; i++) {
             const row: Record<string, string> = {};
-            const values = data[i] as any[];
+            const values = Array.isArray(data[i]) ? data[i] : [];
             columns.forEach((col, idx) => {
                 row[col] = String(values[idx] ?? '');
             });
@@ -713,11 +840,26 @@ Only include rows with actual data. Convert dates to YYYY-MM-DD format. Convert 
             response_format: { type: 'json_object' },
         });
 
-        const result = JSON.parse(response.choices[0].message.content || '{"columns":[],"rows":[]}');
+        const parsed: unknown = JSON.parse(response.choices[0].message.content || '{"columns":[],"rows":[]}');
+        const result = isRecord(parsed) ? parsed : {};
+        const columns = Array.isArray(result.columns)
+            ? result.columns.map((column) => String(column ?? ''))
+            : [];
+        const rows = Array.isArray(result.rows)
+            ? result.rows
+                .filter((row) => isRecord(row))
+                .map((row) => {
+                    const normalized: Record<string, string> = {};
+                    Object.entries(row).forEach(([key, value]) => {
+                        normalized[key] = String(value ?? '');
+                    });
+                    return normalized;
+                })
+            : [];
 
         return {
-            columns: result.columns || [],
-            rows: result.rows || [],
+            columns,
+            rows,
             tokensUsed: {
                 input: response.usage?.prompt_tokens || 0,
                 output: response.usage?.completion_tokens || 0,
@@ -755,7 +897,7 @@ Only include rows with actual data. Convert dates to YYYY-MM-DD format. Convert 
         return mapping;
     }
 
-    private transformValue(fieldName: string, value: string): any {
+    private transformValue(fieldName: string, value: FieldValue): FieldValue {
         const booleanFields = ['hookupsPower', 'hookupsWater', 'hookupsSewer', 'petFriendly', 'pullThrough'];
         const numberFields = ['maxOccupancy', 'rigMaxLength', 'powerAmps', 'defaultRate', 'totalAmount', 'paidAmount', 'nightlyRate', 'weeklyRate', 'monthlyRate'];
         const dateFields = ['arrivalDate', 'departureDate', 'startDate', 'endDate'];
@@ -772,6 +914,8 @@ Only include rows with actual data. Convert dates to YYYY-MM-DD format. Convert 
         }
 
         if (dateFields.includes(fieldName)) {
+            if (value === null || value === undefined) return null;
+            if (typeof value !== "string" && typeof value !== "number") return null;
             const date = new Date(value);
             return isNaN(date.getTime()) ? null : date.toISOString().split('T')[0];
         }
@@ -779,8 +923,8 @@ Only include rows with actual data. Convert dates to YYYY-MM-DD format. Convert 
         return String(value).trim();
     }
 
-    private getDefaultValue(fieldName: string, entity: TargetEntity): any {
-        const defaults: Record<string, unknown> = {
+    private getDefaultValue(fieldName: string, entity: TargetEntity): FieldValue {
+        const defaults: Record<string, FieldValue> = {
             // Sites
             siteType: 'rv',
             maxOccupancy: 6,
@@ -799,29 +943,94 @@ Only include rows with actual data. Convert dates to YYYY-MM-DD format. Convert 
     }
 
     private buildEntityData(
+        entity: 'sites',
+        fields: Record<string, FieldConfidence>,
+        campgroundId: string,
+    ): Prisma.SiteUncheckedCreateInput;
+    private buildEntityData(
+        entity: 'guests',
+        fields: Record<string, FieldConfidence>,
+        campgroundId: string,
+    ): Prisma.GuestUncheckedCreateInput;
+    private buildEntityData(
         entity: TargetEntity,
         fields: Record<string, FieldConfidence>,
         campgroundId: string,
     ): Record<string, unknown> {
-        const data: Record<string, unknown> = { campgroundId };
+        const getFieldValue = (key: string): FieldValue => fields[key]?.value ?? null;
+        const getString = (key: string): string | null => {
+            const value = getFieldValue(key);
+            return value === null || value === undefined ? null : String(value).trim();
+        };
+        const getNumber = (key: string): number | undefined => {
+            const value = getFieldValue(key);
+            if (typeof value === 'number') return value;
+            if (typeof value === 'string') {
+                const parsed = Number(value);
+                return Number.isFinite(parsed) ? parsed : undefined;
+            }
+            return undefined;
+        };
+        const getBoolean = (key: string): boolean | undefined => {
+            const value = getFieldValue(key);
+            return typeof value === 'boolean' ? value : undefined;
+        };
 
+        if (entity === 'sites') {
+            // TODO: map siteClassName/siteClass to siteClassId once lookup is implemented.
+            const siteNumber = getString('siteNumber') ?? '';
+            const nameFallback = siteNumber || `Site ${uuidv4().slice(0, 8)}`;
+            const siteTypeValue = getString('siteType');
+            const siteType = siteTypeValue && isSiteType(siteTypeValue) ? siteTypeValue : SiteType.rv;
+            const maxOccupancy = getNumber('maxOccupancy') ?? 6;
+            const powerAmpValue = getNumber('powerAmps');
+            const powerAmps = powerAmpValue !== undefined ? [Math.round(powerAmpValue)] : [];
+
+            return {
+                id: uuidv4(),
+                campgroundId,
+                siteNumber: siteNumber || nameFallback,
+                name: getString('name') || nameFallback,
+                siteType,
+                maxOccupancy,
+                rigMaxLength: getNumber('rigMaxLength'),
+                hookupsPower: getBoolean('hookupsPower'),
+                hookupsWater: getBoolean('hookupsWater'),
+                hookupsSewer: getBoolean('hookupsSewer'),
+                petFriendly: getBoolean('petFriendly'),
+                pullThrough: getBoolean('pullThrough'),
+                powerAmps,
+                description: getString('description') ?? undefined,
+                status: getString('status') ?? 'available',
+            };
+        }
+
+        if (entity === 'guests') {
+            const firstName = getString('firstName') || 'Guest';
+            const lastName = getString('lastName') || 'Import';
+            const email = getString('email') || `${firstName}.${lastName}.${uuidv4().slice(0, 8)}@import.local`.toLowerCase();
+            return {
+                id: uuidv4(),
+                primaryFirstName: firstName,
+                primaryLastName: lastName,
+                email,
+                emailNormalized: email.toLowerCase().trim(),
+                phone: getString('phone') ?? undefined,
+                address1: getString('address1') ?? undefined,
+                city: getString('city') ?? undefined,
+                state: getString('state') ?? undefined,
+                postalCode: getString('postalCode') ?? undefined,
+                country: getString('country') ?? 'US',
+                notes: getString('notes') ?? undefined,
+            };
+        }
+
+        const data: Record<string, unknown> = { campgroundId };
         for (const [key, field] of Object.entries(fields)) {
             if (field.value !== null && field.value !== undefined) {
                 data[key] = field.value;
             }
         }
-
-        // Add required fields based on entity type
-        if (entity === 'sites') {
-            data.id = uuidv4();
-            data.status = data.status || 'available';
-        } else if (entity === 'guests') {
-            data.id = uuidv4();
-            if (data.email) {
-                data.emailNormalized = data.email.toLowerCase().trim();
-            }
-        }
-
         return data;
     }
 }

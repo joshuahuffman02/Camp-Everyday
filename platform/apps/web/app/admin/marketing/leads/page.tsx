@@ -23,6 +23,8 @@ const statusBadge: Record<LeadRecord["status"], { label: string; variant: "secon
 };
 
 const formatDate = (value?: string | null) => (value ? new Date(value).toLocaleString() : "Not yet");
+const getLeadStatus = (value: string): LeadRecord["status"] | null =>
+  statusOptions.find((option) => option.value === value)?.value ?? null;
 
 export default function AdminMarketingLeadsPage() {
   const queryClient = useQueryClient();
@@ -190,7 +192,10 @@ export default function AdminMarketingLeadsPage() {
                     <TableCell className="space-y-1">
                       <Select
                         value={lead.status}
-                        onValueChange={(value) => updateStatus.mutate({ id: lead.id, status: value as LeadRecord["status"] })}
+                      onValueChange={(value) => {
+                        const status = getLeadStatus(value);
+                        if (status) updateStatus.mutate({ id: lead.id, status });
+                      }}
                         disabled={updateStatus.isPending}
                       >
                         <SelectTrigger className="h-9 w-[150px]">
@@ -235,4 +240,3 @@ export default function AdminMarketingLeadsPage() {
     </div>
   );
 }
-

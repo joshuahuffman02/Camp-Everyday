@@ -13,8 +13,8 @@ interface SetupCelebrationProps {
   duration?: number;
 }
 
-const SPRING_CONFIG = {
-  type: "spring" as const,
+const SPRING_CONFIG: { type: "spring"; stiffness: number; damping: number } = {
+  type: "spring",
   stiffness: 200,
   damping: 15,
 };

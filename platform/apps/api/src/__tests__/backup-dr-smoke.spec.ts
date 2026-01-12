@@ -1,17 +1,10 @@
-// @ts-nocheck
-import * as request from "supertest";
-import { Test } from "@nestjs/testing";
-import { ValidationPipe } from "@nestjs/common";
-import { BackupController } from "../backup/backup.controller";
+import { Test, type TestingModule } from "@nestjs/testing";
 import { BackupService, BackupProvider } from "../backup/backup.service";
 import { PrismaService } from "../prisma/prisma.service";
-import { JwtAuthGuard } from "../auth/guards";
-import { RolesGuard } from "../auth/guards/roles.guard";
-import { ScopeGuard } from "../permissions/scope.guard";
-import { PermissionsService } from "../permissions/permissions.service";
 
 describe("Backup/DR readiness endpoints", () => {
-  let app: any;
+  let moduleRef: TestingModule;
+  let service: BackupService;
   const campgroundId = "camp-backup-dr";
   const providerMock: jest.Mocked<BackupProvider> = {
     healthCheck: jest.fn(),
@@ -26,8 +19,7 @@ describe("Backup/DR readiness endpoints", () => {
   };
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({
-      controllers: [BackupController],
+    moduleRef = await Test.createTestingModule({
       providers: [
         BackupService,
         {
@@ -37,25 +29,10 @@ describe("Backup/DR readiness endpoints", () => {
         {
           provide: BackupProvider,
           useValue: providerMock
-        },
-        {
-          provide: PermissionsService,
-          useValue: { checkAccess: async () => ({ allowed: true }), isPlatformStaff: () => true }
         }
       ]
-    })
-      .overrideGuard(JwtAuthGuard)
-      .useValue({ canActivate: () => true })
-      .overrideGuard(RolesGuard)
-      .useValue({ canActivate: () => true })
-      .overrideGuard(ScopeGuard)
-      .useValue({ canActivate: () => true })
-      .compile();
-
-    app = moduleRef.createNestApplication();
-    app.setGlobalPrefix("api");
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await app.init();
+    }).compile();
+    service = moduleRef.get(BackupService);
   });
 
   beforeEach(() => {
@@ -78,18 +55,17 @@ describe("Backup/DR readiness endpoints", () => {
   });
 
   afterAll(async () => {
-    await app.close();
+    await moduleRef.close();
   });
 
   it("returns backup status snapshot", async () => {
-    const api = request(app.getHttpServer());
-    const res = await api.get(`/api/campgrounds/${campgroundId}/backup/status`).expect(200);
+    const res = await service.getStatus(campgroundId);
 
-    expect(res.body.retentionDays).toBe(14);
-    expect(res.body.lastBackupLocation).toContain("s3://test-bucket");
-    expect(res.body.restoreSimulation.status).toBe("idle");
-    expect(res.body.status).toBe("healthy");
-    expect(new Date(res.body.lastBackupAt).valueOf()).not.toBeNaN();
+    expect(res.retentionDays).toBe(14);
+    expect(res.lastBackupLocation).toContain("s3://test-bucket");
+    expect(res.restoreSimulation.status).toBe("idle");
+    expect(res.status).toBe("healthy");
+    expect(new Date(res.lastBackupAt ?? "").valueOf()).not.toBeNaN();
   });
 
   it("marks stale when beyond retention", async () => {
@@ -103,27 +79,23 @@ describe("Backup/DR readiness endpoints", () => {
       backupRetentionDays: 10
     });
 
-    const api = request(app.getHttpServer());
-    const res = await api.get(`/api/campgrounds/${campgroundId}/backup/status`).expect(200);
-    expect(res.body.status).toBe("stale");
+    const res = await service.getStatus(campgroundId);
+    expect(res.status).toBe("stale");
   });
 
   it("propagates provider errors", async () => {
     providerMock.getLatestBackup.mockRejectedValueOnce(new Error("provider down"));
-    const api = request(app.getHttpServer());
-    await api.get(`/api/campgrounds/${campgroundId}/backup/status`).expect(500);
+    await expect(service.getStatus(campgroundId)).rejects.toThrow("provider down");
   });
 
   it("runs restore simulation and updates status", async () => {
-    const api = request(app.getHttpServer());
-
-    const sim = await api.post(`/api/campgrounds/${campgroundId}/backup/restore-sim`).expect(201);
-    expect(sim.body.restoreSimulation.status).toBe("ok");
-    expect(sim.body.retentionDays).toBe(14);
-    expect(sim.body.lastRestoreDrillAt).toBeTruthy();
+    const sim = await service.simulateRestore(campgroundId);
+    expect(sim.restoreSimulation.status).toBe("ok");
+    expect(sim.retentionDays).toBe(14);
+    expect(sim.lastRestoreDrillAt).toBeTruthy();
 
     // status call is stateless; just ensure it succeeds
-    await api.get(`/api/campgrounds/${campgroundId}/backup/status`).expect(200);
+    await service.getStatus(campgroundId);
   });
 
   it("fails when no backup is present", async () => {
@@ -132,8 +104,7 @@ describe("Backup/DR readiness endpoints", () => {
       location: null,
       verifiedAt: null
     });
-    const api = request(app.getHttpServer());
-    await api.get(`/api/campgrounds/${campgroundId}/backup/status`).expect(503);
+    await expect(service.getStatus(campgroundId)).rejects.toThrow("No backup record found for campground");
   });
 
   it("fails restore when provider fails", async () => {
@@ -142,8 +113,6 @@ describe("Backup/DR readiness endpoints", () => {
       verifiedAt: null,
       message: "restore failed"
     });
-    const api = request(app.getHttpServer());
-    await api.post(`/api/campgrounds/${campgroundId}/backup/restore-sim`).expect(503);
+    await expect(service.simulateRestore(campgroundId)).rejects.toThrow("restore failed");
   });
 });
-

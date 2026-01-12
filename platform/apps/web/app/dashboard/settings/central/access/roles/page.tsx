@@ -89,6 +89,8 @@ const systemRoles: Omit<Role, "userCount">[] = [
   },
 ];
 
+type CampgroundMember = Awaited<ReturnType<typeof apiClient.getCampgroundMembers>>[number];
+
 export default function RolesPage() {
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,10 +109,10 @@ export default function RolesPage() {
 
     // Fetch members to count users per role
     apiClient.getCampgroundMembers(id)
-      .then((members: any[]) => {
+      .then((members: CampgroundMember[]) => {
         const roleCounts: Record<string, number> = {};
-        members.forEach((m: any) => {
-          roleCounts[m.role] = (roleCounts[m.role] || 0) + 1;
+        members.forEach((member) => {
+          roleCounts[member.role] = (roleCounts[member.role] || 0) + 1;
         });
 
         const rolesWithCounts: Role[] = systemRoles.map(r => ({

@@ -1,23 +1,32 @@
 import { Injectable, NestMiddleware, Logger, BadRequestException } from "@nestjs/common";
-import { Request, Response, NextFunction } from "express";
-import type { Request } from "express";
+import type { Request, Response, NextFunction } from "express";
 
 /**
  * API Version configuration
  */
+type ApiVersionConfig = {
+  version: string;
+  deprecated: boolean;
+  deprecationDate: string | null;
+  sunsetDate: string | null;
+};
+
 export const API_VERSIONS = {
   v1: {
     version: "1.0",
     deprecated: false,
-    deprecationDate: null as string | null,
-    sunsetDate: null as string | null,
+    deprecationDate: null,
+    sunsetDate: null,
   },
-} as const;
+} satisfies Record<string, ApiVersionConfig>;
 
 export type ApiVersionKey = keyof typeof API_VERSIONS;
 
 export const CURRENT_VERSION: ApiVersionKey = "v1";
 export const SUPPORTED_VERSIONS: ApiVersionKey[] = ["v1"];
+
+const isApiVersionKey = (value: string): value is ApiVersionKey =>
+  Object.prototype.hasOwnProperty.call(API_VERSIONS, value);
 
 /**
  * Extend Express Request with version info
@@ -51,8 +60,13 @@ export class ApiVersionMiddleware implements NestMiddleware {
 
     // 2. Check X-API-Version header (takes precedence over path)
     const headerVersion = req.headers["x-api-version"];
-    if (headerVersion) {
-      const parsedVersion = this.parseHeaderVersion(headerVersion as string);
+    if (typeof headerVersion === "string") {
+      const parsedVersion = this.parseHeaderVersion(headerVersion);
+      if (parsedVersion) {
+        version = parsedVersion;
+      }
+    } else if (Array.isArray(headerVersion) && headerVersion[0]) {
+      const parsedVersion = this.parseHeaderVersion(headerVersion[0]);
       if (parsedVersion) {
         version = parsedVersion;
       }
@@ -110,10 +124,8 @@ export class ApiVersionMiddleware implements NestMiddleware {
   private extractVersionFromPath(path: string): ApiVersionKey | null {
     const match = path.match(/\/v(\d+)\//);
     if (match) {
-      const versionKey = `v${match[1]}` as ApiVersionKey;
-      if (versionKey in API_VERSIONS) {
-        return versionKey;
-      }
+      const versionKey = `v${match[1]}`;
+      return isApiVersionKey(versionKey) ? versionKey : null;
     }
     return null;
   }
@@ -126,19 +138,15 @@ export class ApiVersionMiddleware implements NestMiddleware {
 
     // Support formats: "1.0", "v1", "1"
     if (trimmed.startsWith("v")) {
-      const key = trimmed.toLowerCase() as ApiVersionKey;
-      if (key in API_VERSIONS) {
-        return key;
-      }
+      const key = trimmed.toLowerCase();
+      return isApiVersionKey(key) ? key : null;
     }
 
     // Parse numeric version like "1.0" or "1"
     const majorMatch = trimmed.match(/^(\d+)/);
     if (majorMatch) {
-      const key = `v${majorMatch[1]}` as ApiVersionKey;
-      if (key in API_VERSIONS) {
-        return key;
-      }
+      const key = `v${majorMatch[1]}`;
+      return isApiVersionKey(key) ? key : null;
     }
 
     return null;

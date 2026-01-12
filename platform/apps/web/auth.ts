@@ -24,6 +24,42 @@ interface ExtendedUser extends User {
   campgrounds?: Campground[];
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const getString = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+const isCampground = (value: unknown): value is Campground =>
+  isRecord(value) && typeof value.id === "string" && typeof value.name === "string";
+
+const parseCampgrounds = (value: unknown): Campground[] | undefined => {
+  if (!Array.isArray(value)) return undefined;
+  return value.filter(isCampground);
+};
+
+const parseLoginResponse = (value: unknown): LoginResponse | null => {
+  if (!isRecord(value)) return null;
+  const id = getString(value.id);
+  const email = getString(value.email);
+  const firstName = getString(value.firstName);
+  const lastName = getString(value.lastName);
+  const token = getString(value.token);
+  if (!id || !email || !firstName || !lastName || !token) return null;
+  return {
+    id,
+    email,
+    firstName,
+    lastName,
+    token,
+    platformRole: getString(value.platformRole),
+    campgrounds: parseCampgrounds(value.campgrounds),
+  };
+};
+
+const isExtendedUser = (value: User): value is ExtendedUser =>
+  isRecord(value) && typeof value.apiToken === "string";
+
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
@@ -72,9 +108,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             return null;
           }
 
-          let data: LoginResponse;
+          let data: LoginResponse | null;
           try {
-            data = await res.json() as LoginResponse;
+            const rawData: unknown = await res.json();
+            data = parseLoginResponse(rawData);
           } catch {
             console.warn("[auth] login response not json", { apiBase: API_BASE });
             return null;
@@ -110,25 +147,32 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   callbacks: {
     async jwt({ token, user }) {
-      if (user) {
-        const extendedUser = user as ExtendedUser;
-        token.id = extendedUser.id;
-        token.apiToken = extendedUser.apiToken;
-        token.platformRole = extendedUser.platformRole;
-        token.campgrounds = extendedUser.campgrounds;
+      if (user && isExtendedUser(user)) {
+        if (typeof user.id === "string") {
+          token.id = user.id;
+        }
+        token.apiToken = user.apiToken;
+        token.platformRole = user.platformRole;
+        token.campgrounds = user.campgrounds;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        session.user.id = token.id as string;
-        Object.assign(session, {
-          apiToken: token.apiToken,
-          campgrounds: token.campgrounds
-        });
-        Object.assign(session.user, {
-          platformRole: token.platformRole
-        });
+        if (typeof token.id === "string") {
+          session.user.id = token.id;
+        }
+        if (typeof token.apiToken === "string") {
+          Object.assign(session, {
+            apiToken: token.apiToken,
+            campgrounds: token.campgrounds
+          });
+        }
+        if (typeof token.platformRole === "string") {
+          Object.assign(session.user, {
+            platformRole: token.platformRole
+          });
+        }
       }
       return session;
     }

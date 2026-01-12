@@ -18,8 +18,10 @@ const FloatingTicketWidget = dynamic(
   { ssr: false }
 );
 
-interface WindowWithSW extends Window {
-  __forceSWUpdate?: () => void;
+declare global {
+  interface Window {
+    __forceSWUpdate?: () => void;
+  }
 }
 
 export default function ClientRoot({ children }: { children: ReactNode }) {
@@ -79,8 +81,7 @@ export default function ClientRoot({ children }: { children: ReactNode }) {
     };
     navigator.serviceWorker?.addEventListener("message", handler);
     // Expose manual trigger for programmatic skipWaiting if needed
-    const win = window as WindowWithSW;
-    win.__forceSWUpdate = sendSkipWaiting;
+    window.__forceSWUpdate = sendSkipWaiting;
     return () => navigator.serviceWorker?.removeEventListener("message", handler);
   }, [toast]);
 

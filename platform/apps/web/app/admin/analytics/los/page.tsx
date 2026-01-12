@@ -98,6 +98,25 @@ export default function LengthOfStayPage() {
     value: d.percentage,
   }));
 
+  const toNumber = (value: unknown): number | undefined =>
+    typeof value === "number" ? value : undefined;
+  const formatCount = (value: unknown): string => {
+    const numberValue = toNumber(value);
+    return numberValue !== undefined ? numberValue.toLocaleString() : "—";
+  };
+  const formatNights = (value: unknown): string => {
+    const numberValue = toNumber(value);
+    return numberValue !== undefined ? `${numberValue.toFixed(1)} nights` : "—";
+  };
+  const formatNightsRaw = (value: unknown): string => {
+    const numberValue = toNumber(value);
+    return numberValue !== undefined ? `${numberValue} nights` : "—";
+  };
+  const formatMoney = (value: unknown): string => {
+    const numberValue = toNumber(value);
+    return numberValue !== undefined ? formatCurrency(numberValue) : "—";
+  };
+
   const typeIcons: Record<string, React.ReactNode> = {
     rv: <Truck className="h-4 w-4 text-blue-400" />,
     tent: <Tent className="h-4 w-4 text-green-400" />,
@@ -210,14 +229,14 @@ export default function LengthOfStayPage() {
               label: "Type",
               format: (v) => (
                 <div className="flex items-center gap-2">
-                  {typeIcons[v]}
-                  <span className="capitalize">{v}</span>
+                  {typeof v === "string" ? typeIcons[v] : null}
+                  <span className="capitalize">{typeof v === "string" ? v : "unknown"}</span>
                 </div>
               ),
             },
-            { key: "averageLos", label: "Avg LOS", align: "right", format: (v) => `${v.toFixed(1)} nights` },
-            { key: "medianLos", label: "Median", align: "right", format: (v) => `${v} nights` },
-            { key: "reservations", label: "Reservations", align: "right", format: (v) => v.toLocaleString() },
+            { key: "averageLos", label: "Avg LOS", align: "right", format: (v) => formatNights(v) },
+            { key: "medianLos", label: "Median", align: "right", format: (v) => formatNightsRaw(v) },
+            { key: "reservations", label: "Reservations", align: "right", format: (v) => formatCount(v) },
           ]}
           data={data.byAccommodationType}
           loading={loading}
@@ -228,9 +247,9 @@ export default function LengthOfStayPage() {
           description="Revenue and rate by LOS bucket"
           columns={[
             { key: "range", label: "Stay Length" },
-            { key: "count", label: "Reservations", align: "right", format: (v) => v.toLocaleString() },
-            { key: "revenue", label: "Revenue", align: "right", format: (v) => formatCurrency(v) },
-            { key: "revenuePerNight", label: "Rate/Night", align: "right", format: (v) => formatCurrency(v) },
+            { key: "count", label: "Reservations", align: "right", format: (v) => formatCount(v) },
+            { key: "revenue", label: "Revenue", align: "right", format: (v) => formatMoney(v) },
+            { key: "revenuePerNight", label: "Rate/Night", align: "right", format: (v) => formatMoney(v) },
           ]}
           data={data.distribution}
           loading={loading}

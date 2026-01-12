@@ -1,9 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import { randomBytes } from "crypto";
+import { randomBytes, randomUUID } from "crypto";
 import { Cron } from "@nestjs/schedule";
 import { PrismaService } from "../prisma/prisma.service";
 import { EmailService } from "../email/email.service";
 import { SupportService } from "../support/support.service";
+import { Prisma } from "@prisma/client";
 import { CreateNpsSurveyDto } from "./dto/create-nps-survey.dto";
 import { CreateNpsRuleDto } from "./dto/create-nps-rule.dto";
 import { CreateNpsInviteDto } from "./dto/create-nps-invite.dto";
@@ -13,6 +14,50 @@ function baseAppUrl() {
   const url = process.env.PUBLIC_WEB_URL || process.env.NEXT_PUBLIC_APP_URL || "https://app.campreserv.com";
   return url.endsWith("/") ? url.slice(0, -1) : url;
 }
+
+type NpsScheduleEntry = {
+  id: string;
+  anchor: "arrival" | "departure";
+  direction: "before" | "after";
+  offset: number;
+  unit: "hours" | "days";
+  templateId: string | null;
+  enabled: boolean;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const toStringValue = (value: unknown): string | undefined => {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return undefined;
+};
+
+const toNumberValue = (value: unknown): number | undefined => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return undefined;
+};
+
+const isJsonValue = (value: unknown): value is Prisma.InputJsonValue => {
+  if (value === null) return true;
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return true;
+  if (Array.isArray(value)) return value.every(isJsonValue);
+  if (isRecord(value)) return Object.values(value).every(isJsonValue);
+  return false;
+};
+
+const toNullableJsonInput = (
+  value: unknown
+): Prisma.InputJsonValue | Prisma.NullTypes.DbNull | undefined => {
+  if (value === undefined) return undefined;
+  if (value === null) return Prisma.DbNull;
+  return isJsonValue(value) ? value : undefined;
+};
 
 @Injectable()
 export class NpsService {
@@ -26,6 +71,7 @@ export class NpsService {
     const prisma = this.prisma;
     return prisma.npsSurvey.create({
       data: {
+        id: randomUUID(),
         campgroundId: dto.campgroundId,
         name: dto.name,
         question: dto.question ?? "How likely are you to recommend us to a friend?",
@@ -44,7 +90,7 @@ export class NpsService {
     const prisma = this.prisma;
     return prisma.npsSurvey.findMany({
       where: { campgroundId },
-      include: { rules: true },
+      include: { NpsRule: true },
       orderBy: { createdAt: "desc" }
     });
   }
@@ -55,11 +101,12 @@ export class NpsService {
     if (!survey) throw new NotFoundException("Survey not found");
     return prisma.npsRule.create({
       data: {
+        id: randomUUID(),
         surveyId: dto.surveyId,
         trigger: dto.trigger,
         percentage: dto.percentage ?? survey.samplingPercent ?? 100,
         cooldownDays: dto.cooldownDays ?? survey.cooldownDays ?? 30,
-        segmentJson: dto.segmentJson as any,
+        segmentJson: dto.segmentJson === undefined ? undefined : toNullableJsonInput(dto.segmentJson),
         isActive: dto.isActive ?? true
       }
     });
@@ -69,7 +116,12 @@ export class NpsService {
     return randomBytes(24).toString("hex");
   }
 
-  private async resolveGuestContact(guestId?: string, reservationId?: string, email?: string, phone?: string) {
+  private async resolveGuestContact(
+    guestId?: string,
+    reservationId?: string,
+    email?: string,
+    phone?: string
+  ): Promise<{ email?: string; phone?: string; name?: string }> {
     if (guestId) {
       const guest = await this.prisma.guest.findUnique({
         where: { id: guestId },
@@ -77,8 +129,8 @@ export class NpsService {
       });
       if (guest) {
         return {
-          email: email ?? guest.email,
-          phone: phone ?? guest.phone,
+          email: email ?? guest.email ?? undefined,
+          phone: phone ?? guest.phone ?? undefined,
           name: `${guest.primaryFirstName} ${guest.primaryLastName}`
         };
       }
@@ -87,26 +139,26 @@ export class NpsService {
       const reservation = await this.prisma.reservation.findUnique({
         where: { id: reservationId },
         select: {
-          guest: { select: { email: true, phone: true, primaryFirstName: true, primaryLastName: true } }
+          Guest: { select: { email: true, phone: true, primaryFirstName: true, primaryLastName: true } }
         }
       });
-      if (reservation?.guest) {
-        const g = reservation.guest;
+      if (reservation?.Guest) {
+        const g = reservation.Guest;
         return {
-          email: email ?? g.email,
-          phone: phone ?? g.phone,
+          email: email ?? g.email ?? undefined,
+          phone: phone ?? g.phone ?? undefined,
           name: `${g.primaryFirstName} ${g.primaryLastName}`
         };
       }
     }
-    return { email, phone, name: undefined as string | undefined };
+    return { email, phone };
   }
 
   async createInvite(dto: CreateNpsInviteDto) {
     const prisma = this.prisma;
     const survey = await prisma.npsSurvey.findUnique({
       where: { id: dto.surveyId },
-      include: { campground: { select: { name: true } } }
+      include: { Campground: { select: { name: true } } }
     });
     if (!survey) throw new NotFoundException("Survey not found");
     if (survey.status !== "active") throw new BadRequestException("Survey is not active");
@@ -135,6 +187,7 @@ export class NpsService {
 
     const invite = await prisma.npsInvite.create({
       data: {
+        id: randomUUID(),
         surveyId: dto.surveyId,
         campgroundId: dto.campgroundId,
         organizationId: dto.organizationId ?? null,
@@ -145,7 +198,7 @@ export class NpsService {
         token,
         expiresAt,
         sentAt: dto.channel === "email" ? new Date() : null,
-        metadata: { link }
+        metadata: toNullableJsonInput({ link }) ?? Prisma.DbNull
       }
     });
 
@@ -153,7 +206,7 @@ export class NpsService {
       if (!contact.email) throw new BadRequestException("Email required for email channel");
       const guestName = contact.name || "there";
 
-      let subject = `How was your stay at ${survey.campground.name}?`;
+      let subject = `How was your stay at ${survey.Campground?.name ?? "our campground"}?`;
       let html = `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 640px; margin: 0 auto; padding: 20px;">
           <h2 style="color: #0f172a; margin-bottom: 8px;">Hi ${guestName},</h2>
@@ -205,7 +258,7 @@ export class NpsService {
       data: { openedAt: invite.openedAt ?? new Date(), status: invite.status === "queued" ? "opened" : invite.status }
     });
     await prisma.npsEvent.create({
-      data: { inviteId: invite.id, type: "open" }
+      data: { id: randomUUID(), inviteId: invite.id, type: "open" }
     });
     return { ok: true };
   }
@@ -214,7 +267,7 @@ export class NpsService {
     const prisma = this.prisma;
     const invite = await prisma.npsInvite.findUnique({
       where: { token: dto.token },
-      include: { survey: true }
+      include: { NpsSurvey: true }
     });
     if (!invite) throw new NotFoundException("Invite not found");
     if (invite.expiresAt && invite.expiresAt < new Date()) {
@@ -225,6 +278,7 @@ export class NpsService {
 
     const response = await prisma.npsResponse.create({
       data: {
+        id: randomUUID(),
         surveyId: invite.surveyId,
         inviteId: invite.id,
         campgroundId: invite.campgroundId,
@@ -242,8 +296,14 @@ export class NpsService {
       data: { respondedAt: new Date(), status: "responded" }
     });
 
+    const responsePayload = ip ? toNullableJsonInput({ ip }) : undefined;
     await prisma.npsEvent.create({
-      data: { inviteId: invite.id, type: "respond", payload: { ip } as any }
+      data: {
+        id: randomUUID(),
+        inviteId: invite.id,
+        type: "respond",
+        ...(responsePayload === undefined ? {} : { payload: responsePayload })
+      }
     });
 
     // Detractor handling: create support ticket
@@ -273,6 +333,7 @@ export class NpsService {
       const reviewToken = this.generateToken();
       await prisma.reviewRequest.create({
         data: {
+          id: randomUUID(),
           campgroundId: invite.campgroundId,
           organizationId: invite.organizationId ?? null,
           guestId: invite.guestId ?? null,
@@ -281,7 +342,7 @@ export class NpsService {
           status: "queued",
           token: reviewToken,
           expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-          metadata: { source: "nps_promoter", inviteId: invite.id }
+          metadata: toNullableJsonInput({ source: "nps_promoter", inviteId: invite.id }) ?? Prisma.DbNull
         }
       });
     }
@@ -289,19 +350,28 @@ export class NpsService {
     return response;
   }
 
-  private parseSchedule(raw: any, defaultTemplateId?: string | null) {
-    const entries: any[] = Array.isArray(raw) ? raw : [];
+  private parseSchedule(raw: unknown, defaultTemplateId?: string | null): NpsScheduleEntry[] {
+    const entries = Array.isArray(raw) ? raw : [];
     const safeEntries = entries
-      .map((e) => ({
-        id: e.id || randomBytes(6).toString("hex"),
-        anchor: e.anchor === "arrival" ? "arrival" : "departure",
-        direction: e.direction === "before" ? "before" : "after",
-        offset: Number.isFinite(e.offset) ? Number(e.offset) : 0,
-        unit: e.unit === "hours" ? "hours" : "days",
-        templateId: e.templateId || defaultTemplateId || null,
-        enabled: e.enabled !== false
-      }))
-      .filter((e) => e.enabled);
+      .map((entry) => {
+        if (!isRecord(entry)) return null;
+        const anchorRaw = toStringValue(entry.anchor);
+        const directionRaw = toStringValue(entry.direction);
+        const unitRaw = toStringValue(entry.unit);
+        const offsetValue = toNumberValue(entry.offset) ?? 0;
+        const templateId = toStringValue(entry.templateId) ?? defaultTemplateId ?? null;
+        const enabled = entry.enabled === false ? false : true;
+        return {
+          id: toStringValue(entry.id) ?? randomBytes(6).toString("hex"),
+          anchor: anchorRaw === "arrival" ? "arrival" : "departure",
+          direction: directionRaw === "before" ? "before" : "after",
+          offset: offsetValue,
+          unit: unitRaw === "hours" ? "hours" : "days",
+          templateId,
+          enabled
+        } satisfies NpsScheduleEntry;
+      })
+      .filter((entry): entry is NpsScheduleEntry => entry !== null && entry.enabled);
 
     // Always include day-after departure default
     safeEntries.push({
@@ -317,7 +387,7 @@ export class NpsService {
     return safeEntries;
   }
 
-  private computeScheduledTime(anchorDate: Date, entry: any, sendHour: number) {
+  private computeScheduledTime(anchorDate: Date, entry: NpsScheduleEntry, sendHour: number) {
     const target = new Date(anchorDate);
     const deltaMs = entry.unit === "hours" ? entry.offset * 60 * 60 * 1000 : entry.offset * 24 * 60 * 60 * 1000;
     const signed = entry.direction === "before" ? -deltaMs : deltaMs;
@@ -330,21 +400,24 @@ export class NpsService {
   async sendPostCheckoutInvites() {
     const prisma = this.prisma;
     const now = new Date();
-    const campgrounds = (await prisma.campground.findMany({
+    const campgrounds = await prisma.campground.findMany({
       select: { id: true, timezone: true, npsAutoSendEnabled: true, npsSendHour: true, npsTemplateId: true, npsSchedule: true }
-    })) as any[];
-    const surveys = (await prisma.npsSurvey.findMany({
+    });
+    const surveys = await prisma.npsSurvey.findMany({
       where: { status: "active" },
-      select: { id: true, campgroundId: true },
-      include: { rules: { where: { trigger: "post_checkout", isActive: true } } }
-    })) as any[];
+      select: {
+        id: true,
+        campgroundId: true,
+        NpsRule: { where: { trigger: "post_checkout", isActive: true }, select: { id: true } }
+      }
+    });
 
     for (const cg of campgrounds) {
       if (!cg.npsAutoSendEnabled) continue;
       const sendHour = cg.npsSendHour ?? 7;
       const schedule = this.parseSchedule(cg.npsSchedule, cg.npsTemplateId);
       if (!schedule.length) continue;
-      const cgSurveys = (surveys as any[]).filter((s) => s.campgroundId === cg.id && s.rules.length > 0);
+      const cgSurveys = surveys.filter((s) => s.campgroundId === cg.id && s.NpsRule.length > 0);
       if (cgSurveys.length === 0) continue;
       const surveyId = cgSurveys[0].id;
 
@@ -355,16 +428,18 @@ export class NpsService {
       if (!playbook) {
         playbook = await prisma.communicationPlaybook.create({
           data: {
+            id: randomUUID(),
             campgroundId: cg.id,
             type: "nps",
             enabled: true,
             templateId: cg.npsTemplateId ?? null,
-            channel: "email"
+            channel: "email",
+            updatedAt: new Date()
           }
         });
       }
 
-      const reservations = (await prisma.reservation.findMany({
+      const reservations = await prisma.reservation.findMany({
         where: { campgroundId: cg.id, status: { not: "cancelled" } },
         select: {
           id: true,
@@ -372,9 +447,9 @@ export class NpsService {
           arrivalDate: true,
           departureDate: true,
           status: true,
-          guest: { select: { email: true, phone: true, primaryFirstName: true, primaryLastName: true } }
+          Guest: { select: { email: true, phone: true, primaryFirstName: true, primaryLastName: true } }
         }
-      })) as any[];
+      });
 
       for (const res of reservations) {
         for (const entry of schedule) {
@@ -397,6 +472,7 @@ export class NpsService {
 
           await prisma.communicationPlaybookJob.create({
             data: {
+              id: randomUUID(),
               playbookId: playbook.id,
               campgroundId: cg.id,
               reservationId: res.id,
@@ -407,7 +483,8 @@ export class NpsService {
                 entryId: entry.id,
                 surveyId,
                 templateId: entry.templateId ?? cg.npsTemplateId ?? playbook.templateId ?? null
-              }
+              },
+              updatedAt: new Date()
             }
           });
         }
@@ -445,19 +522,19 @@ export class NpsService {
     ]);
 
     const total = responses.length;
-    const promoters = (responses as any[]).filter((r) => r.score >= 9).length;
-    const detractors = (responses as any[]).filter((r) => r.score <= 6).length;
+    const promoters = responses.filter((response) => response.score >= 9).length;
+    const detractors = responses.filter((response) => response.score <= 6).length;
     const passives = total - promoters - detractors;
     const nps = total > 0 ? Math.round(((promoters - detractors) / total) * 100) : null;
 
     // Calculate system-wide NPS average
     const systemTotal = systemResponses.length;
-    const systemPromoters = (systemResponses as any[]).filter((r) => r.score >= 9).length;
-    const systemDetractors = (systemResponses as any[]).filter((r) => r.score <= 6).length;
+    const systemPromoters = systemResponses.filter((response) => response.score >= 9).length;
+    const systemDetractors = systemResponses.filter((response) => response.score <= 6).length;
     const systemNps = systemTotal > 0 ? Math.round(((systemPromoters - systemDetractors) / systemTotal) * 100) : null;
 
     // Count unique campgrounds with responses for context
-    const campgroundsWithResponses = new Set((systemResponses as any[]).map((r) => r.campgroundId)).size;
+    const campgroundsWithResponses = new Set(systemResponses.map((response) => response.campgroundId)).size;
 
     // Calculate what's needed to reach benchmarks
     let toReachAverage: number | null = null;
@@ -522,4 +599,3 @@ export class NpsService {
     };
   }
 }
-

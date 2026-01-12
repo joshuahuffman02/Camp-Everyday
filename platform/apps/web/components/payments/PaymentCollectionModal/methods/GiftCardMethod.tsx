@@ -74,8 +74,9 @@ export default function GiftCardMethod({
 
         onSuccess(result.transactionId);
       }
-    } catch (err: any) {
-      onError(err.message || "Failed to redeem gift card");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to redeem gift card";
+      onError(message);
     } finally {
       setRedeeming(false);
     }

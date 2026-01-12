@@ -2,14 +2,14 @@ import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../../../prisma/prisma.service";
 import { DateRange } from "../platform-analytics.service";
 
-interface LosOverview {
+export interface LosOverview {
   averageLos: number;
   medianLos: number;
   weeklyStayPercentage: number;
   monthlyStayPercentage: number;
 }
 
-interface LosBucket {
+export interface LosBucket {
   range: string;
   count: number;
   percentage: number;
@@ -17,7 +17,7 @@ interface LosBucket {
   revenuePerNight: number;
 }
 
-interface LosByType {
+export interface LosByType {
   type: string;
   averageLos: number;
   medianLos: number;
@@ -172,7 +172,7 @@ export class LengthOfStayService {
       select: {
         arrivalDate: true,
         departureDate: true,
-        site: { select: { siteType: true } },
+        Site: { select: { siteType: true } },
       },
     });
 
@@ -180,7 +180,7 @@ export class LengthOfStayService {
     const byType: Record<string, number[]> = {};
 
     for (const res of reservations) {
-      const type = res.site?.siteType || "unknown";
+      const type = res.Site?.siteType || "unknown";
       const los = this.calculateLos(res.arrivalDate, res.departureDate);
 
       if (!byType[type]) byType[type] = [];

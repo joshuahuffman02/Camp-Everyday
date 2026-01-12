@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { isRecord } from '../utils/type-guards';
+import { Prisma } from ".prisma/client";
+import { randomUUID } from "crypto";
 
 type FlexCheckPolicyUpdate = {
   earlyCheckInEnabled?: boolean;
@@ -34,6 +36,18 @@ const parseFlexCheckPricing = (value: unknown): FlexCheckPricing | null => {
   return null;
 };
 
+const toNullableJsonInput = (
+  value: unknown
+): Prisma.InputJsonValue | Prisma.NullTypes.DbNull | undefined => {
+  if (value === undefined) return undefined;
+  if (value === null) return Prisma.DbNull;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
+};
+
 @Injectable()
 export class FlexCheckService {
   constructor(private prisma: PrismaService) {}
@@ -64,12 +78,22 @@ export class FlexCheckService {
   }
 
   async upsertPolicy(campgroundId: string, data: FlexCheckPolicyUpdate) {
+    const { earlyCheckInPricing, lateCheckoutPricing, ...rest } = data;
     return this.prisma.flexCheckPolicy.upsert({
       where: { campgroundId },
-      update: data,
+      update: {
+        ...rest,
+        earlyCheckInPricing: toNullableJsonInput(earlyCheckInPricing),
+        lateCheckoutPricing: toNullableJsonInput(lateCheckoutPricing),
+        updatedAt: new Date(),
+      },
       create: {
+        id: randomUUID(),
         campgroundId,
-        ...data,
+        ...rest,
+        earlyCheckInPricing: toNullableJsonInput(earlyCheckInPricing),
+        lateCheckoutPricing: toNullableJsonInput(lateCheckoutPricing),
+        updatedAt: new Date(),
       },
     });
   }
@@ -307,8 +331,8 @@ export class FlexCheckService {
         earlyCheckInApproved: null,
       },
       include: {
-        guest: { select: { primaryFirstName: true, primaryLastName: true } },
-        site: { select: { name: true } },
+        Guest: { select: { primaryFirstName: true, primaryLastName: true } },
+        Site: { select: { name: true } },
       },
     });
 
@@ -319,24 +343,24 @@ export class FlexCheckService {
         lateCheckoutApproved: null,
       },
       include: {
-        guest: { select: { primaryFirstName: true, primaryLastName: true } },
-        site: { select: { name: true } },
+        Guest: { select: { primaryFirstName: true, primaryLastName: true } },
+        Site: { select: { name: true } },
       },
     });
 
     return {
       earlyCheckIn: earlyCheckInRequests.map(r => ({
         reservationId: r.id,
-        guestName: `${r.guest.primaryFirstName} ${r.guest.primaryLastName}`,
-        siteName: r.site.name,
+        guestName: `${r.Guest.primaryFirstName} ${r.Guest.primaryLastName}`,
+        siteName: r.Site.name,
         requestedTime: r.earlyCheckInRequested,
         arrivalDate: r.arrivalDate,
         proposedCharge: r.earlyCheckInCharge,
       })),
       lateCheckout: lateCheckoutRequests.map(r => ({
         reservationId: r.id,
-        guestName: `${r.guest.primaryFirstName} ${r.guest.primaryLastName}`,
-        siteName: r.site.name,
+        guestName: `${r.Guest.primaryFirstName} ${r.Guest.primaryLastName}`,
+        siteName: r.Site.name,
         requestedTime: r.lateCheckoutRequested,
         departureDate: r.departureDate,
         proposedCharge: r.lateCheckoutCharge,

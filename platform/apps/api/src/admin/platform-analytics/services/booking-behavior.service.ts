@@ -2,21 +2,21 @@ import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../../../prisma/prisma.service";
 import { DateRange } from "../platform-analytics.service";
 
-interface BookingOverview {
+export interface BookingOverview {
   totalBookings: number;
   averageLeadTime: number;
   cancellationRate: number;
   lastMinutePercentage: number;
 }
 
-interface LeadTimeBucket {
+export interface LeadTimeBucket {
   range: string;
   count: number;
   percentage: number;
   averageOrderValue: number;
 }
 
-interface ChannelData {
+export interface ChannelData {
   channel: string;
   bookings: number;
   revenue: number;
@@ -236,7 +236,7 @@ export class BookingBehaviorService {
         totalAmount: true,
         leadTimeDays: true,
         createdAt: true,
-        site: { select: { siteType: true } },
+        Site: { select: { siteType: true } },
       },
     });
 
@@ -246,7 +246,7 @@ export class BookingBehaviorService {
     // Cancellation by accommodation type
     const byType: Record<string, { total: number; cancelled: number }> = {};
     for (const res of reservations) {
-      const type = res.site?.siteType || "unknown";
+      const type = res.Site?.siteType || "unknown";
       if (!byType[type]) byType[type] = { total: 0, cancelled: 0 };
       byType[type].total++;
       if (res.status === "cancelled") byType[type].cancelled++;

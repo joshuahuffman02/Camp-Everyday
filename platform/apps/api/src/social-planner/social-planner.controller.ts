@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards';
 import { SocialPlannerService } from './social-planner.service';
+import { SocialSuggestionStatus } from "@prisma/client";
 import {
     CreateAlertDto,
     CreateAssetDto,
@@ -91,7 +92,8 @@ export class SocialPlannerController {
     // Suggestions
     @Get('suggestions')
     listSuggestions(@Query('campgroundId') campgroundId: string, @Query('status') status?: string) {
-        return this.service.listSuggestions(campgroundId, status as any);
+        const statusFilter = status && isSocialSuggestionStatus(status) ? status : undefined;
+        return this.service.listSuggestions(campgroundId, statusFilter);
     }
 
     @Post('suggestions')
@@ -153,3 +155,7 @@ export class SocialPlannerController {
     }
 }
 
+const SOCIAL_SUGGESTION_STATUSES = new Set<string>(Object.values(SocialSuggestionStatus));
+
+const isSocialSuggestionStatus = (value: string): value is SocialSuggestionStatus =>
+    SOCIAL_SUGGESTION_STATUSES.has(value);

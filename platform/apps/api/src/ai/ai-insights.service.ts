@@ -34,6 +34,19 @@ interface AutoInsight {
     suggestedAction?: string;
 }
 
+const autoInsightPriorities: AutoInsight["priority"][] = ["high", "medium", "low"];
+const autoInsightCategories: AutoInsight["category"][] = [
+    "revenue",
+    "occupancy",
+    "guest_satisfaction",
+    "operations",
+    "anomaly",
+];
+const isAutoInsightPriority = (value: string): value is AutoInsight["priority"] =>
+    autoInsightPriorities.some((priority) => priority === value);
+const isAutoInsightCategory = (value: string): value is AutoInsight["category"] =>
+    autoInsightCategories.some((category) => category === value);
+
 @Injectable()
 export class AiInsightsService {
     constructor(
@@ -149,7 +162,7 @@ Action: <suggested action or "N/A">`;
                     name: true,
                     reviewScore: true,
                     reviewCount: true,
-                    _count: { select: { sites: true, reservations: true } },
+                    _count: { select: { Site: true, Reservation: true } },
                 },
             }),
             this.prisma.reservation.count({
@@ -166,7 +179,7 @@ Action: <suggested action or "N/A">`;
             this.prisma.payment.aggregate({
                 where: {
                     campgroundId,
-                    status: 'succeeded',
+                    capturedAt: { not: null },
                     createdAt: { gte: thirtyDaysAgo },
                 },
                 _sum: { amountCents: true },
@@ -184,19 +197,21 @@ Action: <suggested action or "N/A">`;
             },
         });
 
-        const totalSites = campground?._count?.sites || 0;
+        const totalSites = campground?._count?.Site || 0;
         const occupancyRate = totalSites > 0 ? Math.round((upcomingReservations / totalSites) * 100) : 0;
+        const totalRevenueCents = revenueStats._sum?.amountCents ?? 0;
+        const paymentsLast30Days = revenueStats._count?.id ?? 0;
 
         return {
             campgroundName: campground?.name,
             metrics: {
                 totalSites,
-                totalReservationsAllTime: campground?._count?.reservations || 0,
+                totalReservationsAllTime: campground?._count?.Reservation || 0,
                 reservationsLast7Days: recentReservations,
-                revenueLast30Days: revenueStats._sum.amountCents
-                    ? `$${(revenueStats._sum.amountCents / 100).toLocaleString()}`
+                revenueLast30Days: totalRevenueCents
+                    ? `$${(totalRevenueCents / 100).toLocaleString()}`
                     : '$0',
-                paymentsLast30Days: revenueStats._count || 0,
+                paymentsLast30Days,
                 currentOccupancyRate: `${occupancyRate}%`,
                 reviewScore: campground?.reviewScore ? Number(campground.reviewScore) : null,
                 reviewCount: campground?.reviewCount || 0,
@@ -277,11 +292,13 @@ Action: <suggested action or "N/A">`;
             const actionMatch = block.match(/Action:\s*(.+)/i);
 
             if (titleMatch && summaryMatch) {
+                const priorityValue = priorityMatch?.[1]?.toLowerCase();
+                const categoryValue = categoryMatch?.[1]?.toLowerCase();
                 insights.push({
                     title: titleMatch[1].trim(),
                     summary: summaryMatch[1].trim(),
-                    priority: (priorityMatch?.[1]?.toLowerCase() as 'high' | 'medium' | 'low') || 'medium',
-                    category: (categoryMatch?.[1]?.toLowerCase() as AutoInsight['category']) || 'operations',
+                    priority: priorityValue && isAutoInsightPriority(priorityValue) ? priorityValue : "medium",
+                    category: categoryValue && isAutoInsightCategory(categoryValue) ? categoryValue : "operations",
                     actionable: actionableMatch?.[1]?.toLowerCase() === 'true',
                     suggestedAction: actionMatch?.[1]?.trim() !== 'N/A' ? actionMatch?.[1]?.trim() : undefined,
                 });

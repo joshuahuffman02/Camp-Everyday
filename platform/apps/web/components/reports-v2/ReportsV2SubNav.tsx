@@ -6,6 +6,9 @@ import { cn } from "@/lib/utils";
 import { subTabsV2, type ReportTabV2 } from "@/lib/report-registry-v2";
 import { buildReportHrefV2, type ReportFiltersV2 } from "@/lib/report-links-v2";
 
+const isSubTabCategory = (value: string): value is keyof typeof subTabsV2 =>
+  Object.prototype.hasOwnProperty.call(subTabsV2, value);
+
 export function ReportsV2SubNav({
   tab,
   activeSubTab,
@@ -18,7 +21,7 @@ export function ReportsV2SubNav({
   filters?: ReportFiltersV2;
 }) {
   if (tab === "overview") return null;
-  const subReports = subTabsV2[tab as keyof typeof subTabsV2] || [];
+  const subReports = isSubTabCategory(tab) ? subTabsV2[tab] : [];
   if (!subReports.length) return null;
 
   const resolved = activeSubTab || subReports[0]?.id;

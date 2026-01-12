@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, UnauthorizedException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
-import { randomBytes } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 import { EmailService } from '../email/email.service';
 
 @Injectable()
@@ -50,6 +50,7 @@ export class GuestAuthService {
             // Create GuestAccount linked to this guest
             account = await this.prisma.guestAccount.create({
                 data: {
+                    id: randomUUID(),
                     email: normalizedEmail,
                     guestId: guest.id,
                 },
@@ -122,10 +123,10 @@ export class GuestAuthService {
         return {
             token: jwt,
             guest: {
-                id: account.guest.id,
-                firstName: account.guest.primaryFirstName,
-                lastName: account.guest.primaryLastName,
-                email: account.guest.email,
+                id: account.Guest.id,
+                firstName: account.Guest.primaryFirstName,
+                lastName: account.Guest.primaryLastName,
+                email: account.Guest.email,
             },
         };
     }
@@ -134,9 +135,9 @@ export class GuestAuthService {
         const guest = await this.prisma.guest.findUnique({
             where: { id: guestId },
             include: {
-                reservations: {
+                Reservation: {
                     include: {
-                        campground: {
+                        Campground: {
                             select: {
                                 name: true,
                                 slug: true,
@@ -146,7 +147,7 @@ export class GuestAuthService {
                                 checkOutTime: true,
                             },
                         },
-                        site: true,
+                        Site: true,
                     },
                     orderBy: { arrivalDate: 'desc' },
                 },

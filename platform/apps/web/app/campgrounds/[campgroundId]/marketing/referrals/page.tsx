@@ -3,7 +3,7 @@
 import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, type Transition } from "framer-motion";
 import { apiClient } from "@/lib/api-client";
 import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { Breadcrumbs } from "@/components/breadcrumbs";
@@ -40,22 +40,22 @@ import {
     Zap
 } from "lucide-react";
 
-const SPRING_CONFIG = {
-    type: "spring" as const,
+const SPRING_CONFIG: Transition = {
+    type: "spring",
     stiffness: 200,
     damping: 20,
 };
 
-type ReferralProgram = {
-    id: string;
-    code: string;
-    linkSlug: string | null;
-    source: string | null;
-    channel: string | null;
-    incentiveType: string;
-    incentiveValue: number;
-    isActive: boolean;
-    notes: string | null;
+type ReferralProgram = Awaited<ReturnType<typeof apiClient.listReferralPrograms>>[number];
+
+type ReferralProgramPerformance = {
+    programId?: string;
+    code?: string;
+    bookings?: number;
+    revenueCents?: number;
+    referralDiscountCents?: number;
+    source?: string;
+    channel?: string;
 };
 
 type ReferralPerformance = {
@@ -65,13 +65,7 @@ type ReferralPerformance = {
     totalReferralDiscountCents?: number;
     averageOrderValue?: number;
     conversionRate?: number;
-    programs?: Array<{
-        programId?: string;
-        programCode?: string;
-        bookings?: number;
-        revenueCents?: number;
-        discountCents?: number;
-    }>;
+    programs?: ReferralProgramPerformance[];
 };
 
 type StayReasonData = {
@@ -84,9 +78,83 @@ type StayReasonData = {
     otherReasons?: string[];
 };
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null && !Array.isArray(value);
+
+const parseReferralPerformance = (data: unknown): ReferralPerformance | null => {
+    if (!isRecord(data)) return null;
+    const programs = Array.isArray(data.programs)
+        ? data.programs.flatMap((item) => {
+            if (!isRecord(item)) return [];
+            const code = typeof item.code === "string"
+                ? item.code
+                : typeof item.programCode === "string"
+                    ? item.programCode
+                    : undefined;
+            const referralDiscountCents = typeof item.referralDiscountCents === "number"
+                ? item.referralDiscountCents
+                : typeof item.discountCents === "number"
+                    ? item.discountCents
+                    : undefined;
+            return [{
+                programId: typeof item.programId === "string"
+                    ? item.programId
+                    : typeof item.id === "string"
+                        ? item.id
+                        : undefined,
+                code,
+                bookings: typeof item.bookings === "number" ? item.bookings : undefined,
+                revenueCents: typeof item.revenueCents === "number" ? item.revenueCents : undefined,
+                referralDiscountCents,
+                source: typeof item.source === "string" ? item.source : undefined,
+                channel: typeof item.channel === "string" ? item.channel : undefined,
+            }];
+        })
+        : undefined;
+
+    return {
+        totalBookings: typeof data.totalBookings === "number" ? data.totalBookings : undefined,
+        totalRevenue: typeof data.totalRevenue === "number" ? data.totalRevenue : undefined,
+        totalRevenueCents: typeof data.totalRevenueCents === "number" ? data.totalRevenueCents : undefined,
+        totalReferralDiscountCents: typeof data.totalReferralDiscountCents === "number" ? data.totalReferralDiscountCents : undefined,
+        averageOrderValue: typeof data.averageOrderValue === "number" ? data.averageOrderValue : undefined,
+        conversionRate: typeof data.conversionRate === "number" ? data.conversionRate : undefined,
+        programs,
+    };
+};
+
+const parseStayReasonData = (data: unknown): StayReasonData | null => {
+    if (!isRecord(data)) return null;
+    const breakdown = Array.isArray(data.breakdown)
+        ? data.breakdown.flatMap((item) => {
+            if (!isRecord(item)) return [];
+            return [{
+                reason: typeof item.reason === "string" ? item.reason : undefined,
+                count: typeof item.count === "number" ? item.count : undefined,
+                percentage: typeof item.percentage === "number" ? item.percentage : undefined,
+            }];
+        })
+        : undefined;
+    const otherReasons = Array.isArray(data.otherReasons)
+        ? data.otherReasons.filter((item): item is string => typeof item === "string")
+        : undefined;
+    const total = typeof data.total === "number" ? data.total : undefined;
+
+    return { breakdown, total, otherReasons };
+};
+
+const getErrorMessage = (error: unknown) =>
+    error instanceof Error && error.message ? error.message : "Something went wrong";
+
 export default function ReferralsPage() {
-    const params = useParams();
-    const campgroundId = params?.campgroundId as string;
+    const params = useParams<{ campgroundId?: string }>();
+    const campgroundId = params?.campgroundId;
+    const requireCampgroundId = () => {
+        if (!campgroundId) {
+            throw new Error("Campground is required");
+        }
+        return campgroundId;
+    };
     const queryClient = useQueryClient();
 
     const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -104,36 +172,45 @@ export default function ReferralsPage() {
     });
 
     const referralBaseUrl = useMemo(() => (typeof window !== "undefined" ? window.location.origin : "https://keeprstay.com"), []);
-    const formatMoney = (cents: number | null | undefined) => `$${(((cents ?? 0) as number) / 100).toFixed(2)}`;
+    const formatMoney = (cents: number | null | undefined) => {
+        const amount = cents ?? 0;
+        return `$${(amount / 100).toFixed(2)}`;
+    };
 
     // Queries
     const campgroundQuery = useQuery({
         queryKey: ["campground", campgroundId],
-        queryFn: () => apiClient.getCampground(campgroundId),
+        queryFn: () => apiClient.getCampground(requireCampgroundId()),
         enabled: !!campgroundId
     });
 
-    const programsQuery = useQuery({
+    const programsQuery = useQuery<ReferralProgram[]>({
         queryKey: ["referral-programs", campgroundId],
-        queryFn: () => apiClient.listReferralPrograms(campgroundId),
+        queryFn: () => apiClient.listReferralPrograms(requireCampgroundId()),
         enabled: !!campgroundId
     });
 
-    const performanceQuery = useQuery({
+    const performanceQuery = useQuery<ReferralPerformance | null>({
         queryKey: ["referral-performance", campgroundId],
-        queryFn: () => apiClient.getReferralPerformance(campgroundId),
+        queryFn: async () => {
+            const data = await apiClient.getReferralPerformance(requireCampgroundId());
+            return parseReferralPerformance(data);
+        },
         enabled: !!campgroundId
     });
 
-    const stayReasonQuery = useQuery({
+    const stayReasonQuery = useQuery<StayReasonData | null>({
         queryKey: ["stay-reasons", campgroundId],
-        queryFn: () => apiClient.getStayReasonBreakdown(campgroundId),
+        queryFn: async () => {
+            const data = await apiClient.getStayReasonBreakdown(requireCampgroundId());
+            return parseStayReasonData(data);
+        },
         enabled: !!campgroundId
     });
 
     // Mutations
     const createMutation = useMutation({
-        mutationFn: () => apiClient.createReferralProgram(campgroundId, {
+        mutationFn: () => apiClient.createReferralProgram(requireCampgroundId(), {
             ...form,
             incentiveValue: Number(form.incentiveValue || 0)
         }),
@@ -146,16 +223,17 @@ export default function ReferralsPage() {
             setShowForm(false);
             queryClient.invalidateQueries({ queryKey: ["referral-programs", campgroundId] });
         },
-        onError: (err: any) => setMessage({ type: "error", text: err?.message || "Failed to create program" })
+        onError: (error) => setMessage({ type: "error", text: getErrorMessage(error) || "Failed to create program" })
     });
 
     const updateMutation = useMutation({
-        mutationFn: (payload: { id: string; data: any }) => apiClient.updateReferralProgram(campgroundId, payload.id, payload.data),
+        mutationFn: (payload: { id: string; data: Parameters<typeof apiClient.updateReferralProgram>[2] }) =>
+            apiClient.updateReferralProgram(requireCampgroundId(), payload.id, payload.data),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["referral-programs", campgroundId] });
             setMessage({ type: "success", text: "Program updated!" });
         },
-        onError: (err: any) => setMessage({ type: "error", text: err?.message || "Failed to update" })
+        onError: (error) => setMessage({ type: "error", text: getErrorMessage(error) || "Failed to update" })
     });
 
     const copyLink = (program: ReferralProgram) => {
@@ -167,8 +245,8 @@ export default function ReferralsPage() {
 
     const cg = campgroundQuery.data;
     const programs = programsQuery.data ?? [];
-    const performance = performanceQuery.data as ReferralPerformance | undefined;
-    const stayReasons = stayReasonQuery.data as StayReasonData | undefined;
+    const performance = performanceQuery.data ?? undefined;
+    const stayReasons = stayReasonQuery.data ?? undefined;
 
     const incentiveLabel = (type: string, value: number) => {
         if (type === "percent_discount") return `${value}% off`;
@@ -583,14 +661,17 @@ export default function ReferralsPage() {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {performance?.programs?.map((p: any, i: number) => (
-                                                <tr key={`${p.programId}-${i}`} className="border-b border-border last:border-0 hover:bg-muted/50 transition-colors">
-                                                    <td className="py-3 px-2 font-mono font-medium text-foreground">{p.code || "Unknown"}</td>
-                                                    <td className="py-3 px-2 text-foreground">{p.bookings}</td>
-                                                    <td className="py-3 px-2 text-foreground">{formatMoney(p.revenueCents)}</td>
-                                                    <td className="py-3 px-2 text-foreground">{formatMoney(p.referralDiscountCents)}</td>
+                                            {performance?.programs?.map((program, index) => (
+                                                <tr
+                                                    key={program.programId ?? program.code ?? `program-${index}`}
+                                                    className="border-b border-border last:border-0 hover:bg-muted/50 transition-colors"
+                                                >
+                                                    <td className="py-3 px-2 font-mono font-medium text-foreground">{program.code || "Unknown"}</td>
+                                                    <td className="py-3 px-2 text-foreground">{program.bookings}</td>
+                                                    <td className="py-3 px-2 text-foreground">{formatMoney(program.revenueCents)}</td>
+                                                    <td className="py-3 px-2 text-foreground">{formatMoney(program.referralDiscountCents)}</td>
                                                     <td className="py-3 px-2 text-muted-foreground">
-                                                        {p.source || "–"}{p.channel ? ` / ${p.channel}` : ""}
+                                                        {program.source || "–"}{program.channel ? ` / ${program.channel}` : ""}
                                                     </td>
                                                 </tr>
                                             ))}
@@ -633,18 +714,18 @@ export default function ReferralsPage() {
                             ) : (
                                 <div className="space-y-4">
                                     <div className="grid gap-2">
-                                        {stayReasons?.breakdown?.map((r: any, i: number) => (
-                                            <div key={r.reason} className="flex items-center gap-3">
+                                        {stayReasons?.breakdown?.map((reason, index) => (
+                                            <div key={reason.reason ?? `reason-${index}`} className="flex items-center gap-3">
                                                 <div className="flex-1">
                                                     <div className="flex items-center justify-between mb-1">
-                                                        <span className="text-sm font-medium text-foreground">{r.reason}</span>
-                                                        <span className="text-sm text-muted-foreground">{r.count}</span>
+                                                        <span className="text-sm font-medium text-foreground">{reason.reason}</span>
+                                                        <span className="text-sm text-muted-foreground">{reason.count}</span>
                                                     </div>
                                                     <div className="h-2 bg-muted rounded-full overflow-hidden">
                                                         <motion.div
                                                             initial={{ width: 0 }}
-                                                            animate={{ width: `${Math.min(100, (r.count / Math.max(...(stayReasons?.breakdown ?? []).map((b: { count?: number }) => b.count ?? 0), 1)) * 100)}%` }}
-                                                            transition={{ ...SPRING_CONFIG, delay: i * 0.05 }}
+                                                            animate={{ width: `${Math.min(100, ((reason.count ?? 0) / Math.max(...(stayReasons?.breakdown ?? []).map((b) => b.count ?? 0), 1)) * 100)}%` }}
+                                                            transition={{ ...SPRING_CONFIG, delay: index * 0.05 }}
                                                             className="h-full bg-status-success rounded-full"
                                                         />
                                                     </div>

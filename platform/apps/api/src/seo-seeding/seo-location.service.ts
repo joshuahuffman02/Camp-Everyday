@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { SeoLocationType, Prisma } from "@prisma/client";
+import { randomUUID } from "crypto";
 
 /**
  * SEO Location Service
@@ -63,6 +64,7 @@ export class SeoLocationService {
   async create(dto: CreateLocationDto) {
     return this.prisma.seoLocation.create({
       data: {
+        id: randomUUID(),
         type: dto.type,
         name: dto.name,
         slug: dto.slug,
@@ -75,13 +77,14 @@ export class SeoLocationService {
           ? new Prisma.Decimal(dto.longitude)
           : undefined,
         boundingBox: dto.boundingBox,
-        parentId: dto.parentId,
+        ...(dto.parentId ? { SeoLocation: { connect: { id: dto.parentId } } } : {}),
         metaTitle: dto.metaTitle,
         metaDescription: dto.metaDescription,
         heroImageUrl: dto.heroImageUrl,
         description: dto.description,
         highlights: dto.highlights || [],
         bestTimeToVisit: dto.bestTimeToVisit,
+        updatedAt: new Date(),
       },
     });
   }
@@ -102,17 +105,17 @@ export class SeoLocationService {
     const location = await this.prisma.seoLocation.findUnique({
       where: { slug },
       include: {
-        campgroundMappings: {
+        CampgroundLocation: {
           take: limit,
           skip: offset,
           orderBy:
             sortBy === "distance"
               ? { distanceMiles: "asc" }
               : sortBy === "rating"
-                ? { campground: { reviewScore: "desc" } }
-                : { campground: { name: "asc" } },
+                ? { Campground: { reviewScore: "desc" } }
+                : { Campground: { name: "asc" } },
           include: {
-            campground: {
+            Campground: {
               select: {
                 id: true,
                 name: true,
@@ -145,18 +148,18 @@ export class SeoLocationService {
       heroImageUrl: location.heroImageUrl,
       description: location.description,
       campgroundCount: location.campgroundCount,
-      campgrounds: location.campgroundMappings
-        .filter((m) => !m.campground.deletedAt)
+      campgrounds: location.CampgroundLocation
+        .filter((m) => !m.Campground.deletedAt)
         .map((m) => ({
-          id: m.campground.id,
-          name: m.campground.name,
-          slug: m.campground.slug,
-          heroImageUrl: m.campground.heroImageUrl,
-          city: m.campground.city,
-          state: m.campground.state,
-          reviewScore: m.campground.reviewScore?.toNumber() ?? null,
-          reviewCount: m.campground.reviewCount,
-          amenities: m.campground.amenities,
+          id: m.Campground.id,
+          name: m.Campground.name,
+          slug: m.Campground.slug,
+          heroImageUrl: m.Campground.heroImageUrl,
+          city: m.Campground.city,
+          state: m.Campground.state,
+          reviewScore: m.Campground.reviewScore?.toNumber() ?? null,
+          reviewCount: m.Campground.reviewCount,
+          amenities: m.Campground.amenities,
           distanceMiles: m.distanceMiles,
         })),
     };
@@ -347,6 +350,7 @@ export class SeoLocationService {
         where: { slug },
         update: {},
         create: {
+          id: randomUUID(),
           type: "state",
           name: state.name,
           slug,
@@ -354,6 +358,7 @@ export class SeoLocationService {
           country: "USA",
           metaTitle: `Camping in ${state.name} - Find the Best Campgrounds & RV Parks`,
           metaDescription: `Discover the best campgrounds and RV parks in ${state.name}. Find campsites near national parks, lakes, mountains, and outdoor adventures. Book your perfect camping trip today.`,
+          updatedAt: new Date(),
         },
       });
 

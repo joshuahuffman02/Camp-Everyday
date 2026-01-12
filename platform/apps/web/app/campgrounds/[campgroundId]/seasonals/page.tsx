@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, type FormEvent } from "react";
 import { useToast } from "../../../../hooks/use-toast";
 import { DashboardShell } from "../../../../components/ui/layout/DashboardShell";
 import { Breadcrumbs } from "@/components/breadcrumbs";
@@ -86,6 +86,7 @@ import {
   Flame,
   Gift,
   Hourglass,
+  type LucideIcon,
 } from "lucide-react";
 
 // ==================== TYPES ====================
@@ -230,6 +231,145 @@ interface DashboardStats {
   }>;
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const isString = (value: unknown): value is string => typeof value === "string";
+
+const isNumber = (value: unknown): value is number =>
+  typeof value === "number" && !Number.isNaN(value);
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof Error) return error.message;
+  if (isRecord(error) && isString(error.message)) return error.message;
+  return fallback;
+};
+
+const isSeasonalStatus = (value: string): value is SeasonalStatus =>
+  value === "active" ||
+  value === "pending_renewal" ||
+  value === "not_renewing" ||
+  value === "departed" ||
+  value === "waitlist";
+
+const isRenewalIntent = (value: string): value is RenewalIntent =>
+  value === "committed" ||
+  value === "likely" ||
+  value === "undecided" ||
+  value === "not_renewing";
+
+const isSeasonalPayment = (value: unknown): value is SeasonalGuest["payments"][number] =>
+  isRecord(value) &&
+  isString(value.id) &&
+  isString(value.status) &&
+  isString(value.dueDate) &&
+  isNumber(value.amount);
+
+const isSeasonalPricing = (value: unknown): value is SeasonalGuest["pricing"][number] =>
+  isRecord(value) && isNumber(value.seasonYear) && isNumber(value.finalRate);
+
+const isSeasonalGuest = (value: unknown): value is SeasonalGuest => {
+  if (!isRecord(value)) return false;
+  if (!isString(value.id) || !isString(value.guestId)) return false;
+  const guest = value.guest;
+  const status = value.status;
+  const payments = value.payments;
+  const pricing = value.pricing;
+
+  if (!isRecord(guest)) return false;
+  if (!isString(guest.id)) return false;
+  if (!isString(guest.primaryFirstName)) return false;
+  if (!isString(guest.primaryLastName)) return false;
+  if (!isString(guest.email)) return false;
+  if (!isString(status) || !isSeasonalStatus(status)) return false;
+  if (!isNumber(value.totalSeasons) || !isNumber(value.firstSeasonYear)) return false;
+  if (typeof value.isMetered !== "boolean" || typeof value.paysInFull !== "boolean") return false;
+  if (!Array.isArray(payments) || !payments.every(isSeasonalPayment)) return false;
+  if (!Array.isArray(pricing) || !pricing.every(isSeasonalPricing)) return false;
+  return true;
+};
+
+const isSeasonalsResponse = (value: unknown): value is { data: SeasonalGuest[]; total: number } => {
+  if (!isRecord(value)) return false;
+  if (!Array.isArray(value.data) || !value.data.every(isSeasonalGuest)) return false;
+  return isNumber(value.total);
+};
+
+const isRateCard = (value: unknown): value is RateCard =>
+  isRecord(value) &&
+  isString(value.id) &&
+  isString(value.name) &&
+  isNumber(value.seasonYear) &&
+  isNumber(value.baseRate) &&
+  isString(value.billingFrequency) &&
+  typeof value.isDefault === "boolean";
+
+const isDashboardStats = (value: unknown): value is DashboardStats => {
+  if (!isRecord(value)) return false;
+  const renewals = value.renewalsByIntent;
+  const paymentAging = value.paymentAging;
+  const needsAttention = value.needsAttention;
+  const churnRiskGuests = value.churnRiskGuests;
+  const milestones = value.milestones;
+  if (!isRecord(renewals) || !isRecord(paymentAging) || !isRecord(needsAttention)) return false;
+  if (!Array.isArray(churnRiskGuests) || !Array.isArray(milestones)) return false;
+
+  const hasNumbers = [
+    value.totalSeasonals,
+    value.activeSeasonals,
+    value.renewalRate,
+    value.contractsSigned,
+    value.contractsTotal,
+    value.paymentsCurrent,
+    value.paymentsPastDue,
+    value.paymentsPaidAhead,
+    value.totalMonthlyRevenue,
+    value.averageTenure,
+    value.longestTenure,
+    value.waitlistCount,
+    value.combinedTenureYears,
+    renewals.committed,
+    renewals.likely,
+    renewals.undecided,
+    renewals.not_renewing,
+    paymentAging.current,
+    paymentAging.days30,
+    paymentAging.days60,
+    paymentAging.days90Plus,
+    needsAttention.pastDuePayments,
+    needsAttention.expiringContracts,
+    needsAttention.expiredInsurance,
+    needsAttention.pendingRenewals,
+    needsAttention.unsignedContracts,
+  ].every(isNumber);
+
+  if (!hasNumbers) return false;
+
+  const churnOk = churnRiskGuests.every((guest) =>
+    isRecord(guest) &&
+    isString(guest.guestId) &&
+    isString(guest.guestName) &&
+    isNumber(guest.tenure) &&
+    isString(guest.riskLevel) &&
+    isString(guest.renewalIntent)
+  );
+
+  const milestonesOk = milestones.every((milestone) =>
+    isRecord(milestone) &&
+    isString(milestone.guestId) &&
+    isString(milestone.guestName) &&
+    isNumber(milestone.years) &&
+    isString(milestone.type)
+  );
+
+  return churnOk && milestonesOk;
+};
+
+const getFormValue = (formData: FormData, key: string): string | null => {
+  const value = formData.get(key);
+  return typeof value === "string" ? value : null;
+};
+
 // ==================== HELPER COMPONENTS ====================
 
 function StatusBadge({ status }: { status: SeasonalStatus }) {
@@ -249,7 +389,7 @@ function StatusBadge({ status }: { status: SeasonalStatus }) {
 
 function RenewalIntentBadge({ intent }: { intent?: RenewalIntent }) {
   if (!intent) return <Badge variant="outline" className="bg-muted/60 text-muted-foreground">Unknown</Badge>;
-  const config: Record<RenewalIntent, { class: string; label: string; icon: any }> = {
+  const config: Record<RenewalIntent, { class: string; label: string; icon: LucideIcon }> = {
     committed: { class: "bg-status-success/15 text-status-success border-status-success/20", label: "Committed", icon: CheckCircle },
     likely: { class: "bg-status-success/15 text-status-success border-status-success/20", label: "Likely", icon: TrendingUp },
     undecided: { class: "bg-status-warning/15 text-status-warning border-status-warning/20", label: "Undecided", icon: Clock },
@@ -368,7 +508,7 @@ function ShimmerStyles() {
 
 function ContractStatusBadge({ status }: { status?: ContractStatus }) {
   if (!status) return <Badge variant="outline" className="bg-muted/60 text-muted-foreground">Not Sent</Badge>;
-  const config: Record<ContractStatus, { class: string; label: string; icon: any }> = {
+  const config: Record<ContractStatus, { class: string; label: string; icon: LucideIcon }> = {
     signed: { class: "bg-status-success/15 text-status-success border-status-success/20", label: "Signed", icon: CheckCircle },
     sent: { class: "bg-status-info/15 text-status-info border-status-info/20", label: "Sent", icon: Send },
     not_sent: { class: "bg-muted text-muted-foreground border-border", label: "Not Sent", icon: FileText },
@@ -398,7 +538,7 @@ function HeroStatCard({
   title: string;
   value: string | number;
   subtitle?: string;
-  icon: any;
+  icon: LucideIcon;
   trend?: { value: number; label: string };
   color?: "emerald" | "amber" | "rose" | "blue" | "purple" | "slate";
   onClick?: () => void;
@@ -1394,11 +1534,11 @@ function MessageTemplateCard({
 // ==================== MAIN PAGE COMPONENT ====================
 
 export default function SeasonalsPage() {
-  const params = useParams();
+  const params = useParams<{ campgroundId: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const campgroundId = params.campgroundId as string;
+  const campgroundId = params.campgroundId;
   const currentYear = new Date().getFullYear();
 
   // State
@@ -1452,7 +1592,11 @@ export default function SeasonalsPage() {
         console.error("[Seasonals Stats] API error:", response.status, errorData);
         throw new Error(errorData.message || `Stats API failed: ${response.status}`);
       }
-      return response.json() as Promise<DashboardStats>;
+      const data = await response.json();
+      if (!isDashboardStats(data)) {
+        throw new Error("Invalid seasonal stats response");
+      }
+      return data;
     },
     enabled: !!campgroundId,
   });
@@ -1473,7 +1617,11 @@ export default function SeasonalsPage() {
       if (!response.ok) {
         return { data: [], total: 0 };
       }
-      return response.json() as Promise<{ data: SeasonalGuest[]; total: number }>;
+      const data = await response.json();
+      if (!isSeasonalsResponse(data)) {
+        return { data: [], total: 0 };
+      }
+      return data;
     },
     enabled: !!campgroundId,
   });
@@ -1482,7 +1630,8 @@ export default function SeasonalsPage() {
     queryKey: ["waitlist", campgroundId],
     queryFn: async () => {
       // Mock data - replace with actual API
-      return [] as WaitlistEntry[];
+      const emptyWaitlist: WaitlistEntry[] = [];
+      return emptyWaitlist;
     },
     enabled: !!campgroundId,
   });
@@ -1495,7 +1644,9 @@ export default function SeasonalsPage() {
         { credentials: "include", headers: getAuthHeaders() }
       );
       if (!response.ok) return [];
-      return response.json() as Promise<RateCard[]>;
+      const data = await response.json();
+      if (!Array.isArray(data)) return [];
+      return data.filter(isRateCard);
     },
     enabled: !!campgroundId,
   });
@@ -1504,11 +1655,12 @@ export default function SeasonalsPage() {
     queryKey: ["message-templates", campgroundId],
     queryFn: async () => {
       // Mock data - replace with actual API
-      return [
+      const templates: MessageTemplate[] = [
         { id: "1", name: "Renewal Reminder", subject: "It's time to renew for {{year}}!", body: "Hi {{first_name}}, we're excited to invite you back...", channel: "email", category: "renewal" },
         { id: "2", name: "Payment Due", subject: "Payment reminder", body: "Hi {{first_name}}, just a friendly reminder that your payment of {{amount}} is due...", channel: "email", category: "payment" },
         { id: "3", name: "Welcome Back", subject: "Welcome back to the park!", body: "Hi {{first_name}}, we're thrilled to have you back for another season...", channel: "email", category: "welcome" },
-      ] as MessageTemplate[];
+      ];
+      return templates;
     },
     enabled: !!campgroundId,
   });
@@ -1643,8 +1795,8 @@ export default function SeasonalsPage() {
     if (action === "message") {
       setSelectedIds([seasonal.id]);
       setShowMessageModal(true);
-    } else if (action === "renewal" && value) {
-      updateRenewalMutation.mutate({ id: seasonal.id, intent: value as RenewalIntent });
+    } else if (action === "renewal" && value && isRenewalIntent(value)) {
+      updateRenewalMutation.mutate({ id: seasonal.id, intent: value });
     } else if (action === "payment") {
       setSelectedSeasonal(seasonal);
       setShowPaymentModal(true);
@@ -1652,11 +1804,10 @@ export default function SeasonalsPage() {
   };
 
   const handleBulkUpdate = (action: string) => {
-    const validIntents: RenewalIntent[] = ["committed", "likely", "undecided", "not_renewing"];
-    if (validIntents.includes(action as RenewalIntent)) {
+    if (isRenewalIntent(action)) {
       const count = selectedIds.length;
       selectedIds.forEach((id) => {
-        updateRenewalMutation.mutate({ id, intent: action as RenewalIntent });
+        updateRenewalMutation.mutate({ id, intent: action });
       });
       toast({
         title: "Updating renewal status...",
@@ -1865,7 +2016,11 @@ export default function SeasonalsPage() {
                 <>
                   <Select
                     value={statusFilter}
-                    onValueChange={(value) => setStatusFilter(value as SeasonalStatus | "all")}
+                    onValueChange={(value) => {
+                      if (value === "all" || isSeasonalStatus(value)) {
+                        setStatusFilter(value);
+                      }
+                    }}
                   >
                     <SelectTrigger className="h-9 w-[160px] text-sm" aria-label="Filter by status">
                       <SelectValue placeholder="All Status" />
@@ -1880,7 +2035,11 @@ export default function SeasonalsPage() {
                   </Select>
                   <Select
                     value={renewalFilter}
-                    onValueChange={(value) => setRenewalFilter(value as RenewalIntent | "all")}
+                    onValueChange={(value) => {
+                      if (value === "all" || isRenewalIntent(value)) {
+                        setRenewalFilter(value);
+                      }
+                    }}
                   >
                     <SelectTrigger className="h-9 w-[160px] text-sm" aria-label="Filter by renewal intent">
                       <SelectValue placeholder="All Renewal" />
@@ -2541,8 +2700,8 @@ export default function SeasonalsPage() {
               description: `Sent ${result.sent} contract${result.sent !== 1 ? "s" : ""}${result.failed > 0 ? `, ${result.failed} failed` : ""}`,
             });
             setSelectedIds([]);
-          } catch (err: any) {
-            toast({ title: "Error", description: err.message, variant: "destructive" });
+          } catch (err: unknown) {
+            toast({ title: "Error", description: getErrorMessage(err, "Failed to send contracts"), variant: "destructive" });
           }
         }}
         onRecordPayment={() => {
@@ -2573,8 +2732,8 @@ export default function SeasonalsPage() {
               title: "Export complete",
               description: `Exported ${result.count} seasonal guest${result.count !== 1 ? "s" : ""} to CSV`,
             });
-          } catch (err: any) {
-            toast({ title: "Error", description: err.message, variant: "destructive" });
+          } catch (err: unknown) {
+            toast({ title: "Error", description: getErrorMessage(err, "Failed to export"), variant: "destructive" });
           }
         }}
         onClear={() => setSelectedIds([])}
@@ -2664,13 +2823,22 @@ export default function SeasonalsPage() {
             </DialogDescription>
           </DialogHeader>
           <form
-            onSubmit={async (e) => {
+            onSubmit={async (e: FormEvent<HTMLFormElement>) => {
               e.preventDefault();
-              const form = e.target as HTMLFormElement;
-              const formData = new FormData(form);
-              const amountCents = Math.round(parseFloat(formData.get("amount") as string) * 100);
-              const method = formData.get("method") as string;
-              const note = formData.get("note") as string;
+              const formData = new FormData(e.currentTarget);
+              const amountValue = getFormValue(formData, "amount");
+              if (!amountValue) {
+                toast({ title: "Error", description: "Amount is required", variant: "destructive" });
+                return;
+              }
+              const amount = Number.parseFloat(amountValue);
+              if (Number.isNaN(amount)) {
+                toast({ title: "Error", description: "Amount must be a number", variant: "destructive" });
+                return;
+              }
+              const amountCents = Math.round(amount * 100);
+              const method = getFormValue(formData, "method") ?? paymentMethod;
+              const note = getFormValue(formData, "note");
 
               try {
                 const response = await fetch("/api/seasonals/payments/bulk", {
@@ -2693,8 +2861,8 @@ export default function SeasonalsPage() {
                 setShowPaymentModal(false);
                 setSelectedIds([]);
                 queryClient.invalidateQueries({ queryKey: ["seasonals"] });
-              } catch (err: any) {
-                toast({ title: "Error", description: err.message, variant: "destructive" });
+              } catch (err: unknown) {
+                toast({ title: "Error", description: getErrorMessage(err, "Failed to record payments"), variant: "destructive" });
               }
             }}
             className="space-y-4"

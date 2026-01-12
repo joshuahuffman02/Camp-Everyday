@@ -83,14 +83,14 @@ export default function BrandingPage() {
 
     // Type assertion for extended branding fields not in base schema
     type CampgroundWithBranding = typeof cg & {
-      secondaryColor?: string;
-      buttonColor?: string;
-      brandFont?: string;
-      emailHeader?: string;
-      receiptFooter?: string;
+      secondaryColor?: string | null;
+      buttonColor?: string | null;
+      brandFont?: string | null;
+      emailHeader?: string | null;
+      receiptFooter?: string | null;
     };
 
-    const cgWithBranding = cg as CampgroundWithBranding;
+    const cgWithBranding: CampgroundWithBranding = cg;
     resetForm({
       logoUrl: cg.logoUrl || "",
       primaryColor: cg.primaryColor || "",

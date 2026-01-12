@@ -5,13 +5,16 @@ import { tap } from "rxjs/operators";
 import { ObservabilityService } from "./observability.service";
 import { performance } from "perf_hooks";
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
 @Injectable()
 export class RequestMetricsInterceptor implements NestInterceptor {
   constructor(private readonly observability: ObservabilityService) { }
 
-  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const http = context.switchToHttp();
-    const req = http.getRequest() as any;
+    const req = http.getRequest<Request>();
     const start = performance.now();
     const path = req?.originalUrl || req?.url || "unknown";
     const method = req?.method || "UNKNOWN";
@@ -27,9 +30,9 @@ export class RequestMetricsInterceptor implements NestInterceptor {
             durationMs,
           });
         },
-        error: (err: any) => {
+        error: (err: unknown) => {
           const durationMs = performance.now() - start;
-          const status = typeof err?.status === "number" ? err.status : 500;
+          const status = isRecord(err) && typeof err.status === "number" ? err.status : 500;
           this.observability.recordApiRequest({
             method,
             path,
@@ -41,4 +44,3 @@ export class RequestMetricsInterceptor implements NestInterceptor {
     );
   }
 }
-

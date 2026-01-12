@@ -132,6 +132,9 @@ function getFeatureInfo(key: string): { label: string; path: string } {
   return FEATURE_LABELS[key] || { label: key, path: "/features" };
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
 interface QueueItem {
   id: string;
   featureKey: string;
@@ -140,6 +143,20 @@ interface QueueItem {
   completedAt: string | null;
   skippedAt: string | null;
 }
+
+const queueStatuses: QueueItem["status"][] = ["setup_now", "setup_later", "completed", "skipped"];
+
+const isQueueItem = (value: unknown): value is QueueItem => {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.id === "string" &&
+    typeof value.featureKey === "string" &&
+    typeof value.priority === "number" &&
+    queueStatuses.some((status) => status === value.status) &&
+    (value.completedAt === null || typeof value.completedAt === "string") &&
+    (value.skippedAt === null || typeof value.skippedAt === "string")
+  );
+};
 
 interface SetupQueueWidgetProps {
   campgroundId: string;
@@ -162,7 +179,8 @@ export function SetupQueueWidget({ campgroundId }: SetupQueueWidgetProps) {
         }
       );
       if (!response.ok) throw new Error("Failed to fetch queue");
-      return response.json() as Promise<QueueItem[]>;
+      const data = await response.json();
+      return Array.isArray(data) ? data.filter(isQueueItem) : [];
     },
     enabled: !!campgroundId,
     staleTime: 5 * 60 * 1000,

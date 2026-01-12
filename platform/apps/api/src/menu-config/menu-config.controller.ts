@@ -14,13 +14,9 @@ import {
 import { MenuConfigService } from "./menu-config.service";
 import { JwtAuthGuard } from "../auth/guards";
 import type { Request } from "express";
+import type { AuthUser } from "../auth/auth.types";
 
-interface AuthenticatedRequest extends Request {
-  user: {
-    id: string;
-    email: string;
-  };
-}
+type AuthenticatedRequest = Request & { user: AuthUser };
 
 @UseGuards(JwtAuthGuard)
 @Controller("menu-config")

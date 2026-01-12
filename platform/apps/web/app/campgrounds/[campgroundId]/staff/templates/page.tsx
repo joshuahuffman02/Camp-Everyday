@@ -87,8 +87,8 @@ const DAYS_OF_WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "F
 const SHORT_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const EMPTY_SELECT_VALUE = "__empty";
 
-const SPRING_CONFIG = {
-  type: "spring" as const,
+const SPRING_CONFIG: { type: "spring"; stiffness: number; damping: number } = {
+  type: "spring",
   stiffness: 200,
   damping: 20,
 };
@@ -752,13 +752,13 @@ export default function ScheduleTemplatesPage({ params }: { params: { campground
               {templates.map((template, idx) => {
                 const isExpanded = expandedTemplate === template.id;
                 const isApplying = applyingTemplate === template.id;
-                const shiftsByDay = template.shifts.reduce(
+                const shiftsByDay = template.shifts.reduce<Record<number, TemplateShift[]>>(
                   (acc, shift) => {
                     if (!acc[shift.dayOfWeek]) acc[shift.dayOfWeek] = [];
                     acc[shift.dayOfWeek].push(shift);
                     return acc;
                   },
-                  {} as Record<number, TemplateShift[]>
+                  {}
                 );
 
                 return (

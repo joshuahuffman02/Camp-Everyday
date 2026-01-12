@@ -200,6 +200,14 @@ export class CreateReservationDto {
 
   @IsOptional()
   @IsString()
+  seasonalRateId?: string;
+
+  @IsOptional()
+  @IsString()
+  pricingType?: "transient" | "seasonal";
+
+  @IsOptional()
+  @IsString()
   paymentMethod?: string;
 
   @IsOptional()

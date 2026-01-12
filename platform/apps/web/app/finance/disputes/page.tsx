@@ -12,6 +12,15 @@ import { format } from "date-fns";
 import Link from "next/link";
 import { useToast } from "@/components/ui/use-toast";
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object";
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (typeof error === "string") return error;
+  if (isRecord(error) && typeof error.message === "string") return error.message;
+  return fallback;
+};
+
 const statusColors: Record<string, string> = {
   needs_response: "bg-status-warning-bg text-status-warning-text",
   warning_needs_response: "bg-status-warning-bg text-status-warning-text",
@@ -103,8 +112,8 @@ export default function DisputesPage() {
                 if (!campgroundId) return;
                 try {
                   await apiClient.exportDisputesCsv(campgroundId, status);
-                } catch (err: any) {
-                  toast({ title: "Export failed", description: err.message, variant: "destructive" });
+                } catch (err: unknown) {
+                  toast({ title: "Export failed", description: getErrorMessage(err, "Export failed"), variant: "destructive" });
                 }
               }}
               disabled={!campgroundId}

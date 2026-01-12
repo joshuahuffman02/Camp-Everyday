@@ -6,6 +6,7 @@ import { PublicApiService } from "./public-api.service";
 import { IsNotEmpty, IsNumber, IsOptional, IsString } from "class-validator";
 import { ApiTags, ApiOperation, ApiResponse, ApiProperty } from "@nestjs/swagger";
 import type { Request } from "express";
+import type { ApiPrincipal } from "./types";
 
 class CreateSiteBody {
   @ApiProperty({ description: "Name of the site" })
@@ -41,6 +42,8 @@ class UpdateSiteBody {
   @IsNumber() @IsOptional() rigMaxLength?: number | null;
 }
 
+type ApiRequest = Request & { apiPrincipal: ApiPrincipal };
+
 @ApiTags("Sites")
 @Controller("developer/sites")
 @UseGuards(ApiTokenGuard, ApiScopeGuard)
@@ -51,7 +54,7 @@ export class PublicSitesController {
   @ApiScopes("sites:read")
   @ApiOperation({ summary: "List sites" })
   @ApiResponse({ status: 200, description: "List of sites" })
-  list(@Req() req: Request) {
+  list(@Req() req: ApiRequest) {
     const campgroundId = req.apiPrincipal.campgroundId;
     return this.api.listSites(campgroundId);
   }
@@ -61,7 +64,7 @@ export class PublicSitesController {
   @ApiOperation({ summary: "Get a site" })
   @ApiResponse({ status: 200, description: "Site details" })
   @ApiResponse({ status: 404, description: "Site not found" })
-  get(@Req() req: Request, @Param("id") id: string) {
+  get(@Req() req: ApiRequest, @Param("id") id: string) {
     const campgroundId = req.apiPrincipal.campgroundId;
     return this.api.getSite(campgroundId, id);
   }
@@ -70,7 +73,7 @@ export class PublicSitesController {
   @ApiScopes("sites:write")
   @ApiOperation({ summary: "Create a site" })
   @ApiResponse({ status: 201, description: "Site created" })
-  create(@Req() req: Request, @Body() body: CreateSiteBody) {
+  create(@Req() req: ApiRequest, @Body() body: CreateSiteBody) {
     const campgroundId = req.apiPrincipal.campgroundId;
     return this.api.createSite(campgroundId, body);
   }
@@ -79,7 +82,7 @@ export class PublicSitesController {
   @ApiScopes("sites:write")
   @ApiOperation({ summary: "Update a site" })
   @ApiResponse({ status: 200, description: "Site updated" })
-  update(@Req() req: Request, @Param("id") id: string, @Body() body: UpdateSiteBody) {
+  update(@Req() req: ApiRequest, @Param("id") id: string, @Body() body: UpdateSiteBody) {
     const campgroundId = req.apiPrincipal.campgroundId;
     return this.api.updateSite(campgroundId, id, body);
   }
@@ -88,9 +91,8 @@ export class PublicSitesController {
   @ApiScopes("sites:write")
   @ApiOperation({ summary: "Delete a site" })
   @ApiResponse({ status: 200, description: "Site deleted" })
-  remove(@Req() req: Request, @Param("id") id: string) {
+  remove(@Req() req: ApiRequest, @Param("id") id: string) {
     const campgroundId = req.apiPrincipal.campgroundId;
     return this.api.deleteSite(campgroundId, id);
   }
 }
-

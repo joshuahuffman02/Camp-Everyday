@@ -12,6 +12,8 @@ import { RateLimitService } from "./rate-limit.service";
 import { PerfService } from "./perf.service";
 import { extractClientIpFromRequest } from "../common/ip-utils";
 
+type RateLimitRequest = Request & { organizationId?: string };
+
 @Injectable()
 export class RateLimitInterceptor implements NestInterceptor {
   constructor(
@@ -19,9 +21,9 @@ export class RateLimitInterceptor implements NestInterceptor {
     private readonly perfService: PerfService
   ) {}
 
-  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+  intercept(context: ExecutionContext, next: CallHandler<unknown>): Observable<unknown> {
     const http = context.switchToHttp();
-    const req = http.getRequest();
+    const req = http.getRequest<RateLimitRequest>();
 
     // Extract and validate client IP to prevent spoofing via x-forwarded-for
     const ip = extractClientIpFromRequest(req);
@@ -37,4 +39,3 @@ export class RateLimitInterceptor implements NestInterceptor {
     return next.handle();
   }
 }
-

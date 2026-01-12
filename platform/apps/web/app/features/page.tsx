@@ -30,11 +30,14 @@ import { useFeatureProgress } from "@/hooks/use-feature-progress";
 import { useCampground } from "@/contexts/CampgroundContext";
 import Link from "next/link";
 
-const SPRING_CONFIG = {
-  type: "spring" as const,
+const SPRING_CONFIG: { type: "spring"; stiffness: number; damping: number } = {
+  type: "spring",
   stiffness: 300,
   damping: 25,
 };
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object";
 
 function getAuthHeaders(): HeadersInit {
   const token = typeof window !== "undefined"
@@ -320,9 +323,42 @@ interface QueueItem {
   skippedAt: string | null;
 }
 
+type QueueResponse = {
+  items: QueueItem[];
+  setupNowCount: number;
+  setupLaterCount: number;
+  completedCount: number;
+  skippedCount: number;
+};
+
+const isTabType = (value: string): value is TabType =>
+  value === "all" || value === "queue" || value === "completed";
+
+const isQueueItem = (value: unknown): value is QueueItem =>
+  isRecord(value) &&
+  typeof value.id === "string" &&
+  typeof value.featureKey === "string" &&
+  (value.status === "setup_now" ||
+    value.status === "setup_later" ||
+    value.status === "completed" ||
+    value.status === "skipped") &&
+  typeof value.priority === "number" &&
+  (value.completedAt === null || typeof value.completedAt === "string") &&
+  (value.skippedAt === null || typeof value.skippedAt === "string");
+
+const isQueueResponse = (value: unknown): value is QueueResponse =>
+  isRecord(value) &&
+  Array.isArray(value.items) &&
+  value.items.every(isQueueItem) &&
+  typeof value.setupNowCount === "number" &&
+  typeof value.setupLaterCount === "number" &&
+  typeof value.completedCount === "number" &&
+  typeof value.skippedCount === "number";
+
 function FeaturesPageContent() {
   const searchParams = useSearchParams();
-  const initialTab = (searchParams.get("tab") as TabType) || "all";
+  const tabParam = searchParams.get("tab");
+  const initialTab = tabParam && isTabType(tabParam) ? tabParam : "all";
   const prefersReducedMotion = useReducedMotion();
   const { progress, stats, isLoading, toggleFeature, reset, isCompleted } = useFeatureProgress();
   const { selectedCampground } = useCampground();
@@ -344,13 +380,11 @@ function FeaturesPageContent() {
         { headers: getAuthHeaders() }
       );
       if (!response.ok) throw new Error("Failed to fetch queue");
-      return response.json() as Promise<{
-        items: QueueItem[];
-        setupNowCount: number;
-        setupLaterCount: number;
-        completedCount: number;
-        skippedCount: number;
-      }>;
+      const data = await response.json();
+      if (!isQueueResponse(data)) {
+        throw new Error("Invalid queue response");
+      }
+      return data;
     },
     enabled: !!campgroundId && activeTab !== "all",
     staleTime: 30 * 1000,

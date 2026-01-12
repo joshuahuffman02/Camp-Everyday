@@ -3,8 +3,96 @@ import { AiProviderService } from './ai-provider.service';
 import { AiPrivacyService } from './ai-privacy.service';
 import { AiFeatureGateService } from './ai-feature-gate.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { AiFeatureType, AiConsentType } from '@prisma/client';
+import { AiFeatureType, AiConsentType, AiInteractionLog, Prisma } from '@prisma/client';
 import { PublicReservationsService } from '../public-reservations/public-reservations.service';
+
+type CampgroundWithSites = Prisma.CampgroundGetPayload<{
+    include: {
+        SiteClass: {
+            select: {
+                id: true;
+                name: true;
+                description: true;
+                defaultRate: true;
+                maxOccupancy: true;
+                siteType: true;
+                rigMaxLength: true;
+                hookupsPower: true;
+                hookupsWater: true;
+                hookupsSewer: true;
+                petFriendly: true;
+                accessible: true;
+            };
+        };
+        Site: {
+            select: {
+                id: true;
+                name: true;
+                siteClassId: true;
+            };
+        };
+    };
+}>;
+
+type SiteClassSummary = CampgroundWithSites['SiteClass'][number];
+type SiteSummary = CampgroundWithSites['Site'][number];
+type ToolAction = NonNullable<BookingAssistResponse['action']>;
+type AvailabilityItem = Awaited<ReturnType<PublicReservationsService['getAvailability']>>[number];
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const toStringValue = (value: unknown): string | undefined => {
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    return undefined;
+};
+
+const toNumberValue = (value: unknown): number | undefined => {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value === 'string') {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) return parsed;
+    }
+    return undefined;
+};
+
+const toStringArray = (value: unknown): string[] => {
+    if (!Array.isArray(value)) return [];
+    return value
+        .map((item) => toStringValue(item))
+        .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+        .map((item) => item.trim());
+};
+
+const toToolAction = (value: unknown): ToolAction | undefined => {
+    if (typeof value !== 'string') return undefined;
+    const normalized = value.toLowerCase().trim();
+    if (normalized === 'search') return 'search';
+    if (normalized === 'book') return 'book';
+    if (normalized === 'clarify') return 'clarify';
+    if (normalized === 'info') return 'info';
+    return undefined;
+};
+
+const toAnonymizationLevel = (
+    value: string | null | undefined
+): 'strict' | 'moderate' | 'minimal' => {
+    if (value === 'strict' || value === 'moderate' || value === 'minimal') {
+        return value;
+    }
+    return 'moderate';
+};
+
+const hasSiteClassName = (
+    site: AvailabilityItem,
+): site is AvailabilityItem & { siteClass: { name: string } } =>
+    Boolean(site.siteClass && typeof site.siteClass.name === 'string');
+
+const isAvailableSiteWithClass = (
+    site: AvailabilityItem
+): site is AvailabilityItem & { siteClass: { name: string } } =>
+    site.status === 'available' && hasSiteClassName(site);
 
 interface BookingContext {
     campgroundId: string;
@@ -26,7 +114,7 @@ interface SiteRecommendation {
     available: boolean;
 }
 
-interface BookingAssistResponse {
+export interface BookingAssistResponse {
     message: string;
     recommendations?: SiteRecommendation[];
     clarifyingQuestions?: string[];
@@ -80,10 +168,10 @@ export class AiBookingAssistService {
         }
 
         // Get campground and site data
-        const campground = await this.prisma.campground.findUnique({
+        const campground: CampgroundWithSites | null = await this.prisma.campground.findUnique({
             where: { id: context.campgroundId },
             include: {
-                siteClasses: {
+                SiteClass: {
                     where: { isActive: true },
                     select: {
                         id: true,
@@ -100,7 +188,7 @@ export class AiBookingAssistService {
                         accessible: true,
                     },
                 },
-                sites: {
+                Site: {
                     where: { status: 'available' },
                     take: 20,
                     select: {
@@ -119,7 +207,7 @@ export class AiBookingAssistService {
             };
         }
 
-        const anonymizationLevel = campground.aiAnonymizationLevel ?? 'moderate';
+        const anonymizationLevel = toAnonymizationLevel(campground.aiAnonymizationLevel);
         const { anonymizedText, tokenMap } = this.privacy.anonymize(context.message, anonymizationLevel);
         const { historyText, historyTokenMap } = this.buildHistory(context.history ?? [], anonymizationLevel);
         const mergedTokenMap = this.mergeTokenMaps(tokenMap, historyTokenMap);
@@ -135,7 +223,7 @@ export class AiBookingAssistService {
 
         // Fetch conversation history from DB if not provided in context
         // (DB history is only useful for metadata since content is hashed, but good as fallback)
-        let historyMeta = [];
+        let historyMeta: AiInteractionLog[] = [];
         if (!context.history || context.history.length === 0) {
             historyMeta = await this.prisma.aiInteractionLog.findMany({
                 where: {
@@ -164,11 +252,11 @@ export class AiBookingAssistService {
                 );
 
                 // Extract unique site class names that have at least one available site
-                availableSiteTypes = new Set(
-                    availability
-                        .filter((site: any) => site.status === 'available' && site.siteClass)
-                        .map((site: any) => site.siteClass.name)
-                );
+                    availableSiteTypes = new Set(
+                        availability
+                            .filter(isAvailableSiteWithClass)
+                            .map((site) => site.siteClass.name)
+                    );
             } catch (err) {
                 this.logger.error("Failed to check availability for AI chat", err);
                 // Fallback: assume everything is available if check fails, or handle gracefully
@@ -179,7 +267,7 @@ export class AiBookingAssistService {
         const systemPrompt = this.buildSystemPrompt(campground);
 
         // Build user prompt with context AND history
-        let userPrompt = this.buildUserPrompt(anonymizedText, promptContext, campground.siteClasses, availableSiteTypes);
+        let userPrompt = this.buildUserPrompt(anonymizedText, promptContext, availableSiteTypes);
 
         // Append conversation history
         if (historyText) {
@@ -218,15 +306,15 @@ export class AiBookingAssistService {
             if (toolResult) {
                 parsedResponse = this.buildResponseFromTool(
                     toolResult,
-                    campground.siteClasses as any,
-                    (campground.sites ?? []) as any,
+                    campground.SiteClass,
+                    campground.Site,
                     mergedTokenMap
                 );
             }
         }
 
         if (!parsedResponse) {
-            parsedResponse = this.parseResponse(response.content, campground.siteClasses as any);
+            parsedResponse = this.parseResponse(response.content, campground.SiteClass);
             parsedResponse.message = this.privacy.deanonymize(parsedResponse.message, mergedTokenMap);
             if (parsedResponse.clarifyingQuestions?.length) {
                 parsedResponse.clarifyingQuestions = parsedResponse.clarifyingQuestions.map((q) =>
@@ -235,7 +323,7 @@ export class AiBookingAssistService {
             }
         }
 
-        return this.finalizeGuestResponse(parsedResponse, context, campground.siteClasses as any, availableSiteTypes);
+        return this.finalizeGuestResponse(parsedResponse, context, campground.SiteClass, availableSiteTypes);
     }
 
     /**
@@ -262,7 +350,7 @@ export class AiBookingAssistService {
                 ...(preferences.rvLength ? { rigMaxLength: { gte: preferences.rvLength } } : {}),
             },
             include: {
-                sites: {
+                Site: {
                     where: { status: 'available' },
                     take: 5,
                 },
@@ -289,9 +377,9 @@ export class AiBookingAssistService {
             }
 
             // Amenity matches
-            const scAmenities = sc.amenities || [];
+            const scAmenities = sc.amenityTags.length ? sc.amenityTags : sc.tags;
             const matchedAmenities = (preferences.amenities || []).filter(a =>
-                scAmenities.some((sa: string) => sa.toLowerCase().includes(a.toLowerCase()))
+                scAmenities.some((sa) => sa.toLowerCase().includes(a.toLowerCase()))
             );
             if (matchedAmenities.length > 0) {
                 score += matchedAmenities.length * 5;
@@ -307,10 +395,10 @@ export class AiBookingAssistService {
             }
 
             // Add first available site from this class
-            if (sc.sites.length > 0) {
+            if (sc.Site.length > 0) {
                 recommendations.push({
-                    siteId: sc.sites[0].id,
-                    siteName: sc.sites[0].name,
+                    siteId: sc.Site[0].id,
+                    siteName: sc.Site[0].name,
                     siteClassName: sc.name,
                     matchScore: Math.min(100, score),
                     reasons,
@@ -323,8 +411,8 @@ export class AiBookingAssistService {
         return recommendations.sort((a, b) => b.matchScore - a.matchScore).slice(0, 5);
     }
 
-    private buildSystemPrompt(campground: any): string {
-        const classLines = campground.siteClasses.map((sc: any) => {
+    private buildSystemPrompt(campground: CampgroundWithSites): string {
+        const classLines = campground.SiteClass.map((sc) => {
             const rate =
                 sc.defaultRate !== null && sc.defaultRate !== undefined
                     ? `$${(Number(sc.defaultRate) / 100).toFixed(0)}`
@@ -377,7 +465,6 @@ Output:
     private buildUserPrompt(
         message: string,
         context: BookingContext,
-        siteClasses: any[],
         availableSiteTypes: Set<string> | null = null,
     ): string {
         let prompt = `Guest message: "${message}"\n`;
@@ -474,7 +561,7 @@ Output:
         return toolCalls.find((call) => call.name === 'guest_assist_response') ?? toolCalls[0];
     }
 
-    private parseToolArgs(args: string) {
+    private parseToolArgs(args: string): unknown {
         try {
             return JSON.parse(args);
         } catch {
@@ -500,14 +587,14 @@ Output:
         return merged;
     }
 
-    private resolveTokenValue(value: any, tokenMap: Map<string, string>): any {
+    private resolveTokenValue(value: unknown, tokenMap: Map<string, string>): unknown {
         if (typeof value === 'string') {
             return tokenMap.get(value) ?? value;
         }
         if (Array.isArray(value)) {
             return value.map((item) => this.resolveTokenValue(item, tokenMap));
         }
-        if (value && typeof value === 'object') {
+        if (isRecord(value)) {
             const resolved: Record<string, unknown> = {};
             for (const [key, item] of Object.entries(value)) {
                 resolved[key] = this.resolveTokenValue(item, tokenMap);
@@ -518,45 +605,63 @@ Output:
     }
 
     private buildResponseFromTool(
-        toolResult: any,
-        siteClasses: any[],
-        sites: any[],
+        toolResult: unknown,
+        siteClasses: SiteClassSummary[],
+        sites: SiteSummary[],
         tokenMap: Map<string, string>
     ): BookingAssistResponse {
         const resolved = this.resolveTokenValue(toolResult, tokenMap);
+        const resolvedRecord = isRecord(resolved) ? resolved : {};
         const response: BookingAssistResponse = {
-            message: (resolved.message || '').trim(),
-            action: resolved.action,
+            message: (toStringValue(resolvedRecord.message) ?? '').trim(),
+            action: toToolAction(resolvedRecord.action),
         };
 
-        if (resolved.questions?.length) {
-            response.clarifyingQuestions = resolved.questions.map((q: string) => String(q).trim()).filter(Boolean);
+        const questions = toStringArray(resolvedRecord.questions);
+        if (questions.length) {
+            response.clarifyingQuestions = questions.map((q) => q.trim()).filter(Boolean);
         }
 
-        if (resolved.recommendations?.length) {
-            response.recommendations = resolved.recommendations.map((rec: any) => {
-                const name = rec.siteClassName || rec.name || '';
-                const siteClass = siteClasses.find((sc: any) => sc.name.toLowerCase() === String(name).toLowerCase());
-                const site = siteClass ? sites.find((s: any) => s.siteClassId === siteClass.id) : null;
+        if (Array.isArray(resolvedRecord.recommendations) && resolvedRecord.recommendations.length) {
+            response.recommendations = resolvedRecord.recommendations.map((rec) => {
+                const recRecord = isRecord(rec) ? rec : {};
+                const name = toStringValue(recRecord.siteClassName) ?? toStringValue(recRecord.name) ?? '';
+                const normalizedName = name.toLowerCase();
+                const siteClass = siteClasses.find((sc) => sc.name.toLowerCase() === normalizedName);
+                const site = siteClass ? sites.find((s) => s.siteClassId === siteClass.id) : null;
+                const reasons = Array.isArray(recRecord.reasons)
+                    ? toStringArray(recRecord.reasons)
+                    : ['AI recommended'];
                 return {
                     siteId: site?.id || '',
                     siteName: site?.name || String(name),
                     siteClassName: siteClass?.name || String(name),
-                    matchScore: typeof rec.matchScore === 'number' ? rec.matchScore : 80,
-                    reasons: Array.isArray(rec.reasons) ? rec.reasons : ['AI recommended'],
+                    matchScore: toNumberValue(recRecord.matchScore) ?? 80,
+                    reasons,
                     available: true,
                 };
             });
         }
 
-        if (resolved.bookingDetails) {
+        if (isRecord(resolvedRecord.bookingDetails)) {
+            const bookingDetails = resolvedRecord.bookingDetails;
+            const dates = isRecord(bookingDetails.dates) ? bookingDetails.dates : null;
+            const partySize = isRecord(bookingDetails.partySize) ? bookingDetails.partySize : null;
+            const rigInfo = isRecord(bookingDetails.rigInfo) ? bookingDetails.rigInfo : null;
+            const arrival = dates ? toStringValue(dates.arrival) : undefined;
+            const departure = dates ? toStringValue(dates.departure) : undefined;
+            const adults = partySize ? toNumberValue(partySize.adults) : undefined;
+            const children = partySize ? toNumberValue(partySize.children) : undefined;
+            const rigType = rigInfo ? toStringValue(rigInfo.type) : undefined;
+            const rigLength = rigInfo ? toNumberValue(rigInfo.length) : undefined;
+
             response.bookingDetails = {
-                dates: resolved.bookingDetails.dates,
-                partySize: resolved.bookingDetails.partySize,
-                rigInfo: resolved.bookingDetails.rigInfo,
-                siteClassId: resolved.bookingDetails.siteClassId,
-                siteClassName: resolved.bookingDetails.siteClassName,
-                addOns: resolved.bookingDetails.addOns,
+                dates: arrival && departure ? { arrival, departure } : undefined,
+                partySize: adults !== undefined && children !== undefined ? { adults, children } : undefined,
+                rigInfo: rigType && rigLength !== undefined ? { type: rigType, length: rigLength } : undefined,
+                siteClassId: toStringValue(bookingDetails.siteClassId),
+                siteClassName: toStringValue(bookingDetails.siteClassName),
+                addOns: toStringArray(bookingDetails.addOns),
             };
         }
 
@@ -566,7 +671,7 @@ Output:
     private finalizeGuestResponse(
         response: BookingAssistResponse,
         context: BookingContext,
-        siteClasses: any[],
+        siteClasses: SiteClassSummary[],
         availableSiteTypes: Set<string> | null
     ): BookingAssistResponse {
         const normalized: BookingAssistResponse = {
@@ -582,7 +687,7 @@ Output:
 
         const siteClassName = bookingDetails.siteClassName || normalized.recommendations?.[0]?.siteClassName;
         if (siteClassName && !bookingDetails.siteClassId) {
-            const match = siteClasses.find((sc: any) => sc.name.toLowerCase() === String(siteClassName).toLowerCase());
+            const match = siteClasses.find((sc) => sc.name.toLowerCase() === String(siteClassName).toLowerCase());
             if (match) {
                 bookingDetails.siteClassId = match.id;
                 bookingDetails.siteClassName = match.name;
@@ -643,7 +748,7 @@ Output:
 
     private filterRecommendations(
         recommendations: SiteRecommendation[] | undefined,
-        siteClasses: any[],
+        siteClasses: SiteClassSummary[],
         bookingDetails: BookingAssistResponse['bookingDetails'],
         availableSiteTypes: Set<string> | null
     ) {
@@ -657,7 +762,7 @@ Output:
                 return false;
             }
 
-            const siteClass = siteClasses.find((sc: any) => sc.name.toLowerCase() === rec.siteClassName.toLowerCase());
+            const siteClass = siteClasses.find((sc) => sc.name.toLowerCase() === rec.siteClassName.toLowerCase());
             if (!siteClass) return true;
 
             if (allowedTypes && !allowedTypes.has(siteClass.siteType)) {
@@ -702,7 +807,7 @@ Output:
         return questions.filter((question) => !blocked.some((pattern) => pattern.test(question)));
     }
 
-    private parseResponse(content: string, siteClasses: any[]): BookingAssistResponse {
+    private parseResponse(content: string, siteClasses: SiteClassSummary[]): BookingAssistResponse {
         const result: BookingAssistResponse = {
             message: '',
             action: 'info',
@@ -711,7 +816,7 @@ Output:
         // Parse action
         const actionMatch = content.match(/ACTION:\s*(search|book|clarify|info)/i);
         if (actionMatch) {
-            result.action = actionMatch[1].toLowerCase() as any;
+            result.action = toToolAction(actionMatch[1]);
         }
 
         // Parse DATES

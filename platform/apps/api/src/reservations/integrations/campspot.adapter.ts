@@ -13,6 +13,21 @@ export type CampspotReservation = {
   paidCents?: number;
 };
 
+type ImportStatus = ReservationImportRecord["status"];
+
+const RESERVATION_STATUS_MAP: Record<ImportStatus, true> = {
+  pending: true,
+  confirmed: true,
+  checked_in: true,
+  checked_out: true,
+  cancelled: true,
+};
+
+const isImportStatus = (value: string): value is ImportStatus => value in RESERVATION_STATUS_MAP;
+
+const normalizeReservationStatus = (value?: string): ImportStatus | undefined =>
+  value && isImportStatus(value) ? value : undefined;
+
 export function mapCampspotToInternal(payload: CampspotReservation): Partial<ReservationImportRecord> {
   return {
     externalId: payload.reservationNumber,
@@ -22,7 +37,7 @@ export function mapCampspotToInternal(payload: CampspotReservation): Partial<Res
     departureDate: payload.departure,
     adults: payload.adults,
     children: payload.children ?? 0,
-    status: payload.status as any,
+    status: normalizeReservationStatus(payload.status),
     totalAmount: payload.totalCents ?? 0,
     paidAmount: payload.paidCents ?? 0,
     source: "campspot",

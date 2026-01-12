@@ -107,8 +107,9 @@ export function SavedCardMethod({ onSuccess, onError, onCancel }: SavedCardMetho
         });
         onSuccess?.(result.paymentId);
       }
-    } catch (err: any) {
-      onError?.(err.message || "Failed to charge card");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to charge card";
+      onError?.(message);
     } finally {
       setProcessing(false);
     }

@@ -1,14 +1,9 @@
-// @ts-nocheck
-import * as request from "supertest";
 import { Test } from "@nestjs/testing";
-import { ValidationPipe } from "@nestjs/common";
-import { GiftCardsController } from "../gift-cards/gift-cards.controller";
+import { UserRole } from "@prisma/client";
 import { GiftCardsService } from "../gift-cards/gift-cards.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { StoredValueService } from "../stored-value/stored-value.service";
-import { JwtAuthGuard } from "../auth/guards";
-import { RolesGuard } from "../auth/guards/roles.guard";
-import { ScopeGuard } from "../permissions/scope.guard";
+import type { AuthUser } from "../auth/auth.types";
 
 // Mock the ledger posting utility
 jest.mock("../ledger/ledger-posting.util", () => ({
@@ -16,8 +11,11 @@ jest.mock("../ledger/ledger-posting.util", () => ({
 }));
 
 describe("Gift cards & store credit redeem smoke", () => {
-  let app: any;
-  let storedValue: any;
+  let giftCards: GiftCardsService;
+  const storedValue = {
+    balanceByAccount: jest.fn(),
+    redeem: jest.fn()
+  };
 
   const prisma = {
     storedValueCode: {
@@ -41,7 +39,6 @@ describe("Gift cards & store credit redeem smoke", () => {
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
-      controllers: [GiftCardsController],
       providers: [
         GiftCardsService,
         {
@@ -50,56 +47,39 @@ describe("Gift cards & store credit redeem smoke", () => {
         },
         {
           provide: StoredValueService,
-          useValue: {
-            balanceByAccount: jest.fn(),
-            redeem: jest.fn()
-          }
+          useValue: storedValue
         }
       ]
     })
-      .overrideGuard(JwtAuthGuard)
-      .useValue({
-        canActivate: (context) => {
-          const req = context.switchToHttp().getRequest();
-          req.user = {
-            id: "user-1",
-            role: "owner",
-            platformRole: null,
-            memberships: [{ campgroundId: "camp-1" }]
-          };
-          return true;
-        }
-      })
-      .overrideGuard(RolesGuard)
-      .useValue({ canActivate: () => true })
-      .overrideGuard(ScopeGuard)
-      .useValue({ canActivate: () => true })
       .compile();
 
-    app = moduleRef.createNestApplication();
-    app.setGlobalPrefix("api");
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    storedValue = moduleRef.get(StoredValueService);
-    await app.init();
+    giftCards = moduleRef.get(GiftCardsService);
   });
 
   beforeEach(() => {
     jest.clearAllMocks();
 
-    const storedValueCodes = {
+    const storedValueCodes: Record<
+      string,
+      {
+        accountId: string;
+        active: boolean;
+        StoredValueAccount: { id: string; status: string; currency: string; type: string };
+      }
+    > = {
       "CARD-BOOK-100": {
         accountId: "acc-book",
         active: true,
-        account: { id: "acc-book", status: "active", currency: "usd", type: "gift" }
+        StoredValueAccount: { id: "acc-book", status: "active", currency: "usd", type: "gift" }
       },
       "CREDIT-POS-20": {
         accountId: "acc-pos",
         active: true,
-        account: { id: "acc-pos", status: "active", currency: "usd", type: "credit" }
+        StoredValueAccount: { id: "acc-pos", status: "active", currency: "usd", type: "credit" }
       }
     };
 
-    prisma.storedValueCode.findUnique.mockImplementation(({ where }) => storedValueCodes[where.code] ?? null);
+    prisma.storedValueCode.findUnique.mockImplementation(({ where }: { where: { code: string } }) => storedValueCodes[where.code] ?? null);
     storedValue.balanceByAccount.mockImplementation((accountId) => {
       if (accountId === "acc-book") return { balanceCents: 10000, availableCents: 10000 };
       if (accountId === "acc-pos") return { balanceCents: 2000, availableCents: 2000 };
@@ -130,7 +110,7 @@ describe("Gift cards & store credit redeem smoke", () => {
 
     prisma.site.findUnique.mockResolvedValue({
       id: "site-1",
-      siteClass: {
+      SiteClass: {
         glCode: "SITE_REVENUE",
         clientAccount: "Site Revenue"
       }
@@ -151,20 +131,31 @@ describe("Gift cards & store credit redeem smoke", () => {
     });
   });
 
-  afterAll(async () => {
-    await app.close();
-  });
+  const baseUser: AuthUser = {
+    id: "user-1",
+    email: "owner@keepr.test",
+    firstName: "Casey",
+    lastName: "Owner",
+    region: null,
+    platformRole: null,
+    platformRegion: null,
+    platformActive: true,
+    ownershipRoles: [],
+    role: UserRole.owner,
+    memberships: [
+      {
+        id: "membership-1",
+        campgroundId: "camp-1",
+        role: UserRole.owner
+      }
+    ]
+  };
 
   it("redeems gift card against booking endpoint and returns updated balance", async () => {
-    const api = request(app.getHttpServer());
+    const actor = { ...baseUser, campgroundId: "camp-1" };
+    const result = await giftCards.redeemAgainstBooking("CARD-BOOK-100", 2500, "booking-1", actor);
 
-    const res = await api
-      .post("/api/bookings/booking-1/gift-cards/redeem")
-      .set("x-campground-id", "camp-1")
-      .send({ code: "CARD-BOOK-100", amountCents: 2500 })
-      .expect(200);
-
-    expect(res.body.balanceCents).toBe(7500);
+    expect(result.balanceCents).toBe(7500);
     const [firstCall] = storedValue.redeem.mock.calls;
     expect(firstCall?.[0]).toEqual(
       expect.objectContaining({
@@ -178,15 +169,10 @@ describe("Gift cards & store credit redeem smoke", () => {
   });
 
   it("redeems store credit against POS endpoint and returns updated balance", async () => {
-    const api = request(app.getHttpServer());
+    const actor = { ...baseUser, campgroundId: "camp-1" };
+    const result = await giftCards.redeemAgainstPosOrder("CREDIT-POS-20", 1500, "order-99", actor);
 
-    const res = await api
-      .post("/api/pos/orders/order-99/gift-cards/redeem")
-      .set("x-campground-id", "camp-1")
-      .send({ code: "CREDIT-POS-20", amountCents: 1500 })
-      .expect(200);
-
-    expect(res.body.balanceCents).toBe(500);
+    expect(result.balanceCents).toBe(500);
     const [firstCall] = storedValue.redeem.mock.calls;
     expect(firstCall?.[0]).toEqual(
       expect.objectContaining({

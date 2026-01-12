@@ -72,6 +72,14 @@ const demandLevelLabels: Record<DemandLevel, string> = {
   very_high: "Very High",
 };
 
+const demandLevels: DemandLevel[] = [
+  "very_low",
+  "low",
+  "moderate",
+  "high",
+  "very_high",
+];
+
 function getDemandIcon(level: DemandLevel) {
   switch (level) {
     case "very_low":
@@ -115,7 +123,7 @@ function DemandLegend() {
   return (
     <div className="flex items-center gap-4 text-xs">
       <span className="text-slate-500">Demand:</span>
-      {(Object.keys(demandLevelColors) as DemandLevel[]).map((level) => (
+      {demandLevels.map((level) => (
         <div key={level} className="flex items-center gap-1">
           <div
             className={cn(

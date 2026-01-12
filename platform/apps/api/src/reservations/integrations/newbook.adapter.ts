@@ -40,6 +40,24 @@ export type NewbookImportResult = {
     groupId?: string;
 };
 
+const NEWBOOK_HEADERS: Array<keyof NewbookCsvRow> = [
+    "Booking Name",
+    "Site",
+    "Arrival",
+    "Departure",
+    "Calculated Stay Cost",
+    "Default Client Account",
+    "Booking Client Account Balance",
+    "Booking Duration",
+    "Category Name",
+];
+
+const isNewbookCsvRow = (row: Record<string, string>): row is NewbookCsvRow =>
+    NEWBOOK_HEADERS.every((header) => typeof row[header] === "string");
+
+const getErrorMessage = (error: unknown) =>
+    error instanceof Error ? error.message : "Unknown error";
+
 /**
  * Parse NewBook date format "MMM D YYYY" to ISO string
  * e.g., "Sep 3 2026" -> "2026-09-03"
@@ -161,8 +179,8 @@ export function mapNewbookToInternal(row: NewbookCsvRow): NewbookImportResult {
     try {
         arrivalDate = parseNewbookDate(row.Arrival);
         departureDate = parseNewbookDate(row.Departure);
-    } catch (e: any) {
-        warnings.push(`Date parsing error: ${e.message}`);
+    } catch (e: unknown) {
+        warnings.push(`Date parsing error: ${getErrorMessage(e)}`);
         arrivalDate = "";
         departureDate = "";
     }
@@ -237,7 +255,9 @@ export function parseNewbookCsv(csvContent: string): NewbookCsvRow[] {
             row[h] = values[idx];
         });
 
-        rows.push(row as unknown as NewbookCsvRow);
+        if (isNewbookCsvRow(row)) {
+            rows.push(row);
+        }
     }
 
     return rows;

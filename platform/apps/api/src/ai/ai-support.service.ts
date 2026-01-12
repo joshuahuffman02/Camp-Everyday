@@ -16,7 +16,7 @@ interface HelpArticle {
   url: string;
 }
 
-interface SupportChatResponse {
+export interface SupportChatResponse {
   message: string;
   helpArticles?: HelpArticle[];
   showTicketPrompt?: boolean;

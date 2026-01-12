@@ -46,13 +46,16 @@ export function CalendarGrid({ data, onSelectionComplete, onReservationMove }: C
         const grid = gridRef.current;
         if (!grid) return null;
 
-        const elements = typeof document.elementsFromPoint === "function"
-            ? document.elementsFromPoint(clientX, clientY)
-            : [document.elementFromPoint(clientX, clientY)].filter(Boolean);
+        const elements =
+            typeof document.elementsFromPoint === "function"
+                ? document.elementsFromPoint(clientX, clientY)
+                : [document.elementFromPoint(clientX, clientY)].filter(
+                    (value): value is Element => value !== null
+                  );
 
-        const cell = elements.find((el) =>
-            el instanceof HTMLElement && (el as HTMLElement).dataset.dayIdx !== undefined
-        ) as HTMLElement | undefined;
+        const isDayCell = (el: Element): el is HTMLElement =>
+            el instanceof HTMLElement && el.dataset.dayIdx !== undefined;
+        const cell = elements.find(isDayCell);
 
         if (!cell) return null;
         const row = cell.closest<HTMLElement>("[data-site-id]");

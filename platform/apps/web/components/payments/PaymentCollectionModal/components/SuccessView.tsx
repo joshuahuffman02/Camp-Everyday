@@ -31,7 +31,11 @@ import { useAchievement } from "../../../../hooks/use-achievement";
 import { AchievementCelebration } from "../../../ui/achievement-celebration";
 import { haptic } from "../../../../hooks/use-haptic";
 
-const SPRING_CONFIG = { type: "spring" as const, stiffness: 200, damping: 15 };
+const SPRING_CONFIG: { type: "spring"; stiffness: number; damping: number } = {
+  type: "spring",
+  stiffness: 200,
+  damping: 15,
+};
 // import { apiClient } from "../../../../lib/api-client"; // TODO: Enable when email API is implemented
 
 interface SuccessViewProps {

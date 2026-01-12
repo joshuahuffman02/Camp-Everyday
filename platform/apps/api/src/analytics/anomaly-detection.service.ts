@@ -1,6 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { PrismaService } from "../prisma/prisma.service";
+import { randomUUID } from "crypto";
 
 interface MetricSnapshot {
   campgroundId: string;
@@ -329,6 +330,7 @@ export class AnomalyDetectionService {
     // Create new anomaly
     await this.prisma.analyticsAnomaly.create({
       data: {
+        id: randomUUID(),
         campgroundId,
         anomalyType: anomaly.type,
         severity: anomaly.severity,

@@ -26,65 +26,103 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
+type Campground = Awaited<ReturnType<typeof apiClient.getCampground>>;
+type CampgroundMap = Awaited<ReturnType<typeof apiClient.getCampgroundMap>>;
+type Site = Awaited<ReturnType<typeof apiClient.getSites>>[number];
+type SiteClass = Awaited<ReturnType<typeof apiClient.getSiteClasses>>[number];
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const getLayerString = (layers: Record<string, unknown>, key: string) => {
+  const value = layers[key];
+  return typeof value === "string" ? value : null;
+};
+
+const getLayerUrl = (layers: Record<string, unknown>, key: string) => {
+  const nested = layers[key];
+  if (!isRecord(nested)) return null;
+  const url = nested.url;
+  return typeof url === "string" ? url : null;
+};
+
+const isLayoutData = (value: unknown): value is LayoutData => {
+  if (!isRecord(value)) return false;
+  if (!Array.isArray(value.sites) || !Array.isArray(value.elements)) return false;
+  return typeof value.gridSize === "number" &&
+    typeof value.canvasWidth === "number" &&
+    typeof value.canvasHeight === "number";
+};
+
+const normalizeSiteType = (value: string | null | undefined): LayoutSite["siteType"] => {
+  const normalized = (value ?? "").toLowerCase();
+  if (normalized === "rv") return "rv";
+  if (normalized === "tent") return "tent";
+  if (normalized === "cabin") return "cabin";
+  if (normalized === "glamping") return "glamping";
+  if (normalized === "group") return "group";
+  return "rv";
+};
+
 export default function CampgroundMapPage() {
-  const params = useParams();
-  const campgroundId = params?.campgroundId as string;
+  const params = useParams<{ campgroundId?: string }>();
+  const campgroundId = params?.campgroundId;
+  const requireCampgroundId = () => {
+    if (!campgroundId) {
+      throw new Error("Campground is required");
+    }
+    return campgroundId;
+  };
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
-  const campgroundQuery = useQuery({
+  const campgroundQuery = useQuery<Campground>({
     queryKey: ["campground", campgroundId],
-    queryFn: () => apiClient.getCampground(campgroundId),
+    queryFn: () => apiClient.getCampground(requireCampgroundId()),
     enabled: !!campgroundId
   });
 
-  const mapQuery = useQuery({
+  const mapQuery = useQuery<CampgroundMap>({
     queryKey: ["campground-map", campgroundId],
-    queryFn: () => apiClient.getCampgroundMap(campgroundId, {}),
+    queryFn: () => apiClient.getCampgroundMap(requireCampgroundId(), {}),
     enabled: !!campgroundId
   });
 
-  const sitesQuery = useQuery({
+  const sitesQuery = useQuery<Site[]>({
     queryKey: ["campground-sites", campgroundId],
-    queryFn: () => apiClient.getSites(campgroundId),
+    queryFn: () => apiClient.getSites(requireCampgroundId()),
     enabled: !!campgroundId
   });
 
-  const siteClassesQuery = useQuery({
+  const siteClassesQuery = useQuery<SiteClass[]>({
     queryKey: ["site-classes", campgroundId],
-    queryFn: () => apiClient.getSiteClasses(campgroundId),
+    queryFn: () => apiClient.getSiteClasses(requireCampgroundId()),
     enabled: !!campgroundId
   });
-
-  interface MapLayers {
-    baseImageUrl?: string;
-    baseImage?: { url?: string };
-    background?: { url?: string };
-    image?: string;
-  }
 
   const mapBaseImageUrl = useMemo(() => {
-    const layers = mapQuery.data?.config?.layers as MapLayers | undefined;
-    if (!layers || typeof layers !== "object") return null;
-    if (typeof layers.baseImageUrl === "string") return layers.baseImageUrl;
-    if (typeof layers.baseImage?.url === "string") return layers.baseImage.url;
-    if (typeof layers.background?.url === "string") return layers.background.url;
-    if (typeof layers.image === "string") return layers.image;
-    return null;
+    const layers = mapQuery.data?.config?.layers;
+    if (!isRecord(layers)) return null;
+    return (
+      getLayerString(layers, "baseImageUrl") ??
+      getLayerUrl(layers, "baseImage") ??
+      getLayerUrl(layers, "background") ??
+      getLayerString(layers, "image")
+    );
   }, [mapQuery.data?.config?.layers]);
 
   // Convert existing site data to LayoutSite format
   const initialLayoutData = useMemo(() => {
     // Check if layout exists in layers (stored as layers.layout)
-    const layers = mapQuery.data?.config?.layers as any;
-    const existingLayout = layers?.layout as LayoutData | undefined;
-    if (existingLayout?.sites?.length) {
+    const layers = isRecord(mapQuery.data?.config?.layers) ? mapQuery.data?.config?.layers : null;
+    const existingLayout = layers ? layers.layout : null;
+    if (isLayoutData(existingLayout) && existingLayout.sites.length > 0) {
       return existingLayout;
     }
 
     // Convert sites to layout format if no layout exists
-    const sites: LayoutSite[] = (sitesQuery.data || []).map((site: any, index: number) => ({
+    const sites: LayoutSite[] = (sitesQuery.data || []).map((site, index) => ({
       id: site.id,
       x: 100 + (index % 8) * 80,
       y: 100 + Math.floor(index / 8) * 60,
@@ -92,8 +130,8 @@ export default function CampgroundMapPage() {
       height: 40,
       rotation: 0,
       siteNumber: site.siteNumber || site.name || `Site ${index + 1}`,
-      siteType: (site.siteType?.toLowerCase() || "rv") as "rv" | "tent" | "cabin" | "glamping" | "group",
-      siteClassId: site.siteClassId,
+      siteType: normalizeSiteType(site.siteType),
+      siteClassId: site.siteClassId ?? undefined,
       color: getSiteColor(site.siteType),
     }));
 
@@ -109,17 +147,17 @@ export default function CampgroundMapPage() {
 
   // Get site classes for the editor
   const siteClasses = useMemo(() => {
-    return (siteClassesQuery.data || []).map((sc: any) => ({
-      id: sc.id,
-      name: sc.name,
-      color: getSiteColor(sc.type || sc.name),
+    return (siteClassesQuery.data || []).map((siteClass) => ({
+      id: siteClass.id,
+      name: siteClass.name,
+      color: getSiteColor(siteClass.siteType || siteClass.name),
     }));
   }, [siteClassesQuery.data]);
 
   const saveMutation = useMutation({
     mutationFn: async (layoutData: LayoutData) => {
       // Save the layout data to the campground map config (stored in layers.layout)
-      const existingLayers = (mapQuery.data?.config?.layers as any) || {};
+      const existingLayers = isRecord(mapQuery.data?.config?.layers) ? mapQuery.data?.config?.layers : {};
       const config = {
         ...mapQuery.data?.config,
         layers: {
@@ -128,7 +166,7 @@ export default function CampgroundMapPage() {
           baseImageUrl: layoutData.backgroundImage,
         },
       };
-      return apiClient.upsertCampgroundMap(campgroundId, { config });
+      return apiClient.upsertCampgroundMap(requireCampgroundId(), { config });
     },
     onSuccess: () => {
       toast({
@@ -138,10 +176,10 @@ export default function CampgroundMapPage() {
       setHasUnsavedChanges(false);
       queryClient.invalidateQueries({ queryKey: ["campground-map", campgroundId] });
     },
-    onError: (error: any) => {
+    onError: (error) => {
       toast({
         title: "Save failed",
-        description: error.message || "Could not save the layout. Please try again.",
+        description: error instanceof Error ? error.message : "Could not save the layout. Please try again.",
         variant: "destructive",
       });
     },
@@ -284,7 +322,7 @@ export default function CampgroundMapPage() {
             </p>
           </div>
           <CampgroundMapUpload
-            campgroundId={campgroundId}
+            campgroundId={requireCampgroundId()}
             initialUrl={mapBaseImageUrl}
             onUploaded={(url) => {
               mapQuery.refetch();

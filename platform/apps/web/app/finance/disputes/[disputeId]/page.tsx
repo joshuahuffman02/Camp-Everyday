@@ -27,8 +27,8 @@ function formatMoney(cents: number | null | undefined, currency = "USD") {
 }
 
 export default function DisputeDetailPage() {
-  const params = useParams();
-  const disputeId = params?.disputeId as string;
+  const params = useParams<{ disputeId?: string }>();
+  const disputeId = params.disputeId ?? "";
   const [campgroundId, setCampgroundId] = useState<string>("");
 
   useEffect(() => {

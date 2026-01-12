@@ -230,7 +230,6 @@ export default function PortalManagePage() {
               toast({
                 title: "Request submitted",
                 description: message,
-                duration: 5000,
               });
             }
           }}
@@ -364,8 +363,9 @@ function ActionModal({
           onClose();
           return;
       }
-    } catch (err: any) {
-      setError(err.message || "Something went wrong. Please try again.");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Something went wrong. Please try again.";
+      setError(message);
     } finally {
       setLoading(false);
     }

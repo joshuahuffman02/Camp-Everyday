@@ -104,6 +104,40 @@ interface RateCard {
   incentives: Incentive[];
 }
 
+type RateCardForm = Omit<RateCard, "id" | "isActive" | "discounts" | "incentives">;
+type DiscountForm = Omit<Discount, "id" | "isActive">;
+type IncentiveForm = Omit<Incentive, "id" | "isActive">;
+
+const isBillingFrequency = (value: string): value is BillingFrequency =>
+  value === "monthly" ||
+  value === "quarterly" ||
+  value === "semi_annual" ||
+  value === "seasonal";
+
+const isDiscountCondition = (value: string): value is DiscountCondition =>
+  value === "metered_utilities" ||
+  value === "pay_in_full" ||
+  value === "payment_method" ||
+  value === "early_bird" ||
+  value === "returning_guest" ||
+  value === "tenure_years" ||
+  value === "referral" ||
+  value === "military" ||
+  value === "senior" ||
+  value === "custom";
+
+const isDiscountType = (value: string): value is DiscountType =>
+  value === "fixed_amount" || value === "percentage" || value === "per_month";
+
+const isIncentiveType = (value: string): value is IncentiveType =>
+  value === "guest_passes" ||
+  value === "store_credit" ||
+  value === "free_nights" ||
+  value === "early_site_selection" ||
+  value === "rate_lock" ||
+  value === "amenity_access" ||
+  value === "custom";
+
 // Helper components
 const conditionLabels: Record<DiscountCondition, string> = {
   metered_utilities: "Metered Utilities",
@@ -238,10 +272,10 @@ function PricingPreview({
 }
 
 export default function RateCardsPage() {
-  const params = useParams();
+  const params = useParams<{ campgroundId: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const campgroundId = params.campgroundId as string;
+  const campgroundId = params.campgroundId;
   const currentYear = new Date().getFullYear();
 
   // State
@@ -258,40 +292,40 @@ export default function RateCardsPage() {
   const [previewPaymentMethod, setPreviewPaymentMethod] = useState("check");
 
   // Form state
-  const [newRateCard, setNewRateCard] = useState({
+  const [newRateCard, setNewRateCard] = useState<RateCardForm>({
     name: `${currentYear + 1} Season`,
     seasonYear: currentYear + 1,
     baseRate: 2400,
-    billingFrequency: "monthly" as BillingFrequency,
+    billingFrequency: "monthly",
     description: "",
-    includedUtilities: [] as string[],
+    includedUtilities: [],
     seasonStartDate: `${currentYear + 1}-04-15`,
     seasonEndDate: `${currentYear + 1}-10-15`,
     isDefault: true,
   });
 
-  const [newDiscount, setNewDiscount] = useState({
+  const [newDiscount, setNewDiscount] = useState<DiscountForm>({
     name: "",
     description: "",
-    conditionType: "metered_utilities" as DiscountCondition,
+    conditionType: "metered_utilities",
     conditionValue: "",
-    discountType: "fixed_amount" as DiscountType,
+    discountType: "fixed_amount",
     discountAmount: 0,
     stackable: true,
     priority: 0,
   });
 
-  const [newIncentive, setNewIncentive] = useState({
+  const [newIncentive, setNewIncentive] = useState<IncentiveForm>({
     name: "",
     description: "",
-    conditionType: "pay_in_full" as DiscountCondition,
+    conditionType: "pay_in_full",
     conditionValue: "",
-    incentiveType: "guest_passes" as IncentiveType,
+    incentiveType: "guest_passes",
     incentiveValue: 0,
   });
 
   // Queries
-  const rateCardsQuery = useQuery({
+  const rateCardsQuery = useQuery<RateCard[]>({
     queryKey: ["rate-cards", campgroundId, selectedYear],
     queryFn: async () => {
       const response = await fetch(
@@ -299,7 +333,7 @@ export default function RateCardsPage() {
         { credentials: "include" }
       );
       if (!response.ok) throw new Error("Failed to fetch rate cards");
-      return response.json() as Promise<RateCard[]>;
+      return response.json();
     },
     enabled: !!campgroundId,
   });
@@ -682,12 +716,14 @@ export default function RateCardsPage() {
                     <Label htmlFor="rate-card-billing-frequency">Billing Frequency</Label>
                     <Select
                       value={newRateCard.billingFrequency}
-                      onValueChange={(value) =>
-                        setNewRateCard({
-                          ...newRateCard,
-                          billingFrequency: value as BillingFrequency,
-                        })
-                      }
+                      onValueChange={(value) => {
+                        if (isBillingFrequency(value)) {
+                          setNewRateCard({
+                            ...newRateCard,
+                            billingFrequency: value,
+                          });
+                        }
+                      }}
                     >
                       <SelectTrigger id="rate-card-billing-frequency" className="w-full">
                         <SelectValue />
@@ -792,12 +828,14 @@ export default function RateCardsPage() {
                   <Label htmlFor="discount-condition">Condition</Label>
                   <Select
                     value={newDiscount.conditionType}
-                    onValueChange={(value) =>
-                      setNewDiscount({
-                        ...newDiscount,
-                        conditionType: value as DiscountCondition,
-                      })
-                    }
+                    onValueChange={(value) => {
+                      if (isDiscountCondition(value)) {
+                        setNewDiscount({
+                          ...newDiscount,
+                          conditionType: value,
+                        });
+                      }
+                    }}
                   >
                     <SelectTrigger id="discount-condition" className="w-full">
                       <SelectValue />
@@ -835,12 +873,14 @@ export default function RateCardsPage() {
                     <Label htmlFor="discount-type">Discount Type</Label>
                     <Select
                       value={newDiscount.discountType}
-                      onValueChange={(value) =>
-                        setNewDiscount({
-                          ...newDiscount,
-                          discountType: value as DiscountType,
-                        })
-                      }
+                      onValueChange={(value) => {
+                        if (isDiscountType(value)) {
+                          setNewDiscount({
+                            ...newDiscount,
+                            discountType: value,
+                          });
+                        }
+                      }}
                     >
                       <SelectTrigger id="discount-type" className="w-full">
                         <SelectValue />
@@ -924,12 +964,14 @@ export default function RateCardsPage() {
                   <Label htmlFor="incentive-condition">Condition</Label>
                   <Select
                     value={newIncentive.conditionType}
-                    onValueChange={(value) =>
-                      setNewIncentive({
-                        ...newIncentive,
-                        conditionType: value as DiscountCondition,
-                      })
-                    }
+                    onValueChange={(value) => {
+                      if (isDiscountCondition(value)) {
+                        setNewIncentive({
+                          ...newIncentive,
+                          conditionType: value,
+                        });
+                      }
+                    }}
                   >
                     <SelectTrigger id="incentive-condition" className="w-full">
                       <SelectValue />
@@ -949,12 +991,14 @@ export default function RateCardsPage() {
                     <Label htmlFor="incentive-type">Incentive Type</Label>
                     <Select
                       value={newIncentive.incentiveType}
-                      onValueChange={(value) =>
-                        setNewIncentive({
-                          ...newIncentive,
-                          incentiveType: value as IncentiveType,
-                        })
-                      }
+                      onValueChange={(value) => {
+                        if (isIncentiveType(value)) {
+                          setNewIncentive({
+                            ...newIncentive,
+                            incentiveType: value,
+                          });
+                        }
+                      }}
                     >
                       <SelectTrigger id="incentive-type" className="w-full">
                         <SelectValue />

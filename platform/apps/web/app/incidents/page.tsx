@@ -48,8 +48,9 @@ import {
 } from "@/lib/animations";
 
 type Incident = Awaited<ReturnType<typeof apiClient.createIncident>>;
-type Guest = { id: string; primaryFirstName?: string; primaryLastName?: string; email?: string };
-type Reservation = { id: string; arrivalDate?: string; departureDate?: string; guest?: Guest; site?: { name?: string } };
+type Guest = Awaited<ReturnType<typeof apiClient.getGuests>>[number];
+type Reservation = Awaited<ReturnType<typeof apiClient.getReservations>>[number];
+type IncidentReport = Exclude<Awaited<ReturnType<typeof apiClient.getIncidentReport>>, string>;
 
 // Incident type configuration
 const incidentTypes = [
@@ -82,7 +83,7 @@ export default function IncidentsPage() {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [report, setReport] = useState<any>(null);
+  const [report, setReport] = useState<IncidentReport | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
   const prefersReducedMotion = useReducedMotion();
 
@@ -149,14 +150,16 @@ export default function IncidentsPage() {
         const cg = camps[0];
         if (cg?.id) {
           setCampgroundId(cg.id);
+          const emptyGuests: Guest[] = [];
+          const emptyReservations: Reservation[] = [];
           const [list, guestList, resList] = await Promise.all([
             apiClient.listIncidents(cg.id),
-            apiClient.getGuests().catch(() => []),
-            apiClient.getReservations(cg.id).catch(() => [])
+            apiClient.getGuests().catch(() => emptyGuests),
+            apiClient.getReservations(cg.id).catch(() => emptyReservations)
           ]);
-          setIncidents(list as Incident[]);
-          setGuests(guestList as Guest[]);
-          setReservations(resList as Reservation[]);
+          setIncidents(list);
+          setGuests(guestList);
+          setReservations(resList);
           if (list.length) setSelectedIncidentId(list[0].id);
         }
       } finally {
@@ -178,7 +181,7 @@ export default function IncidentsPage() {
         reservationId: form.reservationId || undefined,
         guestId: form.guestId || undefined,
       });
-      setIncidents([created as Incident, ...incidents]);
+      setIncidents([created, ...incidents]);
       setSelectedIncidentId(created.id);
       setForm({ type: "injury", severity: "", notes: "", reservationId: "", guestId: "" });
     } finally {
@@ -202,7 +205,7 @@ export default function IncidentsPage() {
     setActionLoading("claim");
     try {
       const updated = await apiClient.linkIncidentClaim(selectedIncidentId, { claimId });
-      setIncidents((prev) => prev.map((i) => (i.id === updated.id ? (updated as Incident) : i)));
+      setIncidents((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
       setClaimId("");
     } finally {
       setActionLoading(null);
@@ -214,7 +217,7 @@ export default function IncidentsPage() {
     setActionLoading("reminder");
     try {
       const updated = await apiClient.setIncidentReminder(selectedIncidentId, { reminderAt });
-      setIncidents((prev) => prev.map((i) => (i.id === updated.id ? (updated as Incident) : i)));
+      setIncidents((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
     } finally {
       setActionLoading(null);
     }
@@ -236,7 +239,7 @@ export default function IncidentsPage() {
     setActionLoading("close");
     try {
       const updated = await apiClient.closeIncident(selectedIncidentId, { resolutionNotes: "Closed from UI" });
-      setIncidents((prev) => prev.map((i) => (i.id === updated.id ? (updated as Incident) : i)));
+      setIncidents((prev) => prev.map((i) => (i.id === updated.id ? updated : i)));
     } finally {
       setActionLoading(null);
     }
@@ -262,6 +265,10 @@ export default function IncidentsPage() {
     setReportLoading(true);
     try {
       const summary = await apiClient.getIncidentReport(campgroundId, "json");
+      if (typeof summary === "string") {
+        setReport(null);
+        return;
+      }
       setReport(summary);
     } finally {
       setReportLoading(false);
@@ -926,10 +933,10 @@ export default function IncidentsPage() {
                     <div>
                       <h4 className="font-semibold text-foreground mb-2">By Status</h4>
                       <div className="space-y-2">
-                        {report.byStatus?.map((s: any) => (
-                          <div key={s.status} className="flex items-center justify-between text-sm">
-                            <span className="capitalize text-muted-foreground">{s.status}</span>
-                            <span className="font-medium text-foreground">{s._count._all}</span>
+                        {report.byStatus.map((status) => (
+                          <div key={status.status} className="flex items-center justify-between text-sm">
+                            <span className="capitalize text-muted-foreground">{status.status}</span>
+                            <span className="font-medium text-foreground">{status._count._all}</span>
                           </div>
                         ))}
                       </div>
@@ -937,15 +944,15 @@ export default function IncidentsPage() {
                     <div className="border-t border-border pt-4">
                       <h4 className="font-semibold text-foreground mb-2">By Type</h4>
                       <div className="space-y-2">
-                        {report.byType?.map((t: any) => {
-                          const typeConfig = getTypeConfig(t.type);
+                        {report.byType.map((item) => {
+                          const typeConfig = getTypeConfig(item.type);
                           return (
-                            <div key={t.type} className="flex items-center justify-between text-sm">
+                            <div key={item.type} className="flex items-center justify-between text-sm">
                               <span className="flex items-center gap-2">
                                 <span className={typeConfig.color}>{typeConfig.icon}</span>
-                                <span className="capitalize text-muted-foreground">{t.type.replace('_', ' ')}</span>
+                                <span className="capitalize text-muted-foreground">{item.type.replace('_', ' ')}</span>
                               </span>
-                              <span className="font-medium text-foreground">{t._count._all}</span>
+                              <span className="font-medium text-foreground">{item._count._all}</span>
                             </div>
                           );
                         })}

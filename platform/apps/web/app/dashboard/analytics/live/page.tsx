@@ -37,6 +37,7 @@ import {
   Tablet,
 } from "lucide-react";
 import Link from "next/link";
+import { z } from "zod";
 
 interface LiveEvent {
   id: string;
@@ -51,6 +52,20 @@ interface LiveEvent {
   expiresAt: string;
 }
 
+const LiveEventSchema = z.object({
+  id: z.string(),
+  sessionId: z.string(),
+  userId: z.string().nullable(),
+  guestId: z.string().nullable(),
+  actorType: z.enum(["staff", "guest", "system"]),
+  eventType: z.string(),
+  eventData: z.record(z.unknown()),
+  page: z.string().nullable(),
+  createdAt: z.string(),
+  expiresAt: z.string(),
+});
+const LiveEventArraySchema = z.array(LiveEventSchema);
+
 interface SessionStats {
   activeSessions: number;
   staffSessions: number;
@@ -62,6 +77,18 @@ interface SessionStats {
     tablet: number;
   };
 }
+
+const SessionStatsSchema = z.object({
+  activeSessions: z.number(),
+  staffSessions: z.number(),
+  guestSessions: z.number(),
+  avgSessionDuration: z.number(),
+  deviceBreakdown: z.object({
+    desktop: z.number(),
+    mobile: z.number(),
+    tablet: z.number(),
+  }),
+});
 
 function getEventIcon(eventType: string) {
   switch (eventType) {
@@ -157,6 +184,7 @@ export default function LiveActivityFeed() {
     queryFn: async () => {
       const response = await apiClient.get<LiveEvent[]>(`/analytics/enhanced/live`, {
         params: { campgroundId, limit: 100 },
+        schema: LiveEventArraySchema,
       });
       return response.data;
     },
@@ -169,6 +197,7 @@ export default function LiveActivityFeed() {
     queryFn: async () => {
       const response = await apiClient.get<SessionStats>(`/analytics/enhanced/reports/sessions`, {
         params: { campgroundId, days: 1 },
+        schema: SessionStatsSchema,
       });
       return response.data;
     },
@@ -187,10 +216,11 @@ export default function LiveActivityFeed() {
   const eventTypes = [...new Set(liveEvents?.map((e) => e.eventType) || [])];
 
   // Count events by type
-  const eventCounts = liveEvents?.reduce((acc, event) => {
-    acc[event.eventType] = (acc[event.eventType] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>) || {};
+  const eventCounts =
+    liveEvents?.reduce<Record<string, number>>((acc, event) => {
+      acc[event.eventType] = (acc[event.eventType] || 0) + 1;
+      return acc;
+    }, {}) || {};
 
   return (
     <div className="space-y-6">

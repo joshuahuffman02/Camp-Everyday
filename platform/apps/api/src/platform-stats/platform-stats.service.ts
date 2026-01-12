@@ -169,7 +169,7 @@ export class PlatformStatsService {
         occurredAt: Date;
         Campground: { name: string; slug: string; state: string | null } | null;
       }) => ({
-        type: (event.eventName === "availability_check" ? "search" : "page_view") as "page_view" | "search" | "booking",
+        type: event.eventName === "availability_check" ? "search" : "page_view",
         campgroundName: event.Campground?.name || null,
         campgroundSlug: event.Campground?.slug || null,
         state: event.Campground?.state || null,

@@ -5,29 +5,34 @@ import { Roles, RolesGuard } from '../auth/guards/roles.guard';
 import { ScopeGuard } from '../permissions/scope.guard';
 import { UserRole } from '@prisma/client';
 import type { Request } from "express";
+import type { AuthUser } from "../auth/auth.types";
+
+type DynamicPricingRequest = Request & { campgroundId?: string | null; user?: AuthUser };
+type DynamicRuleInput = Parameters<DynamicPricingService["createRule"]>[0];
 
 @Controller('dynamic-pricing')
 @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
 export class DynamicPricingController {
   constructor(private readonly service: DynamicPricingService) {}
 
-  private requireCampgroundId(req: any, fallback?: string): string {
-    const campgroundId = fallback || req?.campgroundId || req?.headers?.['x-campground-id'];
+  private requireCampgroundId(req: DynamicPricingRequest, fallback?: string): string {
+    const headerValue = req?.headers?.["x-campground-id"];
+    const headerCampgroundId = Array.isArray(headerValue) ? headerValue[0] : headerValue;
+    const campgroundId = fallback || req?.campgroundId || headerCampgroundId;
     if (!campgroundId) {
       throw new BadRequestException('campgroundId is required');
     }
     return campgroundId;
   }
 
-  private assertCampgroundAccess(campgroundId: string, user: any): void {
+  private assertCampgroundAccess(campgroundId: string, user?: AuthUser): void {
     const isPlatformStaff = user?.platformRole === 'platform_admin' ||
-                            user?.platformRole === 'platform_superadmin' ||
                             user?.platformRole === 'support_agent';
     if (isPlatformStaff) {
       return;
     }
 
-    const userCampgroundIds = user?.memberships?.map((m: any) => m.campgroundId) ?? [];
+    const userCampgroundIds = user?.memberships?.map((m) => m.campgroundId) ?? [];
     if (!userCampgroundIds.includes(campgroundId)) {
       throw new BadRequestException('You do not have access to this campground');
     }
@@ -35,7 +40,7 @@ export class DynamicPricingController {
 
   @Post('rules')
   @Roles(UserRole.owner, UserRole.manager)
-  createRule(@Body() dto: any, @Req() req: Request) {
+  createRule(@Body() dto: DynamicRuleInput, @Req() req: DynamicPricingRequest) {
     const requiredCampgroundId = this.requireCampgroundId(req, dto.campgroundId);
     this.assertCampgroundAccess(requiredCampgroundId, req.user);
     return this.service.createRule({ ...dto, campgroundId: requiredCampgroundId });
@@ -45,8 +50,8 @@ export class DynamicPricingController {
   @Roles(UserRole.owner, UserRole.manager)
   listRules(
     @Query('campgroundId') campgroundId: string,
-    @Query('includeInactive') includeInactive?: string,
-    @Req() req: Request
+    @Req() req: DynamicPricingRequest,
+    @Query('includeInactive') includeInactive?: string
   ) {
     const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
     this.assertCampgroundAccess(requiredCampgroundId, req.user);
@@ -58,7 +63,7 @@ export class DynamicPricingController {
   getRule(
     @Param('id') id: string,
     @Query('campgroundId') campgroundId: string | undefined,
-    @Req() req: Request
+    @Req() req: DynamicPricingRequest
   ) {
     const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
     this.assertCampgroundAccess(requiredCampgroundId, req.user);
@@ -69,9 +74,9 @@ export class DynamicPricingController {
   @Roles(UserRole.owner, UserRole.manager)
   updateRule(
     @Param('id') id: string,
-    @Body() dto: any,
+    @Body() dto: Partial<DynamicRuleInput>,
     @Query('campgroundId') campgroundId: string | undefined,
-    @Req() req: Request
+    @Req() req: DynamicPricingRequest
   ) {
     const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
     this.assertCampgroundAccess(requiredCampgroundId, req.user);
@@ -83,7 +88,7 @@ export class DynamicPricingController {
   deleteRule(
     @Param('id') id: string,
     @Query('campgroundId') campgroundId: string | undefined,
-    @Req() req: Request
+    @Req() req: DynamicPricingRequest
   ) {
     const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
     this.assertCampgroundAccess(requiredCampgroundId, req.user);
@@ -97,7 +102,7 @@ export class DynamicPricingController {
     @Query('siteClassId') siteClassId: string | null,
     @Query('date') date: string,
     @Query('basePrice') basePrice: string,
-    @Req() req: Request
+    @Req() req: DynamicPricingRequest
   ) {
     const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
     this.assertCampgroundAccess(requiredCampgroundId, req.user);
@@ -113,7 +118,7 @@ export class DynamicPricingController {
   @Roles(UserRole.owner, UserRole.manager)
   recordOccupancySnapshot(
     @Body() dto: { campgroundId: string; date: string },
-    @Req() req: Request
+    @Req() req: DynamicPricingRequest
   ) {
     const requiredCampgroundId = this.requireCampgroundId(req, dto.campgroundId);
     this.assertCampgroundAccess(requiredCampgroundId, req.user);
@@ -125,7 +130,7 @@ export class DynamicPricingController {
   getOccupancy(
     @Query('campgroundId') campgroundId: string,
     @Query('date') date: string,
-    @Req() req: Request
+    @Req() req: DynamicPricingRequest
   ) {
     const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
     this.assertCampgroundAccess(requiredCampgroundId, req.user);
@@ -136,7 +141,7 @@ export class DynamicPricingController {
   @Roles(UserRole.owner, UserRole.manager)
   generateForecast(
     @Body() dto: { campgroundId: string; daysAhead?: number },
-    @Req() req: Request
+    @Req() req: DynamicPricingRequest
   ) {
     const requiredCampgroundId = this.requireCampgroundId(req, dto.campgroundId);
     this.assertCampgroundAccess(requiredCampgroundId, req.user);
@@ -149,7 +154,7 @@ export class DynamicPricingController {
     @Query('campgroundId') campgroundId: string,
     @Query('startDate') startDate: string,
     @Query('endDate') endDate: string,
-    @Req() req: Request
+    @Req() req: DynamicPricingRequest
   ) {
     const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
     this.assertCampgroundAccess(requiredCampgroundId, req.user);

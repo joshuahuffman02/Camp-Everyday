@@ -32,6 +32,16 @@ interface ClaimFormData {
   verificationMethod: VerificationMethod;
 }
 
+const verificationMethodValues: VerificationMethod[] = [
+  "phone",
+  "email",
+  "document",
+  "domain",
+];
+
+const isVerificationMethod = (value: string): value is VerificationMethod =>
+  verificationMethodValues.some((method) => method === value);
+
 export default function ClaimCampgroundPage({
   params,
 }: {
@@ -54,27 +64,32 @@ export default function ClaimCampgroundPage({
     verificationMethod: "email",
   });
 
-  const verificationMethods = [
+  const verificationMethods: {
+    id: VerificationMethod;
+    name: string;
+    description: string;
+    icon: JSX.Element;
+  }[] = [
     {
-      id: "email" as const,
+      id: "email",
       name: "Email Verification",
       description: "We'll send a verification code to your business email",
       icon: <Mail className="h-5 w-5" />,
     },
     {
-      id: "phone" as const,
+      id: "phone",
       name: "Phone Verification",
       description: "We'll call or text your business phone number",
       icon: <Phone className="h-5 w-5" />,
     },
     {
-      id: "document" as const,
+      id: "document",
       name: "Document Upload",
       description: "Upload business license or ownership documents",
       icon: <FileText className="h-5 w-5" />,
     },
     {
-      id: "domain" as const,
+      id: "domain",
       name: "Domain Verification",
       description: "Verify ownership via your campground's website",
       icon: <Globe className="h-5 w-5" />,
@@ -347,12 +362,14 @@ export default function ClaimCampgroundPage({
                         name="verificationMethod"
                         value={method.id}
                         checked={formData.verificationMethod === method.id}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          const { value } = e.target;
+                          if (!isVerificationMethod(value)) return;
                           setFormData({
                             ...formData,
-                            verificationMethod: e.target.value as VerificationMethod,
-                          })
-                        }
+                            verificationMethod: value,
+                          });
+                        }}
                         className="sr-only"
                       />
                       <span

@@ -1,16 +1,17 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
+import { AnnouncementStatus, Prisma } from "@prisma/client";
+import { randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 
-type AnnouncementType = "info" | "warning" | "success";
-type AnnouncementTarget = "all" | "admins" | "campground";
+type AnnouncementCreateInput = Omit<Prisma.AnnouncementCreateInput, "id" | "updatedAt">;
 
 @Injectable()
 export class AnnouncementService {
     constructor(private readonly prisma: PrismaService) { }
 
-    async findAll(status?: string) {
+    async findAll(status?: AnnouncementStatus) {
         return this.prisma.announcement.findMany({
-            where: status ? { status: status as any } : undefined,
+            where: status ? { status } : undefined,
             orderBy: { createdAt: "desc" },
         });
     }
@@ -21,30 +22,20 @@ export class AnnouncementService {
         return announcement;
     }
 
-    async create(data: {
-        title: string;
-        message: string;
-        type?: AnnouncementType;
-        target?: AnnouncementTarget;
-        campgroundId?: string;
-        scheduledAt?: Date;
-        createdById: string;
-        createdByEmail?: string;
-    }) {
-        return this.prisma.announcement.create({ data: data as any });
+    async create(data: AnnouncementCreateInput) {
+        return this.prisma.announcement.create({
+            data: {
+                id: randomUUID(),
+                ...data,
+                updatedAt: new Date(),
+            },
+        });
     }
 
-    async update(id: string, data: {
-        title?: string;
-        message?: string;
-        type?: AnnouncementType;
-        target?: AnnouncementTarget;
-        campgroundId?: string;
-        scheduledAt?: Date;
-    }) {
+    async update(id: string, data: Prisma.AnnouncementUpdateInput) {
         return this.prisma.announcement.update({
             where: { id },
-            data: data as any,
+            data,
         });
     }
 

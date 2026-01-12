@@ -20,6 +20,15 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard, Roles } from "../auth/guards/roles.guard";
 import { ScopeGuard } from "../auth/guards/scope.guard";
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const parseRoundUpOptions = (value: unknown): { values: number[] } | undefined => {
+  if (!isRecord(value) || !Array.isArray(value.values)) return undefined;
+  const values = value.values.filter((entry): entry is number => typeof entry === "number");
+  return values.length ? { values } : undefined;
+};
+
 @Controller("charity")
 @UseGuards(JwtAuthGuard)
 export class CharityController {
@@ -261,10 +270,11 @@ export class CampgroundCharityController {
     }
 
     const amount = parseInt(amountCents, 10);
+    const roundUpOptions = parseRoundUpOptions(settings.roundUpOptions);
     const roundUp = this.charityService.calculateRoundUp(
       amount,
       settings.roundUpType,
-      settings.roundUpOptions as { values: number[] } | undefined
+      roundUpOptions
     );
 
     return {

@@ -61,19 +61,8 @@ import { Input } from "@/components/ui/input";
 import { NpsGauge } from "@/components/analytics/NpsGauge";
 import type { NpsMetrics } from "@keepr/shared";
 
-type Reservation = {
-  id: string;
-  arrivalDate: string;
-  departureDate: string;
-  status?: string;
-  totalAmount?: number;
-  paidAmount?: number;
-  siteId?: string;
-  guest?: {
-    primaryFirstName?: string;
-    primaryLastName?: string;
-  };
-};
+type Reservation = Awaited<ReturnType<typeof apiClient.getReservations>>[number];
+type BreakdownItem = { label: string; value: string; tone?: "success" | "warning" | "danger" };
 
 // Loading skeleton component
 function SkeletonCard() {
@@ -255,7 +244,7 @@ function CelebrationBadge({
     <motion.div
       initial={{ opacity: 0, scale: 0.8, y: -10 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
-      transition={{ type: "spring" as const, duration: 0.5, delay: 0.3 }}
+      transition={{ type: "spring", duration: 0.5, delay: 0.3 }}
       className={cn(
         "inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold",
         "bg-card text-foreground border border-border",
@@ -372,9 +361,16 @@ export default function Dashboard() {
 
   const selectedCampground = campgrounds.find((c) => c.id === selectedId) || campgrounds[0];
 
-  const reservationsQuery = useQuery({
+  const requireSelectedId = () => {
+    if (!selectedId) {
+      throw new Error("Campground is required");
+    }
+    return selectedId;
+  };
+
+  const reservationsQuery = useQuery<Reservation[]>({
     queryKey: ["reservations", selectedId],
-    queryFn: () => apiClient.getReservations(selectedId ?? ""),
+    queryFn: () => apiClient.getReservations(requireSelectedId()),
     enabled: !!selectedId,
     staleTime: 30000,
     placeholderData: keepPreviousData,
@@ -382,7 +378,7 @@ export default function Dashboard() {
 
   const sitesQuery = useQuery({
     queryKey: ["sites", selectedId],
-    queryFn: () => apiClient.getSites(selectedId ?? ""),
+    queryFn: () => apiClient.getSites(requireSelectedId()),
     enabled: !!selectedId,
     staleTime: 30000,
     placeholderData: keepPreviousData,
@@ -390,7 +386,7 @@ export default function Dashboard() {
 
   const npsQuery = useQuery({
     queryKey: ["nps-metrics", selectedId],
-    queryFn: () => apiClient.getNpsMetrics(selectedId ?? ""),
+    queryFn: () => apiClient.getNpsMetrics(requireSelectedId()),
     enabled: !!selectedId,
     staleTime: 30000,
     placeholderData: keepPreviousData,
@@ -398,7 +394,7 @@ export default function Dashboard() {
 
   const yieldMetricsQuery = useQuery({
     queryKey: ["yield-metrics", selectedId],
-    queryFn: () => apiClient.getYieldMetrics(selectedId ?? ""),
+    queryFn: () => apiClient.getYieldMetrics(requireSelectedId()),
     enabled: !!selectedId,
     staleTime: 30000,
     placeholderData: keepPreviousData,
@@ -426,7 +422,7 @@ export default function Dashboard() {
     return today.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
   }, [today]);
 
-  const reservations = reservationsQuery.data as Reservation[] | undefined;
+  const reservations = reservationsQuery.data;
   const isLoading = !hasMounted || reservationsQuery.isLoading || sitesQuery.isLoading;
   const isError = reservationsQuery.isError || sitesQuery.isError;
   const totalSites = sitesQuery.data?.length ?? 0;
@@ -581,6 +577,27 @@ export default function Dashboard() {
 
   const formatMoney = (cents?: number) =>
     `$${((cents ?? 0) / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+
+  const balanceBreakdown: BreakdownItem[] = [];
+  if (balanceOverdue > 0) {
+    balanceBreakdown.push({ label: "overdue", value: formatMoney(balanceOverdue), tone: "danger" });
+  }
+  if (balanceDueToday > 0) {
+    balanceBreakdown.push({ label: "due today", value: formatMoney(balanceDueToday), tone: "warning" });
+  }
+  if (balanceFuture > 0) {
+    balanceBreakdown.push({ label: "future", value: formatMoney(balanceFuture), tone: "success" });
+  }
+
+  const revenueBreakdown: BreakdownItem[] | undefined = yieldMetrics?.yoyChange
+    ? [
+        {
+          label: "vs last year",
+          value: `${yieldMetrics.yoyChange.revenue >= 0 ? "+" : ""}${yieldMetrics.yoyChange.revenue.toFixed(0)}%`,
+          tone: yieldMetrics.yoyChange.revenue >= 0 ? "success" : "danger"
+        }
+      ]
+    : undefined;
 
   const alerts = useMemo(() => {
     const list: { id: string; label: string; href: string }[] = [];
@@ -923,11 +940,7 @@ export default function Dashboard() {
                     index={4}
                     prefersReducedMotion={prefersReducedMotion}
                     celebrate={outstandingBalanceCents === 0 && (reservations?.length ?? 0) > 0}
-                    breakdown={outstandingBalanceCents > 0 ? [
-                      ...(balanceOverdue > 0 ? [{ label: "overdue", value: formatMoney(balanceOverdue), tone: "danger" as const }] : []),
-                      ...(balanceDueToday > 0 ? [{ label: "due today", value: formatMoney(balanceDueToday), tone: "warning" as const }] : []),
-                      ...(balanceFuture > 0 ? [{ label: "future", value: formatMoney(balanceFuture), tone: "success" as const }] : []),
-                    ] : undefined}
+                    breakdown={balanceBreakdown.length > 0 ? balanceBreakdown : undefined}
                   />
                   <OpsCard
                     label="Revenue"
@@ -938,13 +951,7 @@ export default function Dashboard() {
                     index={5}
                     prefersReducedMotion={prefersReducedMotion}
                     celebrate={(yieldMetrics?.todayRevenue ?? 0) >= 100000}
-                    breakdown={yieldMetrics?.yoyChange ? [
-                      {
-                        label: "vs last year",
-                        value: `${yieldMetrics.yoyChange.revenue >= 0 ? "+" : ""}${yieldMetrics.yoyChange.revenue.toFixed(0)}%`,
-                        tone: yieldMetrics.yoyChange.revenue >= 0 ? "success" as const : "danger" as const
-                      }
-                    ] : undefined}
+                    breakdown={revenueBreakdown}
                   />
                 </div>
               )}
@@ -1188,7 +1195,7 @@ export default function Dashboard() {
                     <motion.div
                       initial={{ opacity: 0, scale: 0.95 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      transition={{ type: "spring" as const, duration: 0.5 }}
+                      transition={{ type: "spring", duration: 0.5 }}
                       className={cn(
                         "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 rounded-lg px-4 py-4",
                         "border border-border bg-card"
@@ -1542,7 +1549,7 @@ function OpsCard({
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
-            transition={{ type: "spring" as const, delay: 0.2 }}
+            transition={{ type: "spring", delay: 0.2 }}
             className="text-emerald-600"
           >
             <CheckCircle className="h-5 w-5" />
@@ -1605,7 +1612,7 @@ function BoardCard({
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ type: "spring" as const, duration: 0.4 }}
+          transition={{ type: "spring", duration: 0.4 }}
           className={cn(
             "rounded-lg p-6 text-center space-y-3",
             "border border-dashed border-border bg-muted/40"

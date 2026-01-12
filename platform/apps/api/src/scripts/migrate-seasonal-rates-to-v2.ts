@@ -1,5 +1,6 @@
-import { PrismaClient, PricingRuleType, PricingStackMode, AdjustmentType } from "@prisma/client";
+import { PrismaClient, PricingRuleType, PricingStackMode, AdjustmentType, Prisma } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { randomUUID } from "crypto";
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL || process.env.PLATFORM_DATABASE_URL
@@ -53,8 +54,8 @@ async function main() {
     let targetClasses: { id: string; defaultRate: number | null }[] = [];
 
     if (rate.siteClassId) {
-      if (rate.siteClass) {
-        targetClasses = [{ id: rate.siteClass.id, defaultRate: rate.siteClass.defaultRate }];
+      if (rate.SiteClass) {
+        targetClasses = [{ id: rate.SiteClass.id, defaultRate: rate.SiteClass.defaultRate }];
       } else {
         const fallback = await prisma.siteClass.findUnique({
           where: { id: rate.siteClassId },
@@ -105,9 +106,10 @@ async function main() {
         continue;
       }
 
-      const data = {
-        campgroundId: rate.campgroundId,
-        siteClassId: siteClass.id,
+      const data: Prisma.PricingRuleV2CreateInput = {
+        id: randomUUID(),
+        Campground: { connect: { id: rate.campgroundId } },
+        SiteClass: { connect: { id: siteClass.id } },
         name: `Legacy Seasonal: ${rate.name}`,
         type: PricingRuleType.season,
         priority: calcPriority(rate.minNights),
@@ -116,10 +118,11 @@ async function main() {
         adjustmentValue,
         startDate: rate.startDate,
         endDate: rate.endDate,
-        dowMask: [] as number[],
+        dowMask: [],
         calendarRefId,
         active: rate.isActive,
-        createdBy: "migration:seasonal"
+        createdBy: "migration:seasonal",
+        updatedAt: new Date(),
       };
 
       if (dryRun) {

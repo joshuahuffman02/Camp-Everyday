@@ -1,7 +1,9 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
+import { FeatureFlagScope, Prisma } from "@prisma/client";
+import { randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 
-type FeatureFlagScope = "global" | "campground";
+type FeatureFlagCreateInput = Omit<Prisma.FeatureFlagCreateInput, "id" | "updatedAt">;
 
 @Injectable()
 export class FeatureFlagService {
@@ -23,27 +25,20 @@ export class FeatureFlagService {
         return this.prisma.featureFlag.findUnique({ where: { key } });
     }
 
-    async create(data: {
-        key: string;
-        name: string;
-        description?: string;
-        enabled?: boolean;
-        scope?: FeatureFlagScope;
-        campgrounds?: string[];
-    }) {
-        return this.prisma.featureFlag.create({ data: data as any });
+    async create(data: FeatureFlagCreateInput) {
+        return this.prisma.featureFlag.create({
+            data: {
+                id: randomUUID(),
+                ...data,
+                updatedAt: new Date(),
+            },
+        });
     }
 
-    async update(id: string, data: {
-        name?: string;
-        description?: string;
-        enabled?: boolean;
-        scope?: FeatureFlagScope;
-        campgrounds?: string[];
-    }) {
+    async update(id: string, data: Prisma.FeatureFlagUpdateInput) {
         return this.prisma.featureFlag.update({
             where: { id },
-            data: data as any,
+            data: { ...data, updatedAt: new Date() },
         });
     }
 

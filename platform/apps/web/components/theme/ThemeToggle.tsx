@@ -2,15 +2,15 @@
 
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion, type Transition } from "framer-motion";
 import { Sun } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const SPRING_CONFIG = {
-  type: "spring" as const,
+  type: "spring",
   stiffness: 300,
   damping: 25,
-};
+} satisfies Transition;
 
 type ThemeOption = "light";
 

@@ -8,7 +8,7 @@ import { Input } from "../../../components/ui/input";
 import { Label } from "../../../components/ui/label";
 import { Textarea } from "../../../components/ui/textarea";
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, type Variants } from "framer-motion";
 import {
   MessageSquareHeart,
   TrendingUp,
@@ -43,7 +43,7 @@ import {
 } from "lucide-react";
 
 // Animation variants
-const containerVariants = {
+const containerVariants: Variants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
@@ -51,29 +51,29 @@ const containerVariants = {
       staggerChildren: 0.1,
     },
   },
-} as const;
+};
 
-const itemVariants = {
+const itemVariants: Variants = {
   hidden: { opacity: 0, y: 20 },
   visible: {
     opacity: 1,
     y: 0,
     transition: {
-      type: "spring" as const,
+      type: "spring",
       stiffness: 100,
       damping: 15,
     },
   },
-} as const;
+};
 
-const pulseVariants = {
+const pulseVariants: Variants = {
   initial: { scale: 1 },
   pulse: {
-    scale: [1, 1.05, 1] as number[],
+    scale: [1, 1.05, 1],
     transition: {
       duration: 2,
       repeat: Infinity,
-      ease: "easeInOut" as const,
+      ease: "easeInOut",
     },
   },
 };
@@ -695,7 +695,11 @@ export default function FeedbackDashboard() {
                     role="alert"
                   >
                     <XCircle className="w-4 h-4 flex-shrink-0" />
-                    <span>{(inviteMutation.error as Error).message}</span>
+                    <span>
+                      {inviteMutation.error instanceof Error
+                        ? inviteMutation.error.message
+                        : "Failed to send invite"}
+                    </span>
                   </motion.div>
                 )}
               </div>

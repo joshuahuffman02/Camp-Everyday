@@ -6,7 +6,8 @@ import { useParams, useRouter } from "next/navigation";
 export default function CampgroundHome() {
   const params = useParams();
   const router = useRouter();
-  const campgroundId = params?.campgroundId as string;
+  const campgroundParam = params?.campgroundId;
+  const campgroundId = typeof campgroundParam === "string" ? campgroundParam : "";
 
   useEffect(() => {
     if (campgroundId) {

@@ -118,7 +118,9 @@ const tabs = [
   { id: "sdks", label: "SDKs" },
 ];
 
-const featureStyles = {
+type FeatureTone = "evergreen" | "clay" | "charcoal";
+
+const featureStyles: Record<FeatureTone, { iconBg: string; iconText: string }> = {
   evergreen: {
     iconBg: "bg-keepr-evergreen/10",
     iconText: "text-keepr-evergreen",
@@ -132,6 +134,27 @@ const featureStyles = {
     iconText: "text-keepr-charcoal",
   },
 };
+
+const features: Array<{ icon: typeof Code2; title: string; desc: string; tone: FeatureTone }> = [
+  {
+    icon: Code2,
+    title: "REST API",
+    desc: "Simple, predictable REST endpoints with JSON responses. Versioned and documented.",
+    tone: "evergreen",
+  },
+  {
+    icon: ShieldCheck,
+    title: "OAuth 2.0",
+    desc: "Industry-standard OAuth 2.0 authentication with granular scopes and token refresh.",
+    tone: "charcoal",
+  },
+  {
+    icon: PlugZap,
+    title: "Webhooks",
+    desc: "Real-time event notifications for reservations, payments, and availability changes.",
+    tone: "clay",
+  },
+];
 
 export default function DevelopersClient() {
   const [activeTab, setActiveTab] = useState("overview");
@@ -175,32 +198,13 @@ export default function DevelopersClient() {
       {/* Features */}
       <div className="max-w-6xl mx-auto px-6 -mt-10">
         <div className="grid md:grid-cols-3 gap-6">
-          {[
-            {
-              icon: Code2,
-              title: "REST API",
-              desc: "Simple, predictable REST endpoints with JSON responses. Versioned and documented.",
-              tone: "evergreen",
-            },
-            {
-              icon: ShieldCheck,
-              title: "OAuth 2.0",
-              desc: "Industry-standard OAuth 2.0 authentication with granular scopes and token refresh.",
-              tone: "charcoal",
-            },
-            {
-              icon: PlugZap,
-              title: "Webhooks",
-              desc: "Real-time event notifications for reservations, payments, and availability changes.",
-              tone: "clay",
-            },
-          ].map((feature) => (
+          {features.map((feature) => (
             <div
               key={feature.title}
               className="bg-card rounded-xl border border-border p-6 shadow-lg shadow-keepr-charcoal/10"
             >
               <div
-                className={`h-12 w-12 rounded-lg ${featureStyles[feature.tone as keyof typeof featureStyles].iconBg} ${featureStyles[feature.tone as keyof typeof featureStyles].iconText} flex items-center justify-center mb-4`}
+                className={`h-12 w-12 rounded-lg ${featureStyles[feature.tone].iconBg} ${featureStyles[feature.tone].iconText} flex items-center justify-center mb-4`}
               >
                 <feature.icon className="h-6 w-6" />
               </div>

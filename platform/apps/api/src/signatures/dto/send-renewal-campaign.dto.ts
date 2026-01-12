@@ -1,11 +1,13 @@
 import { IsArray, IsIn, IsInt, IsOptional, IsString, ValidateNested } from "class-validator";
 import { Type } from "class-transformer";
 
-const DELIVERY_CHANNELS = ["email", "sms", "email_and_sms"] as const;
+type DeliveryChannel = "email" | "sms" | "email_and_sms";
+
+const DELIVERY_CHANNELS: DeliveryChannel[] = ["email", "sms", "email_and_sms"];
 
 export class RenewalRecipient {
   @IsString()
-  guestId: string;
+  guestId!: string;
 
   @IsOptional()
   @IsString()
@@ -22,22 +24,22 @@ export class RenewalRecipient {
 
 export class SendRenewalCampaignDto {
   @IsString()
-  campgroundId: string;
+  campgroundId!: string;
 
   @IsString()
-  templateId: string; // Document template to use
+  templateId!: string; // Document template to use
 
   @IsInt()
-  seasonYear: number; // e.g., 2026
+  seasonYear!: number; // e.g., 2026
 
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => RenewalRecipient)
-  recipients: RenewalRecipient[];
+  recipients!: RenewalRecipient[];
 
   @IsOptional()
-  @IsIn(DELIVERY_CHANNELS as unknown as string[])
-  deliveryChannel?: (typeof DELIVERY_CHANNELS)[number];
+  @IsIn(DELIVERY_CHANNELS)
+  deliveryChannel?: DeliveryChannel;
 
   @IsOptional()
   @IsString()

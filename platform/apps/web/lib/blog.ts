@@ -60,7 +60,7 @@ export interface BlogPost {
     description: string;
     date?: string;
     content: string;
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 export function getAllPosts(): BlogPost[] {

@@ -22,6 +22,12 @@
       "@/shared": [
         "../../../packages/shared/src"
       ],
+      "@keepr/sdk": [
+        "../../packages/sdk/dist"
+      ],
+      "@keepr/sdk/*": [
+        "../../packages/sdk/dist/*"
+      ],
       "@keepr/shared": [
         "../../packages/shared/dist"
       ],
@@ -31,6 +37,7 @@
     },
     "incremental": true,
     "strict": true,
+    "noImplicitAny": true,
     "useUnknownInCatchVariables": true,
     "skipLibCheck": true
   },

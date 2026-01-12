@@ -26,7 +26,7 @@ export class ReservationsController {
    * Verify the authenticated user has access to the specified campground.
    * Prevents cross-tenant access by ensuring users can only access campgrounds they are members of.
    */
-  private assertCampgroundAccess(campgroundId: string, user: any): void {
+  private assertCampgroundAccess(campgroundId: string, user?: AuthUser): void {
     // Platform staff can access any campground
     const isPlatformStaff = user?.platformRole === 'platform_admin' ||
                             user?.platformRole === 'platform_superadmin' ||
@@ -35,7 +35,8 @@ export class ReservationsController {
       return;
     }
 
-    const userCampgroundIds = user?.memberships?.map((m: any) => m.campgroundId) ?? [];
+    const userCampgroundIds = user?.memberships
+      ?.flatMap((membership) => (membership.campgroundId ? [membership.campgroundId] : [])) ?? [];
     if (!userCampgroundIds.includes(campgroundId)) {
       throw new ForbiddenException("You do not have access to this campground");
     }
@@ -46,7 +47,7 @@ export class ReservationsController {
    * Prevents IDOR attacks by ensuring users can only access reservations
    * belonging to campgrounds they are members of.
    */
-  private async assertReservationAccess(reservationId: string, user: any): Promise<void> {
+  private async assertReservationAccess(reservationId: string, user?: AuthUser): Promise<void> {
     const reservation = await this.prisma.reservation.findUnique({
       where: { id: reservationId },
       select: { campgroundId: true }
@@ -62,12 +63,12 @@ export class ReservationsController {
   @Get("campgrounds/:campgroundId/reservations")
   list(
     @Param("campgroundId") campgroundId: string,
+    @Req() req: AuthRequest,
     @Query("limit") limit?: string,
     @Query("offset") offset?: string,
     @Query("status") status?: string,
     @Query("fromDate") fromDate?: string,
-    @Query("toDate") toDate?: string,
-    @Req() req: Request
+    @Query("toDate") toDate?: string
   ) {
     // SECURITY: Verify user has access to this campground
     this.assertCampgroundAccess(campgroundId, req.user);
@@ -85,8 +86,8 @@ export class ReservationsController {
   searchReservations(
     @Param("campgroundId") campgroundId: string,
     @Query("q") query: string,
-    @Query("activeOnly") activeOnly?: string,
-    @Req() req: Request
+    @Req() req: AuthRequest,
+    @Query("activeOnly") activeOnly?: string
   ) {
     // SECURITY: Verify user has access to this campground
     this.assertCampgroundAccess(campgroundId, req.user);
@@ -102,8 +103,8 @@ export class ReservationsController {
   @Post("campgrounds/:campgroundId/reservations/import")
   async importReservations(
     @Param("campgroundId") campgroundId: string,
-    @Body() body: { format?: "csv" | "json"; payload: string | any[]; dryRun?: boolean; idempotencyKey?: string; filename?: string },
-    @Req() req: Request
+    @Body() body: { format?: "csv" | "json"; payload: string | unknown[]; dryRun?: boolean; idempotencyKey?: string; filename?: string },
+    @Req() req: AuthRequest
   ) {
     const format = body.format ?? "json";
     return this.importExport.startImport({
@@ -111,7 +112,7 @@ export class ReservationsController {
       format,
       payload: body.payload,
       dryRun: body.dryRun ?? false,
-      idempotencyKey: body.idempotencyKey ?? (req?.headers?.["idempotency-key"] as string | undefined),
+      idempotencyKey: body.idempotencyKey ?? getHeaderValue(req.headers, "idempotency-key"),
       filename: body.filename,
       requestedById: req?.user?.id ?? null
     });
@@ -154,7 +155,7 @@ export class ReservationsController {
   queueReservationExport(
     @Param("campgroundId") campgroundId: string,
     @Body() body: { format?: "json" | "csv"; filters?: Record<string, unknown> },
-    @Req() req: Request
+    @Req() req: AuthRequest
   ) {
     return this.importExport.queueExport(campgroundId, body.filters, body.format ?? "json", req?.user?.id ?? null);
   }
@@ -196,13 +197,13 @@ export class ReservationsController {
   }
 
   @Get("reservations/:id")
-  async getById(@Param("id") id: string, @Req() req: Request) {
+  async getById(@Param("id") id: string, @Req() req: AuthRequest) {
     await this.assertReservationAccess(id, req.user);
     return this.reservations.findOne(id);
   }
 
   @Get("reservations/:id/calculate-deposit")
-  async calculateDeposit(@Param("id") id: string, @Req() req: Request) {
+  async calculateDeposit(@Param("id") id: string, @Req() req: AuthRequest) {
     await this.assertReservationAccess(id, req.user);
     return this.reservations.calculateDeposit(id);
   }
@@ -213,7 +214,7 @@ export class ReservationsController {
   }
 
   @Patch("reservations/:id")
-  async update(@Param("id") id: string, @Body() body: Partial<CreateReservationDto>, @Req() req: Request) {
+  async update(@Param("id") id: string, @Body() body: Partial<CreateReservationDto>, @Req() req: AuthRequest) {
     await this.assertReservationAccess(id, req.user);
     return this.reservations.update(id, body);
   }
@@ -222,7 +223,7 @@ export class ReservationsController {
   async updateGroup(
     @Param("id") id: string,
     @Body() body: { groupId: string | null; role?: "primary" | "member" | null },
-    @Req() req: Request
+    @Req() req: AuthRequest
   ) {
     await this.assertReservationAccess(id, req.user);
     return this.reservations.updateGroupAssignment(id, body);
@@ -239,7 +240,7 @@ export class ReservationsController {
   }
 
   @Post("reservations/:id/payments")
-  async pay(@Param("id") id: string, @Body() body: RecordPaymentDto, @Req() req: Request) {
+  async pay(@Param("id") id: string, @Body() body: RecordPaymentDto, @Req() req: AuthRequest) {
     await this.assertReservationAccess(id, req.user);
     return this.reservations.recordPayment(id, body.amountCents, {
       tenders: body.tenders,
@@ -248,7 +249,7 @@ export class ReservationsController {
   }
 
   @Post("reservations/:id/refunds")
-  async refund(@Param("id") id: string, @Body() body: RefundPaymentDto, @Req() req: Request) {
+  async refund(@Param("id") id: string, @Body() body: RefundPaymentDto, @Req() req: AuthRequest) {
     await this.assertReservationAccess(id, req.user);
     return this.reservations.refundPayment(id, body.amountCents, {
       destination: body.destination,
@@ -257,7 +258,7 @@ export class ReservationsController {
   }
 
   @Delete("reservations/:id")
-  async remove(@Param("id") id: string, @Req() req: Request) {
+  async remove(@Param("id") id: string, @Req() req: AuthRequest) {
     await this.assertReservationAccess(id, req.user);
     return this.reservations.remove(id);
   }
@@ -266,7 +267,7 @@ export class ReservationsController {
   async kioskCheckIn(
     @Param("id") id: string,
     @Body() body: { upsellTotalCents: number; override?: boolean; overrideReason?: string; actorId?: string | null },
-    @Req() req: Request
+    @Req() req: AuthRequest
   ) {
     await this.assertReservationAccess(id, req.user);
     return this.reservations.kioskCheckIn(id, body.upsellTotalCents || 0, {
@@ -284,7 +285,7 @@ export class ReservationsController {
   async checkIn(
     @Param("id") id: string,
     @Body() body: { force?: boolean } = {},
-    @Req() req: Request
+    @Req() req: AuthRequest
   ) {
     await this.assertReservationAccess(id, req.user);
     return this.reservations.staffCheckIn(id, {
@@ -300,7 +301,7 @@ export class ReservationsController {
   async checkOut(
     @Param("id") id: string,
     @Body() body: { force?: boolean } = {},
-    @Req() req: Request
+    @Req() req: AuthRequest
   ) {
     await this.assertReservationAccess(id, req.user);
     return this.reservations.staffCheckOut(id, {
@@ -324,7 +325,7 @@ export class ReservationsController {
       segments: Array<{ siteId: string; startDate: string; endDate: string }>;
       sendNotification?: boolean;
     },
-    @Req() req: Request
+    @Req() req: AuthRequest
   ) {
     await this.assertReservationAccess(id, req.user);
     return this.reservations.splitReservation(id, body.segments, {
@@ -334,8 +335,26 @@ export class ReservationsController {
   }
 
   @Get("reservations/:id/segments")
-  async getSegments(@Param("id") id: string, @Req() req: Request) {
+  async getSegments(@Param("id") id: string, @Req() req: AuthRequest) {
     await this.assertReservationAccess(id, req.user);
     return this.reservations.getReservationSegments(id);
   }
 }
+
+type Membership = { campgroundId?: string | null };
+
+type AuthUser = {
+  id?: string;
+  platformRole?: string | null;
+  memberships?: Membership[];
+};
+
+type AuthRequest = Request & {
+  user?: AuthUser;
+};
+
+const getHeaderValue = (headers: Request["headers"], key: string): string | undefined => {
+  const value = headers[key];
+  if (Array.isArray(value)) return value[0];
+  return typeof value === "string" ? value : undefined;
+};

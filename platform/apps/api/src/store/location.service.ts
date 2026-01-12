@@ -1,6 +1,7 @@
 import { Injectable, ConflictException, NotFoundException, Inject, forwardRef } from "@nestjs/common";
-import { Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import { randomUUID } from "crypto";
 import {
     CreateStoreLocationDto,
     UpdateStoreLocationDto,
@@ -9,7 +10,8 @@ import {
     CreateLocationPriceOverrideDto,
     UpdateLocationPriceOverrideDto,
 } from "./dto/location.dto";
-import { BatchInventoryService, BatchAllocation } from "../inventory/batch-inventory.service";
+import { BatchInventoryService } from "../inventory/batch-inventory.service";
+import type { BatchAllocation } from "../inventory/dto/batch.dto";
 
 @Injectable()
 export class LocationService {
@@ -22,7 +24,7 @@ export class LocationService {
     // ==================== STORE LOCATIONS ====================
 
     async listLocations(campgroundId: string, includeInactive = false) {
-        return this.prisma.storeLocation.findMany({
+        const locations = await this.prisma.storeLocation.findMany({
             where: {
                 campgroundId,
                 ...(includeInactive ? {} : { isActive: true }),
@@ -31,31 +33,52 @@ export class LocationService {
             include: {
                 _count: {
                     select: {
-                        terminals: true,
-                        locationInventory: true,
-                        priceOverrides: true,
+                        PosTerminal: true,
+                        LocationInventory: true,
+                        LocationPriceOverride: true,
                     },
                 },
             },
         });
+        return locations.map((location) => ({
+            ...location,
+            _count: {
+                ...location._count,
+                terminals: location._count.PosTerminal,
+                locationInventory: location._count.LocationInventory,
+                priceOverrides: location._count.LocationPriceOverride,
+            },
+        }));
     }
 
     async getLocation(campgroundId: string, id: string) {
         const location = await this.prisma.storeLocation.findFirst({
             where: { id, campgroundId },
             include: {
-                terminals: true,
+                PosTerminal: true,
                 _count: {
                     select: {
-                        locationInventory: true,
-                        priceOverrides: true,
-                        fulfillmentOrders: true,
+                        PosTerminal: true,
+                        LocationInventory: true,
+                        LocationPriceOverride: true,
+                        StoreOrder: true,
                     },
                 },
             },
         });
         if (!location) throw new NotFoundException("Location not found");
-        return location;
+        return {
+            ...location,
+            terminals: location.PosTerminal,
+            PosTerminal: undefined,
+            _count: {
+                ...location._count,
+                terminals: location._count.PosTerminal,
+                locationInventory: location._count.LocationInventory,
+                priceOverrides: location._count.LocationPriceOverride,
+                fulfillmentOrders: location._count.StoreOrder,
+            },
+        };
     }
 
     async getDefaultLocation(campgroundId: string) {
@@ -80,6 +103,7 @@ export class LocationService {
 
         return this.prisma.storeLocation.create({
             data: {
+                id: randomUUID(),
                 ...data,
                 isDefault: data.isDefault ?? existingCount === 0,
             },
@@ -106,7 +130,7 @@ export class LocationService {
     async deleteLocation(campgroundId: string, id: string) {
         const location = await this.prisma.storeLocation.findFirst({
             where: { id, campgroundId },
-            include: { _count: { select: { terminals: true, fulfillmentOrders: true } } },
+            include: { _count: { select: { PosTerminal: true, StoreOrder: true } } },
         });
 
         if (!location) throw new NotFoundException("Location not found");
@@ -115,11 +139,11 @@ export class LocationService {
             throw new ConflictException("Cannot delete the default location. Set another location as default first.");
         }
 
-        if (location._count.terminals > 0) {
+        if (location._count.PosTerminal > 0) {
             throw new ConflictException("Cannot delete location with assigned terminals. Reassign terminals first.");
         }
 
-        if (location._count.fulfillmentOrders > 0) {
+        if (location._count.StoreOrder > 0) {
             throw new ConflictException("Cannot delete location with orders. Consider deactivating instead.");
         }
 
@@ -141,13 +165,13 @@ export class LocationService {
             if (!product) throw new NotFoundException("Product not found");
         }
 
-        return this.prisma.locationInventory.findMany({
+        const inventory = await this.prisma.locationInventory.findMany({
             where: {
                 locationId,
                 ...(productId ? { productId } : {}),
             },
             include: {
-                product: {
+                Product: {
                     select: {
                         id: true,
                         name: true,
@@ -158,8 +182,13 @@ export class LocationService {
                     },
                 },
             },
-            orderBy: { product: { name: "asc" } },
+            orderBy: { Product: { name: "asc" } },
         });
+        return inventory.map((item) => ({
+            ...item,
+            product: item.Product,
+            Product: undefined,
+        }));
     }
 
     async setLocationStock(
@@ -191,6 +220,7 @@ export class LocationService {
             const inventory = await tx.locationInventory.upsert({
                 where: { productId_locationId: { productId: data.productId, locationId } },
                 create: {
+                    id: randomUUID(),
                     productId: data.productId,
                     locationId,
                     stockQty: newQty,
@@ -206,6 +236,7 @@ export class LocationService {
             if (previousQty !== newQty) {
                 await tx.inventoryMovement.create({
                     data: {
+                        id: randomUUID(),
                         campgroundId: location.campgroundId,
                         productId: data.productId,
                         locationId,
@@ -251,6 +282,7 @@ export class LocationService {
             const inventory = await tx.locationInventory.upsert({
                 where: { productId_locationId: { productId: data.productId, locationId } },
                 create: {
+                    id: randomUUID(),
                     productId: data.productId,
                     locationId,
                     stockQty: newQty,
@@ -263,6 +295,7 @@ export class LocationService {
             // Log the movement
             await tx.inventoryMovement.create({
                 data: {
+                    id: randomUUID(),
                     campgroundId: location.campgroundId,
                     productId: data.productId,
                     locationId,
@@ -288,10 +321,10 @@ export class LocationService {
         });
         if (!location) throw new NotFoundException("Location not found");
 
-        return this.prisma.locationPriceOverride.findMany({
+        const overrides = await this.prisma.locationPriceOverride.findMany({
             where: { locationId, isActive: true },
             include: {
-                product: {
+                Product: {
                     select: {
                         id: true,
                         name: true,
@@ -299,8 +332,13 @@ export class LocationService {
                     },
                 },
             },
-            orderBy: { product: { name: "asc" } },
+            orderBy: { Product: { name: "asc" } },
         });
+        return overrides.map((override) => ({
+            ...override,
+            product: override.Product,
+            Product: undefined,
+        }));
     }
 
     async createPriceOverride(
@@ -337,6 +375,7 @@ export class LocationService {
 
         return this.prisma.locationPriceOverride.create({
             data: {
+                id: randomUUID(),
                 productId: data.productId,
                 locationId,
                 priceCents: data.priceCents,
@@ -351,7 +390,7 @@ export class LocationService {
         data: UpdateLocationPriceOverrideDto
     ) {
         const override = await this.prisma.locationPriceOverride.findFirst({
-            where: { id, location: { campgroundId } },
+            where: { id, StoreLocation: { campgroundId } },
         });
         if (!override) throw new NotFoundException("Price override not found");
 
@@ -470,7 +509,7 @@ export class LocationService {
         },
         limit = 100
     ) {
-        return this.prisma.inventoryMovement.findMany({
+        const movements = await this.prisma.inventoryMovement.findMany({
             where: {
                 campgroundId,
                 ...(filters?.productId ? { productId: filters.productId } : {}),
@@ -479,20 +518,29 @@ export class LocationService {
                 ...(filters?.startDate || filters?.endDate
                     ? {
                           createdAt: {
-                              ...(filters.startDate ? { gte: filters.startDate } : {}),
-                              ...(filters.endDate ? { lte: filters.endDate } : {}),
+                              ...(filters?.startDate ? { gte: filters.startDate } : {}),
+                              ...(filters?.endDate ? { lte: filters.endDate } : {}),
                           },
                       }
                     : {}),
             },
             include: {
-                product: { select: { id: true, name: true, sku: true } },
-                location: { select: { id: true, name: true, code: true } },
-                actor: { select: { id: true, firstName: true, lastName: true } },
+                Product: { select: { id: true, name: true, sku: true } },
+                StoreLocation: { select: { id: true, name: true, code: true } },
+                User: { select: { id: true, firstName: true, lastName: true } },
             },
             orderBy: { createdAt: "desc" },
             take: limit,
         });
+        return movements.map((movement) => ({
+            ...movement,
+            product: movement.Product,
+            location: movement.StoreLocation,
+            actor: movement.User,
+            Product: undefined,
+            StoreLocation: undefined,
+            User: undefined,
+        }));
     }
 
     /**
@@ -508,6 +556,7 @@ export class LocationService {
 
         const created = await this.prisma.storeLocation.create({
             data: {
+                id: randomUUID(),
                 campgroundId,
                 name: "Main Store",
                 isDefault: true,
@@ -596,13 +645,14 @@ export class LocationService {
 
                     await tx.locationInventory.upsert({
                         where: { productId_locationId: { productId: item.productId, locationId } },
-                        create: { productId: item.productId, locationId, stockQty: newQty },
+                        create: { id: randomUUID(), productId: item.productId, locationId, stockQty: newQty },
                         update: { stockQty: newQty },
                     });
 
                     // Log movement
                     await tx.inventoryMovement.create({
                         data: {
+                            id: randomUUID(),
                             campgroundId,
                             productId: item.productId,
                             locationId,
@@ -628,6 +678,7 @@ export class LocationService {
                     // Log movement
                     await tx.inventoryMovement.create({
                         data: {
+                            id: randomUUID(),
                             campgroundId,
                             productId: item.productId,
                             locationId: null,
@@ -698,12 +749,13 @@ export class LocationService {
 
                     await tx.locationInventory.upsert({
                         where: { productId_locationId: { productId: item.productId, locationId } },
-                        create: { productId: item.productId, locationId, stockQty: newQty },
+                        create: { id: randomUUID(), productId: item.productId, locationId, stockQty: newQty },
                         update: { stockQty: newQty },
                     });
 
                     await tx.inventoryMovement.create({
                         data: {
+                            id: randomUUID(),
                             campgroundId,
                             productId: item.productId,
                             locationId,
@@ -727,6 +779,7 @@ export class LocationService {
 
                     await tx.inventoryMovement.create({
                         data: {
+                            id: randomUUID(),
                             campgroundId,
                             productId: item.productId,
                             locationId: null,
@@ -759,16 +812,16 @@ export class LocationService {
         const products = await this.prisma.product.findMany({
             where: { campgroundId, isActive: true },
             include: {
-                category: { select: { id: true, name: true } },
-                locationInventory: locationId ? { where: { locationId } } : false,
-                priceOverrides: locationId ? { where: { locationId, isActive: true } } : false,
+                ProductCategory: { select: { id: true, name: true } },
+                LocationInventory: locationId ? { where: { locationId } } : false,
+                LocationPriceOverride: locationId ? { where: { locationId, isActive: true } } : false,
             },
             orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
         });
 
         return products.map((p) => {
-            const overrides = Array.isArray(p.priceOverrides) ? p.priceOverrides : [];
-            const inventories = Array.isArray(p.locationInventory) ? p.locationInventory : [];
+            const overrides = Array.isArray(p.LocationPriceOverride) ? p.LocationPriceOverride : [];
+            const inventories = Array.isArray(p.LocationInventory) ? p.LocationInventory : [];
             const override = overrides[0];
             const locInventory = inventories[0];
 
@@ -780,6 +833,7 @@ export class LocationService {
 
             return {
                 ...p,
+                category: p.ProductCategory,
                 effectivePriceCents: override?.priceCents ?? p.priceCents,
                 effectiveStock,
                 hasLocationStock: !!locInventory,

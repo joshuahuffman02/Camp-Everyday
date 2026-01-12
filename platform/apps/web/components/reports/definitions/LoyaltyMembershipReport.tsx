@@ -39,31 +39,30 @@ export function LoyaltyMembershipReport({ campgroundId }: LoyaltyMembershipRepor
         ];
 
         let totalPoints = 0;
-        interface GuestWithLoyalty {
-            loyaltyProfile?: {
-                tier?: string;
-                pointsBalance?: number;
-            };
-        }
+        const isRecord = (value: unknown): value is Record<string, unknown> =>
+            typeof value === "object" && value !== null;
 
         let membersCount = 0;
 
         guests.forEach(guest => {
-            const guestWithLoyalty = guest as GuestWithLoyalty;
-            const profile = guestWithLoyalty.loyaltyProfile;
-            if (profile) {
-                membersCount++;
-                const tier = profile.tier || 'Bronze';
-                tiers[tier] = (tiers[tier] || 0) + 1;
-
-                const pts = profile.pointsBalance || 0;
-                totalPoints += pts;
-
-                const range = pointsRanges.find(r => pts >= r.min && pts <= r.max);
-                if (range) range.count++;
-            } else {
-                tiers['None']++;
+            if (!("loyaltyProfile" in guest)) {
+                tiers["None"]++;
+                return;
             }
+            const profile = guest.loyaltyProfile;
+            if (!isRecord(profile)) {
+                tiers["None"]++;
+                return;
+            }
+            membersCount++;
+            const tier = typeof profile.tier === "string" ? profile.tier : "Bronze";
+            tiers[tier] = (tiers[tier] || 0) + 1;
+
+            const pts = typeof profile.pointsBalance === "number" ? profile.pointsBalance : 0;
+            totalPoints += pts;
+
+            const range = pointsRanges.find(r => pts >= r.min && pts <= r.max);
+            if (range) range.count++;
         });
 
         const tierData = Object.entries(tiers)

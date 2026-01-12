@@ -20,7 +20,6 @@ import {
 import { EmailService } from "../email/email.service";
 import { StripeService } from "../payments/stripe.service";
 import { randomUUID } from "crypto";
-import { Decimal } from "@prisma/client/runtime/library";
 import { LocationService } from "./location.service";
 import { postBalancedLedgerEntries } from "../ledger/ledger-posting.util";
 
@@ -171,7 +170,7 @@ export class StoreService {
             where: { campgroundId },
             orderBy: { sortOrder: "asc" },
             include: {
-                _count: { select: { products: true } },
+                _count: { select: { Product: true } },
             },
         });
     }
@@ -204,7 +203,7 @@ export class StoreService {
     }
 
     createCategory(data: CreateProductCategoryDto) {
-        return this.prisma.productCategory.create({ data });
+        return this.prisma.productCategory.create({ data: { ...data, id: randomUUID() } });
     }
 
     async updateCategory(campgroundId: string, id: string, data: UpdateProductCategoryDto) {
@@ -227,22 +226,27 @@ export class StoreService {
             },
             orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
             include: {
-                category: { select: { id: true, name: true } },
+                ProductCategory: { select: { id: true, name: true } },
             },
-        });
+        }).then((products) =>
+            products.map((product) => ({
+                ...product,
+                category: product.ProductCategory,
+            }))
+        );
     }
 
     async getProduct(campgroundId: string, id: string) {
         const product = await this.prisma.product.findFirst({
             where: { id, campgroundId },
-            include: { category: true },
+            include: { ProductCategory: true },
         });
         if (!product) throw new NotFoundException("Product not found");
-        return product;
+        return { ...product, category: product.ProductCategory };
     }
 
     createProduct(data: CreateProductDto) {
-        return this.prisma.product.create({ data });
+        return this.prisma.product.create({ data: { ...data, id: randomUUID() } });
     }
 
     async updateProduct(campgroundId: string, id: string, data: UpdateProductDto) {
@@ -296,10 +300,12 @@ export class StoreService {
                 trackInventory: true,
                 lowStockAlert: { not: null },
             },
-            include: { category: true },
+            include: { ProductCategory: true },
         });
 
-        return products.filter((p) => p.stockQty <= (p.lowStockAlert || 0));
+        return products
+            .map((product) => ({ ...product, category: product.ProductCategory }))
+            .filter((product) => product.stockQty <= (product.lowStockAlert || 0));
     }
 
     // ==================== ADD-ONS ====================
@@ -318,6 +324,7 @@ export class StoreService {
                 : AddOnPricingType.flat;
         return this.prisma.addOnService.create({
             data: {
+                id: randomUUID(),
                 ...data,
                 pricingType,
             },
@@ -347,10 +354,13 @@ export class StoreService {
     // ==================== ORDERS ====================
 
     async findReservationForGuest(reservationId: string, guestId: string) {
-        return this.prisma.reservation.findFirst({
+        const reservation = await this.prisma.reservation.findFirst({
             where: { id: reservationId, guestId },
-            select: { id: true, campgroundId: true, site: { select: { siteNumber: true } } }
+            select: { id: true, campgroundId: true, Site: { select: { siteNumber: true } } }
         });
+        if (!reservation) return null;
+        const { Site, ...rest } = reservation;
+        return { ...rest, site: Site };
     }
 
     async listOrders(
@@ -367,24 +377,50 @@ export class StoreService {
             },
             orderBy: { createdAt: "desc" },
             include: {
-                items: true,
-                reservation: {
+                StoreOrderItem: true,
+                Reservation: {
                     select: {
                         id: true,
-                        site: { select: { siteNumber: true } },
-                        guest: { select: { primaryFirstName: true, primaryLastName: true } },
+                        Site: { select: { siteNumber: true } },
+                        Guest: { select: { primaryFirstName: true, primaryLastName: true } },
                     },
                 },
-                guest: {
+                Guest: {
                     select: { primaryFirstName: true, primaryLastName: true },
                 },
-                completedBy: {
+                User_StoreOrder_completedByIdToUser: {
                     select: { id: true, firstName: true, lastName: true, email: true }
                 },
             },
         });
 
-        return Promise.all(orders.map((order) => this.attachAdjustments(order)));
+        const normalizedOrders = orders.map((order) => {
+            const {
+                StoreOrderItem,
+                Reservation,
+                Guest,
+                User_StoreOrder_completedByIdToUser,
+                ...rest
+            } = order;
+
+            const reservation = Reservation
+                ? {
+                    id: Reservation.id,
+                    site: Reservation.Site,
+                    guest: Reservation.Guest,
+                }
+                : null;
+
+            return {
+                ...rest,
+                items: StoreOrderItem,
+                reservation,
+                guest: Guest,
+                completedBy: User_StoreOrder_completedByIdToUser,
+            };
+        });
+
+        return Promise.all(normalizedOrders.map((order) => this.attachAdjustments(order)));
     }
 
     /**
@@ -633,6 +669,7 @@ export class StoreService {
         // Create order with items
         const order = await this.prisma.storeOrder.create({
             data: {
+                id: randomUUID(),
                 campgroundId: data.campgroundId,
                 reservationId: data.reservationId || null,
                 guestId: data.guestId || null,
@@ -650,15 +687,19 @@ export class StoreService {
                 status: "pending",
                 createdBy: actorUserId ?? null,
                 fulfillmentLocationId: locationId,
-                items: {
-                    create: orderItems,
+                StoreOrderItem: {
+                    create: orderItems.map((item) => ({
+                        ...item,
+                        id: randomUUID(),
+                    })),
                 },
             },
-            include: { items: true },
+            include: { StoreOrderItem: true },
         });
+        const orderWithItems = { ...order, items: order.StoreOrderItem };
 
         // Fire-and-forget notifications - log errors but don't block the order
-        this.notifyStaffNewOrder(order, campground?.email, campground?.name, campground?.orderWebhookUrl)
+        this.notifyStaffNewOrder(orderWithItems, campground?.email, campground?.name, campground?.orderWebhookUrl)
           .catch((err) => this.logger.warn(`Failed to notify staff of new order: ${err instanceof Error ? err.message : err}`));
 
         const perLocationItems: Array<{ productId: string; qty: number }> = [];
@@ -758,6 +799,7 @@ export class StoreService {
             if (data.reservationId) {
                 await this.prisma.payment.create({
                     data: {
+                        id: randomUUID(),
                         campgroundId: data.campgroundId,
                         reservationId: data.reservationId,
                         amountCents: totalCents,
@@ -770,29 +812,43 @@ export class StoreService {
             }
         }
 
-        return order;
+        return orderWithItems;
     }
 
     async getOrder(campgroundId: string, id: string) {
         const order = await this.prisma.storeOrder.findFirst({
             where: { id, campgroundId },
             include: {
-                items: {
+                StoreOrderItem: {
                     include: {
-                        product: { select: { imageUrl: true } },
+                        Product: { select: { imageUrl: true } },
                     },
                 },
-                reservation: {
+                Reservation: {
                     select: {
                         id: true,
-                        site: { select: { siteNumber: true, name: true } },
-                        guest: { select: { primaryFirstName: true, primaryLastName: true } },
+                        Site: { select: { siteNumber: true, name: true } },
+                        Guest: { select: { primaryFirstName: true, primaryLastName: true } },
                     },
                 },
             },
         });
         if (!order) throw new NotFoundException("Order not found");
-        return this.attachAdjustments(order);
+        const normalizedOrder = {
+            ...order,
+            items: order.StoreOrderItem.map((item) => {
+                const { Product, ...rest } = item;
+                return { ...rest, product: Product };
+            }),
+            reservation: order.Reservation
+                ? {
+                    id: order.Reservation.id,
+                    site: order.Reservation.Site,
+                    guest: order.Reservation.Guest,
+                }
+                : null,
+        };
+        return this.attachAdjustments(normalizedOrder);
     }
 
     /**
@@ -800,14 +856,19 @@ export class StoreService {
      */
     async getOrderAdjustments(orderId: string, campgroundId: string) {
         await this.requireOrder(campgroundId, orderId);
-        return this.prisma.storeOrderAdjustment.findMany({
+        const adjustments = await this.prisma.storeOrderAdjustment.findMany({
             where: { orderId },
             orderBy: { createdAt: "desc" },
             include: {
-                createdBy: {
+                User: {
                     select: { id: true, firstName: true, lastName: true, email: true }
                 }
             }
+        });
+
+        return adjustments.map((adjustment) => {
+            const { User, ...rest } = adjustment;
+            return { ...rest, createdBy: User };
         });
     }
 
@@ -841,25 +902,43 @@ export class StoreService {
         },
         user?: ActorUser
     ) {
-        const order: RefundOrder | null = await this.prisma.storeOrder.findFirst({
+        const order = await this.prisma.storeOrder.findFirst({
             where: { id: orderId, campgroundId },
             include: {
-                items: true,
-                campground: { select: { name: true } },
-                guest: { select: { email: true, firstName: true, lastName: true } },
-                reservation: { select: { guestEmail: true, guestName: true } }
+                StoreOrderItem: true,
+                Campground: { select: { name: true } },
+                Guest: { select: { email: true, primaryFirstName: true, primaryLastName: true } },
+                Reservation: {
+                    select: {
+                        Guest: { select: { email: true, primaryFirstName: true, primaryLastName: true } }
+                    }
+                }
             },
         });
         if (!order) {
             throw new NotFoundException("Order not found");
         }
+        const normalizedOrder: RefundOrder = {
+            ...order,
+            items: order.StoreOrderItem,
+            campground: order.Campground ? { name: order.Campground.name } : null,
+            guest: order.Guest
+                ? { email: order.Guest.email, firstName: order.Guest.primaryFirstName }
+                : null,
+            reservation: order.Reservation?.Guest
+                ? {
+                    guestEmail: order.Reservation.Guest.email,
+                    guestName: `${order.Reservation.Guest.primaryFirstName} ${order.Reservation.Guest.primaryLastName}`
+                }
+                : null,
+        };
 
         // Validate refund amount doesn't exceed order total
         const selectedItems: RefundSelection[] =
             payload.items && payload.items.length > 0
                 ? payload.items.map((item) => {
                     const match = item.itemId
-                        ? order.items.find((candidate) => candidate.id === item.itemId)
+                        ? normalizedOrder.items.find((candidate) => candidate.id === item.itemId)
                         : undefined;
                     if (item.itemId && !match) {
                         throw new NotFoundException(`Item ${item.itemId} not found in order`);
@@ -872,7 +951,7 @@ export class StoreService {
                         amountCents: item.amountCents ?? match?.totalCents ?? 0,
                     };
                 })
-                : order.items.map((item) => ({
+                : normalizedOrder.items.map((item) => ({
                     itemId: item.id,
                     productId: item.productId,
                     name: item.name,
@@ -885,8 +964,8 @@ export class StoreService {
             selectedItems.reduce((sum, item) => sum + item.amountCents, 0);
 
         // Validate refund amount
-        if (amountCents > order.totalCents) {
-            throw new BadRequestException(`Refund amount (${amountCents}) cannot exceed order total (${order.totalCents})`);
+        if (amountCents > normalizedOrder.totalCents) {
+            throw new BadRequestException(`Refund amount (${amountCents}) cannot exceed order total (${normalizedOrder.totalCents})`);
         }
 
         if (amountCents <= 0) {
@@ -903,12 +982,12 @@ export class StoreService {
         // 1. Process payment processor refund for card payments
         if (
             adjustmentType === "refund" &&
-            order.paymentMethod === PaymentMethod.card &&
-            order.paymentIntentId
+            normalizedOrder.paymentMethod === PaymentMethod.card &&
+            normalizedOrder.paymentIntentId
         ) {
             try {
                 const refund = await this.stripeService.createRefund(
-                    order.paymentIntentId,
+                    normalizedOrder.paymentIntentId,
                     amountCents,
                     "requested_by_customer",
                     `refund_${orderId}_${Date.now()}`
@@ -946,6 +1025,7 @@ export class StoreService {
         // Create database record for the adjustment
         const adjustment = await this.prisma.storeOrderAdjustment.create({
             data: {
+                id: randomUUID(),
                 orderId,
                 type: adjustmentType,
                 amountCents,
@@ -959,31 +1039,34 @@ export class StoreService {
                 notificationSent: false, // Updated after email sent
             },
             include: {
-                createdBy: {
+                User: {
                     select: { id: true, firstName: true, lastName: true, email: true }
                 }
             }
         });
+        const { User, ...adjustmentBase } = adjustment;
+        const normalizedAdjustment = { ...adjustmentBase, createdBy: User };
 
         // Update order status
-        if (adjustmentType === "refund" && order.status !== OrderStatus.refunded) {
+        if (adjustmentType === "refund" && normalizedOrder.status !== OrderStatus.refunded) {
             await this.updateOrderStatus(campgroundId, orderId, OrderStatus.refunded, user?.id ?? undefined);
         }
 
         // 3. If order was charged to site, create offsetting ledger entry
         if (
-            order.paymentMethod === PaymentMethod.charge_to_site &&
-            order.reservationId &&
+            normalizedOrder.paymentMethod === PaymentMethod.charge_to_site &&
+            normalizedOrder.reservationId &&
             adjustmentType === "refund"
         ) {
             try {
                 await this.prisma.ledgerEntry.create({
                     data: {
-                        campgroundId: order.campgroundId,
-                        reservationId: order.reservationId,
+                        id: randomUUID(),
+                        campgroundId: normalizedOrder.campgroundId,
+                        reservationId: normalizedOrder.reservationId,
                         glCode: "STORE",
                         account: "Store Refunds",
-                        description: `Refund for store order #${order.id.slice(-6)}${adjustment.note ? `: ${adjustment.note}` : ''}`,
+                        description: `Refund for store order #${normalizedOrder.id.slice(-6)}${adjustment.note ? `: ${adjustment.note}` : ''}`,
                         amountCents: amountCents,
                         direction: "credit", // Credit reduces the guest's balance
                     },
@@ -991,7 +1074,7 @@ export class StoreService {
 
                 // Update reservation balance
                 await this.prisma.reservation.update({
-                    where: { id: order.reservationId },
+                    where: { id: normalizedOrder.reservationId },
                     data: {
                         balanceAmount: { decrement: amountCents },
                         totalAmount: { decrement: amountCents },
@@ -1003,8 +1086,8 @@ export class StoreService {
         }
 
         // 4. Send email notification to guest
-        const guestEmail = order.guest?.email ?? order.reservation?.guestEmail;
-        const guestName = order.guest?.firstName ?? order.reservation?.guestName ?? "Guest";
+        const guestEmail = normalizedOrder.guest?.email ?? normalizedOrder.reservation?.guestEmail;
+        const guestName = normalizedOrder.guest?.firstName ?? normalizedOrder.reservation?.guestName ?? "Guest";
         const shouldNotify = payload.notifyGuest !== false; // Default to true
 
         if (shouldNotify && guestEmail && adjustmentType === "refund") {
@@ -1018,19 +1101,19 @@ export class StoreService {
 
                 await this.emailService.sendEmail({
                     to: guestEmail,
-                    subject: `Refund Processed - ${order.campground?.name || 'Store'} Order #${order.id.slice(-6)}`,
+                    subject: `Refund Processed - ${normalizedOrder.campground?.name || 'Store'} Order #${normalizedOrder.id.slice(-6)}`,
                     html: `
                         <h2>Your Refund Has Been Processed</h2>
                         <p>Hi ${guestName},</p>
                         <p>We have processed a refund for your recent order.</p>
-                        <p><strong>Order ID:</strong> ${order.id.slice(-6)}</p>
+                        <p><strong>Order ID:</strong> ${normalizedOrder.id.slice(-6)}</p>
                         <p><strong>Refund Amount:</strong> $${(amountCents / 100).toFixed(2)}</p>
                         ${payload.note ? `<p><strong>Note:</strong> ${payload.note}</p>` : ''}
                         <p><strong>Items Refunded:</strong></p>
                         <ul>${itemsList}</ul>
                         <p>The refund will be credited to your original payment method within 5-10 business days.</p>
                         <p>Thank you for your understanding.</p>
-                        <p>Best regards,<br/>${order.campground?.name || 'The Team'}</p>
+                        <p>Best regards,<br/>${normalizedOrder.campground?.name || 'The Team'}</p>
                     `
                 });
                 notificationSent = true;
@@ -1050,7 +1133,7 @@ export class StoreService {
         }
 
         return {
-            ...adjustment,
+            ...normalizedAdjustment,
             notificationSent,
             stripeRefundId,
             refundStatus,

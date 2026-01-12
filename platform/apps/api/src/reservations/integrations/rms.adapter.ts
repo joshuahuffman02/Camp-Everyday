@@ -12,6 +12,21 @@ export type RmsReservation = {
   balanceDueCents?: number;
 };
 
+type ImportStatus = ReservationImportRecord["status"];
+
+const RESERVATION_STATUS_MAP: Record<ImportStatus, true> = {
+  pending: true,
+  confirmed: true,
+  checked_in: true,
+  checked_out: true,
+  cancelled: true,
+};
+
+const isImportStatus = (value: string): value is ImportStatus => value in RESERVATION_STATUS_MAP;
+
+const normalizeReservationStatus = (value?: string): ImportStatus | undefined =>
+  value && isImportStatus(value) ? value : undefined;
+
 export function mapRmsToInternal(payload: RmsReservation): Partial<ReservationImportRecord> {
   return {
     externalId: payload.bookingId,
@@ -21,7 +36,7 @@ export function mapRmsToInternal(payload: RmsReservation): Partial<ReservationIm
     departureDate: payload.checkOut,
     adults: payload.adults,
     children: payload.children ?? 0,
-    status: payload.status as any,
+    status: normalizeReservationStatus(payload.status),
     totalAmount: (payload.balanceDueCents ?? 0),
     paidAmount: 0,
     source: "rms",

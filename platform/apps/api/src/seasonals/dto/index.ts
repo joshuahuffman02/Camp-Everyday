@@ -26,13 +26,13 @@ import {
 
 export class CreateSeasonalGuestDto {
   @IsString()
-  campgroundId: string;
+  campgroundId!: string;
 
   @IsString()
-  guestId: string;
+  guestId!: string;
 
   @IsInt()
-  firstSeasonYear: number;
+  firstSeasonYear!: number;
 
   @IsOptional()
   @IsString()
@@ -177,7 +177,7 @@ export class UpdateSeasonalGuestDto {
 
 export class UpdateRenewalIntentDto {
   @IsEnum(RenewalIntent)
-  intent: RenewalIntent;
+  intent!: RenewalIntent;
 
   @IsOptional()
   @IsString()
@@ -188,17 +188,17 @@ export class UpdateRenewalIntentDto {
 
 export class RecordPaymentDto {
   @IsString()
-  seasonalGuestId: string;
+  seasonalGuestId!: string;
 
   @IsInt()
-  seasonYear: number;
+  seasonYear!: number;
 
   @IsNumber()
   @Min(0.01)
-  amount: number;
+  amount!: number;
 
   @IsEnum(SeasonalPaymentMethod)
-  paymentMethod: SeasonalPaymentMethod;
+  paymentMethod!: SeasonalPaymentMethod;
 
   @IsOptional()
   @IsDateString()
@@ -221,17 +221,17 @@ export class RecordPaymentDto {
 
 export class CreateRateCardDto {
   @IsString()
-  campgroundId: string;
+  campgroundId!: string;
 
   @IsString()
-  name: string;
+  name!: string;
 
   @IsInt()
-  seasonYear: number;
+  seasonYear!: number;
 
   @IsNumber()
   @Min(0)
-  baseRate: number;
+  baseRate!: number;
 
   @IsOptional()
   @IsEnum(SeasonalBillingFrequency)
@@ -247,10 +247,10 @@ export class CreateRateCardDto {
   includedUtilities?: string[];
 
   @IsDateString()
-  seasonStartDate: string;
+  seasonStartDate!: string;
 
   @IsDateString()
-  seasonEndDate: string;
+  seasonEndDate!: string;
 
   @IsOptional()
   @IsBoolean()
@@ -299,25 +299,25 @@ export class UpdateRateCardDto {
 
 export class CreateDiscountDto {
   @IsString()
-  name: string;
+  name!: string;
 
   @IsOptional()
   @IsString()
   description?: string;
 
   @IsEnum(SeasonalDiscountCondition)
-  conditionType: SeasonalDiscountCondition;
+  conditionType!: SeasonalDiscountCondition;
 
   @IsOptional()
   @IsString()
   conditionValue?: string; // JSON string
 
   @IsEnum(SeasonalDiscountType)
-  discountType: SeasonalDiscountType;
+  discountType!: SeasonalDiscountType;
 
   @IsNumber()
   @Min(0)
-  discountAmount: number;
+  discountAmount!: number;
 
   @IsOptional()
   @IsBoolean()
@@ -330,25 +330,25 @@ export class CreateDiscountDto {
 
 export class CreateIncentiveDto {
   @IsString()
-  name: string;
+  name!: string;
 
   @IsOptional()
   @IsString()
   description?: string;
 
   @IsEnum(SeasonalDiscountCondition)
-  conditionType: SeasonalDiscountCondition;
+  conditionType!: SeasonalDiscountCondition;
 
   @IsOptional()
   @IsString()
   conditionValue?: string; // JSON string
 
   @IsEnum(SeasonalIncentiveType)
-  incentiveType: SeasonalIncentiveType;
+  incentiveType!: SeasonalIncentiveType;
 
   @IsNumber()
   @Min(0)
-  incentiveValue: number;
+  incentiveValue!: number;
 
   @IsOptional()
   @IsString()
@@ -359,28 +359,28 @@ export class CreateIncentiveDto {
 
 export class PricingPreviewDto {
   @IsString()
-  rateCardId: string;
+  rateCardId!: string;
 
   @IsBoolean()
-  isMetered: boolean;
+  isMetered!: boolean;
 
   @IsOptional()
   @IsEnum(SeasonalPaymentMethod)
   paymentMethod?: SeasonalPaymentMethod;
 
   @IsBoolean()
-  paysInFull: boolean;
+  paysInFull!: boolean;
 
   @IsInt()
   @Min(0)
-  tenureYears: number;
+  tenureYears!: number;
 
   @IsOptional()
   @IsDateString()
   commitDate?: string;
 
   @IsBoolean()
-  isReturning: boolean;
+  isReturning!: boolean;
 
   @IsOptional()
   @IsString()
@@ -403,21 +403,21 @@ export class PricingPreviewDto {
 
 export class BulkMessageDto {
   @IsString()
-  campgroundId: string;
+  campgroundId!: string;
 
   @IsArray()
   @IsString({ each: true })
-  seasonalGuestIds: string[];
+  seasonalGuestIds!: string[];
 
   @IsEnum(["email", "sms"])
-  channel: "email" | "sms";
+  channel!: "email" | "sms";
 
   @IsOptional()
   @IsString()
   subject?: string;
 
   @IsString()
-  body: string;
+  body!: string;
 
   @IsOptional()
   templateTokens?: Record<string, string>;

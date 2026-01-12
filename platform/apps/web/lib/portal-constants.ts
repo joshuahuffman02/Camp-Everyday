@@ -4,8 +4,14 @@
 export const GUEST_TOKEN_KEY = "campreserv:guestToken";
 
 // Animation configurations matching onboarding design
-export const SPRING_CONFIG = {
-  type: "spring" as const,
+type SpringConfig = {
+  type: "spring";
+  stiffness: number;
+  damping: number;
+};
+
+export const SPRING_CONFIG: SpringConfig = {
+  type: "spring",
   stiffness: 200,
   damping: 20,
 };
@@ -28,7 +34,9 @@ export const scaleIn = {
 };
 
 // Status color mapping using semantic tokens (auto dark mode via CSS variables)
-export const STATUS_VARIANTS = {
+export type StatusVariant = "success" | "warning" | "error" | "info" | "neutral";
+
+export const STATUS_VARIANTS: Record<StatusVariant, { bg: string; text: string; border: string }> = {
   success: {
     bg: "bg-status-success-bg",
     text: "text-status-success-text",
@@ -54,6 +62,4 @@ export const STATUS_VARIANTS = {
     text: "text-muted-foreground",
     border: "border-border",
   },
-} as const;
-
-export type StatusVariant = keyof typeof STATUS_VARIANTS;
+};

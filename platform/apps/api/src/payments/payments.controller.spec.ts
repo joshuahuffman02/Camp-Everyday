@@ -1,115 +1,164 @@
-import { PaymentsController } from './payments.controller';
+import { PaymentsController } from "./payments.controller";
+import { Test, TestingModule } from "@nestjs/testing";
+import { ReservationsService } from "../reservations/reservations.service";
+import { StripeService } from "./stripe.service";
+import { PrismaService } from "../prisma/prisma.service";
+import { PaymentsReconciliationService } from "./reconciliation.service";
+import { IdempotencyService } from "./idempotency.service";
+import { GatewayConfigService } from "./gateway-config.service";
+import { Reflector } from "@nestjs/core";
+import { PermissionsService } from "../permissions/permissions.service";
 
-describe('PaymentsController - Fee Calculations', () => {
+describe("PaymentsController - Fee Calculations", () => {
   let controller: PaymentsController;
+  let moduleRef: TestingModule | undefined;
 
-  beforeEach(() => {
-    // Create controller with minimal mocked dependencies
-    controller = new PaymentsController(
-      {} as any, // reservations
-      {} as any, // stripeService
-      {} as any, // prisma
-      {} as any, // recon
-      {} as any, // idempotency
-      {} as any  // gatewayConfigService
-    );
+  const callPrivate = (key: string, ...args: unknown[]) => {
+    const value = Reflect.get(controller, key);
+    if (typeof value !== "function") {
+      throw new Error(`${key} is not a function`);
+    }
+    return value.call(controller, ...args);
+  };
+
+  beforeEach(async () => {
+    moduleRef = await Test.createTestingModule({
+      controllers: [PaymentsController],
+      providers: [
+        { provide: ReservationsService, useValue: {} },
+        { provide: StripeService, useValue: {} },
+        { provide: PrismaService, useValue: {} },
+        { provide: PaymentsReconciliationService, useValue: {} },
+        { provide: IdempotencyService, useValue: {} },
+        { provide: GatewayConfigService, useValue: {} },
+        { provide: Reflector, useValue: new Reflector() },
+        {
+          provide: PermissionsService,
+          useValue: {
+            isPlatformStaff: () => false,
+            checkAccess: async () => ({ allowed: true })
+          }
+        }
+      ]
+    }).compile();
+
+    controller = moduleRef.get(PaymentsController);
   });
 
-  describe('calculateGatewayFee', () => {
-    const calculateGatewayFee = (amountCents: number, percentBasisPoints: number, flatFeeCents: number) => {
-      return (controller as any).calculateGatewayFee(amountCents, percentBasisPoints, flatFeeCents);
+  afterEach(async () => {
+    if (moduleRef) {
+      await moduleRef.close();
+    }
+  });
+
+  describe("calculateGatewayFee", () => {
+    const calculateGatewayFee = (
+      amountCents: number,
+      percentBasisPoints: number | null | undefined,
+      flatFeeCents: number | null | undefined
+    ) => {
+      return callPrivate("calculateGatewayFee", amountCents, percentBasisPoints, flatFeeCents);
     };
 
-    it('should calculate fee with percentage only', () => {
+    it("should calculate fee with percentage only", () => {
       // 2.9% of $100.00 = $2.90 = 290 cents
       // 2.9% = 290 basis points
       const result = calculateGatewayFee(10000, 290, 0);
       expect(result).toBe(290);
     });
 
-    it('should calculate fee with flat fee only', () => {
+    it("should calculate fee with flat fee only", () => {
       const result = calculateGatewayFee(10000, 0, 30);
       expect(result).toBe(30);
     });
 
-    it('should calculate combined percentage and flat fee', () => {
+    it("should calculate combined percentage and flat fee", () => {
       // Standard Stripe: 2.9% + $0.30
       // On $100.00: 290 cents + 30 cents = 320 cents
       const result = calculateGatewayFee(10000, 290, 30);
       expect(result).toBe(320);
     });
 
-    it('should round percentage portion correctly', () => {
+    it("should round percentage portion correctly", () => {
       // 2.9% of $1.00 = $0.029 = 2.9 cents, rounds to 3
       const result = calculateGatewayFee(100, 290, 0);
       expect(result).toBe(3);
     });
 
-    it('should handle zero amount', () => {
+    it("should handle zero amount", () => {
       const result = calculateGatewayFee(0, 290, 30);
       expect(result).toBe(30); // Just flat fee
     });
 
-    it('should return 0 for negative result (defensive)', () => {
+    it("should return 0 for negative result (defensive)", () => {
       // Math.max(0, ...) ensures no negative fees
       const result = calculateGatewayFee(0, 0, 0);
       expect(result).toBe(0);
     });
 
-    it('should handle null/undefined values gracefully', () => {
-      const result = calculateGatewayFee(10000, null as any, undefined as any);
+    it("should handle null/undefined values gracefully", () => {
+      const result = calculateGatewayFee(10000, null, undefined);
       expect(result).toBe(0);
     });
 
-    it('should calculate fee for large amounts', () => {
+    it("should calculate fee for large amounts", () => {
       // 2.9% of $10,000.00 = $290.00 = 29000 cents
       const result = calculateGatewayFee(1000000, 290, 30);
       expect(result).toBe(29030);
     });
 
-    it('should calculate fee for small amounts', () => {
+    it("should calculate fee for small amounts", () => {
       // 2.9% of $0.50 = $0.0145 = 1 cent (rounded) + 30 flat = 31 cents
       const result = calculateGatewayFee(50, 290, 30);
       expect(result).toBe(31);
     });
   });
 
-  describe('computeChargeAmounts', () => {
-    const computeChargeAmounts = (opts: any) => {
-      return (controller as any).computeChargeAmounts(opts);
+  describe("computeChargeAmounts", () => {
+    type ChargeOptions = {
+      reservation: { balanceAmount?: number | null; totalAmount?: number | null; paidAmount?: number | null };
+      platformFeeMode: string;
+      applicationFeeCents: number;
+      gatewayFeeMode: string;
+      gatewayFeePercentBasisPoints: number;
+      gatewayFeeFlatCents: number;
+      requestedAmountCents?: number;
+    };
+    const computeChargeAmounts = (opts: ChargeOptions) => {
+      return callPrivate("computeChargeAmounts", opts);
     };
 
-    describe('base due calculation', () => {
-      it('should use balanceAmount when available', () => {
+    describe("base due calculation", () => {
+      it("should use balanceAmount when available", () => {
         const result = computeChargeAmounts({
           reservation: { balanceAmount: 5000, totalAmount: 10000, paidAmount: 3000 },
-          platformFeeMode: 'absorb',
+          platformFeeMode: "absorb",
           applicationFeeCents: 200,
-          gatewayFeeMode: 'absorb',
+          gatewayFeeMode: "absorb",
           gatewayFeePercentBasisPoints: 290,
           gatewayFeeFlatCents: 30,
         });
         expect(result.baseDue).toBe(5000);
       });
 
-      it('should calculate from total - paid when balanceAmount is null', () => {
+      it("should calculate from total - paid when balanceAmount is null", () => {
         const result = computeChargeAmounts({
           reservation: { balanceAmount: null, totalAmount: 10000, paidAmount: 3000 },
-          platformFeeMode: 'absorb',
+          platformFeeMode: "absorb",
           applicationFeeCents: 200,
-          gatewayFeeMode: 'absorb',
+          gatewayFeeMode: "absorb",
           gatewayFeePercentBasisPoints: 290,
           gatewayFeeFlatCents: 30,
         });
         expect(result.baseDue).toBe(7000);
       });
 
-      it('should handle fully paid reservation', () => {
+      it("should handle fully paid reservation", () => {
         const result = computeChargeAmounts({
           reservation: { balanceAmount: 0, totalAmount: 10000, paidAmount: 10000 },
-          platformFeeMode: 'absorb',
+          platformFeeMode: "absorb",
           applicationFeeCents: 200,
-          gatewayFeeMode: 'absorb',
+          gatewayFeeMode: "absorb",
           gatewayFeePercentBasisPoints: 290,
           gatewayFeeFlatCents: 30,
         });
@@ -118,13 +167,13 @@ describe('PaymentsController - Fee Calculations', () => {
       });
     });
 
-    describe('absorb mode (campground absorbs fees)', () => {
-      it('should not add pass-through fees in absorb mode', () => {
+    describe("absorb mode (campground absorbs fees)", () => {
+      it("should not add pass-through fees in absorb mode", () => {
         const result = computeChargeAmounts({
           reservation: { balanceAmount: 10000 },
-          platformFeeMode: 'absorb',
+          platformFeeMode: "absorb",
           applicationFeeCents: 200,
-          gatewayFeeMode: 'absorb',
+          gatewayFeeMode: "absorb",
           gatewayFeePercentBasisPoints: 290,
           gatewayFeeFlatCents: 30,
         });
@@ -134,13 +183,13 @@ describe('PaymentsController - Fee Calculations', () => {
       });
     });
 
-    describe('pass_through mode (guest pays fees)', () => {
-      it('should add platform fee when platformFeeMode is pass_through', () => {
+    describe("pass_through mode (guest pays fees)", () => {
+      it("should add platform fee when platformFeeMode is pass_through", () => {
         const result = computeChargeAmounts({
           reservation: { balanceAmount: 10000 },
-          platformFeeMode: 'pass_through',
+          platformFeeMode: "pass_through",
           applicationFeeCents: 200,
-          gatewayFeeMode: 'absorb',
+          gatewayFeeMode: "absorb",
           gatewayFeePercentBasisPoints: 290,
           gatewayFeeFlatCents: 30,
         });
@@ -149,12 +198,12 @@ describe('PaymentsController - Fee Calculations', () => {
         expect(result.amountCents).toBe(10200);
       });
 
-      it('should add gateway fee when gatewayFeeMode is pass_through', () => {
+      it("should add gateway fee when gatewayFeeMode is pass_through", () => {
         const result = computeChargeAmounts({
           reservation: { balanceAmount: 10000 },
-          platformFeeMode: 'absorb',
+          platformFeeMode: "absorb",
           applicationFeeCents: 200,
-          gatewayFeeMode: 'pass_through',
+          gatewayFeeMode: "pass_through",
           gatewayFeePercentBasisPoints: 290,
           gatewayFeeFlatCents: 30,
         });
@@ -164,12 +213,12 @@ describe('PaymentsController - Fee Calculations', () => {
         expect(result.amountCents).toBe(10320);
       });
 
-      it('should add both fees when both modes are pass_through', () => {
+      it("should add both fees when both modes are pass_through", () => {
         const result = computeChargeAmounts({
           reservation: { balanceAmount: 10000 },
-          platformFeeMode: 'pass_through',
+          platformFeeMode: "pass_through",
           applicationFeeCents: 200,
-          gatewayFeeMode: 'pass_through',
+          gatewayFeeMode: "pass_through",
           gatewayFeePercentBasisPoints: 290,
           gatewayFeeFlatCents: 30,
         });
@@ -179,13 +228,13 @@ describe('PaymentsController - Fee Calculations', () => {
       });
     });
 
-    describe('requested amount handling', () => {
-      it('should use requested amount when less than max charge', () => {
+    describe("requested amount handling", () => {
+      it("should use requested amount when less than max charge", () => {
         const result = computeChargeAmounts({
           reservation: { balanceAmount: 10000 },
-          platformFeeMode: 'absorb',
+          platformFeeMode: "absorb",
           applicationFeeCents: 200,
-          gatewayFeeMode: 'absorb',
+          gatewayFeeMode: "absorb",
           gatewayFeePercentBasisPoints: 290,
           gatewayFeeFlatCents: 30,
           requestedAmountCents: 5000,
@@ -193,12 +242,12 @@ describe('PaymentsController - Fee Calculations', () => {
         expect(result.amountCents).toBe(5000);
       });
 
-      it('should cap at max charge when requested amount exceeds it', () => {
+      it("should cap at max charge when requested amount exceeds it", () => {
         const result = computeChargeAmounts({
           reservation: { balanceAmount: 10000 },
-          platformFeeMode: 'absorb',
+          platformFeeMode: "absorb",
           applicationFeeCents: 200,
-          gatewayFeeMode: 'absorb',
+          gatewayFeeMode: "absorb",
           gatewayFeePercentBasisPoints: 290,
           gatewayFeeFlatCents: 30,
           requestedAmountCents: 50000,
@@ -206,12 +255,12 @@ describe('PaymentsController - Fee Calculations', () => {
         expect(result.amountCents).toBe(10000);
       });
 
-      it('should handle negative requested amount', () => {
+      it("should handle negative requested amount", () => {
         const result = computeChargeAmounts({
           reservation: { balanceAmount: 10000 },
-          platformFeeMode: 'absorb',
+          platformFeeMode: "absorb",
           applicationFeeCents: 200,
-          gatewayFeeMode: 'absorb',
+          gatewayFeeMode: "absorb",
           gatewayFeePercentBasisPoints: 290,
           gatewayFeeFlatCents: 30,
           requestedAmountCents: -100,
@@ -222,8 +271,13 @@ describe('PaymentsController - Fee Calculations', () => {
   });
 
   describe('buildReceiptLinesFromIntent', () => {
-    const buildReceiptLinesFromIntent = (intent: any) => {
-      return (controller as any).buildReceiptLinesFromIntent(intent);
+    type IntentLike = {
+      amount?: number | null;
+      amount_received?: number | null;
+      metadata?: Record<string, string | number | null | undefined>;
+    };
+    const buildReceiptLinesFromIntent = (intent: IntentLike) => {
+      return callPrivate("buildReceiptLinesFromIntent", intent);
     };
 
     it('should build receipt lines from basic payment intent', () => {
@@ -335,8 +389,8 @@ describe('PaymentsController - Fee Calculations', () => {
   });
 
   describe('getPaymentMethodTypes', () => {
-    const getPaymentMethodTypes = (capabilities: any) => {
-      return (controller as any).getPaymentMethodTypes(capabilities);
+    const getPaymentMethodTypes = (capabilities?: Record<string, string> | null) => {
+      return controller.getPaymentMethodTypes(capabilities);
     };
 
     it('should return card when card_payments is active', () => {
@@ -384,8 +438,12 @@ describe('PaymentsController - Fee Calculations', () => {
   });
 
   describe('buildThreeDsPolicy', () => {
-    const buildThreeDsPolicy = (currency: string, gatewayConfig?: any) => {
-      return (controller as any).buildThreeDsPolicy(currency, gatewayConfig);
+    type ThreeDsConfig = Parameters<PaymentsController["buildThreeDsPolicy"]>[1];
+    const buildThreeDsPolicy = (
+      currency?: string | null,
+      gatewayConfig?: ThreeDsConfig
+    ) => {
+      return controller.buildThreeDsPolicy(currency, gatewayConfig);
     };
 
     describe('EU/UK currencies', () => {
@@ -447,11 +505,11 @@ describe('PaymentsController - Fee Calculations', () => {
 
     describe('edge cases', () => {
       it('should handle null currency', () => {
-        expect(buildThreeDsPolicy(null as any)).toBe('automatic');
+        expect(buildThreeDsPolicy(null)).toBe('automatic');
       });
 
       it('should handle undefined currency', () => {
-        expect(buildThreeDsPolicy(undefined as any)).toBe('automatic');
+        expect(buildThreeDsPolicy(undefined)).toBe('automatic');
       });
 
       it('should handle empty string currency', () => {
@@ -463,7 +521,7 @@ describe('PaymentsController - Fee Calculations', () => {
   describe('fee calculation integration scenarios', () => {
     it('should calculate correct total for standard US transaction', () => {
       // $100 reservation, absorb mode
-      const result = (controller as any).computeChargeAmounts({
+      const result = controller.computeChargeAmounts({
         reservation: { balanceAmount: 10000 },
         platformFeeMode: 'absorb',
         applicationFeeCents: 200, // $2 platform fee
@@ -480,7 +538,7 @@ describe('PaymentsController - Fee Calculations', () => {
 
     it('should calculate correct total for pass-through transaction', () => {
       // $100 reservation, pass-through mode
-      const result = (controller as any).computeChargeAmounts({
+      const result = controller.computeChargeAmounts({
         reservation: { balanceAmount: 10000 },
         platformFeeMode: 'pass_through',
         applicationFeeCents: 200, // $2 platform fee
@@ -497,7 +555,7 @@ describe('PaymentsController - Fee Calculations', () => {
 
     it('should handle partial payment scenario', () => {
       // $500 total, $200 already paid, balance $300
-      const result = (controller as any).computeChargeAmounts({
+      const result = controller.computeChargeAmounts({
         reservation: { balanceAmount: 30000, totalAmount: 50000, paidAmount: 20000 },
         platformFeeMode: 'pass_through',
         applicationFeeCents: 200,
@@ -514,7 +572,7 @@ describe('PaymentsController - Fee Calculations', () => {
 
     it('should handle deposit (partial charge) scenario', () => {
       // $500 balance, request only $100 deposit
-      const result = (controller as any).computeChargeAmounts({
+      const result = controller.computeChargeAmounts({
         reservation: { balanceAmount: 50000 },
         platformFeeMode: 'absorb',
         applicationFeeCents: 200,

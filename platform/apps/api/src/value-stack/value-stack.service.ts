@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { randomUUID } from "crypto";
 import { PrismaService } from '../prisma/prisma.service';
 import { GuaranteeType } from '@prisma/client';
 
@@ -23,7 +24,13 @@ export class ValueStackService {
     iconName?: string;
     sortOrder?: number;
   }) {
-    return this.prisma.campgroundGuarantee.create({ data });
+    return this.prisma.campgroundGuarantee.create({
+      data: {
+        id: randomUUID(),
+        updatedAt: new Date(),
+        ...data,
+      },
+    });
   }
 
   async updateGuarantee(
@@ -77,7 +84,13 @@ export class ValueStackService {
     isAutoIncluded?: boolean;
     sortOrder?: number;
   }) {
-    return this.prisma.campgroundBonus.create({ data });
+    return this.prisma.campgroundBonus.create({
+      data: {
+        id: randomUUID(),
+        updatedAt: new Date(),
+        ...data,
+      },
+    });
   }
 
   async updateBonus(
@@ -163,8 +176,8 @@ export class ValueStackService {
   ) {
     return this.prisma.leadCaptureConfig.upsert({
       where: { campgroundId },
-      update: data,
-      create: { campgroundId, ...data },
+      update: { ...data, updatedAt: new Date() },
+      create: { id: randomUUID(), campgroundId, updatedAt: new Date(), ...data },
     });
   }
 
@@ -215,8 +228,8 @@ export class ValueStackService {
   ) {
     return this.prisma.bookingPageConfig.upsert({
       where: { campgroundId },
-      update: data,
-      create: { campgroundId, ...data },
+      update: { ...data, updatedAt: new Date() },
+      create: { id: randomUUID(), campgroundId, updatedAt: new Date(), ...data },
     });
   }
 
@@ -242,7 +255,7 @@ export class ValueStackService {
       update: {
         marketingOptIn: data.marketingOptIn ?? true,
       },
-      create: data,
+      create: { id: randomUUID(), ...data },
     });
   }
 
@@ -286,7 +299,7 @@ export class ValueStackService {
     const charitySettings = await this.prisma.campgroundCharity.findUnique({
       where: { campgroundId },
       include: {
-        charity: {
+        Charity: {
           select: {
             id: true,
             name: true,
@@ -299,7 +312,7 @@ export class ValueStackService {
       },
     });
 
-    if (!charitySettings?.isEnabled || !charitySettings.charity) {
+    if (!charitySettings?.isEnabled || !charitySettings.Charity) {
       return null;
     }
 
@@ -324,7 +337,7 @@ export class ValueStackService {
     });
 
     return {
-      charity: charitySettings.charity,
+      charity: charitySettings.Charity,
       customMessage: charitySettings.customMessage,
       stats: {
         totalDonations: donationStats._count,

@@ -1,11 +1,13 @@
 'use client';
 
-import { CheckCircle, ArrowRight, Sparkles, Brain, Calendar, Clock, Shield, Zap } from 'lucide-react';
+import { CheckCircle, ArrowRight, Sparkles, Brain, Calendar, Clock, Shield, Zap, type LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
 // Core platform features
-const coreFeatures = [
+type FeatureColor = "purple" | "blue" | "amber" | "emerald";
+
+const coreFeatures: Array<{ name: string; description: string; icon: LucideIcon; color: FeatureColor }> = [
   {
     name: "Loyalty & Gamification",
     description: "XP system, leveling up, rewards - keep guests coming back year after year",
@@ -42,7 +44,7 @@ const benefits = [
   "Go live in 48 hours with our setup guides",
 ];
 
-const colorClasses = {
+const colorClasses: Record<FeatureColor, { bg: string; icon: string; border: string }> = {
   purple: { bg: "bg-keepr-evergreen/10", icon: "text-keepr-evergreen", border: "border-keepr-evergreen/20" },
   blue: { bg: "bg-keepr-evergreen/10", icon: "text-keepr-evergreen", border: "border-keepr-evergreen/20" },
   amber: { bg: "bg-keepr-clay/10", icon: "text-keepr-clay", border: "border-keepr-clay/20" },
@@ -68,7 +70,7 @@ export function WhySwitch() {
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
           {coreFeatures.map((feature) => {
             const Icon = feature.icon;
-            const colors = colorClasses[feature.color as keyof typeof colorClasses];
+            const colors = colorClasses[feature.color];
             return (
               <div
                 key={feature.name}

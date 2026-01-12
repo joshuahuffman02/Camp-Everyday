@@ -1,6 +1,9 @@
 import { Injectable, OnModuleDestroy, Logger } from "@nestjs/common";
 import Redis from "ioredis";
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
 @Injectable()
 export class RedisService implements OnModuleDestroy {
   private client: Redis | null;
@@ -38,8 +41,9 @@ export class RedisService implements OnModuleDestroy {
     this.client.on("error", (err) => {
       // Only log error once to avoid spam
       if (!this.connectionFailed) {
-        this.logger.error("Redis error", { code: err.code });
-        if (err.code === "ECONNREFUSED") {
+        const errorCode = isRecord(err) && typeof err.code === "string" ? err.code : undefined;
+        this.logger.error("Redis error", { code: errorCode });
+        if (errorCode === "ECONNREFUSED") {
           this.connectionFailed = true;
           this.logger.warn("Redis unavailable, features requiring Redis will be disabled");
         }
@@ -67,21 +71,22 @@ export class RedisService implements OnModuleDestroy {
   /**
    * Get a value from cache
    */
-  async get<T = string>(key: string): Promise<T | null> {
+  async get(key: string): Promise<unknown | null> {
     if (!this.isEnabled) return null;
     const value = await this.client!.get(key);
     if (!value) return null;
     try {
-      return JSON.parse(value) as T;
+      const parsed: unknown = JSON.parse(value);
+      return parsed;
     } catch {
-      return value as T;
+      return value;
     }
   }
 
   /**
    * Set a value in cache with optional TTL (in seconds)
    */
-  async set(key: string, value: any, ttl?: number): Promise<void> {
+  async set(key: string, value: unknown, ttl?: number): Promise<void> {
     if (!this.isEnabled) return;
     const serialized = typeof value === "string" ? value : JSON.stringify(value);
     if (ttl) {

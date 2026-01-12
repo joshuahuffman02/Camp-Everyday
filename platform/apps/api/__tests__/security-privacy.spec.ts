@@ -1,21 +1,9 @@
-import { CanActivate, INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
-import request from "supertest";
-import { AuditController } from "../src/audit/audit.controller";
 import { AuditService } from "../src/audit/audit.service";
 import { PrismaService } from "../src/prisma/prisma.service";
-import { JwtAuthGuard } from "../src/auth/guards";
-import { RolesGuard } from "../src/auth/guards/roles.guard";
-import { PermissionGuard } from "../src/permissions/permission.guard";
-
-class AllowGuard implements CanActivate {
-  canActivate() {
-    return true;
-  }
-}
 
 describe("Security/Privacy audit API smoke", () => {
-  let app: INestApplication;
+  let audit: AuditService;
   const prisma = {
     auditLog: {
       findMany: jest.fn()
@@ -42,7 +30,13 @@ describe("Security/Privacy audit API smoke", () => {
       entity: "privacy",
       entityId: "cg1",
       createdAt: new Date().toISOString(),
-      actor: { id: "u1", email: "user@example.com", firstName: "Test", lastName: "User" }
+      ip: "127.0.0.1",
+      userAgent: "jest",
+      chainHash: "hash-1",
+      prevHash: "hash-0",
+      before: null,
+      after: null,
+      User: { id: "u1", email: "user@example.com", firstName: "Test", lastName: "User" }
     },
     {
       id: "a2",
@@ -52,7 +46,13 @@ describe("Security/Privacy audit API smoke", () => {
       entity: "audit",
       entityId: "cg1",
       createdAt: new Date().toISOString(),
-      actor: null
+      ip: null,
+      userAgent: null,
+      chainHash: "hash-2",
+      prevHash: "hash-1",
+      before: null,
+      after: null,
+      User: null
     }
   ];
 
@@ -73,38 +73,22 @@ describe("Security/Privacy audit API smoke", () => {
     ]);
 
     const moduleRef = await Test.createTestingModule({
-      controllers: [AuditController],
       providers: [
         AuditService,
-        { provide: PrismaService, useValue: prisma },
-        { provide: JwtAuthGuard, useClass: AllowGuard },
-        { provide: RolesGuard, useClass: AllowGuard },
-        { provide: PermissionGuard, useClass: AllowGuard }
+        { provide: PrismaService, useValue: prisma }
       ]
     })
-      .overrideGuard(JwtAuthGuard)
-      .useValue(new AllowGuard())
-      .overrideGuard(RolesGuard)
-      .useValue(new AllowGuard())
-      .overrideGuard(PermissionGuard)
-      .useValue(new AllowGuard())
       .compile();
 
-    app = moduleRef.createNestApplication();
-    await app.init();
-  });
-
-  afterAll(async () => {
-    await app.close();
+    audit = moduleRef.get(AuditService);
   });
 
   it("returns 200 and basic shape for audit list", async () => {
-    const res = await request(app.getHttpServer()).get("/campgrounds/cg1/audit?limit=5");
+    const rows = await audit.exportJson({ campgroundId: "cg1", limit: 5 });
 
-    expect(res.status).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
-    expect(res.body.length).toBeGreaterThan(0);
-    expect(res.body[0]).toEqual(
+    expect(Array.isArray(rows)).toBe(true);
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows[0]).toEqual(
       expect.objectContaining({
         action: expect.any(String),
         entity: expect.any(String)
@@ -113,25 +97,30 @@ describe("Security/Privacy audit API smoke", () => {
   });
 
   it("returns csv export with audit rows and download headers", async () => {
-    const res = await request(app.getHttpServer()).get("/campgrounds/cg1/audit?format=csv");
+    const headers: Record<string, string> = {};
+    const res = {
+      setHeader: (key: string, value: string) => {
+        headers[key] = value;
+      },
+      send: jest.fn((payload: string) => payload)
+    };
 
-    expect(res.status).toBe(200);
-    expect(res.headers["content-type"]).toContain("text/csv");
-    expect(res.headers["content-disposition"]).toContain("attachment; filename=audit.csv");
+    const csv = await audit.exportCsv({ campgroundId: "cg1" }, res);
 
-    const lines = res.text.split("\n").filter(Boolean);
+    expect(headers["Content-Type"]).toContain("text/csv");
+    expect(headers["Content-Disposition"]).toContain("attachment; filename=audit.csv");
+
+    const lines = csv.split("\n").filter(Boolean);
     expect(lines[0]).toContain("id,campgroundId,actorId,action,entity,entityId,createdAt,ip,userAgent,chainHash,prevHash,before,after");
     expect(lines[1]).toContain("a1");
   });
 
   it("returns json export with correct headers and shape", async () => {
-    const res = await request(app.getHttpServer()).get("/campgrounds/cg1/audit?format=json");
+    const rows = await audit.exportJson({ campgroundId: "cg1" });
 
-    expect(res.status).toBe(200);
-    expect(res.headers["content-type"]).toContain("application/json");
-    expect(Array.isArray(res.body)).toBe(true);
-    expect(res.body.length).toBeGreaterThan(0);
-    expect(res.body[0]).toEqual(
+    expect(Array.isArray(rows)).toBe(true);
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows[0]).toEqual(
       expect.objectContaining({
         id: expect.any(String),
         action: expect.any(String),
@@ -141,10 +130,9 @@ describe("Security/Privacy audit API smoke", () => {
   });
 
   it("returns quick audit summary", async () => {
-    const res = await request(app.getHttpServer()).get("/campgrounds/cg1/audit/quick");
+    const summary = await audit.quickAudit({ campgroundId: "cg1", limit: 5 });
 
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual(
+    expect(summary).toEqual(
       expect.objectContaining({
         privacyDefaults: expect.objectContaining({
           redactPII: expect.any(Boolean),
@@ -154,7 +142,6 @@ describe("Security/Privacy audit API smoke", () => {
         auditEvents: expect.any(Array)
       })
     );
-    expect(res.body.auditEvents.length).toBeGreaterThan(0);
+    expect(summary.auditEvents.length).toBeGreaterThan(0);
   });
 });
-

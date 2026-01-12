@@ -7,6 +7,15 @@ class ServiceUnavailableException extends HttpException {
 }
 import { PrismaService } from "../prisma/prisma.service";
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const getErrorMessage = (error: unknown) => {
+  if (error instanceof Error) return error.message;
+  if (error === null || error === undefined) return "";
+  return String(error);
+};
+
 type RestoreSimulation = {
   status: "idle" | "running" | "ok" | "error";
   lastRunAt: string | null;
@@ -63,17 +72,17 @@ export class HttpBackupProvider implements BackupProvider {
   }
 
   private getFetch(): typeof fetch {
-    const f = (globalThis as any).fetch;
-    if (!f) {
+    const fetchFn = globalThis.fetch;
+    if (!fetchFn) {
       throw new ServiceUnavailableException("global fetch is unavailable; provide a fetch polyfill");
     }
-    return f;
+    return fetchFn;
   }
 
   private async fetchWithRetry(url: string, init: RequestInit): Promise<Response> {
     const fetchFn = this.getFetch();
     let attempt = 0;
-    let lastError: any;
+    let lastError: unknown;
     while (attempt <= this.retries) {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), this.timeoutMs);
@@ -81,14 +90,14 @@ export class HttpBackupProvider implements BackupProvider {
         const res = await fetchFn(url, { ...init, signal: controller.signal });
         clearTimeout(timer);
         return res;
-      } catch (err: any) {
+      } catch (err) {
         clearTimeout(timer);
         lastError = err;
         attempt += 1;
         if (attempt > this.retries) break;
       }
     }
-    throw new ServiceUnavailableException(lastError?.message || "Backup provider request failed");
+    throw new ServiceUnavailableException(getErrorMessage(lastError) || "Backup provider request failed");
   }
 
   async healthCheck() {
@@ -96,8 +105,8 @@ export class HttpBackupProvider implements BackupProvider {
     try {
       const res = await this.fetchWithRetry(`${this.base}/health`, { headers: this.headers() });
       return { ok: res.ok, message: res.ok ? "ok" : `provider unhealthy (${res.status})` };
-    } catch (err: any) {
-      return { ok: false, message: err?.message || "health check failed" };
+    } catch (err) {
+      return { ok: false, message: getErrorMessage(err) || "health check failed" };
     }
   }
 
@@ -109,7 +118,15 @@ export class HttpBackupProvider implements BackupProvider {
     if (!res.ok) {
       throw new ServiceUnavailableException(`Backup provider error ${res.status}`);
     }
-    return (await res.json()) as { lastBackupAt: string | null; location: string | null; verifiedAt: string | null };
+    const body = await res.json();
+    if (!isRecord(body)) {
+      throw new ServiceUnavailableException("Backup provider returned invalid payload");
+    }
+    return {
+      lastBackupAt: typeof body.lastBackupAt === "string" ? body.lastBackupAt : null,
+      location: typeof body.location === "string" ? body.location : null,
+      verifiedAt: typeof body.verifiedAt === "string" ? body.verifiedAt : null
+    };
   }
 
   async runRestoreDrill(campgroundId: string) {
@@ -122,7 +139,15 @@ export class HttpBackupProvider implements BackupProvider {
       const body = await res.text();
       throw new ServiceUnavailableException(body || `Restore drill failed (${res.status})`);
     }
-    return (await res.json()) as { ok: boolean; verifiedAt: string | null; message?: string | null };
+    const body = await res.json();
+    if (!isRecord(body)) {
+      throw new ServiceUnavailableException("Restore drill returned invalid payload");
+    }
+    return {
+      ok: body.ok === true,
+      verifiedAt: typeof body.verifiedAt === "string" ? body.verifiedAt : null,
+      message: typeof body.message === "string" ? body.message : null
+    };
   }
 }
 
@@ -220,4 +245,3 @@ export class BackupService {
     };
   }
 }
-

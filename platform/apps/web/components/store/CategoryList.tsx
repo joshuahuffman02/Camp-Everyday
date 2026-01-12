@@ -13,13 +13,15 @@ import {
     AlertDialogTitle,
 } from "../ui/alert-dialog";
 import { CategoryModal } from "./CategoryModal";
-import { ProductCategory } from "@keepr/shared";
+import type { CreateProductCategoryDto, ProductCategory } from "@keepr/shared";
 import { EmptyState } from "../ui/empty-state";
 import { FolderOpen, Plus } from "lucide-react";
 
 interface CategoryListProps {
     campgroundId: string;
 }
+
+type CategoryPayload = Omit<CreateProductCategoryDto, "campgroundId">;
 
 export function CategoryList({ campgroundId }: CategoryListProps) {
     const qc = useQueryClient();
@@ -33,12 +35,12 @@ export function CategoryList({ campgroundId }: CategoryListProps) {
     });
 
     const createMutation = useMutation({
-        mutationFn: (data: any) => apiClient.createStoreCategory(campgroundId, data),
+        mutationFn: (data: CategoryPayload) => apiClient.createStoreCategory(campgroundId, data),
         onSuccess: () => qc.invalidateQueries({ queryKey: ["store-categories"] })
     });
 
     const updateMutation = useMutation({
-        mutationFn: (payload: { id: string; data: any }) =>
+        mutationFn: (payload: { id: string; data: Partial<CategoryPayload> }) =>
             apiClient.updateStoreCategory(payload.id, payload.data, campgroundId),
         onSuccess: () => qc.invalidateQueries({ queryKey: ["store-categories"] })
     });
@@ -48,7 +50,7 @@ export function CategoryList({ campgroundId }: CategoryListProps) {
         onSuccess: () => qc.invalidateQueries({ queryKey: ["store-categories"] })
     });
 
-    const handleSave = async (data: any) => {
+    const handleSave = async (data: CategoryPayload) => {
         if (editingCategory) {
             await updateMutation.mutateAsync({ id: editingCategory.id, data });
         } else {

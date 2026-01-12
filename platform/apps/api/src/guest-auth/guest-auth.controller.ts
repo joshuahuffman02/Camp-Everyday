@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, UseGuards, Request, Response } from '@nestjs/common';
+import { Controller, Post, Body, Get, UseGuards, Req, Response, UnauthorizedException } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { GuestAuthService } from './guest-auth.service';
 import { AuthGuard } from '@nestjs/passport';
@@ -41,7 +41,10 @@ export class GuestAuthController {
 
     @Get('me')
     @UseGuards(AuthGuard('guest-jwt'))
-    async getMe(@Request() req: Request) {
+    async getMe(@Req() req: Request) {
+        if (!req.user) {
+            throw new UnauthorizedException();
+        }
         return this.guestAuthService.getMe(req.user.id);
     }
 }

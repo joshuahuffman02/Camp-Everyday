@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards } from '@nestjs/common';
 import { MaintenanceService } from './maintenance.service';
-import { MaintenancePriority, MaintenanceStatus } from '@prisma/client';
+import { MaintenancePriority, MaintenanceStatus, type Prisma } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards';
 import { ScopeGuard } from '../auth/guards/scope.guard';
 
@@ -22,8 +22,8 @@ export class MaintenanceController {
     outOfOrder?: boolean;
     outOfOrderReason?: string;
     outOfOrderUntil?: string;
-    checklist?: any;
-    photos?: any;
+    checklist?: Prisma.InputJsonValue;
+    photos?: Prisma.InputJsonValue;
     notes?: string;
     lockId?: string;
   }) {
@@ -62,8 +62,8 @@ export class MaintenanceController {
       outOfOrder?: boolean;
       outOfOrderReason?: string;
       outOfOrderUntil?: string;
-      checklist?: any;
-      photos?: any;
+      checklist?: Prisma.InputJsonValue;
+      photos?: Prisma.InputJsonValue;
       notes?: string;
     },
   ) {

@@ -7,7 +7,9 @@ import {
   IssueStatus,
   IssuePriority,
   IssueCategory,
+  Prisma,
 } from "@prisma/client";
+import { randomUUID } from "crypto";
 
 /**
  * Issue Tracking Service
@@ -41,16 +43,22 @@ export class IssuesService implements OnModuleInit {
     status?: string;
     priority?: string;
   }): Promise<Issue[]> {
-    const where: any = {};
+    const where: Prisma.IssueWhereInput = {};
 
     if (filters?.category) {
-      where.category = filters.category as IssueCategory;
+      if (this.isIssueCategory(filters.category)) {
+        where.category = filters.category;
+      }
     }
     if (filters?.status) {
-      where.status = filters.status as IssueStatus;
+      if (this.isIssueStatus(filters.status)) {
+        where.status = filters.status;
+      }
     }
     if (filters?.priority) {
-      where.priority = filters.priority as IssuePriority;
+      if (this.isIssuePriority(filters.priority)) {
+        where.priority = filters.priority;
+      }
     }
 
     return this.prisma.issue.findMany({
@@ -68,14 +76,15 @@ export class IssuesService implements OnModuleInit {
   async findOne(id: string): Promise<Issue & { attempts: IssueAttempt[] }> {
     const issue = await this.prisma.issue.findUnique({
       where: { id },
-      include: { attempts: { orderBy: { createdAt: "desc" } } },
+      include: { IssueAttempt: { orderBy: { createdAt: "desc" } } },
     });
 
     if (!issue) {
       throw new NotFoundException(`Issue ${id} not found`);
     }
 
-    return issue;
+    const { IssueAttempt, ...rest } = issue;
+    return { ...rest, attempts: IssueAttempt };
   }
 
   /**
@@ -84,12 +93,14 @@ export class IssuesService implements OnModuleInit {
   async create(dto: CreateIssueDto): Promise<Issue> {
     const issue = await this.prisma.issue.create({
       data: {
+        id: randomUUID(),
         title: dto.title,
         description: dto.description || null,
         category: dto.category,
         priority: dto.priority || IssuePriority.medium,
         status: IssueStatus.backlog,
         assignedTo: dto.assignedTo || null,
+        updatedAt: new Date(),
       },
     });
 
@@ -106,7 +117,7 @@ export class IssuesService implements OnModuleInit {
       throw new NotFoundException(`Issue ${id} not found`);
     }
 
-    const data: any = {};
+    const data: Prisma.IssueUpdateInput = {};
 
     if (dto.title !== undefined) data.title = dto.title;
     if (dto.description !== undefined) data.description = dto.description;
@@ -140,6 +151,7 @@ export class IssuesService implements OnModuleInit {
 
     const attempt = await this.prisma.issueAttempt.create({
       data: {
+        id: randomUUID(),
         issueId,
         notes: dto.notes,
         outcome: dto.outcome,
@@ -211,15 +223,53 @@ export class IssuesService implements OnModuleInit {
       { title: "SMS failover (single Twilio provider only)", category: IssueCategory.api, priority: IssuePriority.medium },
     ];
 
+    const now = new Date();
     await this.prisma.issue.createMany({
       data: sampleIssues.map((issue) => ({
+        id: randomUUID(),
         title: issue.title,
         category: issue.category,
         priority: issue.priority,
         status: IssueStatus.backlog,
+        updatedAt: now,
       })),
     });
 
     this.logger.log(`Seeded ${sampleIssues.length} initial issues`);
+  }
+
+  private isIssueCategory(value: string): value is IssueCategory {
+    const allowed: ReadonlyArray<IssueCategory> = [
+      IssueCategory.database,
+      IssueCategory.frontend,
+      IssueCategory.performance,
+      IssueCategory.security,
+      IssueCategory.api,
+      IssueCategory.infrastructure,
+      IssueCategory.documentation,
+      IssueCategory.other,
+    ];
+    return allowed.some((entry) => entry === value);
+  }
+
+  private isIssueStatus(value: string): value is IssueStatus {
+    const allowed: ReadonlyArray<IssueStatus> = [
+      IssueStatus.backlog,
+      IssueStatus.todo,
+      IssueStatus.in_progress,
+      IssueStatus.review,
+      IssueStatus.done,
+    ];
+    return allowed.some((entry) => entry === value);
+  }
+
+  private isIssuePriority(value: string): value is IssuePriority {
+    const allowed: ReadonlyArray<IssuePriority> = [
+      IssuePriority.low,
+      IssuePriority.medium,
+      IssuePriority.high,
+      IssuePriority.critical,
+    ];
+    return allowed.some((entry) => entry === value);
   }
 }

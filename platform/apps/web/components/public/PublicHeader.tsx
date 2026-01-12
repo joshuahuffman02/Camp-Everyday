@@ -22,17 +22,20 @@ import {
 } from "lucide-react";
 import { useEasterEggs } from "@/contexts/EasterEggsContext";
 
-// Extend session type to include campgrounds
-interface ExtendedSession {
-    user?: {
-        id?: string;
-        name?: string | null;
-        email?: string | null;
-        image?: string | null;
-        platformRole?: string;
-    };
-    campgrounds?: Array<{ id: string; name: string }>;
-}
+type CampgroundSummary = { id: string; name: string };
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null;
+
+const getCampgrounds = (value: unknown): CampgroundSummary[] | null => {
+    if (!isRecord(value)) return null;
+    const campgrounds = value.campgrounds;
+    if (!Array.isArray(campgrounds)) return null;
+    return campgrounds.filter((campground): campground is CampgroundSummary => {
+        if (!isRecord(campground)) return false;
+        return typeof campground.id === "string" && typeof campground.name === "string";
+    });
+};
 
 // Popular destinations for the Explore dropdown
 const exploreDestinations = [
@@ -54,7 +57,8 @@ const popularStates = [
 ];
 
 export function PublicHeader() {
-    const { data: session, status } = useSession() as { data: ExtendedSession | null; status: string };
+    const { data: session, status } = useSession();
+    const campgrounds = getCampgrounds(session);
     const [mobileOpen, setMobileOpen] = useState(false);
     const [profileOpen, setProfileOpen] = useState(false);
     const [exploreOpen, setExploreOpen] = useState(false);
@@ -64,15 +68,15 @@ export function PublicHeader() {
     const { handleLogoClick } = useEasterEggs();
 
     // Check if user has campground access (owner/manager)
-    const hasCampgroundAccess = session?.campgrounds && session.campgrounds.length > 0;
+    const hasCampgroundAccess = (campgrounds?.length ?? 0) > 0;
 
     // Close dropdowns when clicking outside
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
-            if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
+            if (profileRef.current && event.target instanceof Node && !profileRef.current.contains(event.target)) {
                 setProfileOpen(false);
             }
-            if (exploreRef.current && !exploreRef.current.contains(event.target as Node)) {
+            if (exploreRef.current && event.target instanceof Node && !exploreRef.current.contains(event.target)) {
                 setExploreOpen(false);
             }
         }

@@ -14,13 +14,15 @@ import {
 } from "../ui/alert-dialog";
 import { ProductModal } from "./ProductModal";
 import { ProductImportExport } from "./ProductImportExport";
-import { Product, ProductCategory } from "@keepr/shared";
+import type { CreateProductDto, Product, ProductCategory } from "@keepr/shared";
 import { EmptyState } from "../ui/empty-state";
 import { Package, Plus } from "lucide-react";
 
 interface ProductListProps {
     campgroundId: string;
 }
+
+type ProductPayload = Omit<CreateProductDto, "campgroundId">;
 
 export function ProductList({ campgroundId }: ProductListProps) {
     const qc = useQueryClient();
@@ -39,12 +41,12 @@ export function ProductList({ campgroundId }: ProductListProps) {
     });
 
     const createMutation = useMutation({
-        mutationFn: (data: any) => apiClient.createStoreProduct(campgroundId, data),
+        mutationFn: (data: ProductPayload) => apiClient.createStoreProduct(campgroundId, data),
         onSuccess: () => qc.invalidateQueries({ queryKey: ["store-products"] })
     });
 
     const updateMutation = useMutation({
-        mutationFn: (payload: { id: string; data: any }) =>
+        mutationFn: (payload: { id: string; data: Partial<ProductPayload> }) =>
             apiClient.updateStoreProduct(payload.id, payload.data, campgroundId),
         onSuccess: () => qc.invalidateQueries({ queryKey: ["store-products"] })
     });
@@ -54,7 +56,7 @@ export function ProductList({ campgroundId }: ProductListProps) {
         onSuccess: () => qc.invalidateQueries({ queryKey: ["store-products"] })
     });
 
-    const handleSave = async (data: any) => {
+    const handleSave = async (data: ProductPayload) => {
         if (editingProduct) {
             await updateMutation.mutateAsync({ id: editingProduct.id, data });
         } else {

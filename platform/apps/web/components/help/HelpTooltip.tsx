@@ -44,12 +44,10 @@ export function HelpTooltip({
   useEffect(() => {
     // Close on click outside
     const handleClickOutside = (event: MouseEvent) => {
-      if (
-        tooltipRef.current &&
-        triggerRef.current &&
-        !tooltipRef.current.contains(event.target as Node) &&
-        !triggerRef.current.contains(event.target as Node)
-      ) {
+      if (!tooltipRef.current || !triggerRef.current) return;
+      const target = event.target;
+      if (!target || !(target instanceof Node)) return;
+      if (!tooltipRef.current.contains(target) && !triggerRef.current.contains(target)) {
         setIsOpen(false);
       }
     };

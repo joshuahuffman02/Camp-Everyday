@@ -34,6 +34,7 @@ import {
   Unlock,
   Copy,
   Settings,
+  type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -107,7 +108,7 @@ export interface SiteLayoutEditorProps {
 }
 
 // Constants
-const SITE_TYPE_ICONS: Record<SiteType, any> = {
+const SITE_TYPE_ICONS: Record<SiteType, LucideIcon> = {
   rv: Caravan,
   tent: Tent,
   cabin: Home,
@@ -657,13 +658,15 @@ export function SiteLayoutEditor({
     input.type = "file";
     input.accept = "image/*";
     input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!(e.target instanceof HTMLInputElement)) return;
+      const file = e.target.files?.[0];
       if (!file) return;
 
       const reader = new FileReader();
       reader.onload = () => {
-        const dataUrl = reader.result as string;
-        onBackgroundImageChange?.(dataUrl);
+        if (typeof reader.result === "string") {
+          onBackgroundImageChange?.(reader.result);
+        }
       };
       reader.readAsDataURL(file);
     };
@@ -723,26 +726,28 @@ export function SiteLayoutEditor({
             {/* Site type selector */}
             {activeTool === "site" && (
               <div className="flex items-center gap-1 border-r pr-2">
-                {(Object.keys(SITE_TYPE_ICONS) as SiteType[]).map((type) => {
-                  const Icon = SITE_TYPE_ICONS[type];
-                  return (
-                    <Tooltip key={type}>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant={selectedSiteType === type ? "default" : "ghost"}
-                          size="icon"
-                          onClick={() => setSelectedSiteType(type)}
-                          style={{
-                            backgroundColor: selectedSiteType === type ? SITE_TYPE_COLORS[type] : undefined,
-                          }}
-                        >
-                          <Icon className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent className="capitalize">{type}</TooltipContent>
-                    </Tooltip>
-                  );
-                })}
+                {Object.keys(SITE_TYPE_ICONS)
+                  .filter((type): type is SiteType => type in SITE_TYPE_ICONS)
+                  .map((type) => {
+                    const Icon = SITE_TYPE_ICONS[type];
+                    return (
+                      <Tooltip key={type}>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant={selectedSiteType === type ? "default" : "ghost"}
+                            size="icon"
+                            onClick={() => setSelectedSiteType(type)}
+                            style={{
+                              backgroundColor: selectedSiteType === type ? SITE_TYPE_COLORS[type] : undefined,
+                            }}
+                          >
+                            <Icon className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent className="capitalize">{type}</TooltipContent>
+                      </Tooltip>
+                    );
+                  })}
               </div>
             )}
 
@@ -990,7 +995,9 @@ export function SiteLayoutEditor({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {(Object.keys(SITE_TYPE_ICONS) as SiteType[]).map((type) => (
+                      {Object.keys(SITE_TYPE_ICONS)
+                        .filter((type): type is SiteType => type in SITE_TYPE_ICONS)
+                        .map((type) => (
                         <SelectItem key={type} value={type} className="capitalize">
                           {type}
                         </SelectItem>

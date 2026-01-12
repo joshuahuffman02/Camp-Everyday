@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../../../prisma/prisma.service";
 import { DateRange } from "../platform-analytics.service";
 
-interface RevenueSummary {
+export interface RevenueSummary {
   totalRevenue: number;
   totalReservations: number;
   averageOrderValue: number;
@@ -10,7 +10,7 @@ interface RevenueSummary {
   yoyGrowth: number | null;
 }
 
-interface RevenueByType {
+export interface RevenueByType {
   type: string;
   revenue: number;
   reservations: number;
@@ -18,7 +18,7 @@ interface RevenueByType {
   adr: number; // Average Daily Rate
 }
 
-interface MonthlyTrend {
+export interface MonthlyTrend {
   month: string;
   revenue: number;
   reservations: number;
@@ -116,7 +116,7 @@ export class RevenueIntelligenceService {
         totalAmount: true,
         arrivalDate: true,
         departureDate: true,
-        site: {
+        Site: {
           select: { siteType: true },
         },
       },
@@ -127,7 +127,7 @@ export class RevenueIntelligenceService {
     let totalRevenue = 0;
 
     for (const res of reservations) {
-      const type = res.site?.siteType || "unknown";
+      const type = res.Site?.siteType || "unknown";
       const nights = Math.ceil(
         (new Date(res.departureDate).getTime() - new Date(res.arrivalDate).getTime()) /
         (1000 * 60 * 60 * 24)

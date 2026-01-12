@@ -111,10 +111,11 @@ export function TerminalMethod({ onSuccess, onError, onCancel }: TerminalMethodP
       });
 
       onSuccess?.(result.paymentId || "terminal_payment");
-    } catch (err: any) {
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Terminal payment failed";
       setStatus("error");
-      setError(err.message || "Terminal payment failed");
-      onError?.(err.message || "Terminal payment failed");
+      setError(message);
+      onError?.(message);
     }
   };
 

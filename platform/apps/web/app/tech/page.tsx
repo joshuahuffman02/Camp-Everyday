@@ -4,6 +4,71 @@ import { useEffect, useState } from "react";
 import { DashboardShell } from "../../components/ui/layout/DashboardShell";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object";
+
+const isNumber = (value: unknown): value is number => typeof value === "number";
+
+const isNullableNumber = (value: unknown): value is number | null =>
+  value === null || typeof value === "number";
+
+const isPerfSnapshot = (value: unknown): value is PerfSnapshot =>
+  isRecord(value) &&
+  typeof value.timestamp === "string" &&
+  isNumber(value.windowMs) &&
+  isRecord(value.counts) &&
+  isNumber(value.counts.total) &&
+  isNumber(value.counts.errors) &&
+  isRecord(value.latencyMs) &&
+  isNullableNumber(value.latencyMs.p50) &&
+  isNullableNumber(value.latencyMs.p95) &&
+  isNullableNumber(value.latencyMs.p99) &&
+  isNumber(value.errorRate) &&
+  isRecord(value.limiter) &&
+  isNumber(value.limiter.ip) &&
+  isNumber(value.limiter.org);
+
+const isRecentError = (value: unknown): value is { path: string; status: number; at: number } =>
+  isRecord(value) &&
+  typeof value.path === "string" &&
+  isNumber(value.status) &&
+  isNumber(value.at);
+
+const isQueueEntry = (value: unknown): value is { running: number; queued: number } =>
+  isRecord(value) && isNumber(value.running) && isNumber(value.queued);
+
+const isQueues = (value: unknown): value is Record<string, { running: number; queued: number }> =>
+  isRecord(value) && Object.values(value).every(isQueueEntry);
+
+const isObservabilitySnapshot = (value: unknown): value is ObservabilitySnapshot =>
+  isRecord(value) &&
+  isNumber(value.captured) &&
+  isRecord(value.targets) &&
+  isNumber(value.targets.apiP95Ms) &&
+  isNumber(value.targets.apiErrorRate) &&
+  isNumber(value.targets.jobP95Ms) &&
+  isNumber(value.targets.jobFailureRate) &&
+  isRecord(value.api) &&
+  isNumber(value.api.count) &&
+  isNumber(value.api.errors) &&
+  isNumber(value.api.p50) &&
+  isNumber(value.api.p95) &&
+  isNumber(value.api.p99) &&
+  isNumber(value.api.avg) &&
+  Array.isArray(value.api.recentErrors) &&
+  value.api.recentErrors.every(isRecentError) &&
+  isRecord(value.jobs) &&
+  isNumber(value.jobs.count) &&
+  isNumber(value.jobs.errors) &&
+  isNumber(value.jobs.p50) &&
+  isNumber(value.jobs.p95) &&
+  isNumber(value.jobs.p99) &&
+  isNumber(value.jobs.avg) &&
+  isQueues(value.jobs.queues);
+
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error ? error.message : fallback;
+
 type PerfSnapshot = {
   timestamp: string;
   windowMs: number;
@@ -67,14 +132,17 @@ export default function TechPage() {
         if (!res.ok) {
           throw new Error(`Failed to load perf snapshot (${res.status})`);
         }
-        const json = (await res.json()) as PerfSnapshot;
+        const json = await res.json();
+        if (!isPerfSnapshot(json)) {
+          throw new Error("Invalid perf snapshot");
+        }
         if (!cancelled) {
           setSnapshot(json);
           setError(null);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (!cancelled) {
-          setError(err?.message || "Unable to load perf snapshot");
+          setError(getErrorMessage(err, "Unable to load perf snapshot"));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -87,13 +155,16 @@ export default function TechPage() {
         setSloLoading(true);
         const res = await fetch(`${apiBase}/observability/snapshot`, { cache: "no-store" });
         if (!res.ok) throw new Error(`Failed to load SLO snapshot (${res.status})`);
-        const json = (await res.json()) as ObservabilitySnapshot;
+        const json = await res.json();
+        if (!isObservabilitySnapshot(json)) {
+          throw new Error("Invalid SLO snapshot");
+        }
         if (!cancelled) {
           setSloSnapshot(json);
           setSloError(null);
         }
-      } catch (err: any) {
-        if (!cancelled) setSloError(err?.message || "Unable to load SLO snapshot");
+      } catch (err: unknown) {
+        if (!cancelled) setSloError(getErrorMessage(err, "Unable to load SLO snapshot"));
       } finally {
         if (!cancelled) setSloLoading(false);
       }

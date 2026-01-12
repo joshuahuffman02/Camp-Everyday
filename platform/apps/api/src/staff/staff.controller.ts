@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import { StaffService } from './staff.service';
+import { StaffService, type CreateShiftDto, type CreateAvailabilityDto, type OverrideRequestDto } from './staff.service';
 import { PushNotificationType } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards';
 import { PayrollService } from "./payroll.service";
@@ -15,7 +15,7 @@ export class StaffController {
   // ---- Shifts ----
 
   @Post('shifts')
-  createShift(@Body() dto: any) {
+  createShift(@Body() dto: CreateShiftDto) {
     return this.service.createShift(dto);
   }
 
@@ -37,7 +37,7 @@ export class StaffController {
   }
 
   @Patch('shifts/:id')
-  updateShift(@Param('id') id: string, @Body() dto: any) {
+  updateShift(@Param('id') id: string, @Body() dto: Partial<CreateShiftDto>) {
     return this.service.updateShift(id, dto);
   }
 
@@ -92,16 +92,7 @@ export class StaffController {
 
   @Post('overrides')
   requestOverride(
-    @Body() dto: {
-      campgroundId: string;
-      userId: string;
-      type: "comp" | "void" | "discount";
-      reason?: string;
-      targetEntity?: string;
-      targetId?: string;
-      deltaAmount?: number;
-      metadata?: any;
-    }
+    @Body() dto: OverrideRequestDto
   ) {
     return this.service.requestOverride(dto);
   }
@@ -192,7 +183,7 @@ export class StaffController {
   // ---- Availability ----
 
   @Post('availability')
-  setAvailability(@Body() dto: any) {
+  setAvailability(@Body() dto: CreateAvailabilityDto) {
     return this.service.setAvailability(dto);
   }
 
@@ -350,7 +341,7 @@ export class StaffController {
       type: PushNotificationType;
       title: string;
       body: string;
-      data?: any;
+      data?: Record<string, unknown>;
     }
   ) {
     return this.service.sendNotification(
@@ -595,4 +586,3 @@ export class StaffController {
     );
   }
 }
-

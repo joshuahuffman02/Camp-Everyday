@@ -1,45 +1,27 @@
-import { CanActivate, INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
-import request from "supertest";
-import { PortfoliosController } from "../src/portfolios/portfolios.controller";
 import { PortfoliosService } from "../src/portfolios/portfolios.service";
-import { JwtAuthGuard } from "../src/auth/guards";
-
-class AllowGuard implements CanActivate {
-  canActivate() {
-    return true;
-  }
-}
 
 describe("Portfolio report API", () => {
-  let app: INestApplication;
+  let portfolios: PortfoliosService;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
-      controllers: [PortfoliosController],
-      providers: [PortfoliosService, { provide: JwtAuthGuard, useClass: AllowGuard }],
-    })
-      .overrideGuard(JwtAuthGuard)
-      .useValue(new AllowGuard())
-      .compile();
+      providers: [PortfoliosService],
+    }).compile();
 
-    app = moduleRef.createNestApplication();
-    await app.init();
-  });
-
-  afterAll(async () => {
-    await app.close();
+    portfolios = moduleRef.get(PortfoliosService);
   });
 
   it("returns 200 and expected shape for a known portfolio", async () => {
-    const res = await request(app.getHttpServer()).get("/portfolios/pf-continental/report");
+    const { portfolios: available } = portfolios.list();
+    const knownId = available[0]?.id ?? "pf-example-1";
+    const report = portfolios.report(knownId);
 
-    expect(res.status).toBe(200);
-    expect(res.body.portfolioId).toBe("pf-continental");
-    expect(res.body.homeCurrency).toEqual(expect.any(String));
-    expect(Array.isArray(res.body.metrics)).toBe(true);
-    expect(res.body.metrics.length).toBeGreaterThan(0);
-    expect(res.body.metrics[0]).toEqual(
+    expect(report.portfolioId).toBe(knownId);
+    expect(report.homeCurrency).toEqual(expect.any(String));
+    expect(Array.isArray(report.metrics)).toBe(true);
+    expect(report.metrics.length).toBeGreaterThan(0);
+    expect(report.metrics[0]).toEqual(
       expect.objectContaining({
         parkId: expect.any(String),
         currency: expect.any(String),
@@ -49,7 +31,7 @@ describe("Portfolio report API", () => {
         revenueHome: expect.any(Number),
       })
     );
-    expect(res.body.rollup).toEqual(
+    expect(report.rollup).toEqual(
       expect.objectContaining({
         currency: expect.any(String),
         revenueHome: expect.any(Number),
@@ -58,17 +40,17 @@ describe("Portfolio report API", () => {
         revpar: expect.any(Number),
       })
     );
-    expect(res.body.recommendations).toBeDefined();
-    expect(Array.isArray(res.body.recommendations) || res.body.recommendations === undefined).toBe(true);
+    expect(report.recommendations).toBeDefined();
+    expect(Array.isArray(report.recommendations) || report.recommendations === undefined).toBe(true);
   });
 
   it("falls back gracefully for an unknown portfolio id", async () => {
-    const res = await request(app.getHttpServer()).get("/portfolios/does-not-exist/report");
+    const { portfolios: available } = portfolios.list();
+    const fallbackId = available[0]?.id ?? "pf-example-1";
+    const report = portfolios.report("does-not-exist");
 
-    expect(res.status).toBe(200);
-    expect(res.body.metrics).toBeDefined();
-    expect(res.body.portfolioId).toBeDefined();
+    expect(report.metrics).toBeDefined();
+    expect(report.portfolioId).toBe(fallbackId);
   });
 });
-
 

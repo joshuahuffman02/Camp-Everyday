@@ -152,10 +152,10 @@ export default async function LocationPage({ params }: Props) {
     : [];
 
   // Get site type counts
-  const siteTypeCounts = campgrounds.reduce((acc, cg) => {
+  const siteTypeCounts = campgrounds.reduce<Record<string, number>>((acc, cg) => {
     // This would need actual site data - placeholder for now
     return acc;
-  }, {} as Record<string, number>);
+  }, {});
 
   // Get nearby states for internal linking
   // This is simplified - you'd want a proper adjacency map

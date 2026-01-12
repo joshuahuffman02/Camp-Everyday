@@ -24,9 +24,9 @@ export class RolesGuard implements CanActivate {
         }
 
         const request = context.switchToHttp().getRequest();
-        const user = request.user;
+        const user: unknown = request.user;
 
-        if (!user) {
+        if (!this.isRecord(user)) {
             return false;
         }
 
@@ -34,7 +34,8 @@ export class RolesGuard implements CanActivate {
         const requiresPlatformRole = requiredRoles.some(role => PLATFORM_ROLES.includes(role));
 
         // If user has a platform role that matches, allow access
-        if (user.platformRole && requiredRoles.includes(user.platformRole)) {
+        const platformRole = typeof user.platformRole === 'string' ? user.platformRole : undefined;
+        if (platformRole && requiredRoles.includes(platformRole)) {
             return true;
         }
 
@@ -51,19 +52,31 @@ export class RolesGuard implements CanActivate {
             request.campgroundId ||
             request.headers['x-campground-id'];
 
-        if (!user.memberships) {
+        const memberships = Array.isArray(user.memberships) ? user.memberships : [];
+        if (memberships.length === 0) {
             return false;
         }
 
         // Check if user has required role for the specified campground
-        const membership = user.memberships.find(
-            (m: any) => m.campgroundId === campgroundId
-        );
+        const membership = memberships.find((member) => this.isMembership(member) && member.campgroundId === campgroundId);
 
         if (!membership) {
             return false;
         }
 
         return requiredRoles.includes(membership.role);
+    }
+
+    private isRecord(value: unknown): value is Record<string, unknown> {
+        return typeof value === 'object' && value !== null;
+    }
+
+    private isMembership(value: unknown): value is { campgroundId?: string | null; role?: string } {
+        if (!this.isRecord(value)) return false;
+        const campgroundId = value.campgroundId;
+        const role = value.role;
+        const validCampgroundId = typeof campgroundId === 'string' || campgroundId === null || campgroundId === undefined;
+        const validRole = typeof role === 'string' || role === undefined;
+        return validCampgroundId && validRole;
     }
 }

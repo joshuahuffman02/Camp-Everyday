@@ -4,6 +4,77 @@ import { CreateSupportReportDto } from "./dto/create-support-report.dto";
 import { UpdateSupportReportDto } from "./dto/update-support-report.dto";
 import { EmailService } from "../email/email.service";
 import { UpdateStaffScopeDto } from "./dto/update-staff-scope.dto";
+import { PlatformRole, Prisma, SupportReportStatus } from "@prisma/client";
+import { randomUUID } from "crypto";
+
+type SupportUserSummary = {
+  id: string;
+  email: string | null;
+  firstName: string | null;
+  lastName: string | null;
+};
+
+type SupportCampgroundSummary = { id: string; name: string };
+
+type SupportReportRaw = Prisma.SupportReportGetPayload<{
+  include: {
+    User_SupportReport_authorIdToUser: {
+      select: { id: true; email: true; firstName: true; lastName: true };
+    };
+    User_SupportReport_assigneeIdToUser: {
+      select: { id: true; email: true; firstName: true; lastName: true };
+    };
+    Campground: { select: { id: true; name: true } };
+  };
+}>;
+
+type SupportReportView = Omit<
+  SupportReportRaw,
+  | "User_SupportReport_authorIdToUser"
+  | "User_SupportReport_assigneeIdToUser"
+  | "Campground"
+> & {
+  author: SupportUserSummary | null;
+  assignee: SupportUserSummary | null;
+  campground: SupportCampgroundSummary | null;
+};
+
+const PLATFORM_ROLES: PlatformRole[] = [
+  PlatformRole.support_agent,
+  PlatformRole.support_lead,
+  PlatformRole.regional_support,
+  PlatformRole.ops_engineer,
+  PlatformRole.platform_admin,
+];
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const toStringValue = (value: unknown): string | null => {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return null;
+};
+
+const isPlatformRole = (value: string): value is PlatformRole =>
+  PLATFORM_ROLES.some((role) => role === value);
+
+const parsePlatformRole = (value: string | null | undefined): PlatformRole | undefined => {
+  if (!value) return undefined;
+  return isPlatformRole(value) ? value : undefined;
+};
+
+const toSupportReportView = ({
+  User_SupportReport_authorIdToUser: author,
+  User_SupportReport_assigneeIdToUser: assignee,
+  Campground: campground,
+  ...rest
+}: SupportReportRaw): SupportReportView => ({
+  ...rest,
+  author,
+  assignee,
+  campground,
+});
 
 @Injectable()
 export class SupportService {
@@ -34,8 +105,10 @@ export class SupportService {
       ownershipRole
     } = dto;
 
+    const rawContextRecord = isRecord(rawContext) ? rawContext : {};
     return this.prisma.supportReport.create({
       data: {
+        id: randomUUID(),
         description,
         steps,
         contactEmail,
@@ -48,18 +121,24 @@ export class SupportService {
         roleFilter,
         pinnedIds: pinnedIds ?? [],
         recentIds: recentIds ?? [],
-        rawContext: { ...(rawContext as any), region, ownershipRole },
+        rawContext: { ...rawContextRecord, region, ownershipRole },
         campgroundId,
-        authorId: authorId ?? null
+        authorId: authorId ?? null,
+        updatedAt: new Date(),
       },
       include: {
-        campground: { select: { id: true, name: true } },
-        assignee: { select: { id: true, email: true, firstName: true, lastName: true } },
-        author: { select: { id: true, email: true, firstName: true, lastName: true } }
-      }
+        Campground: { select: { id: true, name: true } },
+        User_SupportReport_assigneeIdToUser: {
+          select: { id: true, email: true, firstName: true, lastName: true },
+        },
+        User_SupportReport_authorIdToUser: {
+          select: { id: true, email: true, firstName: true, lastName: true },
+        },
+      },
     }).then((report) => {
-      void this.notifyNew(report);
-      return report;
+      const view = toSupportReportView(report);
+      void this.notifyNew(view);
+      return view;
     });
   }
 
@@ -67,20 +146,27 @@ export class SupportService {
     const { region, campgroundId } = args;
 
     // 1. Fetch scoped SupportReports
+    const where: Prisma.SupportReportWhereInput = {};
+    if (campgroundId) {
+      where.campgroundId = campgroundId;
+    }
+    if (region) {
+      where.AND = [{ rawContext: { path: ["region"], equals: region } }];
+    }
     const reports = await this.prisma.supportReport.findMany({
-      where: {
-        AND: [
-          region ? ({ rawContext: { path: ["region"], equals: region } } as any) : undefined,
-          campgroundId ? { campgroundId } : undefined
-        ].filter(Boolean) as any
-      },
+      where,
       orderBy: { createdAt: "desc" },
       include: {
-        author: { select: { id: true, email: true, firstName: true, lastName: true } },
-        assignee: { select: { id: true, email: true, firstName: true, lastName: true } },
-        campground: { select: { id: true, name: true } }
-      }
+        User_SupportReport_authorIdToUser: {
+          select: { id: true, email: true, firstName: true, lastName: true },
+        },
+        User_SupportReport_assigneeIdToUser: {
+          select: { id: true, email: true, firstName: true, lastName: true },
+        },
+        Campground: { select: { id: true, name: true } },
+      },
     });
+    const reportViews = reports.map(toSupportReportView);
 
     // 2. Fetch global Tickets (only if not strictly filtering by campground, or if we decide tickets are global)
     // For now, we include tickets in the main list. We can refine filtering later if needed.
@@ -91,18 +177,24 @@ export class SupportService {
     });
 
     // 3. Map Tickets to SupportReport shape
-    const mappedTickets = tickets.map((t) => {
+    const mappedTickets: SupportReportView[] = tickets.map((t) => {
       // Map status
-      let status = "new";
-      if (t.status === "closed") status = "closed";
-      if (t.status === "resolved") status = "resolved";
-      if (t.status === "in_progress") status = "in_progress";
+      let status: SupportReportStatus = SupportReportStatus.new;
+      if (t.status === "closed") status = SupportReportStatus.closed;
+      if (t.status === "resolved") status = SupportReportStatus.resolved;
+      if (t.status === "in_progress") status = SupportReportStatus.in_progress;
 
       // Parse submitter safely
-      const submitter = t.submitter as any; // { name, email, id }
-      const author = submitter?.email
-        ? { id: submitter.id || "guest", email: submitter.email, firstName: submitter.name || null, lastName: null }
+      const submitter = isRecord(t.submitter) ? t.submitter : null; // { name, email, id }
+      const submitterEmail = submitter ? toStringValue(submitter.email) : null;
+      const submitterName = submitter ? toStringValue(submitter.name) : null;
+      const submitterId = submitter ? toStringValue(submitter.id) : null;
+      const author = submitterEmail
+        ? { id: submitterId ?? "guest", email: submitterEmail, firstName: submitterName ?? null, lastName: null }
         : null;
+      const client = isRecord(t.client) ? t.client : null;
+      const userAgent = client ? toStringValue(client.userAgent) : null;
+      const language = client ? toStringValue(client.language) : null;
 
       return {
         id: t.id,
@@ -110,10 +202,10 @@ export class SupportService {
         updatedAt: t.updatedAt,
         description: t.title,
         steps: t.notes || null,
-        contactEmail: submitter?.email || null,
+        contactEmail: submitterEmail,
         path: t.path || t.url || null,
-        userAgent: (t.client as any)?.userAgent || null,
-        language: (t.client as any)?.language || null,
+        userAgent,
+        language,
         timezone: null,
         viewportWidth: null,
         viewportHeight: null,
@@ -132,7 +224,7 @@ export class SupportService {
     });
 
     // 4. Merge and Sort
-    const combined = [...reports, ...(mappedTickets as any)];
+    const combined: SupportReportView[] = [...reportViews, ...mappedTickets];
     return combined.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
@@ -151,7 +243,9 @@ export class SupportService {
       select: { assigneeId: true, rawContext: true, campgroundId: true }
     });
 
-    const beforeRegion = (before?.rawContext as any)?.region;
+    const beforeRegion = before && isRecord(before.rawContext)
+      ? toStringValue(before.rawContext.region)
+      : null;
     if (beforeRegion && actorRegion && beforeRegion !== actorRegion) {
       throw new ForbiddenException("Forbidden by region scope");
     }
@@ -191,23 +285,28 @@ export class SupportService {
         // audit can be added later
       },
       include: {
-        campground: { select: { id: true, name: true } },
-        assignee: { select: { id: true, email: true, firstName: true, lastName: true } },
-        author: { select: { id: true, email: true, firstName: true, lastName: true } }
-      }
+        Campground: { select: { id: true, name: true } },
+        User_SupportReport_assigneeIdToUser: {
+          select: { id: true, email: true, firstName: true, lastName: true },
+        },
+        User_SupportReport_authorIdToUser: {
+          select: { id: true, email: true, firstName: true, lastName: true },
+        },
+      },
     });
+    const view = toSupportReportView(report);
 
     if (assigneeId && assigneeId !== before?.assigneeId) {
-      void this.notifyAssignment(report);
+      void this.notifyAssignment(view);
     }
 
-    return report;
+    return view;
   }
 
   async staffDirectory(args: { region?: string | null; campgroundId?: string | null }) {
     const { region, campgroundId } = args;
 
-    const whereOr: any[] = [];
+    const whereOr: Prisma.UserWhereInput[] = [];
     if (region) {
       whereOr.push({ region });
     }
@@ -247,12 +346,13 @@ export class SupportService {
 
   async updateStaffScope(id: string, dto: UpdateStaffScopeDto) {
     const { region, ownershipRoles } = dto;
+    const platformRole = parsePlatformRole(dto.platformRole ?? undefined);
     return this.prisma.user.update({
       where: { id },
       data: {
         region: region ?? undefined,
         platformRegion: dto.platformRegion ?? undefined,
-        platformRole: (dto.platformRole as any) ?? undefined,
+        platformRole: platformRole ?? undefined,
         platformActive:
           typeof dto.platformActive === "string"
             ? dto.platformActive === "true"
@@ -275,7 +375,7 @@ export class SupportService {
     });
   }
 
-  private formatReportSummary(report: any) {
+  private formatReportSummary(report: SupportReportView) {
     const parts = [
       `New support report (${report.status})`,
       report.campground?.name ? `Campground: ${report.campground.name}` : null,
@@ -290,7 +390,7 @@ export class SupportService {
     return parts;
   }
 
-  private async notifyNew(report: any) {
+  private async notifyNew(report: SupportReportView) {
     const slackWebhook = process.env.SUPPORT_SLACK_WEBHOOK;
     const emailList = (process.env.SUPPORT_ALERT_EMAILS || "")
       .split(",")
@@ -353,7 +453,7 @@ export class SupportService {
     }
   }
 
-  private async notifyAssignment(report: any) {
+  private async notifyAssignment(report: SupportReportView) {
     // Slack notification for assignment (optional)
     const slackWebhook = process.env.SUPPORT_SLACK_WEBHOOK;
     if (slackWebhook && report.assignee?.email) {
@@ -408,4 +508,3 @@ export class SupportService {
     }
   }
 }
-

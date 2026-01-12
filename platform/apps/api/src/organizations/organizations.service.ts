@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateOrganizationDto } from "./dto/create-organization.dto";
 
@@ -11,6 +12,11 @@ export class OrganizationsService {
   }
 
   create(data: CreateOrganizationDto) {
-    return this.prisma.organization.create({ data });
+    return this.prisma.organization.create({
+      data: {
+        id: randomUUID(),
+        ...data,
+      },
+    });
   }
 }

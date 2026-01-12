@@ -33,6 +33,8 @@ type ReportSearchItem = {
   description?: string;
 };
 
+const hasSubTabs = (value: string): value is keyof typeof subTabs => value in subTabs;
+
 export function ReportsNavBar({
   activeTab,
   activeSubTab,
@@ -46,7 +48,7 @@ export function ReportsNavBar({
 
   const activeSubTabs = useMemo(() => {
     if (!activeTab || activeTab === "overview") return [];
-    const list = subTabs[activeTab as keyof typeof subTabs];
+    const list = hasSubTabs(activeTab) ? subTabs[activeTab] : undefined;
     if (list?.length) return list;
     const fallback = reportCatalog.find((category) => category.id === activeTab);
     return fallback?.subReports ?? [];
@@ -68,7 +70,7 @@ export function ReportsNavBar({
         return;
       }
 
-      const reports = subTabs[category.id as keyof typeof subTabs] || category.subReports;
+      const reports = hasSubTabs(category.id) ? subTabs[category.id] : category.subReports;
       reports.forEach((sub) => {
         items.push({
           tab: category.id,
@@ -151,7 +153,7 @@ export function ReportsNavBar({
               );
             }
 
-            const reports = subTabs[category.id as keyof typeof subTabs] || category.subReports;
+            const reports = hasSubTabs(category.id) ? subTabs[category.id] : category.subReports;
 
             return (
               <DropdownMenu key={category.id}>

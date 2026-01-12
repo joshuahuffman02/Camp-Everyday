@@ -3,6 +3,23 @@ import { Cron } from "@nestjs/schedule";
 import { PrismaService } from "../prisma/prisma.service";
 import { EmailService } from "../email/email.service";
 import { SeasonalPaymentStatus } from "@prisma/client";
+import { randomUUID } from "crypto";
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const hasToNumber = (value: unknown): value is { toNumber: () => number } =>
+  isRecord(value) && typeof value.toNumber === "function";
+
+const coerceNumber = (value: unknown): number => {
+  if (typeof value === "number") return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  if (hasToNumber(value)) return value.toNumber();
+  return 0;
+};
 
 @Injectable()
 export class SeasonalsScheduler {
@@ -29,11 +46,11 @@ export class SeasonalsScheduler {
           dueDate: { lt: now },
         },
         include: {
-          seasonalGuest: {
+          SeasonalGuest: {
             include: {
-              guest: { select: { id: true, email: true, primaryFirstName: true } },
-              campground: { select: { id: true, name: true } },
-              site: { select: { siteNumber: true } },
+              Guest: { select: { id: true, email: true, primaryFirstName: true } },
+              Campground: { select: { id: true, name: true } },
+              Site: { select: { siteNumber: true } },
             },
           },
         },
@@ -57,9 +74,9 @@ export class SeasonalsScheduler {
 
       // Send past_due notification emails to guests
       for (const payment of overduePayments) {
-        const guest = payment.seasonalGuest?.guest;
-        const campground = payment.seasonalGuest?.campground;
-        const site = payment.seasonalGuest?.site;
+        const guest = payment.SeasonalGuest?.Guest;
+        const campground = payment.SeasonalGuest?.Campground;
+        const site = payment.SeasonalGuest?.Site;
 
         if (!guest?.email || !campground) continue;
 
@@ -94,7 +111,7 @@ export class SeasonalsScheduler {
       // Group by campground for staff notifications
       const byCampground = new Map<string, typeof overduePayments>();
       for (const payment of overduePayments) {
-        const cgId = payment.seasonalGuest?.campground?.id;
+        const cgId = payment.SeasonalGuest?.Campground?.id;
         if (!cgId) continue;
         const list = byCampground.get(cgId) || [];
         list.push(payment);
@@ -104,7 +121,7 @@ export class SeasonalsScheduler {
       // Log summary for ops and potential staff notification
       for (const [campgroundId, payments] of byCampground) {
         const totalOverdue = payments.reduce((sum, p) => sum + Number(p.amount), 0);
-        const campgroundName = payments[0]?.seasonalGuest?.campground?.name || campgroundId;
+        const campgroundName = payments[0]?.SeasonalGuest?.Campground?.name || campgroundId;
         this.logger.warn(`${campgroundName}: ${payments.length} payments now past_due, total $${(totalOverdue / 100).toFixed(2)}`);
       }
     } catch (error) {
@@ -205,11 +222,11 @@ export class SeasonalsScheduler {
           amount: { gte: 100 }, // At least $1
         },
         include: {
-          seasonalGuest: {
+          SeasonalGuest: {
             include: {
-              guest: { select: { id: true, email: true, primaryFirstName: true, primaryLastName: true } },
-              campground: { select: { id: true, name: true } },
-              site: { select: { siteNumber: true } },
+              Guest: { select: { id: true, email: true, primaryFirstName: true, primaryLastName: true } },
+              Campground: { select: { id: true, name: true } },
+              Site: { select: { siteNumber: true } },
             },
           },
         },
@@ -226,9 +243,9 @@ export class SeasonalsScheduler {
       let failed = 0;
 
       for (const payment of upcomingPayments) {
-        const guest = payment.seasonalGuest?.guest;
-        const campground = payment.seasonalGuest?.campground;
-        const site = payment.seasonalGuest?.site;
+        const guest = payment.SeasonalGuest?.Guest;
+        const campground = payment.SeasonalGuest?.Campground;
+        const site = payment.SeasonalGuest?.Site;
 
         if (!guest?.email || !campground) {
           this.logger.warn(`Skipping payment ${payment.id}: missing guest email or campground`);
@@ -355,7 +372,7 @@ export class SeasonalsScheduler {
         where: {
           status: "active",
           // Only process monthly billing guests
-          payments: {
+          SeasonalPayment: {
             none: {
               dueDate: {
                 gte: nextMonth,
@@ -365,7 +382,7 @@ export class SeasonalsScheduler {
           },
         },
         include: {
-          pricing: {
+          SeasonalGuestPricing: {
             where: { seasonYear: nextMonth.getFullYear() },
             take: 1,
           },
@@ -375,22 +392,27 @@ export class SeasonalsScheduler {
       let created = 0;
 
       for (const seasonal of seasonalsNeedingPayment) {
-        const pricing = seasonal.pricing[0];
+        const pricing = seasonal.SeasonalGuestPricing[0];
         if (!pricing) continue;
 
         // Calculate monthly amount from annual rate
         // Assuming 6-month season for now (can be enhanced with rate card dates)
-        const monthlyAmount = (pricing.finalRate as any)?.toNumber?.() / 6 || 0;
+        const annualRate = coerceNumber(pricing.finalRate);
+        const monthlyAmount = annualRate > 0 ? annualRate / 6 : 0;
 
         if (monthlyAmount > 0) {
           await this.prisma.seasonalPayment.create({
             data: {
+              id: randomUUID(),
               seasonalGuestId: seasonal.id,
               campgroundId: seasonal.campgroundId,
               seasonYear: nextMonth.getFullYear(),
+              periodStart: nextMonth,
+              periodEnd: nextMonthEnd,
               amount: monthlyAmount,
               dueDate: new Date(nextMonth.getFullYear(), nextMonth.getMonth(), seasonal.paymentDay || 1),
               status: SeasonalPaymentStatus.scheduled,
+              updatedAt: new Date(),
             },
           });
           created++;

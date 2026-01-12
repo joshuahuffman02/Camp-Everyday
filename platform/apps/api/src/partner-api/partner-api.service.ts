@@ -7,7 +7,8 @@ import {
 import { PrismaService } from "../prisma/prisma.service";
 import { BatchInventoryService } from "../inventory/batch-inventory.service";
 import { MarkdownRulesService } from "../inventory/markdown-rules.service";
-import { ExpirationTier } from "@prisma/client";
+import { ExpirationTier, Prisma } from "@prisma/client";
+import { randomUUID } from "crypto";
 import {
   ScanProductDto,
   ScanProductResponseDto,
@@ -18,6 +19,26 @@ import {
   RecordRefundDto,
   RecordRefundResponseDto,
 } from "./dto/record-sale.dto";
+
+const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined => {
+  if (value === undefined || value === null) return undefined;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
+};
+
+const toRequiredJson = (value: unknown): Prisma.InputJsonValue =>
+  toJsonValue(value) ?? [];
+
+const toNullableJsonInput = (
+  value: unknown
+): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined => {
+  if (value === undefined) return undefined;
+  if (value === null) return Prisma.JsonNull;
+  return toJsonValue(value) ?? Prisma.JsonNull;
+};
 
 @Injectable()
 export class PartnerApiService {
@@ -42,7 +63,7 @@ export class PartnerApiService {
         isActive: true,
       },
       include: {
-        category: true,
+        ProductCategory: true,
       },
     });
 
@@ -131,7 +152,7 @@ export class PartnerApiService {
         id: product.id,
         sku: product.sku,
         name: product.name,
-        category: product.category?.name ?? null,
+        category: product.ProductCategory?.name ?? null,
       },
       unitPriceCents: effectivePriceCents,
       markdownApplied,
@@ -203,16 +224,17 @@ export class PartnerApiService {
       // Create the external POS sale record
       const sale = await tx.externalPosSale.create({
         data: {
+          id: randomUUID(),
           campgroundId,
           externalTransactionId: dto.externalTransactionId,
           provider: "partner_api",
           apiClientId,
-          items: dto.items,
+          items: toRequiredJson(dto.items),
           totalCents,
           paymentMethod: dto.paymentMethod,
           locationId: dto.locationId,
           saleDate: new Date(),
-          metadata: dto.metadata,
+          metadata: dto.metadata === undefined ? undefined : toNullableJsonInput(dto.metadata),
           inventoryDeducted: false,
         },
       });
@@ -262,6 +284,7 @@ export class PartnerApiService {
                 // Create inventory movement
                 await tx.inventoryMovement.create({
                   data: {
+                    id: randomUUID(),
                     campgroundId,
                     productId: product.id,
                     locationId: dto.locationId,
@@ -272,6 +295,7 @@ export class PartnerApiService {
                     newQty,
                     referenceType: "external_pos_sale",
                     referenceId: sale.id,
+                    actorUserId: "system",
                   },
                 });
 
@@ -392,6 +416,7 @@ export class PartnerApiService {
             // Create inventory movement for audit
             await tx.inventoryMovement.create({
               data: {
+                id: randomUUID(),
                 campgroundId,
                 productId: product.id,
                 locationId: batch.locationId,
@@ -403,6 +428,7 @@ export class PartnerApiService {
                 referenceType: "external_pos_refund",
                 referenceId: saleId,
                 notes: dto.reason,
+                actorUserId: "system",
               },
             });
           }
@@ -438,7 +464,7 @@ export class PartnerApiService {
       offset?: number;
     }
   ) {
-    const where: any = {
+    const where: Prisma.ProductWhereInput = {
       campgroundId,
       isActive: true,
     };
@@ -457,7 +483,7 @@ export class PartnerApiService {
     const [products, total] = await Promise.all([
       this.prisma.product.findMany({
         where,
-        include: { category: true },
+        include: { ProductCategory: true },
         take: options?.limit ?? 100,
         skip: options?.offset ?? 0,
         orderBy: { name: "asc" },
@@ -472,7 +498,7 @@ export class PartnerApiService {
         name: p.name,
         description: p.description,
         priceCents: p.priceCents,
-        category: p.category?.name ?? null,
+        category: p.ProductCategory?.name ?? null,
         stockQty: p.stockQty,
         useBatchTracking: p.useBatchTracking,
         isActive: p.isActive,
@@ -490,8 +516,8 @@ export class PartnerApiService {
     const product = await this.prisma.product.findFirst({
       where: { campgroundId, sku, isActive: true },
       include: {
-        category: true,
-        inventoryBatches: {
+        ProductCategory: true,
+        InventoryBatch: {
           where: { isActive: true, qtyRemaining: { gt: 0 } },
           orderBy: [{ expirationDate: "asc" }, { receivedDate: "asc" }],
         },
@@ -508,11 +534,11 @@ export class PartnerApiService {
       name: product.name,
       description: product.description,
       priceCents: product.priceCents,
-      category: product.category?.name ?? null,
+      category: product.ProductCategory?.name ?? null,
       stockQty: product.stockQty,
       useBatchTracking: product.useBatchTracking,
       batches: product.useBatchTracking
-        ? product.inventoryBatches.map((b) => ({
+        ? product.InventoryBatch.map((b) => ({
             id: b.id,
             batchNumber: b.batchNumber,
             qtyRemaining: b.qtyRemaining,
@@ -539,16 +565,31 @@ export class PartnerApiService {
         expirationDate: { not: null, lte: sevenDays },
       },
       include: {
-        product: { select: { id: true, sku: true, name: true } },
-        location: { select: { id: true, name: true } },
+        Product: { select: { id: true, sku: true, name: true } },
+        StoreLocation: { select: { id: true, name: true } },
       },
       orderBy: { expirationDate: "asc" },
     });
 
-    const summary = {
-      expired: [] as any[],
-      critical: [] as any[],
-      warning: [] as any[],
+    type ExpiringInventoryItem = {
+      batchId: string;
+      productId: string;
+      productSku: string | null;
+      productName: string;
+      qtyRemaining: number;
+      expirationDate: string;
+      locationId: string | null;
+      locationName: string | null;
+    };
+
+    const summary: {
+      expired: ExpiringInventoryItem[];
+      critical: ExpiringInventoryItem[];
+      warning: ExpiringInventoryItem[];
+    } = {
+      expired: [],
+      critical: [],
+      warning: [],
     };
 
     for (const batch of batches) {
@@ -556,13 +597,13 @@ export class PartnerApiService {
 
       const item = {
         batchId: batch.id,
-        productId: batch.product.id,
-        productSku: batch.product.sku,
-        productName: batch.product.name,
+        productId: batch.Product.id,
+        productSku: batch.Product.sku,
+        productName: batch.Product.name,
         qtyRemaining: batch.qtyRemaining,
         expirationDate: batch.expirationDate.toISOString(),
-        locationId: batch.location?.id ?? null,
-        locationName: batch.location?.name ?? null,
+        locationId: batch.StoreLocation?.id ?? null,
+        locationName: batch.StoreLocation?.name ?? null,
       };
 
       if (batch.expirationDate <= now) {
@@ -624,7 +665,7 @@ export class PartnerApiService {
   }
 
   private async deductSimpleInventory(
-    tx: any,
+    tx: Prisma.TransactionClient,
     productId: string,
     locationId: string | null | undefined,
     qty: number
@@ -643,7 +684,7 @@ export class PartnerApiService {
   }
 
   private async restoreSimpleInventory(
-    tx: any,
+    tx: Prisma.TransactionClient,
     productId: string,
     locationId: string | null | undefined,
     qty: number

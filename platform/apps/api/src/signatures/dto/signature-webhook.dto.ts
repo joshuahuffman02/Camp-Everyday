@@ -1,13 +1,15 @@
 import { IsIn, IsOptional, IsString } from "class-validator";
 
-const STATUSES = ["signed", "declined", "voided", "expired", "viewed"] as const;
+type SignatureWebhookStatus = "signed" | "declined" | "voided" | "expired" | "viewed";
+
+const STATUSES: SignatureWebhookStatus[] = ["signed", "declined", "voided", "expired", "viewed"];
 
 export class SignatureWebhookDto {
   @IsString()
   token!: string;
 
-  @IsIn(STATUSES as unknown as string[])
-  status!: (typeof STATUSES)[number];
+  @IsIn(STATUSES)
+  status!: SignatureWebhookStatus;
 
   @IsOptional()
   @IsString()

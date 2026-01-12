@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import { AiProviderService } from "./ai-provider.service";
 import { AiPrivacyService } from "./ai-privacy.service";
 import { AiFeatureGateService } from "./ai-feature-gate.service";
-import { AiFeatureType, UserRole } from "@prisma/client";
+import { AdjustmentType, AiFeatureType, MaintenancePriority, PlatformRole, PricingRuleType, PricingStackMode, UserRole } from "@prisma/client";
 import { PermissionsService } from "../permissions/permissions.service";
 import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../prisma/prisma.service";
@@ -14,6 +14,7 @@ import { OperationsService } from "../operations/operations.service";
 import { RepeatChargesService } from "../repeat-charges/repeat-charges.service";
 import { ReservationsService } from "../reservations/reservations.service";
 import { PricingV2Service } from "../pricing-v2/pricing-v2.service";
+import type { AuthMembership, AuthUser } from "../auth/auth.types";
 import type { Request } from "express";
 // Analytical services for enhanced insights
 import { AiYieldService } from "./ai-yield.service";
@@ -23,7 +24,7 @@ import { AiRevenueManagerService } from "./ai-revenue-manager.service";
 type PartnerMode = "staff" | "admin";
 type PersonaKey = "revenue" | "operations" | "marketing" | "accounting" | "hospitality" | "compliance" | "general";
 
-type ActionType =
+export type ActionType =
   | "lookup_availability"
   | "create_hold"
   | "block_site"
@@ -43,7 +44,7 @@ type ActionType =
   | "get_dashboard_summary"
   | "none";
 
-type ImpactArea = "availability" | "pricing" | "policy" | "revenue" | "operations" | "none";
+export type ImpactArea = "availability" | "pricing" | "policy" | "revenue" | "operations" | "none";
 
 type EvidenceLink = { label: string; url: string };
 
@@ -69,6 +70,208 @@ type ActionDraft = {
   result?: Record<string, unknown>;
 };
 
+export type PartnerMembership = {
+  campgroundId?: string | null;
+  role?: UserRole | string;
+};
+
+export type PartnerUser = {
+  id?: string | null;
+  role?: UserRole | string;
+  ownershipRoles?: string[];
+  memberships?: PartnerMembership[];
+  platformRole?: string;
+};
+
+export type SensitivityLevel = "low" | "medium" | "high";
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const isString = (value: unknown): value is string => typeof value === "string";
+
+const toString = (value: unknown): string | undefined => (isString(value) ? value : undefined);
+
+const toNumber = (value: unknown): number | undefined => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return undefined;
+};
+
+const toNumberArray = (value: unknown): number[] => {
+  if (!Array.isArray(value)) return [];
+  const result: number[] = [];
+  for (const entry of value) {
+    const parsed = toNumber(entry);
+    if (typeof parsed === "number") {
+      result.push(parsed);
+    }
+  }
+  return result;
+};
+
+const isUserRole = (value: unknown): value is UserRole =>
+  typeof value === "string" && Object.values(UserRole).some((role) => role === value);
+
+const isPlatformRole = (value: unknown): value is PlatformRole =>
+  typeof value === "string" && Object.values(PlatformRole).some((role) => role === value);
+
+const toAuthMemberships = (memberships: PartnerMembership[] | undefined): AuthMembership[] => {
+  if (!Array.isArray(memberships)) return [];
+  return memberships
+    .filter((membership) => typeof membership.campgroundId === "string" && membership.campgroundId.length > 0)
+    .map((membership) => ({
+      id: randomUUID(),
+      campgroundId: membership.campgroundId ?? "",
+      role: isUserRole(membership.role) ? membership.role : null,
+      campground: undefined,
+    }));
+};
+
+const toAuthUser = (user: PartnerUser | null | undefined): AuthUser | null => {
+  if (!user) return null;
+  const ownershipRoles = Array.isArray(user.ownershipRoles)
+    ? user.ownershipRoles.filter(isString)
+    : [];
+  return {
+    id: user.id ?? "unknown",
+    email: "",
+    firstName: "",
+    lastName: "",
+    region: null,
+    platformRole: isPlatformRole(user.platformRole) ? user.platformRole : null,
+    platformRegion: null,
+    platformActive: true,
+    ownershipRoles,
+    role: isUserRole(user.role) ? user.role : null,
+    memberships: toAuthMemberships(user.memberships),
+  };
+};
+
+const toAnonymizationLevel = (value: string | null | undefined): "strict" | "moderate" | "minimal" => {
+  switch (value) {
+    case "strict":
+    case "moderate":
+    case "minimal":
+      return value;
+    default:
+      return "moderate";
+  }
+};
+
+const ACTION_TYPE_VALUES: ActionType[] = [
+  "lookup_availability",
+  "create_hold",
+  "block_site",
+  "create_maintenance_ticket",
+  "create_operational_task",
+  "update_housekeeping_status",
+  "generate_billing_schedule",
+  "refund_reservation",
+  "send_guest_message",
+  "move_reservation",
+  "adjust_rate",
+  "get_yield_metrics",
+  "get_occupancy_forecast",
+  "get_pricing_recommendations",
+  "get_revenue_insights",
+  "get_dashboard_summary",
+  "none"
+];
+
+const IMPACT_AREA_VALUES: ImpactArea[] = [
+  "availability",
+  "pricing",
+  "policy",
+  "revenue",
+  "operations",
+  "none"
+];
+
+const SENSITIVITY_VALUES: SensitivityLevel[] = ["low", "medium", "high"];
+
+const MAINTENANCE_PRIORITY_VALUES: MaintenancePriority[] = [
+  MaintenancePriority.low,
+  MaintenancePriority.medium,
+  MaintenancePriority.high,
+  MaintenancePriority.critical
+];
+
+const PRICING_RULE_TYPE_VALUES: PricingRuleType[] = [
+  PricingRuleType.season,
+  PricingRuleType.weekend,
+  PricingRuleType.holiday,
+  PricingRuleType.event,
+  PricingRuleType.demand
+];
+
+const PRICING_STACK_MODE_VALUES: PricingStackMode[] = [
+  PricingStackMode.additive,
+  PricingStackMode.max,
+  PricingStackMode.override
+];
+
+const ADJUSTMENT_TYPE_VALUES: AdjustmentType[] = [
+  AdjustmentType.percent,
+  AdjustmentType.flat
+];
+
+const USER_ROLE_VALUES: UserRole[] = [
+  UserRole.owner,
+  UserRole.manager,
+  UserRole.front_desk,
+  UserRole.maintenance,
+  UserRole.finance,
+  UserRole.marketing,
+  UserRole.readonly
+];
+
+const parseActionType = (value: unknown): ActionType | undefined => {
+  if (!isString(value)) return undefined;
+  return ACTION_TYPE_VALUES.find((item) => item === value);
+};
+
+const parseImpactArea = (value: unknown): ImpactArea | undefined => {
+  if (!isString(value)) return undefined;
+  return IMPACT_AREA_VALUES.find((item) => item === value);
+};
+
+const parseSensitivity = (value: unknown): SensitivityLevel | undefined => {
+  if (!isString(value)) return undefined;
+  return SENSITIVITY_VALUES.find((item) => item === value);
+};
+
+const parseMaintenancePriority = (value: unknown): MaintenancePriority | undefined => {
+  if (!isString(value)) return undefined;
+  return MAINTENANCE_PRIORITY_VALUES.find((item) => item === value);
+};
+
+const parsePricingRuleType = (value: unknown): PricingRuleType | undefined => {
+  if (!isString(value)) return undefined;
+  return PRICING_RULE_TYPE_VALUES.find((item) => item === value);
+};
+
+const parsePricingStackMode = (value: unknown): PricingStackMode | undefined => {
+  if (!isString(value)) return undefined;
+  return PRICING_STACK_MODE_VALUES.find((item) => item === value);
+};
+
+const parseAdjustmentType = (value: unknown): AdjustmentType | undefined => {
+  if (!isString(value)) return undefined;
+  return ADJUSTMENT_TYPE_VALUES.find((item) => item === value);
+};
+
+const parseUserRole = (value: unknown): UserRole | undefined => {
+  if (!isString(value)) return undefined;
+  return USER_ROLE_VALUES.find((item) => item === value);
+};
+
+const isAdminRole = (role: UserRole): boolean =>
+  role === UserRole.owner || role === UserRole.manager || role === UserRole.finance;
+
 export type AiPartnerResponse = {
   mode: PartnerMode;
   message: string;
@@ -84,13 +287,13 @@ type PartnerChatRequest = {
   message: string;
   history?: { role: "user" | "assistant"; content: string }[];
   sessionId?: string;
-  user: any;
+  user: PartnerUser;
 };
 
 type PartnerConfirmRequest = {
   campgroundId: string;
-  action: { type: ActionType; parameters?: Record<string, unknown>; sensitivity?: "low" | "medium" | "high"; impactArea?: ImpactArea };
-  user: any;
+  action: { type?: ActionType; parameters?: Record<string, unknown>; sensitivity?: SensitivityLevel; impactArea?: ImpactArea };
+  user: PartnerUser;
 };
 
 const PERSONA_PROMPTS: Record<PersonaKey, string> = {
@@ -266,10 +469,11 @@ export class AiPartnerService {
     const now = new Date();
     const today = this.formatDateInTimeZone(now, timeZone);
     const weekday = this.formatWeekdayInTimeZone(now, timeZone);
+    const anonymizationLevel = toAnonymizationLevel(campground.aiAnonymizationLevel);
 
     // Privacy Redaction
-    const { anonymizedText, tokenMap } = this.privacy.anonymize(message, campground.aiAnonymizationLevel ?? "moderate");
-    const { historyText, historyTokenMap } = this.buildHistory(history, campground.aiAnonymizationLevel ?? "moderate");
+    const { anonymizedText, tokenMap } = this.privacy.anonymize(message, anonymizationLevel);
+    const { historyText, historyTokenMap } = this.buildHistory(history, anonymizationLevel);
     const mergedTokenMap = this.mergeTokenMaps(tokenMap, historyTokenMap);
 
     const routing = await this.routePersona({
@@ -316,7 +520,7 @@ export class AiPartnerService {
     }
 
     const { role, mode } = this.resolveUserRole(user, campgroundId);
-    const actionType = action?.type as ActionType | undefined;
+    const actionType = action?.type;
 
     if (!actionType || actionType === "none" || !(actionType in ACTION_REGISTRY)) {
       return {
@@ -326,13 +530,13 @@ export class AiPartnerService {
       };
     }
 
-    const registry = ACTION_REGISTRY[actionType as Exclude<ActionType, "none">];
+    const registry = ACTION_REGISTRY[actionType];
     const parameters = action?.parameters ?? {};
     const sensitivity = action?.sensitivity ?? registry.sensitivity;
     const impactArea = action?.impactArea ?? registry.impactArea;
 
     const access = await this.permissions.checkAccess({
-      user,
+      user: toAuthUser(user),
       campgroundId,
       resource: registry.resource,
       action: registry.action
@@ -368,7 +572,7 @@ export class AiPartnerService {
     const draft: ActionDraft = {
       ...baseDraft,
       requiresConfirmation: false,
-      impact,
+      impact: impact ?? undefined,
       evidenceLinks: this.buildEvidenceLinks(actionType, parameters)
     };
 
@@ -439,7 +643,7 @@ Request: "${params.anonymizedText}"${historyBlock}`;
       });
 
       const parsed = this.parseJsonBlock(response.content);
-      if (!parsed || typeof parsed !== "object") {
+      if (!isRecord(parsed)) {
         return { persona: "general" };
       }
 
@@ -465,7 +669,7 @@ Request: "${params.anonymizedText}"${historyBlock}`;
     tokenMap: Map<string, string>;
     role: string;
     mode: PartnerMode;
-    user: any;
+    user: PartnerUser;
     sessionId?: string;
     persona: PersonaKey;
     routingReason?: string;
@@ -490,7 +694,7 @@ Request: "${params.anonymizedText}"${historyBlock}`;
         historyText: params.historyText,
         campgroundName: params.campground.name,
         campgroundId: params.campgroundId,
-        userId: params.user?.id,
+        userId: params.user?.id ?? undefined,
         role: params.role,
         mode: params.mode,
         persona: params.persona,
@@ -503,7 +707,7 @@ Request: "${params.anonymizedText}"${historyBlock}`;
         featureType: AiFeatureType.reply_assist,
         systemPrompt,
         userPrompt,
-        userId: params.user?.id,
+        userId: params.user?.id ?? undefined,
         sessionId: params.sessionId,
         tools: this.buildTools(),
         toolChoice: { type: "function", function: { name: "assistant_response" } },
@@ -513,8 +717,10 @@ Request: "${params.anonymizedText}"${historyBlock}`;
 
       const toolCall = this.pickToolCall(toolResponse.toolCalls);
       const toolArgs = toolCall ? this.parseToolArgs(toolCall.arguments) : null;
-      const rawMessage = typeof toolArgs?.message === "string" && toolArgs.message.trim().length
-        ? toolArgs.message
+      const toolArgsRecord = isRecord(toolArgs) ? toolArgs : {};
+      const rawMessageValue = toolArgsRecord.message;
+      const rawMessage = isString(rawMessageValue) && rawMessageValue.trim().length
+        ? rawMessageValue
         : toolResponse.content;
 
       const message = this.privacy.deanonymize(
@@ -522,38 +728,42 @@ Request: "${params.anonymizedText}"${historyBlock}`;
         params.tokenMap
       );
 
-      const questions = Array.isArray(toolArgs?.questions)
-        ? toolArgs.questions.map((q: string) => this.privacy.deanonymize(String(q), params.tokenMap))
+      const questions = Array.isArray(toolArgsRecord.questions)
+        ? toolArgsRecord.questions.map((question) => this.privacy.deanonymize(String(question), params.tokenMap))
         : undefined;
 
-      if (toolArgs?.denial) {
+      const denial = isRecord(toolArgsRecord.denial) ? toolArgsRecord.denial : null;
+      if (denial) {
+        const denialReason = toString(denial.reason) ?? "Request denied.";
+        const denialGuidance = toString(denial.guidance);
         return {
           mode: params.mode,
           message,
           questions,
           denials: [{
-            reason: this.privacy.deanonymize(String(toolArgs.denial.reason || "Request denied."), params.tokenMap),
-            guidance: toolArgs.denial.guidance
-              ? this.privacy.deanonymize(String(toolArgs.denial.guidance), params.tokenMap)
+            reason: this.privacy.deanonymize(denialReason, params.tokenMap),
+            guidance: denialGuidance
+              ? this.privacy.deanonymize(denialGuidance, params.tokenMap)
               : undefined
           }]
         };
       }
 
-      const actionInput = toolArgs?.action;
-      const actionType = actionInput?.type as ActionType | undefined;
+      const actionInput = isRecord(toolArgsRecord.action) ? toolArgsRecord.action : null;
+      const actionType = actionInput ? parseActionType(actionInput.type) : undefined;
       if (!actionType || actionType === "none" || !(actionType in ACTION_REGISTRY)) {
         return { mode: params.mode, message, questions };
       }
 
-      const registry = ACTION_REGISTRY[actionType as Exclude<ActionType, "none">];
-      const parameters = this.resolveParameters(actionInput?.parameters ?? {}, params.tokenMap);
+      const registry = ACTION_REGISTRY[actionType];
+      const parametersSource = actionInput && isRecord(actionInput.parameters) ? actionInput.parameters : {};
+      const parameters = this.resolveParameters(parametersSource, params.tokenMap);
       this.applyRelativeDateDefaults(actionType, parameters, params.anonymizedText, params.timeZone);
-      const sensitivity = (actionInput?.sensitivity as "low" | "medium" | "high" | undefined) ?? registry.sensitivity;
-      const impactArea = (actionInput?.impactArea as ImpactArea | undefined) ?? registry.impactArea;
+      const sensitivity = parseSensitivity(actionInput?.sensitivity) ?? registry.sensitivity;
+      const impactArea = parseImpactArea(actionInput?.impactArea) ?? registry.impactArea;
 
       const access = await this.permissions.checkAccess({
-        user: params.user,
+        user: toAuthUser(params.user),
         campgroundId: params.campgroundId,
         resource: registry.resource,
         action: registry.action
@@ -587,13 +797,16 @@ Request: "${params.anonymizedText}"${historyBlock}`;
         parameters
       });
 
-      const explicitConfirmation = actionInput?.requiresConfirmation ?? registry.confirmByDefault ?? false;
-      const requiresConfirmation = explicitConfirmation || sensitivity === "high" || impact?.level === "high";
+      const explicitConfirmation = typeof actionInput?.requiresConfirmation === "boolean"
+        ? actionInput.requiresConfirmation
+        : undefined;
+      const confirmedDefault = registry.confirmByDefault ?? false;
+      const requiresConfirmation = (explicitConfirmation ?? confirmedDefault) || sensitivity === "high" || impact?.level === "high";
 
       const actionDraft: ActionDraft = {
         ...baseDraft,
         requiresConfirmation,
-        impact,
+        impact: impact ?? undefined,
         evidenceLinks: this.buildEvidenceLinks(actionType, parameters)
       };
 
@@ -991,23 +1204,24 @@ User request: "${params.anonymizedText}"${historyBlock}`;
     if (!parameters.departureDate) parameters.departureDate = inferred.departureDate;
   }
 
-  private resolveUserRole(user: any, campgroundId: string): { role: string; mode: PartnerMode } {
-    const ownership = Array.isArray(user?.ownershipRoles) ? user.ownershipRoles : [];
-    if (ownership.includes("owner")) {
+  private resolveUserRole(user: PartnerUser, campgroundId: string): { role: string; mode: PartnerMode } {
+    const ownershipRoles = Array.isArray(user?.ownershipRoles) ? user.ownershipRoles.filter(isString) : [];
+    if (ownershipRoles.includes("owner")) {
       return { role: "owner", mode: "admin" };
     }
 
-    if (user?.role) {
-      const role = user.role as UserRole;
-      return { role, mode: role === UserRole.owner || role === UserRole.manager || role === UserRole.finance ? "admin" : "staff" };
+    const directRole = parseUserRole(user?.role);
+    if (directRole) {
+      return { role: directRole, mode: isAdminRole(directRole) ? "admin" : "staff" };
     }
 
-    const membership = user?.memberships?.find((m: any) => m.campgroundId === campgroundId);
-    const membershipRole = membership?.role as UserRole | undefined;
+    const memberships = Array.isArray(user?.memberships) ? user.memberships : [];
+    const membership = memberships.find((member) => toString(member?.campgroundId) === campgroundId);
+    const membershipRole = parseUserRole(membership?.role);
     if (membershipRole) {
       return {
         role: membershipRole,
-        mode: membershipRole === UserRole.owner || membershipRole === UserRole.manager || membershipRole === UserRole.finance ? "admin" : "staff"
+        mode: isAdminRole(membershipRole) ? "admin" : "staff"
       };
     }
 
@@ -1023,7 +1237,7 @@ User request: "${params.anonymizedText}"${historyBlock}`;
     return toolCalls.find((call) => call.name === "assistant_response") ?? toolCalls[0];
   }
 
-  private parseToolArgs(args: string) {
+  private parseToolArgs(args: string): unknown {
     try {
       return JSON.parse(args);
     } catch {
@@ -1031,7 +1245,7 @@ User request: "${params.anonymizedText}"${historyBlock}`;
     }
   }
 
-  private parseJsonBlock(content: string) {
+  private parseJsonBlock(content: string): unknown {
     if (!content) return null;
     const match = content.match(/\{[\s\S]*\}/);
     if (!match) return null;
@@ -1042,8 +1256,8 @@ User request: "${params.anonymizedText}"${historyBlock}`;
     }
   }
 
-  private normalizePersona(value: any): PersonaKey {
-    if (typeof value !== "string") return "general";
+  private normalizePersona(value: unknown): PersonaKey {
+    if (!isString(value)) return "general";
     const normalized = value.trim().toLowerCase();
     if (normalized === "revenue") return "revenue";
     if (normalized === "operations" || normalized === "ops") return "operations";
@@ -1055,22 +1269,22 @@ User request: "${params.anonymizedText}"${historyBlock}`;
   }
 
   private resolveParameters(parameters: Record<string, unknown>, tokenMap: Map<string, string>): Record<string, unknown> {
-    const resolved: Record<string, unknown> = Array.isArray(parameters) ? [] : {};
-    for (const [key, value] of Object.entries(parameters || {})) {
+    const resolved: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(parameters)) {
       resolved[key] = this.resolveValue(value, tokenMap);
     }
     return resolved;
   }
 
-  private resolveValue(value: any, tokenMap: Map<string, string>): any {
+  private resolveValue(value: unknown, tokenMap: Map<string, string>): unknown {
     if (typeof value === "string") {
       return tokenMap.get(value) ?? value;
     }
     if (Array.isArray(value)) {
       return value.map((item) => this.resolveValue(item, tokenMap));
     }
-    if (value && typeof value === "object") {
-      return this.resolveParameters(value as Record<string, unknown>, tokenMap);
+    if (isRecord(value)) {
+      return this.resolveParameters(value, tokenMap);
     }
     return value;
   }
@@ -1122,7 +1336,11 @@ User request: "${params.anonymizedText}"${historyBlock}`;
 
   private async executeReadAction(campground: { id: string; slug: string; name: string }, draft: ActionDraft) {
     if (draft.actionType !== "lookup_availability") return null;
-    const { arrivalDate, departureDate, rigType, rigLength } = draft.parameters;
+    const params = draft.parameters;
+    const arrivalDate = toString(params.arrivalDate);
+    const departureDate = toString(params.departureDate);
+    const rigType = toString(params.rigType);
+    const rigLength = toNumber(params.rigLength);
     if (!arrivalDate || !departureDate) {
       return null;
     }
@@ -1133,13 +1351,13 @@ User request: "${params.anonymizedText}"${historyBlock}`;
         arrivalDate,
         departureDate,
         rigType,
-        rigLength ? String(rigLength) : undefined,
+        rigLength !== undefined ? String(rigLength) : undefined,
         false
       );
       const totalSites = availability.length;
-      const availableCount = availability.filter((site: any) => site.status === "available").length;
+      const availableCount = availability.filter((site) => site.status === "available").length;
       const byClass = new Map<string, number>();
-      availability.forEach((site: any) => {
+      availability.forEach((site) => {
         if (site.status !== "available" || !site.siteClass?.name) return;
         byClass.set(site.siteClass.name, (byClass.get(site.siteClass.name) || 0) + 1);
       });
@@ -1194,8 +1412,13 @@ User request: "${params.anonymizedText}"${historyBlock}`;
     }
   }
 
-  private async executeHold(campground: { id: string }, draft: ActionDraft, user: any) {
-    const { siteId, siteNumber, arrivalDate, departureDate, holdMinutes } = draft.parameters;
+  private async executeHold(campground: { id: string }, draft: ActionDraft, user: PartnerUser) {
+    const params = draft.parameters;
+    const siteId = toString(params.siteId);
+    const siteNumber = toString(params.siteNumber);
+    const arrivalDate = toString(params.arrivalDate);
+    const departureDate = toString(params.departureDate);
+    const holdMinutes = toNumber(params.holdMinutes);
     if (!arrivalDate || !departureDate) return null;
 
     const resolvedSiteId = await this.resolveSiteId(campground.id, { siteId, siteNumber });
@@ -1235,8 +1458,13 @@ User request: "${params.anonymizedText}"${historyBlock}`;
     }
   }
 
-  private async executeBlockSite(campground: { id: string }, draft: ActionDraft, user: any) {
-    const { siteId, siteNumber, arrivalDate, departureDate, reason } = draft.parameters;
+  private async executeBlockSite(campground: { id: string }, draft: ActionDraft, user: PartnerUser) {
+    const params = draft.parameters;
+    const siteId = toString(params.siteId);
+    const siteNumber = toString(params.siteNumber);
+    const arrivalDate = toString(params.arrivalDate);
+    const departureDate = toString(params.departureDate);
+    const reason = toString(params.reason);
     if (!arrivalDate || !departureDate) return null;
 
     const resolvedSiteId = await this.resolveSiteId(campground.id, { siteId, siteNumber });
@@ -1253,7 +1481,7 @@ User request: "${params.anonymizedText}"${historyBlock}`;
         outOfOrder: true,
         outOfOrderReason: reason,
         outOfOrderUntil: departureDate,
-        priority: "high" as any,
+        priority: MaintenancePriority.high,
       });
 
       const action: ActionDraft = {
@@ -1286,19 +1514,24 @@ User request: "${params.anonymizedText}"${historyBlock}`;
     }
   }
 
-  private async executeMaintenanceTicket(campground: { id: string }, draft: ActionDraft, user: any) {
-    const { siteId, siteNumber, issue, priority } = draft.parameters;
+  private async executeMaintenanceTicket(campground: { id: string }, draft: ActionDraft, user: PartnerUser) {
+    const params = draft.parameters;
+    const siteId = toString(params.siteId);
+    const siteNumber = toString(params.siteNumber);
+    const issue = toString(params.issue);
+    const priority = params.priority;
     if (!issue) return null;
 
     const resolvedSiteId = await this.resolveSiteId(campground.id, { siteId, siteNumber });
     if (siteNumber && !resolvedSiteId) return null;
 
     try {
+      const resolvedPriority = parseMaintenancePriority(priority) ?? MaintenancePriority.medium;
       const ticket = await this.maintenance.create({
         campgroundId: campground.id,
         siteId: resolvedSiteId,
         title: issue,
-        priority: (priority as any) ?? "medium"
+        priority: resolvedPriority
       });
 
       const action: ActionDraft = {
@@ -1313,7 +1546,7 @@ User request: "${params.anonymizedText}"${historyBlock}`;
         action: "ai.partner.execute",
         entity: "maintenanceTicket",
         entityId: ticket.id,
-        after: { siteId: resolvedSiteId, issue, priority: priority ?? "medium" }
+        after: { siteId: resolvedSiteId, issue, priority: resolvedPriority }
       });
 
       return {
@@ -1326,8 +1559,18 @@ User request: "${params.anonymizedText}"${historyBlock}`;
     }
   }
 
-  private async executeOperationalTask(campground: { id: string }, draft: ActionDraft, user: any) {
-    const { title, task, summary, description, type, priority, dueDate, assignedTo, siteId, siteNumber } = draft.parameters;
+  private async executeOperationalTask(campground: { id: string }, draft: ActionDraft, user: PartnerUser) {
+    const params = draft.parameters;
+    const title = toString(params.title);
+    const task = toString(params.task);
+    const summary = toString(params.summary);
+    const description = toString(params.description);
+    const type = toString(params.type) ?? "maintenance";
+    const priority = toString(params.priority) ?? "medium";
+    const dueDate = toString(params.dueDate);
+    const assignedTo = toString(params.assignedTo);
+    const siteId = toString(params.siteId);
+    const siteNumber = toString(params.siteNumber);
     const taskTitle = title ?? task ?? summary;
     if (!taskTitle) return null;
 
@@ -1340,11 +1583,11 @@ User request: "${params.anonymizedText}"${historyBlock}`;
         {
           title: taskTitle,
           description,
-          type: type ?? "maintenance",
-          priority: priority ?? "medium",
+          type,
+          priority,
           assignedTo,
           dueDate: dueDate ? new Date(dueDate) : undefined,
-          siteId: resolvedSiteId
+          siteId: resolvedSiteId,
         },
         user
       );
@@ -1374,16 +1617,18 @@ User request: "${params.anonymizedText}"${historyBlock}`;
     }
   }
 
-  private async executeUpdateHousekeeping(campground: { id: string }, draft: ActionDraft, user: any) {
-    const { siteId, siteNumber, status, housekeepingStatus } = draft.parameters;
-    const nextStatus = status ?? housekeepingStatus;
+  private async executeUpdateHousekeeping(campground: { id: string }, draft: ActionDraft, user: PartnerUser) {
+    const params = draft.parameters;
+    const siteId = toString(params.siteId);
+    const siteNumber = toString(params.siteNumber);
+    const nextStatus = toString(params.status) ?? toString(params.housekeepingStatus);
     if (!nextStatus) return null;
 
     const resolvedSiteId = await this.resolveSiteId(campground.id, { siteId, siteNumber });
     if (!resolvedSiteId) return null;
 
     try {
-      const updated = await this.operations.updateSiteHousekeeping(resolvedSiteId, String(nextStatus), user);
+      const updated = await this.operations.updateSiteHousekeeping(resolvedSiteId, nextStatus, user);
       const action: ActionDraft = {
         ...draft,
         status: "executed",
@@ -1409,18 +1654,18 @@ User request: "${params.anonymizedText}"${historyBlock}`;
     }
   }
 
-  private async executeGenerateBillingSchedule(campground: { id: string }, draft: ActionDraft, user: any) {
-    const { reservationId } = draft.parameters;
+  private async executeGenerateBillingSchedule(campground: { id: string }, draft: ActionDraft, user: PartnerUser) {
+    const reservationId = toString(draft.parameters.reservationId);
     if (!reservationId) return null;
 
     try {
       const reservation = await this.prisma.reservation.findUnique({
-        where: { id: String(reservationId) },
+        where: { id: reservationId },
         select: { campgroundId: true }
       });
       if (!reservation || reservation.campgroundId !== campground.id) return null;
 
-      const charges = await this.repeatCharges.generateCharges(String(reservationId));
+      const charges = await this.repeatCharges.generateCharges(campground.id, reservationId);
       const action: ActionDraft = {
         ...draft,
         status: "executed",
@@ -1432,7 +1677,7 @@ User request: "${params.anonymizedText}"${historyBlock}`;
         actorId: user?.id ?? null,
         action: "ai.partner.execute",
         entity: "reservation",
-        entityId: String(reservationId),
+        entityId: reservationId,
         after: { repeatChargeCount: charges.length }
       });
 
@@ -1446,24 +1691,27 @@ User request: "${params.anonymizedText}"${historyBlock}`;
     }
   }
 
-  private async executeRefundReservation(campground: { id: string }, draft: ActionDraft, user: any) {
-    const { reservationId, amountCents, destination, reason } = draft.parameters;
-    const amount = Number(amountCents);
-    if (!reservationId || !Number.isFinite(amount) || amount <= 0) return null;
+  private async executeRefundReservation(campground: { id: string }, draft: ActionDraft, user: PartnerUser) {
+    const params = draft.parameters;
+    const reservationId = toString(params.reservationId);
+    const amount = toNumber(params.amountCents);
+    const destination = toString(params.destination);
+    const reason = toString(params.reason);
+    if (!reservationId || amount === undefined || amount <= 0) return null;
 
     const reservation = await this.prisma.reservation.findUnique({
-      where: { id: String(reservationId) },
+      where: { id: reservationId },
       select: { id: true, campgroundId: true }
     });
     if (!reservation || reservation.campgroundId !== campground.id) return null;
 
     try {
       const updated = await this.reservations.refundPayment(
-        String(reservationId),
+        reservationId,
         amount,
         {
           destination: destination === "wallet" ? "wallet" : "card",
-          reason: reason ? String(reason) : undefined
+          reason: reason ?? undefined
         }
       );
 
@@ -1471,7 +1719,7 @@ User request: "${params.anonymizedText}"${historyBlock}`;
         ...draft,
         status: "executed",
         result: {
-          reservationId: String(reservationId),
+          reservationId,
           refundedCents: amount,
           paidAmount: updated.paidAmount,
           balanceAmount: updated.balanceAmount
@@ -1483,7 +1731,7 @@ User request: "${params.anonymizedText}"${historyBlock}`;
         actorId: user?.id ?? null,
         action: "ai.partner.execute",
         entity: "reservation",
-        entityId: String(reservationId),
+        entityId: reservationId,
         after: { refundedCents: amount, destination: destination ?? "card" }
       });
 
@@ -1497,46 +1745,51 @@ User request: "${params.anonymizedText}"${historyBlock}`;
     }
   }
 
-  private async executeSendGuestMessage(campground: { id: string }, draft: ActionDraft, user: any) {
-    const { guestId, reservationId, message, body, subject } = draft.parameters;
-    const noteBody = message ?? body;
+  private async executeSendGuestMessage(campground: { id: string }, draft: ActionDraft, user: PartnerUser) {
+    const params = draft.parameters;
+    const guestId = toString(params.guestId);
+    const reservationId = toString(params.reservationId);
+    const noteBody = toString(params.message) ?? toString(params.body);
+    const subject = toString(params.subject);
     if (!noteBody || (!guestId && !reservationId)) return null;
 
-    let resolvedGuestId: string | null = guestId ? String(guestId) : null;
-    let resolvedReservationId: string | null = reservationId ? String(reservationId) : null;
+    let resolvedGuestId: string | null = guestId ?? null;
+    let resolvedReservationId: string | null = reservationId ?? null;
     let organizationId: string | null = null;
 
     if (resolvedReservationId) {
       const reservation = await this.prisma.reservation.findUnique({
         where: { id: resolvedReservationId },
-        select: { campgroundId: true, guestId: true, campground: { select: { organizationId: true } } }
+        select: { campgroundId: true, guestId: true, Campground: { select: { organizationId: true } } }
       });
       if (!reservation || reservation.campgroundId !== campground.id) return null;
       resolvedGuestId = resolvedGuestId ?? reservation.guestId;
-      organizationId = reservation.campground?.organizationId ?? null;
+      organizationId = reservation.Campground?.organizationId ?? null;
     } else if (resolvedGuestId) {
       const match = await this.prisma.reservation.findFirst({
         where: { guestId: resolvedGuestId, campgroundId: campground.id },
-        select: { id: true, campground: { select: { organizationId: true } } }
+        select: { id: true, Campground: { select: { organizationId: true } } }
       });
       if (!match) return null;
-      organizationId = match.campground?.organizationId ?? null;
+      organizationId = match.Campground?.organizationId ?? null;
     }
 
     try {
       const communication = await this.prisma.communication.create({
         data: {
+          id: randomUUID(),
           campgroundId: campground.id,
-          organizationId,
-          guestId: resolvedGuestId ?? null,
-          reservationId: resolvedReservationId ?? null,
+          organizationId: organizationId ?? undefined,
+          guestId: resolvedGuestId ?? undefined,
+          reservationId: resolvedReservationId ?? undefined,
           type: "note",
           direction: "outbound",
-          subject: subject ? String(subject) : null,
-          body: String(noteBody),
-          preview: String(noteBody).slice(0, 280),
+          subject: subject ?? undefined,
+          body: noteBody,
+          preview: noteBody.slice(0, 280),
           status: "sent",
-          provider: "internal"
+          provider: "internal",
+          updatedAt: new Date(),
         }
       });
 
@@ -1565,22 +1818,21 @@ User request: "${params.anonymizedText}"${historyBlock}`;
     }
   }
 
-  private async executeMoveReservation(campground: { id: string }, draft: ActionDraft, user: any) {
-    const {
-      reservationId,
-      newArrivalDate,
-      newDepartureDate,
-      arrivalDate,
-      departureDate,
-      newSiteId,
-      newSiteNumber,
-      siteId,
-      siteNumber
-    } = draft.parameters;
+  private async executeMoveReservation(campground: { id: string }, draft: ActionDraft, user: PartnerUser) {
+    const params = draft.parameters;
+    const reservationId = toString(params.reservationId);
+    const newArrivalDate = toString(params.newArrivalDate);
+    const newDepartureDate = toString(params.newDepartureDate);
+    const arrivalDate = toString(params.arrivalDate);
+    const departureDate = toString(params.departureDate);
+    const newSiteId = toString(params.newSiteId);
+    const newSiteNumber = toString(params.newSiteNumber);
+    const siteId = toString(params.siteId);
+    const siteNumber = toString(params.siteNumber);
     if (!reservationId) return null;
 
     const reservation = await this.prisma.reservation.findUnique({
-      where: { id: String(reservationId) },
+      where: { id: reservationId },
       select: { campgroundId: true }
     });
     if (!reservation || reservation.campgroundId !== campground.id) return null;
@@ -1595,20 +1847,25 @@ User request: "${params.anonymizedText}"${historyBlock}`;
     });
     if (targetSiteNumber && !resolvedSiteId) return null;
 
-    const updatePayload: Record<string, unknown> = { updatedBy: user?.id ?? null };
-    if (targetArrival) updatePayload.arrivalDate = String(targetArrival);
-    if (targetDeparture) updatePayload.departureDate = String(targetDeparture);
+    const updatePayload: {
+      updatedBy?: string;
+      arrivalDate?: string;
+      departureDate?: string;
+      siteId?: string;
+    } = { updatedBy: user?.id ?? undefined };
+    if (targetArrival) updatePayload.arrivalDate = targetArrival;
+    if (targetDeparture) updatePayload.departureDate = targetDeparture;
     if (resolvedSiteId) updatePayload.siteId = resolvedSiteId;
 
     if (Object.keys(updatePayload).length <= 1) return null;
 
     try {
-      const updated = await this.reservations.update(String(reservationId), updatePayload as any);
+      const updated = await this.reservations.update(reservationId, updatePayload);
       const action: ActionDraft = {
         ...draft,
         status: "executed",
         result: {
-          reservationId: String(reservationId),
+          reservationId,
           siteId: updated.siteId,
           arrivalDate: updated.arrivalDate,
           departureDate: updated.departureDate
@@ -1620,7 +1877,7 @@ User request: "${params.anonymizedText}"${historyBlock}`;
         actorId: user?.id ?? null,
         action: "ai.partner.execute",
         entity: "reservation",
-        entityId: String(reservationId),
+        entityId: reservationId,
         after: { siteId: updated.siteId, arrivalDate: updated.arrivalDate, departureDate: updated.departureDate }
       });
 
@@ -1634,26 +1891,25 @@ User request: "${params.anonymizedText}"${historyBlock}`;
     }
   }
 
-  private async executeAdjustRate(campground: { id: string }, draft: ActionDraft, user: any) {
-    const {
-      siteClassId,
-      siteClassName,
-      adjustmentType,
-      adjustmentValue,
-      newRateCents,
-      stackMode,
-      startDate,
-      endDate,
-      reason,
-      name,
-      dowMask,
-      priority,
-      type
-    } = draft.parameters;
+  private async executeAdjustRate(campground: { id: string }, draft: ActionDraft, user: PartnerUser) {
+    const params = draft.parameters;
+    const siteClassId = toString(params.siteClassId);
+    const siteClassName = toString(params.siteClassName);
+    const adjustmentType = params.adjustmentType;
+    const adjustmentValueInput = toNumber(params.adjustmentValue);
+    const newRateCents = toNumber(params.newRateCents);
+    const stackMode = params.stackMode;
+    const startDate = toString(params.startDate);
+    const endDate = toString(params.endDate);
+    const reason = toString(params.reason);
+    const name = toString(params.name);
+    const dowMask = params.dowMask;
+    const priority = toNumber(params.priority);
+    const type = params.type;
 
     const resolvedClass = await this.resolveSiteClass(campground.id, { siteClassId, siteClassName });
-    const desiredRate = newRateCents !== undefined ? Number(newRateCents) : null;
-    let resolvedAdjustment = adjustmentValue !== undefined ? Number(adjustmentValue) : null;
+    const desiredRate = newRateCents ?? null;
+    let resolvedAdjustment = adjustmentValueInput ?? null;
 
     if (!Number.isFinite(resolvedAdjustment ?? NaN) && desiredRate !== null) {
       if (!resolvedClass) return null;
@@ -1661,27 +1917,30 @@ User request: "${params.anonymizedText}"${historyBlock}`;
     }
 
     if (!Number.isFinite(resolvedAdjustment ?? NaN)) return null;
+    if (resolvedAdjustment === null) return null;
+    const adjustmentValue = resolvedAdjustment;
 
     const ruleName = name
-      ? String(name)
+      ? name
       : reason
         ? `AI Adjustment: ${reason}`
         : "AI Adjustment";
+    const dowMaskValues = Array.isArray(dowMask) ? toNumberArray(dowMask) : undefined;
 
     try {
       const created = await this.pricingV2.create(
         campground.id,
         {
           name: ruleName,
-          type: (type ?? "event") as any,
-          priority: Number.isFinite(Number(priority)) ? Number(priority) : 10,
-          stackMode: (stackMode ?? (desiredRate !== null ? "override" : "additive")) as any,
-          adjustmentType: (adjustmentType ?? "flat") as any,
-          adjustmentValue: resolvedAdjustment,
+          type: parsePricingRuleType(type) ?? PricingRuleType.event,
+          priority: priority ?? 10,
+          stackMode: parsePricingStackMode(stackMode) ?? (desiredRate !== null ? PricingStackMode.override : PricingStackMode.additive),
+          adjustmentType: parseAdjustmentType(adjustmentType) ?? AdjustmentType.flat,
+          adjustmentValue,
           siteClassId: resolvedClass?.id ?? null,
-          startDate: startDate ? String(startDate) : null,
-          endDate: endDate ? String(endDate) : null,
-          dowMask: Array.isArray(dowMask) ? dowMask.map((v: any) => Number(v)).filter((v: number) => Number.isFinite(v)) : undefined,
+          startDate: startDate ?? null,
+          endDate: endDate ?? null,
+          dowMask: dowMaskValues && dowMaskValues.length > 0 ? dowMaskValues : undefined,
           active: true
         },
         user?.id ?? null
@@ -1712,7 +1971,7 @@ User request: "${params.anonymizedText}"${historyBlock}`;
     }
   }
 
-  private async executeWriteAction(campground: { id: string }, draft: ActionDraft, user: any) {
+  private async executeWriteAction(campground: { id: string }, draft: ActionDraft, user: PartnerUser) {
     if (draft.actionType === "create_hold") {
       return this.executeHold(campground, draft, user);
     }
@@ -1756,6 +2015,7 @@ User request: "${params.anonymizedText}"${historyBlock}`;
         const adr = metrics.todayADR ?? 0;
         const revPan = metrics.todayRevPAN ?? 0;
         const next7 = metrics.next7DaysOccupancy ?? 0;
+        const metricsResult = isRecord(metrics) ? metrics : {};
 
         let status: string;
         if (occ >= 80) status = "You're running hot today";
@@ -1765,13 +2025,13 @@ User request: "${params.anonymizedText}"${historyBlock}`;
 
         const message = `${status} - ${occ.toFixed(0)}% occupied, earning $${(adr / 100).toFixed(0)} avg/site. Next 7 days tracking at ${next7.toFixed(0)}% occupancy.`;
         return {
-          action: { ...draft, status: "executed", impact: undefined, result: metrics },
+          action: { ...draft, status: "executed", impact: undefined, result: metricsResult },
           message
         };
       }
 
       if (draft.actionType === "get_occupancy_forecast") {
-        const days = draft.parameters?.days || 30;
+        const days = toNumber(draft.parameters.days) ?? 30;
         const forecastResult = await this.yieldService.forecastOccupancy(campgroundId, days);
         const forecasts = forecastResult.forecasts || [];
         const avgOccupancy = forecastResult.avgOccupancy ?? 0;
@@ -1806,9 +2066,9 @@ User request: "${params.anonymizedText}"${historyBlock}`;
           message = "No pricing adjustments recommended right now. Your rates are aligned with demand.";
         } else if (count === 1) {
           const rec = recommendations[0];
-          message = `1 pricing suggestion: ${rec.reason || "Consider adjusting rates based on current demand patterns."}`;
+          message = `1 pricing suggestion: ${rec.reasoning || "Consider adjusting rates based on current demand patterns."}`;
         } else {
-          message = `${count} pricing opportunities. Top suggestion: ${recommendations[0]?.reason || "Adjust rates for upcoming high-demand dates."}`;
+          message = `${count} pricing opportunities. Top suggestion: ${recommendations[0]?.reasoning || "Adjust rates for upcoming high-demand dates."}`;
         }
         return {
           action: { ...draft, status: "executed", impact: undefined, result: { recommendations, count } },
@@ -1840,13 +2100,21 @@ User request: "${params.anonymizedText}"${historyBlock}`;
           this.dashboardService.getQuickStats(campgroundId),
           this.dashboardService.getActivityFeed(campgroundId, 5)
         ]);
-        const arrivals = quickStats?.todayArrivals ?? 0;
-        const departures = quickStats?.todayDepartures ?? 0;
-        const inHouse = quickStats?.currentOccupancy ?? 0;
+        const needsAttention = quickStats.needsAttention ?? 0;
+        const pendingReplies = quickStats.pendingReplies ?? 0;
+        const activeAnomalies = quickStats.activeAnomalies ?? 0;
+        const pendingPricing = quickStats.pendingPricing ?? 0;
+        const activeMaintenanceAlerts = quickStats.activeMaintenanceAlerts ?? 0;
+        const activeWeatherAlerts = quickStats.activeWeatherAlerts ?? 0;
+        const todayCalls = quickStats.todayCalls ?? 0;
 
-        let message = `Today: ${arrivals} arriving, ${departures} departing`;
-        if (inHouse > 0) message += `, ${inHouse} guests in-house`;
-        message += ".";
+        let message = `AI summary: ${needsAttention} items need attention (${pendingReplies} replies, ${activeAnomalies} anomalies, ${pendingPricing} pricing, ${activeMaintenanceAlerts} maintenance).`;
+        if (activeWeatherAlerts > 0) {
+          message += ` ${activeWeatherAlerts} weather alert${activeWeatherAlerts > 1 ? "s" : ""} active.`;
+        }
+        if (todayCalls > 0) {
+          message += ` ${todayCalls} call${todayCalls > 1 ? "s" : ""} logged today.`;
+        }
         if (activity && activity.length > 0) {
           message += ` AI recently handled ${activity.length} actions.`;
         }
@@ -1873,22 +2141,30 @@ User request: "${params.anonymizedText}"${historyBlock}`;
   private buildEvidenceLinks(actionType: ActionType, parameters: Record<string, unknown>): EvidenceLink[] {
     if (actionType === "lookup_availability") {
       const params = new URLSearchParams();
-      if (parameters.arrivalDate) params.set("arrivalDate", parameters.arrivalDate);
-      if (parameters.departureDate) params.set("departureDate", parameters.departureDate);
+      const arrivalDate = toString(parameters.arrivalDate);
+      const departureDate = toString(parameters.departureDate);
+      if (arrivalDate) params.set("arrivalDate", arrivalDate);
+      if (departureDate) params.set("departureDate", departureDate);
       return [{ label: "Calendar view", url: `/calendar?${params.toString()}` }];
     }
     if (actionType === "create_hold") {
       const params = new URLSearchParams();
-      if (parameters.arrivalDate) params.set("arrivalDate", parameters.arrivalDate);
-      if (parameters.departureDate) params.set("departureDate", parameters.departureDate);
-      if (parameters.siteId) params.set("siteId", parameters.siteId);
+      const arrivalDate = toString(parameters.arrivalDate);
+      const departureDate = toString(parameters.departureDate);
+      const siteId = toString(parameters.siteId);
+      if (arrivalDate) params.set("arrivalDate", arrivalDate);
+      if (departureDate) params.set("departureDate", departureDate);
+      if (siteId) params.set("siteId", siteId);
       return [{ label: "Calendar hold", url: `/calendar?${params.toString()}` }];
     }
     if (actionType === "block_site") {
       const params = new URLSearchParams();
-      if (parameters.arrivalDate) params.set("arrivalDate", parameters.arrivalDate);
-      if (parameters.departureDate) params.set("departureDate", parameters.departureDate);
-      if (parameters.siteId) params.set("siteId", parameters.siteId);
+      const arrivalDate = toString(parameters.arrivalDate);
+      const departureDate = toString(parameters.departureDate);
+      const siteId = toString(parameters.siteId);
+      if (arrivalDate) params.set("arrivalDate", arrivalDate);
+      if (departureDate) params.set("departureDate", departureDate);
+      if (siteId) params.set("siteId", siteId);
       return [
         { label: "Maintenance", url: "/maintenance" },
         { label: "Calendar view", url: `/calendar?${params.toString()}` }
@@ -1904,19 +2180,24 @@ User request: "${params.anonymizedText}"${historyBlock}`;
       return [{ label: "Repeat charges", url: "/billing/repeat-charges" }];
     }
     if (actionType === "refund_reservation") {
-      if (parameters.reservationId) {
-        return [{ label: "Reservation", url: `/reservations/${parameters.reservationId}` }];
+      const reservationId = toString(parameters.reservationId);
+      if (reservationId) {
+        return [{ label: "Reservation", url: `/reservations/${reservationId}` }];
       }
       return [{ label: "Payments", url: "/finance" }];
     }
     if (actionType === "send_guest_message") {
-      if (parameters.reservationId) {
-        return [{ label: "Messages", url: `/messages?reservationId=${parameters.reservationId}` }];
+      const reservationId = toString(parameters.reservationId);
+      if (reservationId) {
+        return [{ label: "Messages", url: `/messages?reservationId=${reservationId}` }];
       }
       return [{ label: "Messages", url: "/messages" }];
     }
-    if (actionType === "move_reservation" && parameters.reservationId) {
-      return [{ label: "Reservation", url: `/reservations/${parameters.reservationId}` }];
+    if (actionType === "move_reservation") {
+      const reservationId = toString(parameters.reservationId);
+      if (reservationId) {
+        return [{ label: "Reservation", url: `/reservations/${reservationId}` }];
+      }
     }
     if (actionType === "adjust_rate") {
       return [{ label: "Pricing rules", url: "/pricing" }];
@@ -1945,9 +2226,11 @@ User request: "${params.anonymizedText}"${historyBlock}`;
     }
 
     const now = new Date();
-    const windowStart = params.parameters.arrivalDate ? new Date(params.parameters.arrivalDate) : now;
-    const windowEnd = params.parameters.departureDate
-      ? new Date(params.parameters.departureDate)
+    const arrivalDate = toString(params.parameters.arrivalDate);
+    const departureDate = toString(params.parameters.departureDate);
+    const windowStart = arrivalDate ? new Date(arrivalDate) : now;
+    const windowEnd = departureDate
+      ? new Date(departureDate)
       : new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
 
     const [siteCount, overlappingReservations, recentBookings] = await Promise.all([

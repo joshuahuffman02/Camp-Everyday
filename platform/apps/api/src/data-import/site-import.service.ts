@@ -1,6 +1,7 @@
 import { Injectable, Logger, BadRequestException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { CsvParserService, FieldMapping, ParseResult } from "./parsers/csv-parser.service";
+import { randomUUID } from "crypto";
 
 export interface SiteImportRow {
   siteNumber: string;
@@ -42,6 +43,71 @@ export interface SiteImportResult {
   skipped: number;
   errors: Array<{ row: number; message: string }>;
 }
+
+const getStringValue = (value: unknown): string | null =>
+  typeof value === "string" && value.trim() !== "" ? value.trim() : null;
+
+const getOptionalString = (value: unknown): string | undefined => {
+  const normalized = getStringValue(value);
+  return normalized ?? undefined;
+};
+
+const getOptionalNumber = (value: unknown): number | undefined => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+};
+
+const getOptionalBoolean = (value: unknown): boolean | undefined => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true" || normalized === "yes" || normalized === "1") return true;
+    if (normalized === "false" || normalized === "no" || normalized === "0") return false;
+  }
+  if (typeof value === "number") {
+    if (value === 1) return true;
+    if (value === 0) return false;
+  }
+  return undefined;
+};
+
+const parseSiteType = (value: string): SiteImportRow["siteType"] | null => {
+  switch (value.toLowerCase()) {
+    case "rv":
+      return "rv";
+    case "tent":
+      return "tent";
+    case "cabin":
+      return "cabin";
+    case "group":
+      return "group";
+    case "glamping":
+      return "glamping";
+    default:
+      return null;
+  }
+};
+
+const parsePowerAmps = (value: unknown): number | number[] | undefined => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parts = value.split(",").map((entry) => Number(entry.trim())).filter(Number.isFinite);
+    if (parts.length === 1) return parts[0];
+    if (parts.length > 1) return parts;
+  }
+  if (Array.isArray(value)) {
+    const parts = value
+      .map((entry) => (typeof entry === "number" ? entry : Number(String(entry))))
+      .filter(Number.isFinite);
+    if (parts.length === 1) return parts[0];
+    if (parts.length > 1) return parts;
+  }
+  return undefined;
+};
 
 @Injectable()
 export class SiteImportService {
@@ -130,26 +196,43 @@ export class SiteImportService {
     let updateSites = 0;
 
     for (const row of parseResult.rows) {
-      const data = row.data as unknown as SiteImportRow;
+      const siteNumber = getStringValue(row.data.siteNumber);
+      const siteTypeRaw = getStringValue(row.data.siteType);
+      const normalizedType = siteTypeRaw ? parseSiteType(siteTypeRaw) : null;
+      const data: SiteImportRow = {
+        siteNumber: siteNumber ?? "",
+        name: getOptionalString(row.data.name),
+        siteType: normalizedType ?? "rv",
+        siteClassName: getOptionalString(row.data.siteClassName),
+        maxOccupancy: getOptionalNumber(row.data.maxOccupancy),
+        rigMaxLength: getOptionalNumber(row.data.rigMaxLength),
+        hookupsPower: getOptionalBoolean(row.data.hookupsPower),
+        hookupsWater: getOptionalBoolean(row.data.hookupsWater),
+        hookupsSewer: getOptionalBoolean(row.data.hookupsSewer),
+        powerAmps: parsePowerAmps(row.data.powerAmps),
+        petFriendly: getOptionalBoolean(row.data.petFriendly),
+        accessible: getOptionalBoolean(row.data.accessible),
+        pullThrough: getOptionalBoolean(row.data.pullThrough),
+        description: getOptionalString(row.data.description),
+        status: getOptionalString(row.data.status),
+      };
 
       // Validate required fields
-      if (!data.siteNumber) {
+      if (!siteNumber) {
         errors.push({ row: row.rowNumber, message: "Site number is required" });
         continue;
       }
 
-      if (!data.siteType) {
+      if (!siteTypeRaw) {
         errors.push({ row: row.rowNumber, message: "Site type is required" });
         continue;
       }
 
       // Validate site type
-      const validTypes = ["rv", "tent", "cabin", "group", "glamping"];
-      const normalizedType = data.siteType.toLowerCase();
-      if (!validTypes.includes(normalizedType)) {
+      if (!normalizedType) {
         errors.push({
           row: row.rowNumber,
-          message: `Invalid site type "${data.siteType}". Must be one of: ${validTypes.join(", ")}`,
+          message: `Invalid site type "${siteTypeRaw}". Must be one of: rv, tent, cabin, group, glamping`,
         });
         continue;
       }
@@ -169,7 +252,7 @@ export class SiteImportService {
         updateSites++;
         preview.push({
           rowNumber: row.rowNumber,
-          data: { ...data, siteType: normalizedType as any },
+          data: { ...data, siteType: normalizedType },
           action: "update",
           existingSite: existing,
         });
@@ -177,7 +260,7 @@ export class SiteImportService {
         newSites++;
         preview.push({
           rowNumber: row.rowNumber,
-          data: { ...data, siteType: normalizedType as any },
+          data: { ...data, siteType: normalizedType },
           action: "create",
         });
       }
@@ -236,6 +319,7 @@ export class SiteImportService {
             // Create new site class
             const newClass = await this.prisma.siteClass.create({
               data: {
+                id: randomUUID(),
                 campgroundId,
                 name: item.data.siteClassName,
                 siteType: item.data.siteType,
@@ -271,6 +355,7 @@ export class SiteImportService {
         if (item.action === "create") {
           await this.prisma.site.create({
             data: {
+              id: randomUUID(),
               campgroundId,
               ...siteData,
             },
@@ -285,9 +370,10 @@ export class SiteImportService {
         } else {
           skipped++;
         }
-      } catch (err: any) {
-        this.logger.error(`Error importing row ${item.rowNumber}: ${err.message}`);
-        errors.push({ row: item.rowNumber, message: err.message });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.error(`Error importing row ${item.rowNumber}: ${message}`);
+        errors.push({ row: item.rowNumber, message });
       }
     }
 

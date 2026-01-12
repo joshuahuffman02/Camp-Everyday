@@ -1,6 +1,10 @@
 import { StoredValueService } from './stored-value.service';
 import { StoredValueDirection, StoredValueStatus, IdempotencyStatus } from '@prisma/client';
 import { BadRequestException, ForbiddenException, ConflictException } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
+import { PrismaService } from '../prisma/prisma.service';
+import { IdempotencyService } from '../payments/idempotency.service';
+import { ObservabilityService } from '../observability/observability.service';
 import * as crypto from 'crypto';
 
 // Mock crypto module for default export compatibility
@@ -15,11 +19,65 @@ jest.mock('crypto', () => {
 
 describe('StoredValueService', () => {
   let service: StoredValueService;
-  let mockPrisma: any;
-  let mockIdempotency: any;
-  let mockObservability: any;
+  type PrismaMock = {
+    storedValueAccount: {
+      findUnique: jest.Mock;
+      findMany: jest.Mock;
+      create: jest.Mock;
+      update: jest.Mock;
+      updateMany: jest.Mock;
+    };
+    storedValueCode: {
+      findUnique: jest.Mock;
+      findFirst: jest.Mock;
+      create: jest.Mock;
+    };
+    storedValueLedger: {
+      findMany: jest.Mock;
+      create: jest.Mock;
+      findFirst: jest.Mock;
+    };
+    storedValueHold: {
+      findUnique: jest.Mock;
+      findMany: jest.Mock;
+      create: jest.Mock;
+      update: jest.Mock;
+      updateMany: jest.Mock;
+      aggregate: jest.Mock;
+    };
+    taxRule: {
+      findFirst: jest.Mock;
+    };
+    $transaction: jest.Mock;
+  };
 
-  beforeEach(() => {
+  type IdempotencyMock = {
+    start: jest.Mock;
+    complete: jest.Mock;
+    fail: jest.Mock;
+    throttleScope: jest.Mock;
+  };
+
+  type ObservabilityMock = {
+    recordRedeemOutcome: jest.Mock;
+  };
+
+  let mockPrisma: PrismaMock;
+  let mockIdempotency: IdempotencyMock;
+  let mockObservability: ObservabilityMock;
+  let moduleRef: TestingModule;
+
+  const callPrivate = (key: string, ...args: unknown[]) => {
+    const value = Reflect.get(service, key);
+    if (typeof value !== "function") {
+      throw new Error(`${key} is not a function`);
+    }
+    return value.call(service, ...args);
+  };
+  const getBalancesPrivate = (tx: PrismaMock, accountId: string) =>
+    callPrivate("getBalances", tx, accountId);
+
+  beforeEach(async () => {
     mockPrisma = {
       storedValueAccount: {
         findUnique: jest.fn(),
@@ -49,7 +107,7 @@ describe('StoredValueService', () => {
       taxRule: {
         findFirst: jest.fn(),
       },
-      $transaction: jest.fn((fn: any) => fn(mockPrisma)),
+      $transaction: jest.fn((fn: (tx: PrismaMock) => unknown | Promise<unknown>) => fn(mockPrisma)),
     };
 
     mockIdempotency = {
@@ -63,12 +121,26 @@ describe('StoredValueService', () => {
       recordRedeemOutcome: jest.fn(),
     };
 
-    service = new StoredValueService(mockPrisma, mockIdempotency, mockObservability);
+    moduleRef = await Test.createTestingModule({
+      providers: [
+        StoredValueService,
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: IdempotencyService, useValue: mockIdempotency },
+        { provide: ObservabilityService, useValue: mockObservability }
+      ],
+    }).compile();
+
+    service = moduleRef.get(StoredValueService);
+  });
+
+  afterEach(async () => {
+    jest.clearAllMocks();
+    await moduleRef.close();
   });
 
   describe('directionToSigned', () => {
-    const directionToSigned = (direction: StoredValueDirection, amount: number) => {
-      return (service as any).directionToSigned(direction, amount);
+    const directionToSigned = (direction: StoredValueDirection | string, amount: number) => {
+      return callPrivate("directionToSigned", direction, amount);
     };
 
     describe('positive directions (add to balance)', () => {
@@ -119,14 +191,14 @@ describe('StoredValueService', () => {
       });
 
       it('should return 0 for unknown direction', () => {
-        expect(directionToSigned('unknown' as any, 100)).toBe(0);
+        expect(directionToSigned('unknown', 100)).toBe(0);
       });
     });
   });
 
   describe('ensureActive', () => {
-    const ensureActive = (account: any) => {
-      return (service as any).ensureActive(account);
+    const ensureActive = (account: { status: StoredValueStatus; expiresAt: Date | null }) => {
+      return callPrivate("ensureActive", account);
     };
 
     it('should not throw for active account with no expiration', () => {
@@ -174,8 +246,8 @@ describe('StoredValueService', () => {
   });
 
   describe('ensureCurrency', () => {
-    const ensureCurrency = (account: any, currency: string) => {
-      return (service as any).ensureCurrency(account, currency);
+    const ensureCurrency = (account: { currency: string }, currency: string) => {
+      return callPrivate("ensureCurrency", account, currency);
     };
 
     it('should not throw when currencies match (same case)', () => {
@@ -194,8 +266,8 @@ describe('StoredValueService', () => {
   });
 
   describe('ensureTaxableFlag', () => {
-    const ensureTaxableFlag = (metadata: any, incoming?: boolean) => {
-      return (service as any).ensureTaxableFlag(metadata, incoming);
+    const ensureTaxableFlag = (metadata: unknown, incoming?: boolean | null) => {
+      return callPrivate("ensureTaxableFlag", metadata, incoming);
     };
 
     it('should not throw when incoming is undefined', () => {
@@ -203,7 +275,7 @@ describe('StoredValueService', () => {
     });
 
     it('should not throw when incoming is null', () => {
-      expect(() => ensureTaxableFlag({ taxableLoad: true }, null as any)).not.toThrow();
+      expect(() => ensureTaxableFlag({ taxableLoad: true }, null)).not.toThrow();
     });
 
     it('should not throw when flags match (both true)', () => {
@@ -227,8 +299,8 @@ describe('StoredValueService', () => {
   });
 
   describe('isTaxable', () => {
-    const isTaxable = (metadata: any) => {
-      return (service as any).isTaxable(metadata);
+    const isTaxable = (metadata: unknown) => {
+      return callPrivate("isTaxable", metadata);
     };
 
     it('should return true when taxableLoad is true', () => {
@@ -251,15 +323,15 @@ describe('StoredValueService', () => {
       expect(isTaxable(undefined)).toBe(false);
     });
 
-    it('should coerce truthy values to boolean', () => {
-      expect(isTaxable({ taxableLoad: 1 })).toBe(true);
-      expect(isTaxable({ taxableLoad: 'yes' })).toBe(true);
+    it('should treat non-boolean taxableLoad values as false', () => {
+      expect(isTaxable({ taxableLoad: 1 })).toBe(false);
+      expect(isTaxable({ taxableLoad: 'yes' })).toBe(false);
     });
   });
 
   describe('mergeMetadata', () => {
-    const mergeMetadata = (metadata: any, taxableLoad?: boolean) => {
-      return (service as any).mergeMetadata(metadata, taxableLoad);
+    const mergeMetadata = (metadata: unknown, taxableLoad?: boolean) => {
+      return callPrivate("mergeMetadata", metadata, taxableLoad);
     };
 
     it('should return original metadata when taxableLoad is undefined', () => {
@@ -292,7 +364,9 @@ describe('StoredValueService', () => {
   });
 
   describe('generateCode', () => {
-    const generateCode = (length?: number) => (service as any).generateCode(length);
+    const generateCode = (length?: number) => {
+      return callPrivate("generateCode", length);
+    };
 
     it('should use the correct alphabet (excludes confusing chars)', () => {
       // Test the alphabet directly - I, O, 0, 1 are excluded
@@ -336,8 +410,8 @@ describe('StoredValueService', () => {
   });
 
   describe('generatePinIfRequested', () => {
-    const generatePinIfRequested = (codeOptions?: any) => {
-      return (service as any).generatePinIfRequested(codeOptions);
+    const generatePinIfRequested = (codeOptions?: { pin?: string; generatePin?: boolean }) => {
+      return callPrivate("generatePinIfRequested", codeOptions);
     };
 
     it('should return provided PIN if specified', () => {
@@ -376,8 +450,12 @@ describe('StoredValueService', () => {
   });
 
   describe('hashPin and verifyPin', () => {
-    const hashPin = (pin: string) => (service as any).hashPin(pin);
-    const verifyPin = (pin: string, stored: string) => (service as any).verifyPin(pin, stored);
+    const hashPin = (pin: string) => {
+      return callPrivate("hashPin", pin);
+    };
+    const verifyPin = (pin: string, stored: string) => {
+      return callPrivate("verifyPin", pin, stored);
+    };
 
     describe('hashPin', () => {
       it('should return salt:hash format', () => {
@@ -446,7 +524,7 @@ describe('StoredValueService', () => {
 
   describe('validateTaxableLoad', () => {
     const validateTaxableLoad = async (campgroundId: string | null, taxableLoad?: boolean) => {
-      return (service as any).validateTaxableLoad(campgroundId, taxableLoad);
+      return callPrivate("validateTaxableLoad", campgroundId, taxableLoad);
     };
 
     it('should pass when taxableLoad is false', async () => {
@@ -475,9 +553,7 @@ describe('StoredValueService', () => {
   });
 
   describe('getBalances', () => {
-    const getBalances = async (tx: any, accountId: string) => {
-      return (service as any).getBalances(tx, accountId);
-    };
+    const getBalances = getBalancesPrivate;
 
     it('should calculate balance from ledger entries', async () => {
       mockPrisma.storedValueLedger.findMany.mockResolvedValue([
@@ -639,8 +715,11 @@ describe('StoredValueService', () => {
 
       const result = await service.balanceByCode('GIFT-CODE-123');
 
-      expect(result.accountId).toBe('acc-1');
-      expect(result.balanceCents).toBe(7500);
+      expect("accountId" in result).toBe(true);
+      if ("accountId" in result) {
+        expect(result.accountId).toBe('acc-1');
+        expect(result.balanceCents).toBe(7500);
+      }
     });
 
     it('should return zero balance for unknown code', async () => {
@@ -648,8 +727,11 @@ describe('StoredValueService', () => {
 
       const result = await service.balanceByCode('INVALID-CODE');
 
-      expect(result.code).toBe('INVALID-CODE');
-      expect(result.balanceCents).toBe(0);
+      expect("code" in result).toBe(true);
+      if ("code" in result) {
+        expect(result.code).toBe('INVALID-CODE');
+        expect(result.balanceCents).toBe(0);
+      }
     });
   });
 
@@ -691,7 +773,7 @@ describe('StoredValueService', () => {
       mockPrisma.storedValueLedger.findMany.mockResolvedValue(ledgerAfterIssue);
       mockPrisma.storedValueHold.aggregate.mockResolvedValue({ _sum: { amountCents: null } });
 
-      const balanceAfterIssue = await (service as any).getBalances(mockPrisma, 'acc-1');
+      const balanceAfterIssue = await getBalancesPrivate(mockPrisma, 'acc-1');
       expect(balanceAfterIssue.balanceCents).toBe(10000);
 
       // After partial redeem
@@ -701,7 +783,7 @@ describe('StoredValueService', () => {
       ];
       mockPrisma.storedValueLedger.findMany.mockResolvedValue(ledgerAfterPartialRedeem);
 
-      const balanceAfterRedeem = await (service as any).getBalances(mockPrisma, 'acc-1');
+      const balanceAfterRedeem = await getBalancesPrivate(mockPrisma, 'acc-1');
       expect(balanceAfterRedeem.balanceCents).toBe(7500);
 
       // After reload
@@ -711,7 +793,7 @@ describe('StoredValueService', () => {
       ];
       mockPrisma.storedValueLedger.findMany.mockResolvedValue(ledgerAfterReload);
 
-      const balanceAfterReload = await (service as any).getBalances(mockPrisma, 'acc-1');
+      const balanceAfterReload = await getBalancesPrivate(mockPrisma, 'acc-1');
       expect(balanceAfterReload.balanceCents).toBe(12500);
     });
 
@@ -722,7 +804,7 @@ describe('StoredValueService', () => {
       ]);
       mockPrisma.storedValueHold.aggregate.mockResolvedValue({ _sum: { amountCents: 3000 } });
 
-      const balanceWithHold = await (service as any).getBalances(mockPrisma, 'acc-1');
+      const balanceWithHold = await getBalancesPrivate(mockPrisma, 'acc-1');
       expect(balanceWithHold.balanceCents).toBe(10000);
       expect(balanceWithHold.availableCents).toBe(7000); // 10000 - 3000 hold
 
@@ -733,7 +815,7 @@ describe('StoredValueService', () => {
       ]);
       mockPrisma.storedValueHold.aggregate.mockResolvedValue({ _sum: { amountCents: null } });
 
-      const balanceAfterCapture = await (service as any).getBalances(mockPrisma, 'acc-1');
+      const balanceAfterCapture = await getBalancesPrivate(mockPrisma, 'acc-1');
       expect(balanceAfterCapture.balanceCents).toBe(7000);
       expect(balanceAfterCapture.availableCents).toBe(7000);
     });
@@ -746,7 +828,7 @@ describe('StoredValueService', () => {
       ]);
       mockPrisma.storedValueHold.aggregate.mockResolvedValue({ _sum: { amountCents: null } });
 
-      const balance = await (service as any).getBalances(mockPrisma, 'acc-1');
+      const balance = await getBalancesPrivate(mockPrisma, 'acc-1');
       expect(balance.balanceCents).toBe(2500); // 5000 - 5000 + 2500
     });
   });

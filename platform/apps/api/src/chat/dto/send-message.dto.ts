@@ -22,7 +22,7 @@ export class SendMessageDto {
 
   @IsString()
   @MaxLength(4000)
-  message: string;
+  message!: string;
 
   @IsOptional()
   @IsObject()
@@ -52,7 +52,7 @@ export interface ToolCall {
 
 export interface ToolResult {
   toolCallId: string;
-  result: any;
+  result: unknown;
   error?: string;
 }
 

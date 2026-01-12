@@ -2,14 +2,13 @@
 // crypto.randomUUID (e.g., older Safari or polyfilled crypto in dev).
 export function randomId(prefix?: string): string {
   if (typeof crypto !== "undefined") {
-    const c = crypto as Crypto & { randomUUID?: () => string };
-    if (typeof c.randomUUID === "function") {
-      const id = c.randomUUID();
+    if ("randomUUID" in crypto && typeof crypto.randomUUID === "function") {
+      const id = crypto.randomUUID();
       return prefix ? `${prefix}-${id}` : id;
     }
-    if (typeof c.getRandomValues === "function") {
+    if (typeof crypto.getRandomValues === "function") {
       const bytes = new Uint8Array(16);
-      c.getRandomValues(bytes);
+      crypto.getRandomValues(bytes);
       // Set version (4) and variant bits
       bytes[6] = (bytes[6] & 0x0f) | 0x40;
       bytes[8] = (bytes[8] & 0x3f) | 0x80;
@@ -22,4 +21,3 @@ export function randomId(prefix?: string): string {
   const fallback = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
   return prefix ? `${prefix}-${fallback}` : fallback;
 }
-

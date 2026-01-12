@@ -20,7 +20,7 @@ describe("DeveloperApiClient (mocked)", () => {
     scopes
   };
 
-  let fetchMock: typeof fetch;
+  let fetchMock = vi.fn<typeof fetch>();
   const originalFetch = globalThis.fetch;
 
   beforeEach(() => {

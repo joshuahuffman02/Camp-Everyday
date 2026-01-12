@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { randomUUID } from "crypto";
 
 export interface FeatureProgressItem {
   featureKey: string;
@@ -54,11 +55,13 @@ export class FeatureProgressService {
         notes: notes ?? null,
       },
       create: {
+        id: randomUUID(),
         userId,
         featureKey,
         completed: true,
         completedAt: new Date(),
         notes: notes ?? null,
+        updatedAt: new Date(),
       },
     });
   }
@@ -122,10 +125,12 @@ export class FeatureProgressService {
           completedAt: update.completed ? new Date() : null,
         },
         create: {
+          id: randomUUID(),
           userId,
           featureKey: update.featureKey,
           completed: update.completed,
           completedAt: update.completed ? new Date() : null,
+          updatedAt: new Date(),
         },
       })
     );

@@ -18,6 +18,9 @@ import {
 import { IntegrationFrameworkService } from "../framework/integration-framework.service";
 import { PrismaService } from "../../prisma/prisma.service";
 
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
 /**
  * QuickBooks Marketplace Provider
  *
@@ -131,9 +134,10 @@ export class QuickBooksMarketplaceProvider implements IntegrationProvider, OnMod
           },
         },
       };
-    } catch (error) {
-      this.logger.error(`OAuth callback error: ${(error as Error).message}`);
-      return { success: false, error: (error as Error).message };
+    } catch (error: unknown) {
+      const message = getErrorMessage(error);
+      this.logger.error(`OAuth callback error: ${message}`);
+      return { success: false, error: message };
     }
   }
 
@@ -431,10 +435,10 @@ export class QuickBooksMarketplaceProvider implements IntegrationProvider, OnMod
           country: companyInfo.Country,
         },
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         success: false,
-        message: (error as Error).message,
+        message: getErrorMessage(error),
       };
     }
   }

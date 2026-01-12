@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AdjustmentType, MaintenancePriority, PricingRuleType, PricingStackMode } from "@prisma/client";
 import { PricingV2Service } from "../pricing-v2/pricing-v2.service";
 import { ReservationsService } from "../reservations/reservations.service";
 import { MaintenanceService } from "../maintenance/maintenance.service";
@@ -10,7 +11,29 @@ import { RepeatChargesService } from "../repeat-charges/repeat-charges.service";
  * This decouples the AI from the core business logic while providing strict type safety.
  */
 
-export const createRevenueTools = (adk: any, pricingService: PricingV2Service, seasonalService: SeasonalRatesService) => [
+type AdkToolOptions = {
+    context: {
+        campgroundId: string;
+        userId?: string;
+    };
+};
+
+type AdkToolDefinition<Input, Output> = {
+    name: string;
+    description: string;
+    inputSchema: z.ZodType<Input>;
+    run: (input: Input, options: AdkToolOptions) => Promise<Output> | Output;
+};
+
+export type AdkModule = {
+    tool: <Input, Output>(definition: AdkToolDefinition<Input, Output>) => unknown;
+};
+
+export const createRevenueTools = (
+    adk: AdkModule,
+    pricingService: PricingV2Service,
+    seasonalService: SeasonalRatesService
+) => [
     adk.tool({
         name: "get_occupancy_report",
         description: "Retrieves a detailed occupancy report for a given date range.",
@@ -46,18 +69,21 @@ export const createRevenueTools = (adk: any, pricingService: PricingV2Service, s
             newRateCents: z.number().min(0),
             reason: z.string(),
         }),
-        run: async (input: { siteClassId: string; newRateCents: number; reason: string }, options: { context: any }) => {
+        run: async (
+            input: { siteClassId: string; newRateCents: number; reason: string },
+            options: AdkToolOptions
+        ) => {
             const { context } = options;
             const rule = await pricingService.create(context.campgroundId, {
                 name: `AI Adjustment: ${input.reason}`,
-                type: "override" as any,
-                adjustmentType: "fixed" as any,
-                adjustmentValue: input.newRateCents as any,
+                type: PricingRuleType.event,
+                adjustmentType: AdjustmentType.flat,
+                adjustmentValue: input.newRateCents,
                 siteClassId: input.siteClassId,
                 active: true,
                 priority: 10,
-                stackMode: "override" as any,
-            }, context.userId);
+                stackMode: PricingStackMode.override,
+            }, context.userId ?? null);
 
             return {
                 success: true,
@@ -69,7 +95,12 @@ export const createRevenueTools = (adk: any, pricingService: PricingV2Service, s
     }),
 ];
 
-export const createOpsTools = (adk: any, resvService: ReservationsService, maintService: MaintenanceService, billingService: RepeatChargesService) => [
+export const createOpsTools = (
+    adk: AdkModule,
+    resvService: ReservationsService,
+    maintService: MaintenanceService,
+    billingService: RepeatChargesService
+) => [
     adk.tool({
         name: "block_site",
         description: "Blocks a site for a specific date range (e.g., for maintenance).",
@@ -79,7 +110,10 @@ export const createOpsTools = (adk: any, resvService: ReservationsService, maint
             departureDate: z.string(),
             reason: z.string(),
         }),
-        run: async (input: { siteId: string; arrivalDate: string; departureDate: string; reason: string }, options: { context: any }) => {
+        run: async (
+            input: { siteId: string; arrivalDate: string; departureDate: string; reason: string },
+            options: AdkToolOptions
+        ) => {
             const { context } = options;
             const ticket = await maintService.create({
                 campgroundId: context.campgroundId,
@@ -88,7 +122,7 @@ export const createOpsTools = (adk: any, resvService: ReservationsService, maint
                 description: input.reason,
                 outOfOrder: true,
                 outOfOrderUntil: input.departureDate,
-                priority: "high" as any,
+                priority: MaintenancePriority.high,
             });
 
             return {
@@ -104,8 +138,9 @@ export const createOpsTools = (adk: any, resvService: ReservationsService, maint
         inputSchema: z.object({
             reservationId: z.string(),
         }),
-        run: async (input: { reservationId: string }) => {
-            const charges = await billingService.generateCharges(input.reservationId);
+        run: async (input: { reservationId: string }, options: AdkToolOptions) => {
+            const { campgroundId } = options.context;
+            const charges = await billingService.generateCharges(campgroundId, input.reservationId);
             return {
                 success: true,
                 chargeCount: charges.length,
@@ -144,13 +179,16 @@ export const createOpsTools = (adk: any, resvService: ReservationsService, maint
             issue: z.string(),
             priority: z.enum(["low", "medium", "high", "critical"]),
         }),
-        run: async (input: { siteId: string; issue: string; priority: string }, options: { context: any }) => {
+        run: async (
+            input: { siteId: string; issue: string; priority: MaintenancePriority },
+            options: AdkToolOptions
+        ) => {
             const { context } = options;
             const ticket = await maintService.create({
                 campgroundId: context.campgroundId,
                 siteId: input.siteId,
                 title: input.issue,
-                priority: input.priority as any,
+                priority: input.priority,
             });
 
             return {

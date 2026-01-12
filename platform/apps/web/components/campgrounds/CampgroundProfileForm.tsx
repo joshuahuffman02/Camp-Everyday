@@ -26,6 +26,10 @@ export function CampgroundProfileForm({ campground }: CampgroundProfileFormProps
   const qc = useQueryClient();
   const [showAdvancedLocation, setShowAdvancedLocation] = useState(false);
   const [showAdvancedOps, setShowAdvancedOps] = useState(false);
+  const officeClosesAt =
+    "officeClosesAt" in campground && typeof campground.officeClosesAt === "string"
+      ? campground.officeClosesAt
+      : "17:00";
 
   const [form, setForm] = useState({
     name: campground.name || "",
@@ -51,7 +55,7 @@ export function CampgroundProfileForm({ campground }: CampgroundProfileFormProps
     seasonEnd: campground.seasonEnd || "",
     checkInTime: campground.checkInTime || "",
     checkOutTime: campground.checkOutTime || "",
-    officeClosesAt: (campground as Campground & { officeClosesAt?: string }).officeClosesAt || "17:00",
+    officeClosesAt,
     timezone: campground.timezone || "",
     slaMinutes: campground.slaMinutes?.toString() || "30",
     senderDomain: campground.senderDomain || "",

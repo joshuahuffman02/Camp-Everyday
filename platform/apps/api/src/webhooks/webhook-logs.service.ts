@@ -1,5 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import type { Prisma } from "@prisma/client";
 
 /**
  * Webhook log entry returned from queries
@@ -50,6 +51,9 @@ export interface WebhookStats {
   averageAttempts: number;
 }
 
+const getCount = (count: { id?: number } | true | undefined): number =>
+  typeof count === "object" && count !== null ? count.id ?? 0 : 0;
+
 /**
  * Webhook Logs Service
  *
@@ -77,8 +81,8 @@ export class WebhookLogsService {
     const limit = filter.limit || 50;
     const offset = filter.offset || 0;
 
-    const whereClause: Record<string, unknown> = {
-      webhookEndpoint: { campgroundId: filter.campgroundId },
+    const whereClause: Prisma.WebhookDeliveryWhereInput = {
+      WebhookEndpoint: { campgroundId: filter.campgroundId },
     };
 
     if (filter.endpointId) {
@@ -94,13 +98,10 @@ export class WebhookLogsService {
     }
 
     if (filter.startDate || filter.endDate) {
-      whereClause.createdAt = {};
-      if (filter.startDate) {
-        (whereClause.createdAt as Record<string, Date>).gte = filter.startDate;
-      }
-      if (filter.endDate) {
-        (whereClause.createdAt as Record<string, Date>).lte = filter.endDate;
-      }
+      whereClause.createdAt = {
+        ...(filter.startDate && { gte: filter.startDate }),
+        ...(filter.endDate && { lte: filter.endDate }),
+      };
     }
 
     const [logs, total] = await Promise.all([
@@ -117,7 +118,7 @@ export class WebhookLogsService {
           createdAt: true,
           deliveredAt: true,
           payload: true,
-          webhookEndpoint: {
+          WebhookEndpoint: {
             select: {
               id: true,
               url: true,
@@ -137,8 +138,13 @@ export class WebhookLogsService {
       logs.pop(); // Remove the extra item
     }
 
+    const logEntries: WebhookLogEntry[] = logs.map(({ WebhookEndpoint, ...log }) => ({
+      ...log,
+      webhookEndpoint: WebhookEndpoint,
+    }));
+
     return {
-      logs: logs as WebhookLogEntry[],
+      logs: logEntries,
       total,
       hasMore,
     };
@@ -154,7 +160,7 @@ export class WebhookLogsService {
     const entry = await this.prisma.webhookDelivery.findFirst({
       where: {
         id: deliveryId,
-        webhookEndpoint: { campgroundId },
+        WebhookEndpoint: { campgroundId },
       },
       select: {
         id: true,
@@ -167,7 +173,7 @@ export class WebhookLogsService {
         createdAt: true,
         deliveredAt: true,
         payload: true,
-        webhookEndpoint: {
+        WebhookEndpoint: {
           select: {
             id: true,
             url: true,
@@ -177,7 +183,9 @@ export class WebhookLogsService {
       },
     });
 
-    return entry as WebhookLogEntry | null;
+    if (!entry) return null;
+    const { WebhookEndpoint, ...rest } = entry;
+    return { ...rest, webhookEndpoint: WebhookEndpoint };
   }
 
   /**
@@ -188,7 +196,7 @@ export class WebhookLogsService {
     startDate.setDate(startDate.getDate() - days);
 
     const whereClause = {
-      webhookEndpoint: { campgroundId },
+      WebhookEndpoint: { campgroundId },
       createdAt: { gte: startDate },
     };
 
@@ -244,7 +252,7 @@ export class WebhookLogsService {
     const deliveries = await this.prisma.webhookDelivery.groupBy({
       by: ["eventType", "status"],
       where: {
-        webhookEndpoint: { campgroundId },
+        WebhookEndpoint: { campgroundId },
         createdAt: { gte: startDate },
       },
       _count: { id: true },
@@ -262,11 +270,12 @@ export class WebhookLogsService {
         delivered: 0,
         failed: 0,
       };
-      existing.total += d._count.id;
+      const count = getCount(d._count);
+      existing.total += count;
       if (d.status === "delivered") {
-        existing.delivered += d._count.id;
+        existing.delivered += count;
       } else if (d.status === "failed" || d.status === "dead_letter") {
-        existing.failed += d._count.id;
+        existing.failed += count;
       }
       eventMap.set(d.eventType, existing);
     }
@@ -378,7 +387,7 @@ export class WebhookLogsService {
     const failures = await this.prisma.webhookDelivery.groupBy({
       by: ["webhookEndpointId"],
       where: {
-        webhookEndpoint: { campgroundId },
+        WebhookEndpoint: { campgroundId },
         status: { in: ["failed", "dead_letter"] },
         createdAt: { gte: startTime },
       },
@@ -395,10 +404,10 @@ export class WebhookLogsService {
 
     const endpointMap = new Map(endpoints.map((e: { id: string; url: string }) => [e.id, e.url]));
 
-    return failures.map((f: { webhookEndpointId: string; _count: { id: number } }) => ({
+    return failures.map((f) => ({
       endpointId: f.webhookEndpointId,
       url: endpointMap.get(f.webhookEndpointId) || "Unknown",
-      failureCount: f._count.id,
+      failureCount: getCount(f._count),
     }));
   }
 }

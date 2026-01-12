@@ -10,6 +10,7 @@ import {
   AnalyticsType,
   ShareAccessLevel,
   SegmentScope,
+  Prisma,
 } from "@prisma/client";
 import * as crypto from "crypto";
 
@@ -52,29 +53,30 @@ export class AnalyticsShareService {
       ? new Date(Date.now() + request.expiresIn * 60 * 60 * 1000)
       : null;
 
-    const shareLink = await this.prisma.analyticsShareLink.create({
-      data: {
-        token,
-        analyticsType: request.analyticsType,
-        accessLevel: request.accessLevel || ShareAccessLevel.view_only,
-        scope: request.campgroundId
-          ? SegmentScope.campground
-          : request.organizationId
-          ? SegmentScope.organization
-          : SegmentScope.global,
-        campgroundId: request.campgroundId,
-        organizationId: request.organizationId,
-        segmentId: request.segmentId,
-        dateRange: request.dateRange || "last_30_days",
-        name: request.name,
-        description: request.description,
-        password: hashedPassword,
-        expiresAt,
-        maxViews: request.maxViews,
-        sharedBy: userId,
-        sharedByEmail: userEmail,
-      },
-    });
+    const scope = request.campgroundId
+      ? SegmentScope.campground
+      : request.organizationId
+      ? SegmentScope.organization
+      : SegmentScope.global;
+    const data: Prisma.AnalyticsShareLinkUncheckedCreateInput = {
+      id: crypto.randomUUID(),
+      token,
+      analyticsType: request.analyticsType,
+      accessLevel: request.accessLevel || ShareAccessLevel.view_only,
+      scope,
+      dateRange: request.dateRange || "last_30_days",
+      name: request.name,
+      description: request.description,
+      password: hashedPassword,
+      expiresAt,
+      maxViews: request.maxViews,
+      sharedBy: userId,
+      sharedByEmail: userEmail,
+      ...(request.campgroundId ? { campgroundId: request.campgroundId } : {}),
+      ...(request.organizationId ? { organizationId: request.organizationId } : {}),
+      ...(request.segmentId ? { segmentId: request.segmentId } : {}),
+    };
+    const shareLink = await this.prisma.analyticsShareLink.create({ data });
 
     return {
       id: shareLink.id,
@@ -89,7 +91,7 @@ export class AnalyticsShareService {
     const shareLink = await this.prisma.analyticsShareLink.findUnique({
       where: { token },
       include: {
-        campground: {
+        Campground: {
           select: { id: true, name: true, slug: true },
         },
       },
@@ -146,7 +148,7 @@ export class AnalyticsShareService {
       dateRange: shareLink.dateRange,
       name: shareLink.name,
       description: shareLink.description,
-      campground: shareLink.campground,
+      campground: shareLink.Campground,
       data,
       canDownload: shareLink.accessLevel === ShareAccessLevel.downloadable,
     };
@@ -175,7 +177,7 @@ export class AnalyticsShareService {
   }
 
   async listShareLinks(userId: string, limit = 20) {
-    return this.prisma.analyticsShareLink.findMany({
+    const links = await this.prisma.analyticsShareLink.findMany({
       where: {
         sharedBy: userId,
         revokedAt: null,
@@ -194,18 +196,22 @@ export class AnalyticsShareService {
         viewCount: true,
         createdAt: true,
         lastAccessedAt: true,
-        campground: {
+        Campground: {
           select: { id: true, name: true },
         },
       },
     });
+    return links.map(({ Campground, ...rest }) => ({
+      ...rest,
+      campground: Campground,
+    }));
   }
 
   async getShareLink(id: string, userId: string) {
     const shareLink = await this.prisma.analyticsShareLink.findUnique({
       where: { id },
       include: {
-        campground: {
+        Campground: {
           select: { id: true, name: true, slug: true },
         },
       },
@@ -219,7 +225,8 @@ export class AnalyticsShareService {
       throw new ForbiddenException("You don't have access to this share link");
     }
 
-    return shareLink;
+    const { Campground, ...rest } = shareLink;
+    return { ...rest, campground: Campground };
   }
 
   async revokeShareLink(id: string, userId: string) {

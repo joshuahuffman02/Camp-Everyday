@@ -91,10 +91,11 @@ export default function EarlyAccessAdminPage() {
 
       setStats(statsData);
       setPending(pendingData);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Could not load early access data";
       toast({
         title: "Load failed",
-        description: err?.message || "Could not load early access data",
+        description: message,
         variant: "destructive"
       });
     } finally {
@@ -125,10 +126,11 @@ export default function EarlyAccessAdminPage() {
 
       // Reload to update lastEmailSent
       void loadData();
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Could not resend email";
       toast({
         title: "Resend failed",
-        description: err?.message || "Could not resend email",
+        description: message,
         variant: "destructive"
       });
     } finally {

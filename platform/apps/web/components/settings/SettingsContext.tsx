@@ -17,6 +17,35 @@ interface SystemCheckIssue {
   actionHref?: string;
 }
 
+type SystemCheckItem = {
+  message: string;
+  action?: string;
+  href?: string;
+};
+
+type SystemCheckResponse = {
+  errors: SystemCheckItem[];
+  warnings: SystemCheckItem[];
+  suggestions: SystemCheckItem[];
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const toSystemCheckItems = (value: unknown): SystemCheckItem[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry) => {
+      if (!isRecord(entry)) return null;
+      const message = typeof entry.message === "string" ? entry.message : null;
+      if (!message) return null;
+      const item: SystemCheckItem = { message };
+      if (typeof entry.action === "string") item.action = entry.action;
+      if (typeof entry.href === "string") item.href = entry.href;
+      return item;
+    })
+    .filter((entry): entry is SystemCheckItem => entry !== null);
+};
 interface SettingsContextValue {
   // System check
   systemCheckCount: number;
@@ -85,31 +114,32 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
         throw new Error("Failed to fetch system check");
       }
 
-      const data = await response.json();
+      const rawData: unknown = await response.json();
+      const data: SystemCheckResponse = isRecord(rawData)
+        ? {
+            errors: toSystemCheckItems(rawData.errors),
+            warnings: toSystemCheckItems(rawData.warnings),
+            suggestions: toSystemCheckItems(rawData.suggestions),
+          }
+        : { errors: [], warnings: [], suggestions: [] };
 
       // Map API response to component format
+      const toIssue = (
+        severity: SystemCheckIssue["severity"],
+        item: SystemCheckItem,
+        idx: number
+      ): SystemCheckIssue => ({
+        id: `${severity}-${idx}`,
+        severity,
+        message: item.message,
+        actionLabel: item.action,
+        actionHref: item.href,
+      });
+
       const issues: SystemCheckIssue[] = [
-        ...data.errors.map((e: any, idx: number) => ({
-          id: `error-${idx}`,
-          severity: "error" as const,
-          message: e.message,
-          actionLabel: e.action,
-          actionHref: e.href,
-        })),
-        ...data.warnings.map((w: any, idx: number) => ({
-          id: `warning-${idx}`,
-          severity: "warning" as const,
-          message: w.message,
-          actionLabel: w.action,
-          actionHref: w.href,
-        })),
-        ...data.suggestions.map((s: any, idx: number) => ({
-          id: `info-${idx}`,
-          severity: "info" as const,
-          message: s.message,
-          actionLabel: s.action,
-          actionHref: s.href,
-        })),
+        ...data.errors.map((e, idx: number) => toIssue("error", e, idx)),
+        ...data.warnings.map((w, idx: number) => toIssue("warning", w, idx)),
+        ...data.suggestions.map((s, idx: number) => toIssue("info", s, idx)),
       ];
 
       setSystemCheckIssues(issues);

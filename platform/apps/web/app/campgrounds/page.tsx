@@ -18,6 +18,19 @@ import {
 import { CampgroundSchema } from "@keepr/shared";
 import type { z } from "zod";
 
+type DepositRule = z.infer<typeof CampgroundSchema>["depositRule"];
+
+const depositRuleSet = new Set<string>([
+  "none",
+  "full",
+  "half",
+  "first_night",
+  "first_night_fees",
+]);
+
+const isDepositRule = (value: string | null | undefined): value is DepositRule =>
+  typeof value === "string" && depositRuleSet.has(value);
+
 function CampgroundsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -38,7 +51,7 @@ function CampgroundsPageContent() {
     }
   }, [data, isLoading, skipRedirect, router, goto]);
   const depositMutation = useMutation({
-    mutationFn: ({ id, rule }: { id: string; rule: z.infer<typeof CampgroundSchema>["depositRule"] }) =>
+    mutationFn: ({ id, rule }: { id: string; rule: DepositRule }) =>
       apiClient.updateCampgroundDeposit(id, rule),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["campgrounds"] })
   });
@@ -95,10 +108,11 @@ function CampgroundsPageContent() {
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-foreground">
                 <div className="text-xs uppercase tracking-wide text-muted-foreground">Deposit rule</div>
-                <Select
-                  value={cg.depositRule || "none"}
-                  onValueChange={(value) =>
-                    depositMutation.mutate({ id: cg.id, rule: value as z.infer<typeof CampgroundSchema>["depositRule"] })
+                  <Select
+                    value={cg.depositRule || "none"}
+                    onValueChange={(value) =>
+                    isDepositRule(value) &&
+                    depositMutation.mutate({ id: cg.id, rule: value })
                   }
                 >
                   <SelectTrigger

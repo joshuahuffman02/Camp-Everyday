@@ -20,6 +20,7 @@ import { cn } from "../../lib/utils";
 import { TableEmpty } from "../../components/ui/table";
 import { useToast } from "../../components/ui/use-toast";
 import { ConfirmDialog } from "../../components/ui/confirm-dialog";
+import type { Guest } from "@keepr/shared";
 
 const TIER_COLORS: Record<string, string> = {
   Bronze: "bg-status-warning/80",
@@ -343,32 +344,6 @@ function GuestEquipmentSection({ guestId, expanded, onToggle }: { guestId: strin
 
 import { useRouter } from "next/navigation";
 
-// Extended guest type with optional fields
-type GuestWithExtras = {
-  id: string;
-  primaryFirstName: string;
-  primaryLastName: string;
-  email: string;
-  phone: string;
-  notes?: string | null;
-  vip?: boolean;
-  marketingOptIn?: boolean;
-  city?: string | null;
-  state?: string | null;
-  preferredContact?: string | null;
-  preferredLanguage?: string | null;
-  address1?: string | null;
-  address2?: string | null;
-  postalCode?: string | null;
-  rigType?: string | null;
-  rigLength?: number | null;
-  vehiclePlate?: string | null;
-  vehicleState?: string | null;
-  leadSource?: string | null;
-  tags?: string[];
-  repeatStays?: number;
-};
-
 export default function GuestsPage() {
   const router = useRouter();
 
@@ -384,7 +359,7 @@ export default function GuestsPage() {
     }
   }, []);
 
-  const guestsQuery = useQuery({
+  const guestsQuery = useQuery<Guest[]>({
     queryKey: ["guests", campgroundId],
     queryFn: () => apiClient.getGuests(campgroundId || undefined),
     enabled: campgroundChecked && !!campgroundId,
@@ -453,7 +428,7 @@ export default function GuestsPage() {
         g.phone,
         g.tier,
         g.points,
-        (g as GuestWithExtras).repeatStays || 0,
+        g.repeatStays || 0,
         "N/A" // Last visit not easily available without more queries
       ]);
     });
@@ -520,10 +495,10 @@ export default function GuestsPage() {
       });
       queryClient.invalidateQueries({ queryKey: ["guests"] });
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       toast({
         title: "Failed to save guest",
-        description: err?.message || "Please check required fields (name, valid email, phone).",
+        description: err instanceof Error ? err.message : "Please check required fields (name, valid email, phone).",
         variant: "destructive"
       });
       console.error("Create guest failed", err);
@@ -536,7 +511,7 @@ export default function GuestsPage() {
     return emailValid && phoneValid && !!form.primaryFirstName.trim() && !!form.primaryLastName.trim();
   };
   const updateGuest = useMutation({
-    mutationFn: (payload: { id: string; data: Partial<GuestWithExtras> }) => apiClient.updateGuest(payload.id, payload.data),
+    mutationFn: (payload: { id: string; data: Partial<Guest> }) => apiClient.updateGuest(payload.id, payload.data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["guests"] });
     }
@@ -578,9 +553,9 @@ export default function GuestsPage() {
 
     // Apply VIP filter
     if (vipFilter === "vip") {
-      data = data.filter((g) => (g as GuestWithExtras).vip === true);
+      data = data.filter((g) => g.vip === true);
     } else if (vipFilter === "regular") {
-      data = data.filter((g) => !(g as GuestWithExtras).vip);
+      data = data.filter((g) => !g.vip);
     }
 
     // Apply sorting
@@ -596,8 +571,8 @@ export default function GuestsPage() {
         case "phone":
           return dir * (a.phone || "").localeCompare(b.phone || "");
         case "vip":
-          const vipA = (a as GuestWithExtras).vip ? 1 : 0;
-          const vipB = (b as GuestWithExtras).vip ? 1 : 0;
+          const vipA = a.vip ? 1 : 0;
+          const vipB = b.vip ? 1 : 0;
           return dir * (vipB - vipA);
         default:
           return 0;
@@ -610,8 +585,8 @@ export default function GuestsPage() {
   const hasFilters = search || vipFilter !== "all";
   const activeFilterCount = (search ? 1 : 0) + (vipFilter !== "all" ? 1 : 0);
   const totalGuests = guestsQuery.data?.length || 0;
-  const vipGuests = guestsQuery.data?.filter((g) => (g as GuestWithExtras).vip).length || 0;
-  const optedInGuests = guestsQuery.data?.filter((g) => (g as GuestWithExtras).marketingOptIn).length || 0;
+  const vipGuests = guestsQuery.data?.filter((g) => g.vip).length || 0;
+  const optedInGuests = guestsQuery.data?.filter((g) => g.marketingOptIn).length || 0;
 
   const toggleGuestSelection = (guestId: string) => {
     setSelectedGuestIds((prev) => {
@@ -790,7 +765,12 @@ export default function GuestsPage() {
                 onChange={(e) => setSearch(e.target.value)}
                 aria-label="Search guests"
               />
-              <Select value={vipFilter} onValueChange={(value) => setVipFilter(value as "all" | "vip" | "regular")}>
+              <Select
+                value={vipFilter}
+                onValueChange={(value) =>
+                  setVipFilter(value === "vip" || value === "regular" || value === "all" ? value : "all")
+                }
+              >
                 <SelectTrigger className="h-9 w-full sm:w-40" aria-label="VIP filter">
                   <SelectValue placeholder="All guests" />
                 </SelectTrigger>
@@ -1121,25 +1101,25 @@ export default function GuestsPage() {
                   </td>
                   <td className="px-3 py-2 text-foreground">
                     <div className="font-medium">{g.primaryLastName}, {g.primaryFirstName}</div>
-                    {(g as GuestWithExtras).city && (g as GuestWithExtras).state && (
-                      <div className="text-xs text-muted-foreground">{(g as GuestWithExtras).city}, {(g as GuestWithExtras).state}</div>
+                    {g.city && g.state && (
+                      <div className="text-xs text-muted-foreground">{g.city}, {g.state}</div>
                     )}
                   </td>
                   <td className="px-3 py-2 text-foreground">{g.email}</td>
                   <td className="px-3 py-2 text-foreground">{g.phone}</td>
                   <td className="px-3 py-2">
                     <div className="flex flex-wrap gap-1">
-                      {(g as GuestWithExtras).vip && (
+                      {g.vip && (
                         <span className="rounded-full border border-status-warning-border bg-status-warning-bg text-status-warning-text px-2 py-0.5 text-xs font-medium flex items-center gap-1">
                           <Crown className="h-3 w-3" /> VIP
                         </span>
                       )}
-                      {(g as GuestWithExtras).marketingOptIn && (
+                      {g.marketingOptIn && (
                         <span className="rounded-full border border-status-success-border bg-status-success-bg text-status-success-text px-2 py-0.5 text-xs">
                           Opt-in
                         </span>
                       )}
-                      {!(g as GuestWithExtras).vip && !(g as GuestWithExtras).marketingOptIn && (
+                      {!g.vip && !g.marketingOptIn && (
                         <span className="text-muted-foreground text-xs">—</span>
                       )}
                     </div>
@@ -1191,19 +1171,19 @@ export default function GuestsPage() {
                         <div>
                           <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2">Contact Info</h4>
                           <div className="text-sm space-y-1">
-                            {(g as GuestWithExtras).preferredContact && (
-                              <div><span className="text-muted-foreground">Preferred:</span> {(g as GuestWithExtras).preferredContact}</div>
+                            {g.preferredContact && (
+                              <div><span className="text-muted-foreground">Preferred:</span> {g.preferredContact}</div>
                             )}
-                            {(g as GuestWithExtras).preferredLanguage && (
-                              <div><span className="text-muted-foreground">Language:</span> {(g as GuestWithExtras).preferredLanguage}</div>
+                            {g.preferredLanguage && (
+                              <div><span className="text-muted-foreground">Language:</span> {g.preferredLanguage}</div>
                             )}
-                            {(g as GuestWithExtras).address1 && (
+                            {g.address1 && (
                               <div className="text-muted-foreground">
-                                {(g as GuestWithExtras).address1}
-                                {(g as GuestWithExtras).address2 && <>, {(g as GuestWithExtras).address2}</>}
-                                {(g as GuestWithExtras).city && <>, {(g as GuestWithExtras).city}</>}
-                                {(g as GuestWithExtras).state && <>, {(g as GuestWithExtras).state}</>}
-                                {(g as GuestWithExtras).postalCode && <> {(g as GuestWithExtras).postalCode}</>}
+                                {g.address1}
+                                {g.address2 && <>, {g.address2}</>}
+                                {g.city && <>, {g.city}</>}
+                                {g.state && <>, {g.state}</>}
+                                {g.postalCode && <> {g.postalCode}</>}
                               </div>
                             )}
                           </div>
@@ -1211,13 +1191,13 @@ export default function GuestsPage() {
                         <div>
                           <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2">Equipment</h4>
                           <div className="text-sm space-y-1">
-                            {(g as GuestWithExtras).rigType && (
-                              <div><span className="text-muted-foreground">Rig:</span> {(g as GuestWithExtras).rigType} {(g as GuestWithExtras).rigLength ? `• ${(g as GuestWithExtras).rigLength}ft` : ""}</div>
+                            {g.rigType && (
+                              <div><span className="text-muted-foreground">Rig:</span> {g.rigType} {g.rigLength ? `• ${g.rigLength}ft` : ""}</div>
                             )}
-                            {(g as GuestWithExtras).vehiclePlate && (
-                              <div><span className="text-muted-foreground">Vehicle:</span> {(g as GuestWithExtras).vehiclePlate} {(g as GuestWithExtras).vehicleState ? `(${(g as GuestWithExtras).vehicleState})` : ""}</div>
+                            {g.vehiclePlate && (
+                              <div><span className="text-muted-foreground">Vehicle:</span> {g.vehiclePlate} {g.vehicleState ? `(${g.vehicleState})` : ""}</div>
                             )}
-                            {!(g as GuestWithExtras).rigType && !(g as GuestWithExtras).vehiclePlate && (
+                            {!g.rigType && !g.vehiclePlate && (
                               <div className="text-muted-foreground">No equipment on file</div>
                             )}
                           </div>
@@ -1230,14 +1210,14 @@ export default function GuestsPage() {
                         <div>
                           <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2">Other Info</h4>
                           <div className="text-sm space-y-1">
-                            {(g as GuestWithExtras).leadSource && (
-                              <div><span className="text-muted-foreground">Source:</span> {(g as GuestWithExtras).leadSource}</div>
+                            {g.leadSource && (
+                              <div><span className="text-muted-foreground">Source:</span> {g.leadSource}</div>
                             )}
-                            {(g as GuestWithExtras).tags && ((g as GuestWithExtras).tags?.length ?? 0) > 0 && (
-                              <div><span className="text-muted-foreground">Tags:</span> {(g as GuestWithExtras).tags?.join(", ")}</div>
+                            {g.tags && (g.tags?.length ?? 0) > 0 && (
+                              <div><span className="text-muted-foreground">Tags:</span> {g.tags?.join(", ")}</div>
                             )}
-                            {(g as GuestWithExtras).repeatStays && ((g as GuestWithExtras).repeatStays ?? 0) > 0 && (
-                              <div><span className="text-muted-foreground">Repeat stays:</span> {(g as GuestWithExtras).repeatStays}</div>
+                            {g.repeatStays && (g.repeatStays ?? 0) > 0 && (
+                              <div><span className="text-muted-foreground">Repeat stays:</span> {g.repeatStays}</div>
                             )}
                             {g.notes && (
                               <div><span className="text-muted-foreground">Notes:</span> {g.notes}</div>
@@ -1354,7 +1334,7 @@ export default function GuestsPage() {
       <MergeGuestsDialog
         open={showMergeDialog}
         onOpenChange={setShowMergeDialog}
-        guests={selectedGuests as any}
+        guests={selectedGuests}
         campgroundId={campgroundId || ""}
         onSuccess={() => setSelectedGuestIds(new Set())}
       />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { apiClient } from "@/lib/api-client";
@@ -11,6 +11,32 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 const roles = ["owner", "manager", "front_desk", "maintenance", "finance", "marketing", "readonly"];
 const effects = ["allow", "deny"];
+
+type PermissionRule = {
+  role: string;
+  resource: string;
+  action: string;
+  fields?: string[];
+  effect?: string;
+};
+
+type ApprovalList = Awaited<ReturnType<typeof apiClient.listApprovals>>;
+type ApprovalRequest = ApprovalList["requests"][number];
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const getMetadataString = (metadata: Record<string, unknown> | undefined, key: string): string | null => {
+  if (!metadata) return null;
+  const value = metadata[key];
+  return typeof value === "string" ? value : null;
+};
+
+const isPermissionRule = (value: unknown): value is PermissionRule =>
+  isRecord(value) &&
+  typeof value.role === "string" &&
+  typeof value.resource === "string" &&
+  typeof value.action === "string";
 
 export default function PermissionsPage() {
   const [campgroundId, setCampgroundId] = useState<string | null>(null);
@@ -30,11 +56,19 @@ export default function PermissionsPage() {
     enabled: true
   });
 
-  const approvalsQuery = useQuery({
+  const approvalsQuery = useQuery<ApprovalList>({
     queryKey: ["approvals", campgroundId],
     queryFn: () => apiClient.listApprovals(),
     enabled: true
   });
+
+  const policyRules = useMemo(() => {
+    const data = policiesQuery.data;
+    if (!isRecord(data)) return [];
+    const rules = data.rules;
+    if (!Array.isArray(rules)) return [];
+    return rules.filter(isPermissionRule);
+  }, [policiesQuery.data]);
 
   const upsertRule = useMutation({
     mutationFn: () =>
@@ -122,7 +156,7 @@ export default function PermissionsPage() {
                 </tr>
               </thead>
               <tbody>
-                {(policiesQuery.data?.rules ?? []).map((rule: any) => (
+                {policyRules.map((rule) => (
                   <tr key={`${rule.role}-${rule.resource}-${rule.action}`} className="border-b last:border-b-0">
                     <td className="py-2">{rule.role}</td>
                     <td className="py-2">{rule.resource}</td>
@@ -177,14 +211,19 @@ export default function PermissionsPage() {
                 </tr>
               </thead>
               <tbody>
-                {(approvalsQuery.data?.requests ?? []).map((a: any) => (
+                {(approvalsQuery.data?.requests ?? []).map((a: ApprovalRequest) => {
+                  const metadata = isRecord(a.metadata) ? a.metadata : undefined;
+                  const action = getMetadataString(metadata, "action") ?? "—";
+                  const resource = getMetadataString(metadata, "resource") ?? "—";
+                  return (
                   <tr key={a.id} className="border-b last:border-b-0">
-                    <td className="py-2">{a.action}</td>
-                    <td className="py-2">{a.resource ?? "—"}</td>
+                    <td className="py-2">{action}</td>
+                    <td className="py-2">{resource}</td>
                     <td className="py-2 uppercase text-xs">{a.status}</td>
                     <td className="py-2">{new Date(a.createdAt).toLocaleString()}</td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -192,4 +231,3 @@ export default function PermissionsPage() {
       </div>
   );
 }
-

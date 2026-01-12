@@ -23,15 +23,15 @@ import { ScopeGuard } from '../permissions/scope.guard';
 export class SeasonalRatesController {
     constructor(private readonly seasonalRatesService: SeasonalRatesService) { }
 
-    private requireCampgroundId(req: any, fallback?: string): string {
-        const campgroundId = fallback || req?.campgroundId || req?.headers?.['x-campground-id'];
+    private requireCampgroundId(req: AuthRequest, fallback?: string): string {
+        const campgroundId = fallback || req.campgroundId || getHeaderValue(req.headers, "x-campground-id");
         if (!campgroundId) {
             throw new BadRequestException('campgroundId is required');
         }
         return campgroundId;
     }
 
-    private assertCampgroundAccess(campgroundId: string, user: any): void {
+    private assertCampgroundAccess(campgroundId: string, user?: AuthUser): void {
         const isPlatformStaff = user?.platformRole === 'platform_admin' ||
                                 user?.platformRole === 'platform_superadmin' ||
                                 user?.platformRole === 'support_agent';
@@ -39,7 +39,8 @@ export class SeasonalRatesController {
             return;
         }
 
-        const userCampgroundIds = user?.memberships?.map((m: any) => m.campgroundId) ?? [];
+        const userCampgroundIds = user?.memberships
+          ?.flatMap((membership) => (membership.campgroundId ? [membership.campgroundId] : [])) ?? [];
         if (!userCampgroundIds.includes(campgroundId)) {
             throw new BadRequestException('You do not have access to this campground');
         }
@@ -61,14 +62,14 @@ export class SeasonalRatesController {
         offseasonInterval?: number;
         offseasonAmount?: number;
         prorateExcess?: boolean;
-    }, @Req() req: Request) {
+    }, @Req() req: AuthRequest) {
         this.assertCampgroundAccess(body.campgroundId, req.user);
         return this.seasonalRatesService.create(body);
     }
 
     @Roles(UserRole.owner, UserRole.manager)
     @Get('campground/:campgroundId')
-    findAllByCampground(@Param('campgroundId') campgroundId: string, @Req() req: Request) {
+    findAllByCampground(@Param('campgroundId') campgroundId: string, @Req() req: AuthRequest) {
         this.assertCampgroundAccess(campgroundId, req.user);
         return this.seasonalRatesService.findAllByCampground(campgroundId);
     }
@@ -78,7 +79,7 @@ export class SeasonalRatesController {
     findOne(
         @Param('id') id: string,
         @Query('campgroundId') campgroundId: string | undefined,
-        @Req() req: Request
+        @Req() req: AuthRequest
     ) {
         const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
         this.assertCampgroundAccess(requiredCampgroundId, req.user);
@@ -104,7 +105,7 @@ export class SeasonalRatesController {
             prorateExcess: boolean;
         }>,
         @Query('campgroundId') campgroundId: string | undefined,
-        @Req() req: Request
+        @Req() req: AuthRequest
     ) {
         const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
         this.assertCampgroundAccess(requiredCampgroundId, req.user);
@@ -116,10 +117,28 @@ export class SeasonalRatesController {
     remove(
         @Param('id') id: string,
         @Query('campgroundId') campgroundId: string | undefined,
-        @Req() req: Request
+        @Req() req: AuthRequest
     ) {
         const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
         this.assertCampgroundAccess(requiredCampgroundId, req.user);
         return this.seasonalRatesService.remove(requiredCampgroundId, id);
     }
 }
+
+type Membership = { campgroundId?: string | null };
+
+type AuthUser = {
+    platformRole?: string | null;
+    memberships?: Membership[];
+};
+
+type AuthRequest = Request & {
+    campgroundId?: string;
+    user?: AuthUser;
+};
+
+const getHeaderValue = (headers: Request["headers"], key: string): string | undefined => {
+    const value = headers[key];
+    if (Array.isArray(value)) return value[0];
+    return typeof value === "string" ? value : undefined;
+};

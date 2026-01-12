@@ -53,7 +53,7 @@ export function ListView({
     }
 
     if (groupMode === "date") {
-      const groups: Record<string, any[]> = {};
+      const groups: Record<string, CalendarReservation[]> = {};
       sorted.forEach(res => {
         const date = new Date(res.arrivalDate).toLocaleDateString(undefined, {
           weekday: 'short',
@@ -68,7 +68,7 @@ export function ListView({
     }
 
     if (groupMode === "site") {
-      const groups: Record<string, any[]> = {};
+      const groups: Record<string, CalendarReservation[]> = {};
       sorted.forEach(res => {
         const site = sites.find(s => s.id === res.siteId);
         const siteName = site?.name || "Unassigned";
@@ -193,7 +193,9 @@ export function ListView({
                 <div className="divide-y divide-border">
                   {groupReservations.map((res) => {
                     const site = sites.find(s => s.id === res.siteId);
-                    const hasBalance = res.balanceAmount && res.balanceAmount > 0;
+                    const balanceAmount =
+                      typeof res.balanceAmount === "number" ? res.balanceAmount : 0;
+                    const hasBalance = balanceAmount > 0;
                     const statusColor = getStatusColor(res.status);
 
                     return (
@@ -268,7 +270,7 @@ export function ListView({
                                   {formatCurrency(res.totalAmount)}
                                   {hasBalance && (
                                     <span className="text-status-error text-xs ml-2">
-                                      (Owe: {formatCurrency(res.balanceAmount)})
+                                      (Owe: {formatCurrency(balanceAmount)})
                                     </span>
                                   )}
                                 </span>

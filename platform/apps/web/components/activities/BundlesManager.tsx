@@ -65,6 +65,16 @@ interface BundlesManagerProps {
     activities: Activity[];
 }
 
+type DiscountType = "percent" | "fixed";
+
+type BundleFormState = {
+    name: string;
+    description: string;
+    discountType: DiscountType;
+    discountValue: string;
+    selectedActivities: string[];
+};
+
 export function BundlesManager({ campgroundId, activities }: BundlesManagerProps) {
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -72,12 +82,12 @@ export function BundlesManager({ campgroundId, activities }: BundlesManagerProps
     const [editingBundle, setEditingBundle] = useState<Bundle | null>(null);
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
-    const [newBundle, setNewBundle] = useState({
+    const [newBundle, setNewBundle] = useState<BundleFormState>({
         name: "",
         description: "",
-        discountType: "percent" as "percent" | "fixed",
+        discountType: "percent",
         discountValue: "15",
-        selectedActivities: [] as string[]
+        selectedActivities: []
     });
 
     const { data: bundles, isLoading } = useQuery<Bundle[]>({
@@ -127,10 +137,10 @@ export function BundlesManager({ campgroundId, activities }: BundlesManagerProps
                 description: "Guests can now purchase this package deal."
             });
         },
-        onError: (err: any) => {
+        onError: (err) => {
             toast({
                 title: "Failed to create bundle",
-                description: err?.message || "Please try again",
+                description: err instanceof Error ? err.message : "Please try again",
                 variant: "destructive"
             });
         }

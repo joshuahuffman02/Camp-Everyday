@@ -85,11 +85,67 @@ type PricingPreview = {
   paymentSchedule: Array<{ dueDate: string; amount: number; description: string }>;
 };
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const isDiscount = (value: unknown): value is RateCard["discounts"][number] =>
+  isRecord(value) &&
+  typeof value.id === "string" &&
+  typeof value.name === "string" &&
+  typeof value.type === "string" &&
+  typeof value.value === "number" &&
+  typeof value.condition === "string";
+
+const isRateCard = (value: unknown): value is RateCard =>
+  isRecord(value) &&
+  typeof value.id === "string" &&
+  typeof value.name === "string" &&
+  typeof value.seasonYear === "number" &&
+  typeof value.baseRate === "number" &&
+  typeof value.billingFrequency === "string" &&
+  typeof value.seasonStartDate === "string" &&
+  typeof value.seasonEndDate === "string" &&
+  typeof value.isDefault === "boolean" &&
+  Array.isArray(value.discounts) &&
+  value.discounts.every(isDiscount) &&
+  Array.isArray(value.incentives) &&
+  value.incentives.every(isDiscount);
+
+const isPricingPreview = (value: unknown): value is PricingPreview =>
+  isRecord(value) &&
+  typeof value.baseRate === "number" &&
+  typeof value.totalDiscount === "number" &&
+  typeof value.finalRate === "number" &&
+  Array.isArray(value.appliedDiscounts) &&
+  value.appliedDiscounts.every(
+    (item) =>
+      isRecord(item) &&
+      typeof item.name === "string" &&
+      typeof item.amount === "number"
+  ) &&
+  Array.isArray(value.earnedIncentives) &&
+  value.earnedIncentives.every(
+    (item) =>
+      isRecord(item) &&
+      typeof item.name === "string" &&
+      typeof item.type === "string" &&
+      typeof item.value === "number"
+  ) &&
+  Array.isArray(value.paymentSchedule) &&
+  value.paymentSchedule.every(
+    (item) =>
+      isRecord(item) &&
+      typeof item.dueDate === "string" &&
+      typeof item.amount === "number" &&
+      typeof item.description === "string"
+  );
+
 export default function NewSeasonalGuestPage() {
   const params = useParams();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const campgroundId = params.campgroundId as string;
+  const campgroundParam = params.campgroundId;
+  const campgroundId = typeof campgroundParam === "string" ? campgroundParam : "";
 
   // Form state
   const [selectedGuestId, setSelectedGuestId] = useState<string>("");
@@ -184,7 +240,7 @@ export default function NewSeasonalGuestPage() {
     queryFn: async () => {
       try {
         const data = await apiClient.getSeasonalRateCards(campgroundId);
-        return data as RateCard[];
+        return Array.isArray(data) ? data.filter(isRateCard) : [];
       } catch {
         return [];
       }
@@ -220,7 +276,7 @@ export default function NewSeasonalGuestPage() {
           paysInFull,
           paymentMethod: preferredPaymentMethod || undefined,
         });
-        return data as PricingPreview;
+        return isPricingPreview(data) ? data : null;
       } catch {
         return null;
       }
@@ -386,7 +442,9 @@ export default function NewSeasonalGuestPage() {
                   </div>
                   {createGuestMutation.isError && (
                     <p className="text-sm text-destructive">
-                      {(createGuestMutation.error as Error).message || "Failed to create guest"}
+                      {createGuestMutation.error instanceof Error
+                        ? createGuestMutation.error.message
+                        : "Failed to create guest"}
                     </p>
                   )}
                   <Button
@@ -938,7 +996,9 @@ export default function NewSeasonalGuestPage() {
 
             {createMutation.isError && (
               <p className="text-sm text-destructive text-center">
-                {(createMutation.error as Error).message}
+                {createMutation.error instanceof Error
+                  ? createMutation.error.message
+                  : "Unable to create seasonal guest"}
               </p>
             )}
           </div>

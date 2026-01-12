@@ -117,6 +117,8 @@ export default function DynamicPricingPage() {
       const findExistingRule = (name: string) => rules.find(r => r.name === name);
 
       // Helper to create or update a rule
+      type PricingRulePayload = Parameters<typeof apiClient.createPricingRuleV2>[1];
+
       const upsertRule = async (
         name: string,
         adjustmentValue: number, // as decimal (e.g., 0.10 for 10%)
@@ -124,12 +126,12 @@ export default function DynamicPricingPage() {
         priority: number = 50
       ) => {
         const existing = findExistingRule(name);
-        const payload = {
+        const payload: PricingRulePayload = {
           name,
           type,
           priority,
-          stackMode: "additive" as const,
-          adjustmentType: "percent" as const,
+          stackMode: "additive",
+          adjustmentType: "percent",
           adjustmentValue,
           siteClassId: undefined,
           dowMask: undefined,

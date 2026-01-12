@@ -58,6 +58,17 @@ interface UsageBucket {
   concurrent: number;
 }
 
+const normalizeTier = (tier?: string | null): RateLimitTier => {
+  switch (tier) {
+    case RateLimitTier.STANDARD:
+      return RateLimitTier.STANDARD;
+    case RateLimitTier.ENTERPRISE:
+      return RateLimitTier.ENTERPRISE;
+    default:
+      return RateLimitTier.FREE;
+  }
+};
+
 /**
  * Rate Limiting Service with Tier Support
  *
@@ -96,7 +107,7 @@ export class RateLimitTiersService {
       select: { tier: true, rateLimit: true },
     });
 
-    const tier = (client?.tier as RateLimitTier) || RateLimitTier.FREE;
+    const tier = normalizeTier(client?.tier);
     const config = TIER_CONFIGS[tier];
 
     // Use custom rate limit if set, otherwise use tier default
@@ -178,7 +189,7 @@ export class RateLimitTiersService {
       select: { tier: true },
     });
 
-    const tier = (client?.tier as RateLimitTier) || RateLimitTier.FREE;
+    const tier = normalizeTier(client?.tier);
     const config = TIER_CONFIGS[tier];
 
     let bucket = this.usageMap.get(apiClientId);

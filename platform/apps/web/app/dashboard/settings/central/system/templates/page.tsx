@@ -122,17 +122,17 @@ export default function TemplatesPage() {
         html: template.html || undefined,
         textBody: template.textBody || undefined,
       });
-      setTemplates([...templates, result as Template]);
+      setTemplates([...templates, result]);
     } catch (err) {
       console.error("Failed to duplicate template:", err);
     }
   };
 
   // Group by category
-  const templatesByCategory = CATEGORIES.reduce((acc, cat) => {
+  const templatesByCategory = CATEGORIES.reduce<Record<string, Template[]>>((acc, cat) => {
     acc[cat] = templates.filter((t) => (t.category || "general") === cat);
     return acc;
-  }, {} as Record<string, Template[]>);
+  }, {});
 
   if (loading) {
     return (

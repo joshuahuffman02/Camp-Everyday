@@ -5,6 +5,9 @@ import { JwtAuthGuard } from '../auth/guards';
 import { ScopeGuard } from '../auth/guards/scope.guard';
 import type { Request } from "express";
 
+const toHeaderValue = (value: string | string[] | undefined): string | undefined =>
+    Array.isArray(value) ? value[0] : value;
+
 interface CreateStaffWaitlistDto {
     campgroundId: string;
     type: 'regular' | 'seasonal';
@@ -51,14 +54,16 @@ export class WaitlistController {
         @Body() createWaitlistDto: CreateWaitlistEntryDto,
         @Req() req: Request
     ) {
-        const idempotencyKey = req.headers["idempotency-key"];
-        const sequence = req.headers["x-client-seq"] ?? req.headers["client-seq"];
+        const idempotencyKey = toHeaderValue(req.headers["idempotency-key"]);
+        const sequence =
+            toHeaderValue(req.headers["x-client-seq"]) ?? toHeaderValue(req.headers["client-seq"]);
+        const actor = { campgroundId };
         // Ensure campgroundId from path is used
         return this.waitlistService.create(
             { ...createWaitlistDto, campgroundId },
             idempotencyKey,
             sequence,
-            req.user
+            actor
         );
     }
 
@@ -68,14 +73,16 @@ export class WaitlistController {
         @Body() dto: CreateStaffWaitlistDto,
         @Req() req: Request
     ) {
-        const idempotencyKey = req.headers["idempotency-key"];
-        const sequence = req.headers["x-client-seq"] ?? req.headers["client-seq"];
+        const idempotencyKey = toHeaderValue(req.headers["idempotency-key"]);
+        const sequence =
+            toHeaderValue(req.headers["x-client-seq"]) ?? toHeaderValue(req.headers["client-seq"]);
+        const actor = { campgroundId };
         // Ensure campgroundId from path is used
         return this.waitlistService.createStaffEntry(
             { ...dto, campgroundId },
             idempotencyKey,
             sequence,
-            req.user
+            actor
         );
     }
 
@@ -85,9 +92,11 @@ export class WaitlistController {
         @Param('id') id: string,
         @Req() req: Request
     ) {
-        const idempotencyKey = req.headers["idempotency-key"];
-        const sequence = req.headers["x-client-seq"] ?? req.headers["client-seq"];
-        return this.waitlistService.accept(id, idempotencyKey, sequence, req.user);
+        const idempotencyKey = toHeaderValue(req.headers["idempotency-key"]);
+        const sequence =
+            toHeaderValue(req.headers["x-client-seq"]) ?? toHeaderValue(req.headers["client-seq"]);
+        const actor = { campgroundId };
+        return this.waitlistService.accept(id, idempotencyKey, sequence, actor);
     }
 
     @Get()

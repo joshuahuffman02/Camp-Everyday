@@ -8,12 +8,12 @@ import {
   Query,
 } from "@nestjs/common";
 import { JwtAuthGuard, RolesGuard, Roles } from "../auth/guards";
-import { UserRole } from "@prisma/client";
+import { PlatformRole } from "@prisma/client";
 import { BullQueueService, QueueStats } from "./bull-queue.service";
 
 @Controller("admin/queues")
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.platform_admin)
+@Roles(PlatformRole.platform_admin)
 export class QueuesController {
   constructor(private readonly queueService: BullQueueService) {}
 

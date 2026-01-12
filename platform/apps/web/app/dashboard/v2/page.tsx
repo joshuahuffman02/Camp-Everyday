@@ -45,7 +45,7 @@ export default function DashboardV2() {
   const selectedCampground = campgrounds[0];
   const selectedId = selectedCampground?.id;
 
-  const reservationsQuery = useQuery({
+  const reservationsQuery = useQuery<Reservation[]>({
     queryKey: ["reservations", selectedId],
     queryFn: () => apiClient.getReservations(selectedId ?? ""),
     enabled: !!selectedId
@@ -69,10 +69,9 @@ export default function DashboardV2() {
     return d;
   }, []);
 
-  const reservations = reservationsQuery.data as Reservation[] | undefined;
+  const reservations = reservationsQuery.data ?? [];
 
   const todayArrivals = useMemo(() => {
-    if (!reservations) return [];
     return reservations.filter((r) => {
       const arrival = new Date(r.arrivalDate);
       arrival.setHours(0, 0, 0, 0);
@@ -81,7 +80,6 @@ export default function DashboardV2() {
   }, [reservations, today]);
 
   const todayDepartures = useMemo(() => {
-    if (!reservations) return [];
     return reservations.filter((r) => {
       const departure = new Date(r.departureDate);
       departure.setHours(0, 0, 0, 0);
@@ -90,7 +88,6 @@ export default function DashboardV2() {
   }, [reservations, today]);
 
   const inHouse = useMemo(() => {
-    if (!reservations) return [];
     return reservations.filter((r) => {
       const arrival = new Date(r.arrivalDate);
       const departure = new Date(r.departureDate);
@@ -103,19 +100,18 @@ export default function DashboardV2() {
   const occupancyRate = totalSites > 0 ? Math.round((occupiedSites / totalSites) * 100) : 0;
 
   const outstandingBalanceCents =
-    reservations?.reduce((sum, r) => {
+    reservations.reduce((sum, r) => {
       const balance = (r.totalAmount ?? 0) - (r.paidAmount ?? 0);
       return sum + (balance > 0 ? balance : 0);
-    }, 0) ?? 0;
+    }, 0);
 
   const futureReservations =
-    reservations?.filter((r) => new Date(r.arrivalDate) > today && r.status !== "cancelled").length ?? 0;
+    reservations.filter((r) => new Date(r.arrivalDate) > today && r.status !== "cancelled").length;
 
   const formatMoney = (cents?: number) =>
     `$${((cents ?? 0) / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
   const attentionList = useMemo(() => {
-    if (!reservations) return [];
     return reservations
       .map((r) => ({
         ...r,

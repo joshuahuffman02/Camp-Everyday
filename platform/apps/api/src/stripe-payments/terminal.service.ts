@@ -1,12 +1,21 @@
 import { Injectable, BadRequestException, NotFoundException, Logger } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { StripeService } from "../payments/stripe.service";
+import type { Prisma, StripeTerminalLocation, StripeTerminalReader } from "@prisma/client";
+import { randomUUID } from "crypto";
+
+type TerminalLocationRecord = StripeTerminalLocation & {
+    _count?: { StripeTerminalReader: number };
+};
+type TerminalReaderRecord = StripeTerminalReader & {
+    StripeTerminalLocation?: { displayName: string | null } | null;
+};
 
 export interface TerminalLocationInfo {
     id: string;
     stripeLocationId: string;
     displayName: string;
-    address: any;
+    address: Prisma.JsonValue | null;
     readerCount: number;
     createdAt: Date;
 }
@@ -71,13 +80,15 @@ export class TerminalService {
         // Store locally
         const localLocation = await this.prisma.stripeTerminalLocation.create({
             data: {
+                id: randomUUID(),
                 campgroundId,
                 stripeLocationId: location.id,
                 displayName,
                 address,
+                updatedAt: new Date(),
             },
             include: {
-                _count: { select: { readers: true } },
+                _count: { select: { StripeTerminalReader: true } },
             },
         });
 
@@ -91,7 +102,7 @@ export class TerminalService {
         const locations = await this.prisma.stripeTerminalLocation.findMany({
             where: { campgroundId },
             include: {
-                _count: { select: { readers: true } },
+                _count: { select: { StripeTerminalReader: true } },
             },
             orderBy: { displayName: "asc" },
         });
@@ -109,7 +120,7 @@ export class TerminalService {
         const location = await this.prisma.stripeTerminalLocation.findFirst({
             where: { id: locationId, campgroundId },
             include: {
-                _count: { select: { readers: true } },
+                _count: { select: { StripeTerminalReader: true } },
             },
         });
 
@@ -122,14 +133,14 @@ export class TerminalService {
     async deleteLocation(campgroundId: string, locationId: string): Promise<void> {
         const location = await this.prisma.stripeTerminalLocation.findFirst({
             where: { id: locationId, campgroundId },
-            include: { _count: { select: { readers: true } } },
+            include: { _count: { select: { StripeTerminalReader: true } } },
         });
 
         if (!location) {
             throw new NotFoundException("Location not found");
         }
 
-        if (location._count.readers > 0) {
+        if (location._count.StripeTerminalReader > 0) {
             throw new BadRequestException(
                 "Cannot delete location with registered readers. Remove readers first.",
             );
@@ -201,6 +212,7 @@ export class TerminalService {
         // Store locally
         const localReader = await this.prisma.stripeTerminalReader.create({
             data: {
+                id: randomUUID(),
                 campgroundId,
                 locationId,
                 stripeReaderId: reader.id,
@@ -209,9 +221,10 @@ export class TerminalService {
                 deviceType: reader.device_type || "unknown",
                 serialNumber: reader.serial_number,
                 status: reader.status || "offline",
+                updatedAt: new Date(),
             },
             include: {
-                location: { select: { displayName: true } },
+                StripeTerminalLocation: { select: { displayName: true } },
             },
         });
 
@@ -225,7 +238,7 @@ export class TerminalService {
         campgroundId: string,
         locationId?: string,
     ): Promise<TerminalReaderInfo[]> {
-        const where: any = { campgroundId };
+        const where: Prisma.StripeTerminalReaderWhereInput = { campgroundId };
         if (locationId) {
             where.locationId = locationId;
         }
@@ -233,7 +246,7 @@ export class TerminalService {
         const readers = await this.prisma.stripeTerminalReader.findMany({
             where,
             include: {
-                location: { select: { displayName: true } },
+                StripeTerminalLocation: { select: { displayName: true } },
             },
             orderBy: [{ status: "asc" }, { label: "asc" }],
         });
@@ -251,7 +264,7 @@ export class TerminalService {
         const reader = await this.prisma.stripeTerminalReader.findFirst({
             where: { id: readerId, campgroundId },
             include: {
-                location: { select: { displayName: true } },
+                StripeTerminalLocation: { select: { displayName: true } },
             },
         });
 
@@ -268,7 +281,7 @@ export class TerminalService {
         const reader = await this.prisma.stripeTerminalReader.findFirst({
             where: { campgroundId, stripeReaderId },
             include: {
-                location: { select: { displayName: true } },
+                StripeTerminalLocation: { select: { displayName: true } },
             },
         });
 
@@ -327,7 +340,7 @@ export class TerminalService {
             where: { id: readerId },
             data: { label },
             include: {
-                location: { select: { displayName: true } },
+                StripeTerminalLocation: { select: { displayName: true } },
             },
         });
 
@@ -466,25 +479,25 @@ export class TerminalService {
                 firmwareVersion: stripeReader.device_sw_version,
             },
             include: {
-                location: { select: { displayName: true } },
+                StripeTerminalLocation: { select: { displayName: true } },
             },
         });
 
         return this.mapReader(updated);
     }
 
-    private mapLocation(loc: any): TerminalLocationInfo {
+    private mapLocation(loc: TerminalLocationRecord): TerminalLocationInfo {
         return {
             id: loc.id,
             stripeLocationId: loc.stripeLocationId,
             displayName: loc.displayName,
             address: loc.address,
-            readerCount: loc._count?.readers || 0,
+            readerCount: loc._count?.StripeTerminalReader || 0,
             createdAt: loc.createdAt,
         };
     }
 
-    private mapReader(reader: any): TerminalReaderInfo {
+    private mapReader(reader: TerminalReaderRecord): TerminalReaderInfo {
         return {
             id: reader.id,
             stripeReaderId: reader.stripeReaderId,
@@ -494,7 +507,7 @@ export class TerminalService {
             status: reader.status,
             lastSeenAt: reader.lastSeenAt,
             locationId: reader.locationId,
-            locationName: reader.location?.displayName || null,
+            locationName: reader.StripeTerminalLocation?.displayName || null,
             createdAt: reader.createdAt,
         };
     }

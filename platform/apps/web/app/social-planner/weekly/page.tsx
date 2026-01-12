@@ -8,6 +8,9 @@ import { Clock, RefreshCw, Sparkles, PlusCircle } from "lucide-react";
 import { Card } from "../../../components/ui/card";
 import { Button } from "../../../components/ui/button";
 
+type WeeklyIdeas = Awaited<ReturnType<typeof apiClient.generateWeeklySocialIdeas>>;
+type WeeklyIdea = NonNullable<WeeklyIdeas["ideas"]>[number];
+
 export default function SocialPlannerWeekly() {
   const qc = useQueryClient();
   const { data: campgrounds = [] } = useQuery({
@@ -28,7 +31,7 @@ export default function SocialPlannerWeekly() {
   });
 
   const addIdeaToCalendar = useMutation({
-    mutationFn: (idea: any) =>
+    mutationFn: (idea: WeeklyIdea) =>
       apiClient.createSocialPost({
         campgroundId,
         title: idea.idea?.slice(0, 80) || "Weekly idea",
@@ -85,7 +88,7 @@ export default function SocialPlannerWeekly() {
               Generated for week of {new Date(weekly.generatedFor).toLocaleDateString()}
             </div>
             <div className="grid md:grid-cols-3 gap-3 mt-3">
-              {weekly.ideas?.map((idea: any, idx: number) => (
+              {(weekly.ideas ?? []).map((idea, idx) => (
                 <div key={idx} className="p-3 rounded border border-border bg-muted space-y-2">
                   <p className="text-xs uppercase text-muted-foreground">{idea.type}</p>
                   <div className="text-sm font-semibold text-foreground">{idea.idea}</div>
@@ -109,7 +112,7 @@ export default function SocialPlannerWeekly() {
               Recommended cadence
             </div>
             <div className="grid md:grid-cols-3 gap-3">
-              {weekly.cadence?.map((slot: any, idx: number) => (
+              {(weekly.cadence ?? []).map((slot, idx) => (
                 <div key={idx} className="p-3 rounded border border-emerald-100 bg-emerald-50">
                   <div className="text-sm font-semibold text-emerald-900">{slot.day}</div>
                   <div className="text-xs text-emerald-700">{slot.theme}</div>
@@ -124,4 +127,3 @@ export default function SocialPlannerWeekly() {
     </DashboardShell>
   );
 }
-

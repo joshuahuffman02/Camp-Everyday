@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
-import { CheckInStatus, CheckOutStatus } from '@prisma/client';
+import { CheckInStatus, CheckOutStatus, IdVerification, Prisma } from '@prisma/client';
+import { randomUUID } from "crypto";
 import { PrismaService } from '../prisma/prisma.service';
 import { SignaturesService } from '../signatures/signatures.service';
 import { AuditService } from '../audit/audit.service';
@@ -7,6 +8,7 @@ import { AccessControlService } from '../access-control/access-control.service';
 import { StripeService } from '../payments/stripe.service';
 import { GatewayConfigService } from '../payments/gateway-config.service';
 import { PoliciesService } from '../policies/policies.service';
+import { isRecord } from '../utils/type-guards';
 
 export type CheckinResult = {
   status: 'completed' | 'failed';
@@ -20,6 +22,16 @@ export type CheckoutResult = {
   reason?: string;
   selfCheckOutAt?: Date;
 };
+
+type WaiverEvidence = {
+  request?: { id: string; reservationId?: string | null; guestId?: string | null } | null;
+  artifact?: { id: string; reservationId?: string | null; guestId?: string | null } | null;
+  digital?: { id: string; reservationId?: string | null; guestId?: string | null } | null;
+};
+
+type ReservationWithRelations = Prisma.ReservationGetPayload<{
+  include: { Site: true; Guest: true; Campground: true };
+}>;
 
 @Injectable()
 export class SelfCheckinService {
@@ -35,8 +47,8 @@ export class SelfCheckinService {
     private readonly policies: PoliciesService
   ) { }
 
-  private async attachWaiverArtifacts(reservationId: string, guestId: string, evidence: { request?: any; artifact?: any; digital?: any }) {
-    const ops: Promise<any>[] = [];
+  private async attachWaiverArtifacts(reservationId: string, guestId: string, evidence: WaiverEvidence) {
+    const ops: Array<Promise<unknown>> = [];
 
     if (evidence.request && (!evidence.request.reservationId || !evidence.request.guestId)) {
       ops.push(
@@ -91,7 +103,7 @@ export class SelfCheckinService {
           status: "signed",
           OR: [{ reservationId }, { reservationId: null, guestId }]
         },
-        include: { artifact: true },
+        include: { SignatureArtifact: true },
         orderBy: { signedAt: "desc" }
       }),
       this.prisma.digitalWaiver.findFirst?.({
@@ -104,10 +116,9 @@ export class SelfCheckinService {
     ]);
 
     const signedArtifact =
-      signedRequest?.artifact ??
+      signedRequest?.SignatureArtifact ??
       (await this.prisma.signatureArtifact?.findFirst?.({
         where: {
-          pdfUrl: { not: null },
           OR: [{ reservationId }, { reservationId: null, guestId }]
         }
       }));
@@ -125,7 +136,7 @@ export class SelfCheckinService {
     return hasEvidence;
   }
 
-  private async attachIdVerification(reservationId: string, guestId: string, match: any) {
+  private async attachIdVerification(reservationId: string, guestId: string, match: IdVerification | null) {
     if (!match || (match.reservationId && match.guestId)) return;
     try {
       await this.prisma.idVerification?.update?.({
@@ -171,11 +182,11 @@ export class SelfCheckinService {
     valid: boolean;
     reason?: string;
     reasons?: string[];
-    reservation?: any;
+    reservation?: ReservationWithRelations | null;
   }> {
     const reservation = await this.prisma.reservation.findUnique({
       where: { id: reservationId },
-      include: { Site: true, guest: true, campground: true },
+      include: { Site: true, Guest: true, Campground: true },
     });
 
     if (!reservation) {
@@ -250,7 +261,7 @@ export class SelfCheckinService {
     if (!validation.valid && !isOverride) {
       const reservation = validation.reservation ?? await this.prisma.reservation.findUnique({
         where: { id: reservationId },
-        include: { campground: true, guest: true },
+        include: { Campground: true, Guest: true },
       });
 
       const checkInStatus =
@@ -266,14 +277,19 @@ export class SelfCheckinService {
         ? await this.prisma.reservation.update({
           where: { id: reservationId },
           data: { checkInStatus },
-          include: { campground: true, guest: true },
+          include: { Campground: true, Guest: true },
         })
         : null;
 
       let signingUrl: string | undefined;
       if (validation.reason === "waiver_required" && validation.reservation) {
-        const signatureResult = await this.signatures.autoSendForReservation(validation.reservation);
-        signingUrl = (signatureResult as any)?.signingUrl;
+        const signatureResult: unknown = await this.signatures.autoSendForReservation(validation.reservation);
+        if (isRecord(signatureResult)) {
+          const candidate = signatureResult.signingUrl;
+          if (typeof candidate === "string") {
+            signingUrl = candidate;
+          }
+        }
       }
       if (validation.reason === "policy_required" && validation.reservation) {
         const policyCompliance = await this.policies.getPendingPolicyCompliance(validation.reservation.id);
@@ -285,11 +301,12 @@ export class SelfCheckinService {
         if (updatedReservation) {
           await this.prisma.communication.create({
             data: {
+              id: randomUUID(),
               campgroundId: updatedReservation.campgroundId,
               guestId: updatedReservation.guestId,
               reservationId: updatedReservation.id,
               type: 'email',
-              subject: `Check-in issue at ${updatedReservation.campground.name}`,
+              subject: `Check-in issue at ${updatedReservation.Campground.name}`,
               body: `We couldn't complete your check-in. Reason: ${validation.reason?.replace('_', ' ')}. Please contact the front desk.`,
               status: 'queued',
               direction: 'outbound',
@@ -328,7 +345,7 @@ export class SelfCheckinService {
         lateArrivalFlag: options?.lateArrival ?? false,
         status: 'checked_in',
       },
-      include: { campground: true, guest: true, site: true },
+      include: { Campground: true, Guest: true, Site: true },
     });
 
     try {
@@ -341,12 +358,13 @@ export class SelfCheckinService {
     try {
       await this.prisma.communication.create({
         data: {
+          id: randomUUID(),
           campgroundId: reservation.campgroundId,
           guestId: reservation.guestId,
           reservationId: reservation.id,
           type: 'email',
-          subject: `Welcome to ${reservation.campground.name}!`,
-          body: `You're all checked in to site ${reservation.site.siteNumber}. Enjoy your stay!`,
+          subject: `Welcome to ${reservation.Campground.name}!`,
+          body: `You're all checked in to site ${reservation.Site.siteNumber}. Enjoy your stay!`,
           status: 'queued',
           direction: 'outbound',
         },
@@ -408,7 +426,7 @@ export class SelfCheckinService {
         selfCheckOutAt: now,
         status: 'checked_out',
       },
-      include: { campground: true, guest: true, site: true },
+      include: { Campground: true, Guest: true, Site: true },
     });
 
     try {
@@ -421,11 +439,12 @@ export class SelfCheckinService {
     try {
       await this.prisma.communication.create({
         data: {
+          id: randomUUID(),
           campgroundId: updatedReservation.campgroundId,
           guestId: updatedReservation.guestId,
           reservationId: updatedReservation.id,
           type: 'email',
-          subject: `Thank you for staying at ${updatedReservation.campground.name}!`,
+          subject: `Thank you for staying at ${updatedReservation.Campground.name}!`,
           body: `You've successfully checked out. Final charges: $${(updatedReservation.totalAmount / 100).toFixed(2)}. We hope to see you again!`,
           status: 'queued',
           direction: 'outbound',
@@ -440,6 +459,7 @@ export class SelfCheckinService {
       try {
         await this.prisma.task.create({
           data: {
+            id: randomUUID(),
             tenantId: updatedReservation.campgroundId,
             type: 'inspection',
             state: 'pending',
@@ -447,9 +467,10 @@ export class SelfCheckinService {
             reservationId: updatedReservation.id,
             slaStatus: 'on_track',
             notes: `Damage reported: ${options.damageNotes || 'See photos'}`,
-            photos: options.damagePhotos ? JSON.stringify(options.damagePhotos) : undefined,
+            photos: options.damagePhotos ?? undefined,
             source: 'auto_turnover',
             createdBy: 'system',
+            updatedAt: new Date(),
           },
         });
       } catch (err) {
@@ -508,7 +529,7 @@ export class SelfCheckinService {
       const reservation = await this.prisma.reservation.findUnique({
         where: { id: reservationId },
         include: {
-          campground: {
+          Campground: {
             select: {
               id: true,
               stripeAccountId: true,
@@ -525,7 +546,7 @@ export class SelfCheckinService {
         return { success: false, reason: 'reservation_not_found' };
       }
 
-      const stripeAccountId = (reservation.campground as any)?.stripeAccountId;
+      const stripeAccountId = reservation.Campground?.stripeAccountId ?? null;
       if (!stripeAccountId) {
         this.logger.warn(`No Stripe account for campground ${reservation.campgroundId}, cannot collect balance`);
         return { success: false, reason: 'payment_not_configured' };
@@ -545,11 +566,11 @@ export class SelfCheckinService {
       }
 
       // Calculate application fee
-      const plan = (reservation.campground as any)?.billingPlan as string | undefined;
+      const plan = reservation.Campground?.billingPlan ?? undefined;
       const planDefaultFee = plan === 'standard' ? 200 : plan === 'enterprise' ? 100 : 300;
       const applicationFeeCents =
-        (reservation.campground as any)?.perBookingFeeCents ??
-        (reservation.campground as any)?.applicationFeeFlatCents ??
+        reservation.Campground?.perBookingFeeCents ??
+        reservation.Campground?.applicationFeeFlatCents ??
         planDefaultFee;
 
       // Create payment intent for the balance
@@ -574,26 +595,17 @@ export class SelfCheckinService {
 
       this.logger.log(`Created payment intent ${paymentIntent.id} for checkout balance collection`);
 
-      // For self-checkout, we need the guest to complete the payment
-      // Store the payment intent ID on the reservation for the frontend to handle
-      await this.prisma.reservation.update({
-        where: { id: reservationId },
-        data: {
-          checkoutPaymentIntentId: paymentIntent.id,
-          checkoutPaymentIntentSecret: paymentIntent.client_secret
-        } as any
-      });
-
-      // Return success with intent info - frontend will need to complete payment
-      return {
-        success: true,
-        reason: 'payment_required'
-      };
-    } catch (error: any) {
-      this.logger.error(`Failed to collect checkout balance for ${reservationId}: ${error.message}`, error.stack);
+      // Payment intent created; frontend must complete payment via Stripe.
       return {
         success: false,
-        reason: error.message || 'payment_error'
+        reason: 'payment_capture_failed'
+      };
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to collect checkout balance for ${reservationId}: ${message}`, error);
+      return {
+        success: false,
+        reason: message || 'payment_error'
       };
     }
   }

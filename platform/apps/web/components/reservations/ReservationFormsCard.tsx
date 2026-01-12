@@ -53,6 +53,18 @@ interface ReservationFormsCardProps {
   reservationId: string;
 }
 
+type FormSubmission = Awaited<ReturnType<typeof apiClient.getFormSubmissionsByReservation>>[number];
+type FormTemplate = Awaited<ReturnType<typeof apiClient.getFormTemplates>>[number];
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const getSkipNote = (responses: unknown): string | null => {
+  if (!isRecord(responses)) return null;
+  const note = responses._skipNote;
+  return typeof note === "string" ? note : null;
+};
+
 function formatDateTime(d?: string | Date | null) {
   if (!d) return "—";
   const date = typeof d === "string" ? new Date(d) : d;
@@ -69,19 +81,19 @@ export function ReservationFormsCard({
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [skipModalOpen, setSkipModalOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [selectedSubmission, setSelectedSubmission] = useState<any>(null);
+  const [selectedSubmission, setSelectedSubmission] = useState<FormSubmission | null>(null);
   const [skipNote, setSkipNote] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
   // Fetch form submissions for this reservation
-  const submissionsQuery = useQuery({
+  const submissionsQuery = useQuery<FormSubmission[]>({
     queryKey: ["form-submissions", reservationId],
     queryFn: () => apiClient.getFormSubmissionsByReservation(reservationId),
     enabled: !!reservationId,
   });
 
   // Fetch available form templates
-  const templatesQuery = useQuery({
+  const templatesQuery = useQuery<FormTemplate[]>({
     queryKey: ["form-templates", campgroundId],
     queryFn: () => apiClient.getFormTemplates(campgroundId),
     enabled: !!campgroundId && attachModalOpen,
@@ -95,6 +107,11 @@ export function ReservationFormsCard({
   const requiredPendingCount = submissions.filter(
     (s) => s.status === "pending" && s.formTemplate?.isRequired !== false
   ).length;
+  const responseEntries =
+    selectedSubmission && isRecord(selectedSubmission.responses)
+      ? Object.entries(selectedSubmission.responses).filter(([key]) => !key.startsWith("_"))
+      : [];
+  const skipNoteValue = getSkipNote(selectedSubmission?.responses);
 
   // Attach form mutation
   const attachMutation = useMutation({
@@ -147,18 +164,19 @@ export function ReservationFormsCard({
       t.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleMarkComplete = (submission: any) => {
+  const handleMarkComplete = (submission: FormSubmission) => {
     updateMutation.mutate({ id: submission.id, status: "completed" });
   };
 
   const handleSkipWithNote = () => {
     if (!selectedSubmission) return;
+    const baseResponses = isRecord(selectedSubmission.responses) ? selectedSubmission.responses : {};
     // Use void status with a skipNote in responses
     updateMutation.mutate({
       id: selectedSubmission.id,
       status: "void",
       responses: {
-        ...(selectedSubmission.responses || {}),
+        ...baseResponses,
         _skipNote: skipNote,
         _skippedAt: new Date().toISOString(),
       },
@@ -175,11 +193,10 @@ export function ReservationFormsCard({
     }
   };
 
-  const getStatusBadge = (submission: any) => {
+  const getStatusBadge = (submission: FormSubmission) => {
     const status = submission.status;
     const isRequired = submission.formTemplate?.isRequired !== false;
-    const isSkipped =
-      status === "void" && submission.responses?._skipNote;
+    const isSkipped = status === "void" && Boolean(getSkipNote(submission.responses));
 
     if (status === "completed") {
       return (
@@ -284,7 +301,7 @@ export function ReservationFormsCard({
           )}
 
           <div className="space-y-2">
-            {submissions.map((submission: any) => (
+            {submissions.map((submission) => (
               <div
                 key={submission.id}
                 className="flex items-center justify-between rounded-lg border border-border p-3 hover:bg-muted/40 transition-colors"
@@ -509,27 +526,22 @@ export function ReservationFormsCard({
               </div>
             )}
 
-            {selectedSubmission?.responses?._skipNote && (
+            {skipNoteValue && (
               <div className="p-3 bg-muted rounded-lg">
                 <div className="text-xs text-muted-foreground mb-1">Skip reason:</div>
                 <div className="text-sm">
-                  {selectedSubmission.responses._skipNote}
+                  {skipNoteValue}
                 </div>
               </div>
             )}
 
-            {selectedSubmission?.responses &&
-              Object.keys(selectedSubmission.responses).filter(
-                (k) => !k.startsWith("_")
-              ).length > 0 && (
+            {responseEntries.length > 0 && (
                 <div className="space-y-3">
                   <div className="text-xs font-medium text-muted-foreground uppercase">
                     Responses
                   </div>
                   <div className="space-y-2">
-                    {Object.entries(selectedSubmission.responses)
-                      .filter(([key]) => !key.startsWith("_"))
-                      .map(([key, value]) => (
+                    {responseEntries.map(([key, value]) => (
                         <div
                           key={key}
                           className="p-3 bg-muted rounded-lg"
@@ -545,16 +557,12 @@ export function ReservationFormsCard({
                               : String(value)}
                           </div>
                         </div>
-                      ))}
+                    ))}
                   </div>
                 </div>
               )}
 
-            {(!selectedSubmission?.responses ||
-              Object.keys(selectedSubmission.responses).filter(
-                (k) => !k.startsWith("_")
-              ).length === 0) &&
-              !selectedSubmission?.responses?._skipNote && (
+            {responseEntries.length === 0 && !skipNoteValue && (
                 <div className="text-center py-6 text-muted-foreground text-sm">
                   No responses recorded yet.
                 </div>

@@ -10,6 +10,7 @@ import { RoundUpForCharity } from "@/components/checkout/RoundUpForCharity";
 import { apiClient } from "@/lib/api-client";
 import { recordTelemetry } from "@/lib/sync-telemetry";
 import { Loader2 } from "lucide-react";
+import type { PaymentMethodType, PaymentResult } from "@/components/payments/PaymentCollectionModal/context/types";
 
 type CartItem = {
     id: string;
@@ -23,14 +24,57 @@ interface PortalCheckoutFlowProps {
     onClose: () => void;
     cart: CartItem[];
     campgroundId: string;
-    guest: any; // Using any for now, ideally Guest type
-    onSuccess: (order: any) => void;
+    guest: PortalGuest | null;
+    onSuccess: (order: StoreOrder) => void;
     isOnline: boolean;
-    queueOrder: (payload: any) => void;
+    queueOrder: (payload: StoreOrderPayload) => void;
     onQueued: () => void;
 }
 
 type FulfillmentType = "pickup" | "curbside" | "delivery" | "table_service";
+type OrderPaymentMethod = PaymentMethodType | "charge_to_site";
+
+type GuestReservation = {
+    status?: string | null;
+    site?: { siteNumber?: string | null } | null;
+};
+
+type PortalGuest = {
+    id?: string | null;
+    email?: string | null;
+    primaryFirstName?: string | null;
+    primaryLastName?: string | null;
+    reservations?: GuestReservation[];
+};
+
+type StoreOrderPayload = {
+    items: Array<{
+        productId: string;
+        qty: number;
+    }>;
+    paymentMethod: OrderPaymentMethod;
+    channel: "online";
+    fulfillmentType: FulfillmentType;
+    guestId?: string;
+    paymentId?: string;
+    siteNumber?: string;
+    deliveryInstructions?: string;
+    charityDonation?: {
+        charityId: string;
+        amountCents: number;
+    };
+};
+
+type StoreOrder = Awaited<ReturnType<typeof apiClient.createStoreOrder>>;
+
+type CharityDonation = {
+    optedIn: boolean;
+    amountCents: number;
+    charityId: string | null;
+};
+
+const getErrorMessage = (err: unknown) =>
+    err instanceof Error ? err.message : "Failed to create order";
 
 export function PortalCheckoutFlow({
     isOpen,
@@ -50,11 +94,11 @@ export function PortalCheckoutFlow({
     const [fulfillment, setFulfillment] = useState<FulfillmentType>("delivery");
     const [instructions, setInstructions] = useState("");
     const [locationHint, setLocationHint] = useState("");
-    const [charityDonation, setCharityDonation] = useState<{
-        optedIn: boolean;
-        amountCents: number;
-        charityId: string | null;
-    }>({ optedIn: false, amountCents: 0, charityId: null });
+    const [charityDonation, setCharityDonation] = useState<CharityDonation>({
+        optedIn: false,
+        amountCents: 0,
+        charityId: null
+    });
 
     // Error handling
     const [error, setError] = useState<string | null>(null);
@@ -62,7 +106,7 @@ export function PortalCheckoutFlow({
 
     // Find active reservation
     const currentReservation = guest?.reservations?.find(
-        (r: any) => r.status === "checked_in" || r.status === "confirmed"
+        (reservation) => reservation.status === "checked_in" || reservation.status === "confirmed"
     );
 
     // Reset state when modal opens/closes
@@ -91,21 +135,21 @@ export function PortalCheckoutFlow({
         setStep("payment");
     };
 
-    const handlePaymentSuccess = async (paymentResult: any) => {
+    const handlePaymentSuccess = async (paymentResult: PaymentResult) => {
         setLoading(true);
         setError(null);
 
         try {
             // Build order payload with payment result
-            const payload: any = {
+            const payload: StoreOrderPayload = {
                 items: cart.map(item => ({
                     productId: item.id,
                     qty: item.qty,
                 })),
-                paymentMethod: paymentResult.payments?.[0]?.method || "card",
+                paymentMethod: paymentResult.payments?.[0]?.method ?? "card",
                 channel: "online",
                 fulfillmentType: fulfillment,
-                guestId: guest?.id,
+                guestId: guest?.id ?? undefined,
             };
 
             // Add payment reference if available
@@ -143,15 +187,15 @@ export function PortalCheckoutFlow({
             });
 
             onSuccess(order);
-        } catch (err: any) {
+        } catch (err) {
             console.error(err);
-            setError(err.message || "Failed to create order");
+            setError(getErrorMessage(err));
             recordTelemetry({
                 source: "portal-store",
                 type: "error",
                 status: "failed",
                 message: "Order creation failed after payment",
-                meta: { error: err?.message },
+                meta: { error: getErrorMessage(err) },
             });
         } finally {
             setLoading(false);
@@ -160,7 +204,7 @@ export function PortalCheckoutFlow({
 
     // Handle offline queue
     const handleOfflineQueue = () => {
-        const payload: any = {
+        const payload: StoreOrderPayload = {
             items: cart.map(item => ({
                 productId: item.id,
                 qty: item.qty,
@@ -168,7 +212,7 @@ export function PortalCheckoutFlow({
             paymentMethod: "charge_to_site",
             channel: "online",
             fulfillmentType: fulfillment,
-            guestId: guest?.id,
+            guestId: guest?.id ?? undefined,
         };
 
         if (locationHint) {
@@ -356,8 +400,8 @@ export function PortalCheckoutFlow({
             amountDueCents={totalCents}
             subject={{ type: "cart", items: cart }}
             context="portal"
-            guestId={guest?.id}
-            guestEmail={guest?.email}
+            guestId={guest?.id ?? undefined}
+            guestEmail={guest?.email ?? undefined}
             guestName={guest?.primaryFirstName ? `${guest.primaryFirstName} ${guest.primaryLastName || ""}`.trim() : undefined}
             enableSplitTender={false}
             enableCharityRoundUp={false} // Already handled in config step

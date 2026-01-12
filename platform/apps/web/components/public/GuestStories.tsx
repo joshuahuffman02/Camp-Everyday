@@ -18,6 +18,7 @@ export function GuestStories({ className, variant = "warm" }: GuestStoriesProps)
   const ref = useRef<HTMLElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-50px" });
   const prefersReducedMotion = useReducedMotionSafe();
+  const easeOut: "easeOut" = "easeOut";
   const campgroundsQuery = useQuery({
     queryKey: ["public-campgrounds"],
     queryFn: () => apiClient.getPublicCampgrounds(),
@@ -129,7 +130,7 @@ export function GuestStories({ className, variant = "warm" }: GuestStoriesProps)
     visible: {
       opacity: 1,
       y: 0,
-      transition: prefersReducedMotion ? undefined : { duration: 0.5, ease: "easeOut" as const },
+      transition: prefersReducedMotion ? undefined : { duration: 0.5, ease: easeOut },
     },
   };
 

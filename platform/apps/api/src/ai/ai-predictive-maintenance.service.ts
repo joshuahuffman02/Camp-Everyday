@@ -1,7 +1,10 @@
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { OpTaskCategory } from "@prisma/client";
+import type { AiMaintenanceAlert, Prisma } from "@prisma/client";
 import { Cron } from "@nestjs/schedule";
 import { PrismaService } from "../prisma/prisma.service";
 import { AiAutopilotConfigService } from "./ai-autopilot-config.service";
+import { randomUUID } from "crypto";
 
 /**
  * AI Predictive Maintenance Service
@@ -11,6 +14,14 @@ import { AiAutopilotConfigService } from "./ai-autopilot-config.service";
  * - Predict failures before they happen
  * - Suggest preventive maintenance
  */
+
+const incidentInclude = { Site: true } satisfies Prisma.OpTaskInclude;
+const complaintInclude = {
+  Reservation: { include: { Site: true } },
+} satisfies Prisma.CommunicationInclude;
+
+type IncidentPayload = Prisma.OpTaskGetPayload<{ include: typeof incidentInclude }>;
+type ComplaintPayload = Prisma.CommunicationGetPayload<{ include: typeof complaintInclude }>;
 
 @Injectable()
 export class AiPredictiveMaintenanceService {
@@ -35,7 +46,7 @@ export class AiPredictiveMaintenanceService {
   ) {
     const { status, severity, category, siteId, limit = 50 } = options;
 
-    const where: any = { campgroundId };
+    const where: Prisma.AiMaintenanceAlertWhereInput = { campgroundId };
     if (status) where.status = status;
     if (severity) where.severity = severity;
     if (category) where.category = category;
@@ -69,7 +80,7 @@ export class AiPredictiveMaintenanceService {
       return [];
     }
 
-    const alerts: any[] = [];
+    const alerts: AiMaintenanceAlert[] = [];
 
     // Get incidents from last 90 days
     const past90Days = new Date();
@@ -80,13 +91,16 @@ export class AiPredictiveMaintenanceService {
       where: {
         campgroundId,
         category: {
-          in: ["maintenance", "repair", "inspection", "cleaning"],
+          in: [
+            OpTaskCategory.maintenance,
+            OpTaskCategory.inspection,
+            OpTaskCategory.housekeeping,
+            OpTaskCategory.turnover,
+          ],
         },
         createdAt: { gte: past90Days },
       },
-      include: {
-        site: true,
-      },
+      include: incidentInclude,
     });
 
     // Also check guest communications for complaints
@@ -103,9 +117,7 @@ export class AiPredictiveMaintenanceService {
           { body: { contains: "complaint", mode: "insensitive" } },
         ],
       },
-      include: {
-        reservation: { include: { Site: true } },
-      },
+      include: complaintInclude,
     });
 
     // Group by site and category
@@ -133,6 +145,7 @@ export class AiPredictiveMaintenanceService {
 
         const alert = await this.prisma.aiMaintenanceAlert.create({
           data: {
+            id: randomUUID(),
             campgroundId,
             siteId: pattern.siteId,
             alertType: "pattern_detected",
@@ -145,6 +158,7 @@ export class AiPredictiveMaintenanceService {
             confidence: Math.min(0.95, 0.5 + pattern.count * 0.1),
             suggestedAction,
             estimatedCostCents: this.estimateRepairCost(pattern.category),
+            updatedAt: new Date(),
           },
         });
 
@@ -163,8 +177,8 @@ export class AiPredictiveMaintenanceService {
    * Group incidents into patterns
    */
   private groupIncidentPatterns(
-    incidents: any[],
-    complaints: any[]
+    incidents: IncidentPayload[],
+    complaints: ComplaintPayload[]
   ): Array<{
     siteId: string;
     siteName: string;
@@ -195,7 +209,7 @@ export class AiPredictiveMaintenanceService {
       if (!patterns.has(key)) {
         patterns.set(key, {
           siteId: incident.siteId,
-          siteName: incident.site?.name || "Unknown Site",
+          siteName: incident.Site?.name || "Unknown Site",
           category,
           count: 0,
           incidentIds: [],
@@ -213,7 +227,7 @@ export class AiPredictiveMaintenanceService {
 
     // Process complaints
     for (const complaint of complaints) {
-      const siteId = complaint.reservation?.siteId;
+      const siteId = complaint.Reservation?.siteId;
       if (!siteId) continue;
 
       const category = this.detectCategoryFromText(complaint.body || "");
@@ -224,7 +238,7 @@ export class AiPredictiveMaintenanceService {
       if (!patterns.has(key)) {
         patterns.set(key, {
           siteId,
-          siteName: complaint.reservation?.site?.name || "Unknown Site",
+          siteName: complaint.Reservation?.Site?.name || "Unknown Site",
           category,
           count: 0,
           incidentIds: [],
@@ -460,21 +474,15 @@ export class AiPredictiveMaintenanceService {
       select: { severity: true, category: true, status: true },
     });
 
-    const bySeverity = alerts.reduce(
-      (acc, a) => {
-        acc[a.severity] = (acc[a.severity] || 0) + 1;
-        return acc;
-      },
-      {} as Record<string, number>
-    );
+    const bySeverity = alerts.reduce<Record<string, number>>((acc, alert) => {
+      acc[alert.severity] = (acc[alert.severity] || 0) + 1;
+      return acc;
+    }, {});
 
-    const byCategory = alerts.reduce(
-      (acc, a) => {
-        acc[a.category] = (acc[a.category] || 0) + 1;
-        return acc;
-      },
-      {} as Record<string, number>
-    );
+    const byCategory = alerts.reduce<Record<string, number>>((acc, alert) => {
+      acc[alert.category] = (acc[alert.category] || 0) + 1;
+      return acc;
+    }, {});
 
     return {
       activeAlerts: alerts.length,

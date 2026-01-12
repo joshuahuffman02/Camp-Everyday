@@ -2,20 +2,23 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useEffect, useState } from "react";
+import type { TooltipProps } from "recharts";
 
 // Dynamic import for recharts to reduce initial bundle size
-let LineChart: any = null;
-let Line: any = null;
-let AreaChart: any = null;
-let Area: any = null;
-let BarChart: any = null;
-let Bar: any = null;
-let XAxis: any = null;
-let YAxis: any = null;
-let CartesianGrid: any = null;
-let Tooltip: any = null;
-let ResponsiveContainer: any = null;
-let Legend: any = null;
+type RechartsModule = typeof import("recharts");
+
+let LineChart: RechartsModule["LineChart"] | null = null;
+let Line: RechartsModule["Line"] | null = null;
+let AreaChart: RechartsModule["AreaChart"] | null = null;
+let Area: RechartsModule["Area"] | null = null;
+let BarChart: RechartsModule["BarChart"] | null = null;
+let Bar: RechartsModule["Bar"] | null = null;
+let XAxis: RechartsModule["XAxis"] | null = null;
+let YAxis: RechartsModule["YAxis"] | null = null;
+let CartesianGrid: RechartsModule["CartesianGrid"] | null = null;
+let Tooltip: RechartsModule["Tooltip"] | null = null;
+let ResponsiveContainer: RechartsModule["ResponsiveContainer"] | null = null;
+let Legend: RechartsModule["Legend"] | null = null;
 
 const loadRecharts = async () => {
   if (!LineChart) {
@@ -39,7 +42,7 @@ const loadRecharts = async () => {
 interface TrendChartProps {
   title: string;
   description?: string;
-  data: any[];
+  data: Array<Record<string, number | string | null>>;
   dataKeys: {
     key: string;
     color: string;
@@ -103,16 +106,52 @@ export function TrendChart({
     );
   }
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  if (
+    !LineChart ||
+    !Line ||
+    !AreaChart ||
+    !Area ||
+    !BarChart ||
+    !Bar ||
+    !XAxis ||
+    !YAxis ||
+    !CartesianGrid ||
+    !Tooltip ||
+    !ResponsiveContainer ||
+    !Legend
+  ) {
+    return null;
+  }
+
+  const LineChartComponent = LineChart;
+  const LineComponent = Line;
+  const AreaChartComponent = AreaChart;
+  const AreaComponent = Area;
+  const BarChartComponent = BarChart;
+  const BarComponent = Bar;
+  const XAxisComponent = XAxis;
+  const YAxisComponent = YAxis;
+  const CartesianGridComponent = CartesianGrid;
+  const TooltipComponent = Tooltip;
+  const ResponsiveContainerComponent = ResponsiveContainer;
+  const LegendComponent = Legend;
+
+  const CustomTooltip = ({ active, payload, label }: TooltipProps<number, string>) => {
     if (active && payload && payload.length) {
       return (
         <div className="bg-muted border border-border rounded-lg p-3 shadow-lg">
           <p className="text-muted-foreground text-sm mb-2">{label}</p>
-          {payload.map((entry: any, index: number) => (
-            <p key={index} className="text-sm" style={{ color: entry.color }}>
-              {entry.name}: {formatTooltip(entry.value)}
-            </p>
-          ))}
+          {payload.map((entry, index) => {
+            const rawValue = typeof entry.value === "number" ? entry.value : Number(entry.value);
+            const safeValue = Number.isFinite(rawValue) ? rawValue : 0;
+            const color = typeof entry.color === "string" ? entry.color : "#94a3b8";
+            const name = entry.name ?? entry.dataKey ?? "Value";
+            return (
+              <p key={index} className="text-sm" style={{ color }}>
+                {name}: {formatTooltip(safeValue)}
+              </p>
+            );
+          })}
         </div>
       );
     }
@@ -128,19 +167,19 @@ export function TrendChart({
     switch (type) {
       case "area":
         return (
-          <AreaChart {...commonProps}>
-            {showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#334155" />}
-            <XAxis dataKey={xAxisKey} tick={{ fill: "#94a3b8", fontSize: 12 }} stroke="#475569" />
-            <YAxis
+          <AreaChartComponent {...commonProps}>
+            {showGrid && <CartesianGridComponent strokeDasharray="3 3" stroke="#334155" />}
+            <XAxisComponent dataKey={xAxisKey} tick={{ fill: "#94a3b8", fontSize: 12 }} stroke="#475569" />
+            <YAxisComponent
               tick={{ fill: "#94a3b8", fontSize: 12 }}
               stroke="#475569"
               tickFormatter={formatYAxis}
               label={yAxisLabel ? { value: yAxisLabel, angle: -90, position: "insideLeft", style: { textAnchor: "middle", fill: "#94a3b8", fontSize: 12 } } : undefined}
             />
-            <Tooltip content={<CustomTooltip />} />
-            {showLegend && <Legend wrapperStyle={{ paddingTop: 10 }} />}
+            <TooltipComponent content={<CustomTooltip />} />
+            {showLegend && <LegendComponent wrapperStyle={{ paddingTop: 10 }} />}
             {dataKeys.map((dk) => (
-              <Area
+              <AreaComponent
                 key={dk.key}
                 type="monotone"
                 dataKey={dk.key}
@@ -151,43 +190,43 @@ export function TrendChart({
                 strokeWidth={2}
               />
             ))}
-          </AreaChart>
+          </AreaChartComponent>
         );
 
       case "bar":
         return (
-          <BarChart {...commonProps}>
-            {showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#334155" />}
-            <XAxis dataKey={xAxisKey} tick={{ fill: "#94a3b8", fontSize: 12 }} stroke="#475569" />
-            <YAxis
+          <BarChartComponent {...commonProps}>
+            {showGrid && <CartesianGridComponent strokeDasharray="3 3" stroke="#334155" />}
+            <XAxisComponent dataKey={xAxisKey} tick={{ fill: "#94a3b8", fontSize: 12 }} stroke="#475569" />
+            <YAxisComponent
               tick={{ fill: "#94a3b8", fontSize: 12 }}
               stroke="#475569"
               tickFormatter={formatYAxis}
               label={yAxisLabel ? { value: yAxisLabel, angle: -90, position: "insideLeft", style: { textAnchor: "middle", fill: "#94a3b8", fontSize: 12 } } : undefined}
             />
-            <Tooltip content={<CustomTooltip />} />
-            {showLegend && <Legend wrapperStyle={{ paddingTop: 10 }} />}
+            <TooltipComponent content={<CustomTooltip />} />
+            {showLegend && <LegendComponent wrapperStyle={{ paddingTop: 10 }} />}
             {dataKeys.map((dk) => (
-              <Bar key={dk.key} dataKey={dk.key} name={dk.name || dk.key} fill={dk.color} radius={[4, 4, 0, 0]} />
+              <BarComponent key={dk.key} dataKey={dk.key} name={dk.name || dk.key} fill={dk.color} radius={[4, 4, 0, 0]} />
             ))}
-          </BarChart>
+          </BarChartComponent>
         );
 
       default:
         return (
-          <LineChart {...commonProps}>
-            {showGrid && <CartesianGrid strokeDasharray="3 3" stroke="#334155" />}
-            <XAxis dataKey={xAxisKey} tick={{ fill: "#94a3b8", fontSize: 12 }} stroke="#475569" />
-            <YAxis
+          <LineChartComponent {...commonProps}>
+            {showGrid && <CartesianGridComponent strokeDasharray="3 3" stroke="#334155" />}
+            <XAxisComponent dataKey={xAxisKey} tick={{ fill: "#94a3b8", fontSize: 12 }} stroke="#475569" />
+            <YAxisComponent
               tick={{ fill: "#94a3b8", fontSize: 12 }}
               stroke="#475569"
               tickFormatter={formatYAxis}
               label={yAxisLabel ? { value: yAxisLabel, angle: -90, position: "insideLeft", style: { textAnchor: "middle", fill: "#94a3b8", fontSize: 12 } } : undefined}
             />
-            <Tooltip content={<CustomTooltip />} />
-            {showLegend && <Legend wrapperStyle={{ paddingTop: 10 }} />}
+            <TooltipComponent content={<CustomTooltip />} />
+            {showLegend && <LegendComponent wrapperStyle={{ paddingTop: 10 }} />}
             {dataKeys.map((dk) => (
-              <Line
+              <LineComponent
                 key={dk.key}
                 type="monotone"
                 dataKey={dk.key}
@@ -198,7 +237,7 @@ export function TrendChart({
                 activeDot={{ r: 4 }}
               />
             ))}
-          </LineChart>
+          </LineChartComponent>
         );
     }
   };
@@ -210,9 +249,9 @@ export function TrendChart({
         {description && <p className="text-sm text-muted-foreground">{description}</p>}
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={height}>
+        <ResponsiveContainerComponent width="100%" height={height}>
           {renderChart()}
-        </ResponsiveContainer>
+        </ResponsiveContainerComponent>
       </CardContent>
     </Card>
   );

@@ -1,7 +1,12 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateGuestDto } from "./dto/create-guest.dto";
 import { AuditService } from "../audit/audit.service";
+import { randomUUID } from "crypto";
+
+const getCampgroundIdFromTags = (tags?: string[] | null) =>
+  tags?.find((tag) => tag.startsWith("campground:"))?.replace("campground:", "");
 
 @Injectable()
 export class GuestsService {
@@ -11,22 +16,21 @@ export class GuestsService {
   ) { }
 
   findOne(id: string, campgroundId?: string) {
-    const campgroundTag = campgroundId ? `campground:${campgroundId}` : null;
     return this.prisma.guest.findFirst({
       where: {
         id,
         ...(campgroundId
           ? {
               OR: [
-                { reservations: { some: { campgroundId } } },
-                { tags: { has: campgroundTag } }
+                { Reservation: { some: { campgroundId } } },
+                { tags: { has: `campground:${campgroundId}` } }
               ]
             }
           : {})
       },
       include: {
-        loyaltyProfile: true,
-        reservations: {
+        LoyaltyProfile: true,
+        Reservation: {
           orderBy: { arrivalDate: "desc" },
           ...(campgroundId ? { where: { campgroundId } } : {}),
           include: {
@@ -44,17 +48,17 @@ export class GuestsService {
     return this.prisma.guest.findMany({
       where: options?.search ? {
         OR: [
-          { primaryFirstName: { contains: options.search, mode: 'insensitive' } },
-          { primaryLastName: { contains: options.search, mode: 'insensitive' } },
-          { email: { contains: options.search, mode: 'insensitive' } }
+          { primaryFirstName: { contains: options.search, mode: Prisma.QueryMode.insensitive } },
+          { primaryLastName: { contains: options.search, mode: Prisma.QueryMode.insensitive } },
+          { email: { contains: options.search, mode: Prisma.QueryMode.insensitive } }
         ]
       } : undefined,
       orderBy: { primaryLastName: "asc" },
       take: limit,
       skip: offset,
       include: {
-        loyaltyProfile: true,
-        reservations: {
+        LoyaltyProfile: true,
+        Reservation: {
           orderBy: { departureDate: "desc" },
           take: 1,
           select: {
@@ -81,15 +85,15 @@ export class GuestsService {
         AND: [
           {
             OR: [
-              { reservations: { some: { campgroundId } } },
+              { Reservation: { some: { campgroundId } } },
               { tags: { has: campgroundTag } }
             ]
           },
           ...(options?.search ? [{
             OR: [
-              { primaryFirstName: { contains: options.search, mode: 'insensitive' as const } },
-              { primaryLastName: { contains: options.search, mode: 'insensitive' as const } },
-              { email: { contains: options.search, mode: 'insensitive' as const } }
+              { primaryFirstName: { contains: options.search, mode: Prisma.QueryMode.insensitive } },
+              { primaryLastName: { contains: options.search, mode: Prisma.QueryMode.insensitive } },
+              { email: { contains: options.search, mode: Prisma.QueryMode.insensitive } }
             ]
           }] : [])
         ]
@@ -98,8 +102,8 @@ export class GuestsService {
       take: limit,
       skip: offset,
       include: {
-        loyaltyProfile: true,
-        reservations: {
+        LoyaltyProfile: true,
+        Reservation: {
           orderBy: { departureDate: "desc" },
           take: 1,
           where: { campgroundId },
@@ -115,13 +119,13 @@ export class GuestsService {
   }
 
   async create(data: CreateGuestDto, options?: { actorId?: string; campgroundId?: string }) {
-    const { rigLength, repeatStays, tags, ...rest } = data as any;
+    const { rigLength, repeatStays, tags, ...rest } = data;
     const emailNormalized = rest.email ? rest.email.trim().toLowerCase() : null;
     const phoneNormalized = rest.phone ? rest.phone.replace(/\D/g, "").slice(-10) : null;
     const incomingTags = Array.isArray(tags) ? tags.filter((tag) => typeof tag === "string" && tag.trim()) : [];
 
     // Extract campgroundId from tags if not provided
-    const campgroundId = options?.campgroundId || incomingTags.find((t: string) => t.startsWith("campground:"))?.replace("campground:", "");
+    const campgroundId = options?.campgroundId || getCampgroundIdFromTags(incomingTags);
 
     // Global guest lookup: if email or phone already exists, reuse that guest.
     const existing = await this.prisma.guest.findFirst({
@@ -162,6 +166,7 @@ export class GuestsService {
 
     const guest = await this.prisma.guest.create({
       data: {
+        id: randomUUID(),
         ...rest,
         ...(incomingTags.length ? { tags: incomingTags } : {}),
         emailNormalized,
@@ -194,7 +199,7 @@ export class GuestsService {
   }
 
   async update(id: string, data: Partial<CreateGuestDto>, options?: { actorId?: string; campgroundId?: string }) {
-    const { rigLength, repeatStays, ...rest } = data as any;
+    const { rigLength, repeatStays, ...rest } = data;
     const emailNormalized = rest.email ? rest.email.trim().toLowerCase() : undefined;
     const phoneNormalized = rest.phone ? rest.phone.replace(/\D/g, "").slice(-10) : undefined;
 
@@ -207,14 +212,14 @@ export class GuestsService {
         ...rest,
         ...(emailNormalized !== undefined ? { emailNormalized } : {}),
         ...(phoneNormalized !== undefined ? { phoneNormalized } : {}),
-        ...(rigLength !== undefined ? { rigLength: rigLength === null ? null : Number(rigLength) } : {}),
-        ...(repeatStays !== undefined ? { repeatStays: repeatStays === null ? null : Number(repeatStays) } : {})
+        ...(rigLength !== undefined ? { rigLength: Number(rigLength) } : {}),
+        ...(repeatStays !== undefined && repeatStays !== null ? { repeatStays: Number(repeatStays) } : {})
       }
     });
 
     // Determine campgroundId from options or guest's tags
     const campgroundId = options?.campgroundId ||
-      (before?.tags as string[] | null)?.find((t) => t.startsWith("campground:"))?.replace("campground:", "");
+      getCampgroundIdFromTags(before?.tags ?? null);
 
     // Audit guest update
     if (campgroundId && before) {
@@ -230,7 +235,8 @@ export class GuestsService {
           email: before.email,
           phone: before.phone,
           rigLength: before.rigLength,
-          vehicleInfo: before.vehicleInfo,
+          vehiclePlate: before.vehiclePlate,
+          vehicleState: before.vehicleState,
           notes: before.notes
         },
         after: {
@@ -239,7 +245,8 @@ export class GuestsService {
           email: updated.email,
           phone: updated.phone,
           rigLength: updated.rigLength,
-          vehicleInfo: updated.vehicleInfo,
+          vehiclePlate: updated.vehiclePlate,
+          vehicleState: updated.vehicleState,
           notes: updated.notes
         }
       });
@@ -254,7 +261,7 @@ export class GuestsService {
 
     // Determine campgroundId from options or guest's tags
     const campgroundId = options?.campgroundId ||
-      (before?.tags as string[] | null)?.find((t) => t.startsWith("campground:"))?.replace("campground:", "");
+      getCampgroundIdFromTags(before?.tags ?? null);
 
     const deleted = await this.prisma.guest.delete({ where: { id } });
 
@@ -296,11 +303,11 @@ export class GuestsService {
     const [primary, secondary] = await Promise.all([
       this.prisma.guest.findUnique({
         where: { id: primaryId },
-        include: { loyaltyProfile: true }
+        include: { LoyaltyProfile: true }
       }),
       this.prisma.guest.findUnique({
         where: { id: secondaryId },
-        include: { loyaltyProfile: true }
+        include: { LoyaltyProfile: true }
       })
     ]);
 
@@ -308,7 +315,7 @@ export class GuestsService {
     if (!secondary) throw new NotFoundException("Secondary guest not found");
 
     const campgroundId = options?.campgroundId ||
-      (primary.tags as string[] | null)?.find((t) => t.startsWith("campground:"))?.replace("campground:", "");
+      getCampgroundIdFromTags(primary.tags);
 
     // Use a transaction to ensure data integrity
     const result = await this.prisma.$transaction(async (tx) => {
@@ -331,28 +338,27 @@ export class GuestsService {
       });
 
       // 4. Merge loyalty profiles if both exist
-      if (secondary.loyaltyProfile && primary.loyaltyProfile) {
+      if (secondary.LoyaltyProfile && primary.LoyaltyProfile) {
         // Add secondary's points to primary
         await tx.loyaltyProfile.update({
-          where: { id: primary.loyaltyProfile.id },
+          where: { id: primary.LoyaltyProfile.id },
           data: {
-            pointsBalance: primary.loyaltyProfile.pointsBalance + secondary.loyaltyProfile.pointsBalance,
-            lifetimePoints: primary.loyaltyProfile.lifetimePoints + secondary.loyaltyProfile.lifetimePoints
+            pointsBalance: primary.LoyaltyProfile.pointsBalance + secondary.LoyaltyProfile.pointsBalance
           }
         });
         // Delete secondary's loyalty profile
-        await tx.loyaltyProfile.delete({ where: { id: secondary.loyaltyProfile.id } });
-      } else if (secondary.loyaltyProfile && !primary.loyaltyProfile) {
+        await tx.loyaltyProfile.delete({ where: { id: secondary.LoyaltyProfile.id } });
+      } else if (secondary.LoyaltyProfile && !primary.LoyaltyProfile) {
         // Transfer loyalty profile to primary
         await tx.loyaltyProfile.update({
-          where: { id: secondary.loyaltyProfile.id },
+          where: { id: secondary.LoyaltyProfile.id },
           data: { guestId: primaryId }
         });
       }
 
       // 5. Merge tags (combine unique tags from both)
-      const primaryTags = (primary.tags as string[]) || [];
-      const secondaryTags = (secondary.tags as string[]) || [];
+      const primaryTags = primary.tags ?? [];
+      const secondaryTags = secondary.tags ?? [];
       const mergedTags = [...new Set([...primaryTags, ...secondaryTags])];
 
       // 6. Update primary guest with merged notes

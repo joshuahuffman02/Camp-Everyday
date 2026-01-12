@@ -4,6 +4,51 @@ import { UpsertIntegrationConnectionDto } from "./dto/upsert-integration-connect
 import { CreateExportJobDto } from "./dto/create-export-job.dto";
 import { SyncRequestDto } from "./dto/sync-request.dto";
 import * as crypto from "crypto";
+import { Prisma, type IntegrationConnection } from "@prisma/client";
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const getString = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+const isJsonValue = (value: unknown): value is Prisma.InputJsonValue => {
+  if (value === null) return true;
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return true;
+  }
+  if (Array.isArray(value)) {
+    return value.every(isJsonValue);
+  }
+  if (isRecord(value)) {
+    return Object.values(value).every(isJsonValue);
+  }
+  return false;
+};
+
+const toNullableJsonInput = (
+  value: unknown
+): Prisma.InputJsonValue | Prisma.NullTypes.DbNull | undefined => {
+  if (value === undefined) return undefined;
+  if (value === null) return Prisma.DbNull;
+  return isJsonValue(value) ? value : undefined;
+};
+
+const getRealmIdFromSettings = (settings: unknown): string | undefined => {
+  if (!isRecord(settings)) return undefined;
+  return getString(settings["realmId"]);
+};
+
+const getEventType = (payload: unknown): string | null => {
+  if (!isRecord(payload)) return null;
+  return getString(payload["type"]) ?? getString(payload["event"]) ?? null;
+};
+
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
+const getErrorStack = (error: unknown): string | undefined =>
+  error instanceof Error ? error.stack : undefined;
 
 @Injectable()
 export class IntegrationsService {
@@ -12,7 +57,7 @@ export class IntegrationsService {
   constructor(private readonly prisma: PrismaService) { }
 
   private prismaClient() {
-    return this.prisma as any;
+    return this.prisma;
   }
 
   upsertConnection(dto: UpsertIntegrationConnectionDto) {
@@ -27,14 +72,16 @@ export class IntegrationsService {
         }
       },
       create: {
+        id: crypto.randomUUID(),
+        updatedAt: new Date(),
         campgroundId: dto.campgroundId,
         organizationId: dto.organizationId ?? null,
         type: dto.type,
         provider: dto.provider,
         status: dto.status ?? "connected",
         authType: dto.authType ?? null,
-        credentials: dto.credentials ?? null,
-        settings: dto.settings ?? null,
+        credentials: toNullableJsonInput(dto.credentials ?? null),
+        settings: toNullableJsonInput(dto.settings ?? null),
         webhookSecret: dto.webhookSecret ?? null,
         lastSyncStatus: dto.status ?? null,
       },
@@ -42,23 +89,27 @@ export class IntegrationsService {
         organizationId: dto.organizationId ?? null,
         status: dto.status ?? undefined,
         authType: dto.authType ?? undefined,
-        credentials: dto.credentials ?? undefined,
-        settings: dto.settings ?? undefined,
+        credentials: dto.credentials === undefined ? undefined : toNullableJsonInput(dto.credentials),
+        settings: dto.settings === undefined ? undefined : toNullableJsonInput(dto.settings),
         webhookSecret: dto.webhookSecret ?? undefined,
       }
     });
   }
 
-  listConnections(campgroundId: string) {
+  async listConnections(campgroundId: string) {
     if (!campgroundId) throw new BadRequestException("campgroundId is required");
     const prisma = this.prismaClient();
-    return prisma.integrationConnection.findMany({
+    const connections = await prisma.integrationConnection.findMany({
       where: { campgroundId },
       orderBy: { updatedAt: "desc" },
       include: {
-        logs: { orderBy: { occurredAt: "desc" }, take: 1 }
+        IntegrationSyncLog: { orderBy: { occurredAt: "desc" }, take: 1 }
       }
     });
+    return connections.map(({ IntegrationSyncLog, ...rest }) => ({
+      ...rest,
+      logs: IntegrationSyncLog
+    }));
   }
 
   updateConnection(id: string, dto: Partial<UpsertIntegrationConnectionDto>) {
@@ -69,8 +120,8 @@ export class IntegrationsService {
         organizationId: dto.organizationId ?? undefined,
         status: dto.status ?? undefined,
         authType: dto.authType ?? undefined,
-        credentials: dto.credentials ?? undefined,
-        settings: dto.settings ?? undefined,
+        credentials: dto.credentials === undefined ? undefined : toNullableJsonInput(dto.credentials),
+        settings: dto.settings === undefined ? undefined : toNullableJsonInput(dto.settings),
         webhookSecret: dto.webhookSecret ?? undefined,
       }
     });
@@ -159,11 +210,20 @@ export class IntegrationsService {
   private parseOAuthState(state: string): { campgroundId: string; provider: string } | null {
     try {
       const payload = JSON.parse(Buffer.from(state, "base64url").toString());
-      // Verify state is not too old (15 min max)
-      if (Date.now() - payload.timestamp > 15 * 60 * 1000) {
+      if (!isRecord(payload)) {
         return null;
       }
-      return { campgroundId: payload.campgroundId, provider: payload.provider };
+      const timestamp = typeof payload.timestamp === "number" ? payload.timestamp : null;
+      const campgroundId = getString(payload.campgroundId);
+      const provider = getString(payload.provider);
+      if (!timestamp || !campgroundId || !provider) {
+        return null;
+      }
+      // Verify state is not too old (15 min max)
+      if (Date.now() - timestamp > 15 * 60 * 1000) {
+        return null;
+      }
+      return { campgroundId, provider };
     } catch {
       return null;
     }
@@ -272,12 +332,14 @@ export class IntegrationsService {
           }
         },
         create: {
+          id: crypto.randomUUID(),
+          updatedAt: new Date(),
           campgroundId: stateData.campgroundId,
           type: config.integrationType,
           provider,
           status: "connected",
           authType: "oauth",
-          credentials: {
+          credentials: toNullableJsonInput({
             accessToken: tokens.access_token,
             refreshToken: tokens.refresh_token,
             expiresAt: tokens.expires_in ? Date.now() + tokens.expires_in * 1000 : null,
@@ -285,20 +347,20 @@ export class IntegrationsService {
             // Provider-specific fields
             realmId: tokens.realmId, // QuickBooks
             tenantId: tokens.tenantId // Xero
-          },
-          settings: {},
+          }),
+          settings: toNullableJsonInput({}),
           lastSyncStatus: "connected"
         },
         update: {
           status: "connected",
-          credentials: {
+          credentials: toNullableJsonInput({
             accessToken: tokens.access_token,
             refreshToken: tokens.refresh_token,
             expiresAt: tokens.expires_in ? Date.now() + tokens.expires_in * 1000 : null,
             tokenType: tokens.token_type,
             realmId: tokens.realmId,
             tenantId: tokens.tenantId
-          },
+          }),
           lastSyncStatus: "connected",
           lastError: null
         }
@@ -315,9 +377,10 @@ export class IntegrationsService {
       );
 
       return { success: true, connectionId: connection.id };
-    } catch (err: any) {
-      this.logger.error(`OAuth callback error for ${provider}: ${err?.message || "unknown_error"}`, err.stack);
-      return { success: false, error: err?.message || "unknown_error" };
+    } catch (err: unknown) {
+      const message = getErrorMessage(err);
+      this.logger.error(`OAuth callback error for ${provider}: ${message}`, getErrorStack(err));
+      return { success: false, error: message || "unknown_error" };
     }
   }
 
@@ -363,23 +426,31 @@ export class IntegrationsService {
     return { items, nextCursor: hasMore ? items[items.length - 1].id : null };
   }
 
-  async recordSyncLog(connectionId: string, status: string, message?: string, payload?: any, scope?: string, direction?: string) {
+  async recordSyncLog(
+    connectionId: string,
+    status: string,
+    message?: string,
+    payload?: unknown,
+    scope?: string,
+    direction?: string
+  ) {
     const prisma = this.prismaClient();
     return prisma.integrationSyncLog.create({
       data: {
+        id: crypto.randomUUID(),
         connectionId,
         status,
         message: message ?? null,
-        payload: payload ?? null,
+        payload: toNullableJsonInput(payload ?? null),
         scope: scope ?? "accounting",
         direction: direction ?? "pull"
       }
     });
   }
 
-  private async runQboSandboxPull(connection: any, direction?: string, scope?: string) {
+  private async runQboSandboxPull(connection: IntegrationConnection, direction?: string, scope?: string) {
     const token = process.env.QBO_SANDBOX_TOKEN;
-    const realmId = (connection.settings as any)?.realmId || process.env.QBO_SANDBOX_REALMID;
+    const realmId = getRealmIdFromSettings(connection.settings) || process.env.QBO_SANDBOX_REALMID;
     const base = process.env.QBO_SANDBOX_BASE || "https://sandbox-quickbooks.api.intuit.com";
 
     if (!token || !realmId) {
@@ -400,11 +471,26 @@ export class IntegrationsService {
         return { ok: false, reason: `qbo_http_${res.status}` };
       }
       const json = await res.json();
-      const accounts = (json?.QueryResponse?.Account as any[]) || [];
+      const accounts = (() => {
+        if (!isRecord(json)) return [];
+        const queryResponse = json["QueryResponse"];
+        if (!isRecord(queryResponse)) return [];
+        const accountValue = queryResponse["Account"];
+        return Array.isArray(accountValue) ? accountValue : [];
+      })();
       const summary = {
         realmId,
         accountCount: accounts.length,
-        sample: accounts.slice(0, 3).map((a) => ({ id: a.Id, name: a.Name, type: a.AccountType }))
+        sample: accounts.slice(0, 3).map((account) => {
+          if (!isRecord(account)) {
+            return { id: "", name: "", type: "" };
+          }
+          return {
+            id: getString(account["Id"]) ?? "",
+            name: getString(account["Name"]) ?? "",
+            type: getString(account["AccountType"]) ?? ""
+          };
+        })
       };
       await this.recordSyncLog(connection.id, "success", "QBO sandbox pull complete", summary, scope ?? "accounting", direction ?? "pull");
       await this.prismaClient().integrationConnection.update({
@@ -412,13 +498,14 @@ export class IntegrationsService {
         data: { lastSyncAt: new Date(), lastSyncStatus: "success", lastError: null }
       });
       return { ok: true, summary };
-    } catch (err: any) {
-      await this.recordSyncLog(connection.id, "failed", err?.message || "QBO sandbox pull failed", null, scope ?? "accounting", direction ?? "pull");
+    } catch (err: unknown) {
+      const message = getErrorMessage(err);
+      await this.recordSyncLog(connection.id, "failed", message || "QBO sandbox pull failed", null, scope ?? "accounting", direction ?? "pull");
       await this.prismaClient().integrationConnection.update({
         where: { id: connection.id },
-        data: { lastSyncAt: new Date(), lastSyncStatus: "error", lastError: err?.message ?? "Unknown error" }
+        data: { lastSyncAt: new Date(), lastSyncStatus: "error", lastError: message || "Unknown error" }
       });
-      return { ok: false, reason: "exception", error: err?.message };
+      return { ok: false, reason: "exception", error: message };
     }
   }
 
@@ -441,17 +528,18 @@ export class IntegrationsService {
           { id: "1000", name: "Cash", type: "Asset" },
           { id: "2000", name: "Deferred Revenue", type: "Liability" },
         ],
-        realmId: (connection.settings as any)?.realmId ?? "sandbox-realm",
+        realmId: getRealmIdFromSettings(connection.settings) ?? "sandbox-realm",
         note: "Stubbed because sandbox creds/realm were missing",
       };
       await prisma.integrationSyncLog.create({
         data: {
+          id: crypto.randomUUID(),
           connectionId,
           direction: body.direction ?? "pull",
           scope: body.scope ?? "accounting",
           status: "success",
           message: "Sandbox QBO pull (stub) complete",
-          payload: samplePayload,
+          payload: toNullableJsonInput(samplePayload),
         }
       });
       await prisma.integrationConnection.update({
@@ -469,6 +557,7 @@ export class IntegrationsService {
     if (!dto.type) throw new BadRequestException("type is required");
     const job = await prisma.integrationExportJob.create({
       data: {
+        id: crypto.randomUUID(),
         type: dto.type,
         connectionId: dto.connectionId ?? null,
         campgroundId: dto.campgroundId ?? null,
@@ -476,7 +565,7 @@ export class IntegrationsService {
         status: "queued",
         location: dto.location ?? null,
         requestedById: dto.requestedById ?? null,
-        filters: dto.filters ?? null
+        filters: toNullableJsonInput(dto.filters ?? null)
       }
     });
     if (dto.connectionId) {
@@ -503,7 +592,7 @@ export class IntegrationsService {
     return { valid: isValid, reason: isValid ? undefined : 'signature_mismatch' };
   }
 
-  async handleWebhook(provider: string, body: any, rawBody: string, signature?: string, campgroundId?: string) {
+  async handleWebhook(provider: string, body: unknown, rawBody: string, signature?: string, campgroundId?: string) {
     const prisma = this.prismaClient();
     const connection = await prisma.integrationConnection.findFirst({
       where: {
@@ -517,15 +606,17 @@ export class IntegrationsService {
     const verification = this.verifyHmac(rawBody, secret || '', signature);
     const signatureValid = verification.valid;
 
+    const payload = isJsonValue(body) ? body : null;
     const event = await prisma.integrationWebhookEvent.create({
       data: {
+        id: crypto.randomUUID(),
         connectionId: connection?.id ?? null,
         provider,
-        eventType: body?.type || body?.event || null,
+        eventType: getEventType(body),
         status: signatureValid ? "received" : "failed",
         signatureValid,
         message: signatureValid ? null : `Invalid signature: ${verification.reason || 'unknown'}`,
-        payload: body ?? null,
+        payload: toNullableJsonInput(payload),
       }
     });
 
@@ -543,4 +634,3 @@ export class IntegrationsService {
     return { ok: signatureValid, connectionId: connection?.id ?? null, eventId: event.id, reason: verification.reason };
   }
 }
-

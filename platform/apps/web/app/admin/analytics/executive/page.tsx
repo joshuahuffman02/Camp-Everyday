@@ -265,7 +265,7 @@ export default function ExecutiveDashboardPage() {
             <CardContent className="p-4">
               <p className="text-xs text-muted-foreground mb-1">{kpi.label}</p>
               <p className={`text-2xl font-bold ${getStatusColor(kpi.status)}`}>
-                {formatValue(kpi.value as number, kpi.format)}
+                {formatValue(kpi.value, kpi.format)}
               </p>
               {kpi.change !== undefined && (
                 <div className="flex items-center gap-1 mt-2">

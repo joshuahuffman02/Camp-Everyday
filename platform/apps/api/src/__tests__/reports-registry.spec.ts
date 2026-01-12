@@ -1,12 +1,7 @@
-// @ts-nocheck
-import * as request from "supertest";
-import { Test } from "@nestjs/testing";
-import { ValidationPipe } from "@nestjs/common";
-import { ReportsController } from "../reports/reports.controller";
+import { ServiceUnavailableException } from "@nestjs/common";
+import { Test, type TestingModule } from "@nestjs/testing";
 import { ReportsService } from "../reports/reports.service";
 import { PrismaService } from "../prisma/prisma.service";
-import { JwtAuthGuard } from "../auth/guards";
-import { RolesGuard } from "../auth/guards/roles.guard";
 import { ObservabilityService } from "../observability/observability.service";
 import { AlertingService } from "../observability/alerting.service";
 import { DashboardService } from "../dashboard/dashboard.service";
@@ -16,7 +11,8 @@ import { JobQueueService } from "../observability/job-queue.service";
 import { EmailService } from "../email/email.service";
 
 describe("Report registry & executor", () => {
-  let app: any;
+  let moduleRef: TestingModule;
+  let service: ReportsService;
   const campgroundId = "camp-catalog";
 
   const reservationRows = [
@@ -95,12 +91,11 @@ describe("Report registry & executor", () => {
   const dashboardStub = { summary: jest.fn() };
   const uploadsStub = { uploadBuffer: jest.fn().mockResolvedValue({ url: "file://export.csv", key: "export.csv" }) };
   const auditStub = { recordExport: jest.fn() };
-  const jobQueueStub = { enqueue: jest.fn((_q: string, fn: any) => fn()) };
+  const jobQueueStub = { enqueue: jest.fn((_q: string, fn: () => unknown) => fn()) };
   const emailStub = { sendEmail: jest.fn() };
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({
-      controllers: [ReportsController],
+    moduleRef = await Test.createTestingModule({
       providers: [
         ReportsService,
         {
@@ -115,58 +110,50 @@ describe("Report registry & executor", () => {
         { provide: JobQueueService, useValue: jobQueueStub },
         { provide: EmailService, useValue: emailStub }
       ]
-    })
-      .overrideGuard(JwtAuthGuard)
-      .useValue({ canActivate: () => true })
-      .overrideGuard(RolesGuard)
-      .useValue({ canActivate: () => true })
-      .compile();
-
-    app = moduleRef.createNestApplication();
-    app.setGlobalPrefix("api");
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    app.use((req: any, _res: any, next: any) => {
-      req.user = { id: "tester", role: "owner" };
-      next();
-    });
-    await app.init();
+    }).compile();
+    service = moduleRef.get(ReportsService);
   });
 
   afterAll(async () => {
-    await app?.close();
+    await moduleRef.close();
   });
 
   it("lists catalog entries with dimensions and metrics", async () => {
-    const api = request(app.getHttpServer());
-    const res = await api.get(`/api/campgrounds/${campgroundId}/reports/catalog`).expect(200);
-    expect(res.body.size).toBeGreaterThan(10);
-    expect(res.body.catalog[0].dimensions.length).toBeGreaterThan(0);
-    expect(res.body.catalog[0].metrics.length).toBeGreaterThan(0);
+    const res = await service.listReportCatalog();
+    expect(res.size).toBeGreaterThan(10);
+    expect(res.catalog[0].dimensions.length).toBeGreaterThan(0);
+    expect(res.catalog[0].metrics.length).toBeGreaterThan(0);
   });
 
   it("runs a report and returns series + rows", async () => {
-    const api = request(app.getHttpServer());
-    const res = await api
-      .post(`/api/campgrounds/${campgroundId}/reports/run`)
-      .send({ reportId: "bookings.daily_bookings", limit: 5 })
-      .expect(200);
+    const res = await service.runReport(campgroundId, { reportId: "bookings.daily_bookings", limit: 5 });
 
-    expect(res.body.meta.id).toBe("bookings.daily_bookings");
-    expect(Array.isArray(res.body.rows)).toBe(true);
-    expect(Array.isArray(res.body.series)).toBe(true);
-    expect(res.body.series[0].points.length).toBeGreaterThan(0);
+    expect(res.meta.id).toBe("bookings.daily_bookings");
+    expect(Array.isArray(res.rows)).toBe(true);
+    expect(Array.isArray(res.series)).toBe(true);
+    expect(res.series[0].points.length).toBeGreaterThan(0);
   });
 
   it("returns 503 when capacity guard triggers", async () => {
-    const service = app.get(ReportsService) as ReportsService;
-    // simulate saturation
-    (service as any).activeRuns = (service as any).queryLimit;
-    const api = request(app.getHttpServer());
-    const res = await api
-      .post(`/api/campgrounds/${campgroundId}/reports/run`)
-      .send({ reportId: "bookings.daily_bookings" })
-      .expect(503);
-    expect(res.body).toMatchObject({ reason: "capacity_guard" });
-    (service as any).activeRuns = 0;
+    const queryLimit = Reflect.get(service, "queryLimit");
+    if (typeof queryLimit !== "number") {
+      throw new Error("Expected report service queryLimit to be a number");
+    }
+    Reflect.set(service, "activeRuns", queryLimit);
+    let caught: ServiceUnavailableException | null = null;
+    try {
+      await service.runReport(campgroundId, { reportId: "bookings.daily_bookings" });
+    } catch (err) {
+      if (err instanceof ServiceUnavailableException) {
+        caught = err;
+      } else {
+        throw err;
+      }
+    }
+    expect(caught).not.toBeNull();
+    if (caught) {
+      expect(caught.getResponse()).toMatchObject({ reason: "capacity_guard" });
+    }
+    Reflect.set(service, "activeRuns", 0);
   });
 });

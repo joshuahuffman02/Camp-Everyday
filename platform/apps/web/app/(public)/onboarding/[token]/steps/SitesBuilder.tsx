@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
-interface SiteClass {
+export interface SiteClass {
   id: string;
   name: string;
   siteType: string;
@@ -40,7 +40,7 @@ interface SiteClass {
   electricAmps?: number[];
 }
 
-interface SiteData {
+export interface SiteData {
   id?: string;
   name: string;
   siteNumber: string;
@@ -58,8 +58,8 @@ interface SitesBuilderProps {
   isLoading?: boolean;
 }
 
-const SPRING_CONFIG = {
-  type: "spring" as const,
+const SPRING_CONFIG: { type: "spring"; stiffness: number; damping: number } = {
+  type: "spring",
   stiffness: 300,
   damping: 25,
 };
@@ -316,15 +316,12 @@ export function SitesBuilder({
   };
 
   // Group sites by class for display
-  const sitesByClass = sites.reduce(
-    (acc, site) => {
-      const classId = site.siteClassId;
-      if (!acc[classId]) acc[classId] = [];
-      acc[classId].push(site);
-      return acc;
-    },
-    {} as Record<string, SiteData[]>
-  );
+  const sitesByClass = sites.reduce<Record<string, SiteData[]>>((acc, site) => {
+    const classId = site.siteClassId;
+    if (!acc[classId]) acc[classId] = [];
+    acc[classId].push(site);
+    return acc;
+  }, {});
 
   return (
     <div className="max-w-3xl">

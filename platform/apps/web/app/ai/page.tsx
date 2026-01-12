@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, type Transition } from "framer-motion";
 import { apiClient } from "@/lib/api-client";
 import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -48,55 +48,59 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 
-const SPRING_CONFIG = {
-  type: "spring" as const,
-  stiffness: 300,
-  damping: 25,
-};
-
-type ActivityItem = {
-  id: string;
-  type: string;
-  title: string;
-  subtitle?: string;
+type Campground = Awaited<ReturnType<typeof apiClient.getCampgrounds>>[number];
+type DashboardData = Awaited<ReturnType<typeof apiClient.getAiDashboard>>;
+type DashboardMetrics = DashboardData["metrics"];
+type ActivityItem = Awaited<ReturnType<typeof apiClient.getAiActivityFeed>>[number] & {
   description?: string;
-  timestamp: string;
-  icon?: string;
-  color?: string;
   status?: "success" | "pending" | "warning" | "error";
   metadata?: Record<string, unknown>;
   reversible?: boolean;
 };
-
-type DashboardMetrics = {
-  messagesHandled: number;
-  messagesAutoSent: number;
-  risksIdentified: number;
-  pricingSuggestions: number;
-  phoneCallsHandled: number;
-  estimatedRevenueSaved: number;
-  aiCostCents: number;
-  periodStart: string;
-  periodEnd: string;
-};
-
-type AutopilotConfig = {
-  autoReplyEnabled?: boolean;
+type AutopilotConfig = Awaited<ReturnType<typeof apiClient.getAutopilotConfig>> & {
   autoReplyAutoSendEnabled?: boolean;
-  smartWaitlistEnabled?: boolean;
   waitlistAutoOfferEnabled?: boolean;
-  anomalyDetectionEnabled?: boolean;
   anomalyAutoFixEnabled?: boolean;
-  noShowPredictionEnabled?: boolean;
   noShowAutoReleaseEnabled?: boolean;
   dynamicPricingAiEnabled?: boolean;
   predictiveMaintenanceEnabled?: boolean;
-  weatherAlertsEnabled?: boolean;
   phoneAgentEnabled?: boolean;
-  [key: string]: boolean | string | number | undefined;
+  [key: string]: boolean | string | number | string[] | undefined;
 };
 
-const featureCards = [
+const SPRING_CONFIG: Transition = {
+  type: "spring",
+  stiffness: 300,
+  damping: 25,
+};
+
+type AutopilotToggleKey =
+  | "autoReplyEnabled"
+  | "smartWaitlistEnabled"
+  | "anomalyDetectionEnabled"
+  | "noShowPredictionEnabled"
+  | "dynamicPricingAiEnabled"
+  | "predictiveMaintenanceEnabled"
+  | "weatherAlertsEnabled"
+  | "phoneAgentEnabled"
+  | "autoReplyAutoSendEnabled"
+  | "waitlistAutoOfferEnabled"
+  | "anomalyAutoFixEnabled"
+  | "noShowAutoReleaseEnabled";
+
+type FeatureStatKey = keyof DashboardMetrics | "featuresEnabled" | "weatherActive";
+type FeatureCard = {
+  id: string;
+  title: string;
+  description: string;
+  icon: typeof DollarSign;
+  href: string;
+  color: string;
+  configKey?: AutopilotToggleKey;
+  stats: { label: string; key: FeatureStatKey; format?: "currency" };
+};
+
+const featureCards: FeatureCard[] = [
   {
     id: "pricing",
     title: "Dynamic Pricing",
@@ -114,7 +118,7 @@ const featureCards = [
     icon: TrendingUp,
     href: "/ai/revenue",
     color: "bg-status-info-bg text-status-info-text border border-status-info-border",
-    stats: { label: "Revenue Saved", key: "estimatedRevenueSaved", format: "currency" },
+    stats: { label: "Revenue Saved", key: "estimatedRevenueSavedCents", format: "currency" },
   },
   {
     id: "phone",
@@ -201,55 +205,66 @@ export default function AICommandCenterPage() {
   const queryClient = useQueryClient();
 
   // Get campground
-  const { data: campgrounds = [] } = useQuery({
+  const { data: campgrounds = [] } = useQuery<Campground[]>({
     queryKey: ["campgrounds"],
     queryFn: () => apiClient.getCampgrounds(),
   });
   const campground = campgrounds[0];
+  const campgroundId = campground?.id;
+  const requireCampgroundId = () => {
+    if (!campgroundId) {
+      throw new Error("Campground is required");
+    }
+    return campgroundId;
+  };
 
   // Get AI dashboard metrics
-  const { data: dashboard, isLoading: loadingDashboard, refetch: refetchDashboard } = useQuery({
-    queryKey: ["ai-dashboard", campground?.id],
-    queryFn: () => apiClient.getAiDashboard(campground!.id),
-    enabled: !!campground?.id,
+  const { data: dashboard, isLoading: loadingDashboard, refetch: refetchDashboard } = useQuery<DashboardData>({
+    queryKey: ["ai-dashboard", campgroundId],
+    queryFn: () => apiClient.getAiDashboard(requireCampgroundId()),
+    enabled: !!campgroundId,
     refetchInterval: 30000,
   });
 
   // Get AI activity feed
-  const { data: activityFeed = [], isLoading: loadingActivity, refetch: refetchActivity } = useQuery({
-    queryKey: ["ai-activity", campground?.id],
-    queryFn: () => apiClient.getAiActivityFeed(campground!.id),
-    enabled: !!campground?.id,
+  const { data: activityFeed = [], isLoading: loadingActivity, refetch: refetchActivity } = useQuery<ActivityItem[]>({
+    queryKey: ["ai-activity", campgroundId],
+    queryFn: () => apiClient.getAiActivityFeed(requireCampgroundId()),
+    enabled: !!campgroundId,
     refetchInterval: 10000,
   });
 
   // Get AI autopilot config
-  const { data: autopilotConfig, refetch: refetchConfig } = useQuery({
-    queryKey: ["ai-autopilot-config", campground?.id],
-    queryFn: () => apiClient.getAutopilotConfig(campground!.id),
-    enabled: !!campground?.id,
+  const { data: autopilotConfig, refetch: refetchConfig } = useQuery<AutopilotConfig>({
+    queryKey: ["ai-autopilot-config", campgroundId],
+    queryFn: () => apiClient.getAutopilotConfig(requireCampgroundId()),
+    enabled: !!campgroundId,
   });
 
   // Reverse autonomous action mutation
   const reverseActionMutation = useMutation({
-    mutationFn: (actionId: string) => apiClient.reverseAutonomousAction(campground!.id, actionId),
+    mutationFn: (actionId: string) => apiClient.reverseAutonomousAction(requireCampgroundId(), actionId),
     onSuccess: () => {
       toast({ title: "Action reversed", description: "The autonomous action has been reversed." });
       refetchActivity();
     },
-    onError: (error: any) => {
-      toast({ title: "Failed to reverse action", description: error.message, variant: "destructive" });
+    onError: (error) => {
+      toast({
+        title: "Failed to reverse action",
+        description: error instanceof Error ? error.message : "Unable to reverse action",
+        variant: "destructive"
+      });
     },
   });
 
-  const metrics = dashboard?.metrics as DashboardMetrics | undefined;
+  const metrics = dashboard?.metrics;
   // Calculate ROI from metrics (revenue saved / cost)
   const roiMultiple = metrics?.aiCostCents && metrics.aiCostCents > 0
-    ? (metrics.estimatedRevenueSaved || 0) / metrics.aiCostCents
+    ? (metrics.estimatedRevenueSavedCents || 0) / metrics.aiCostCents
     : null;
 
   // Calculate enabled features count
-  const config = autopilotConfig as AutopilotConfig | undefined;
+  const config = autopilotConfig;
   const enabledFeatures = config
     ? [
         config.autoReplyEnabled,
@@ -452,7 +467,7 @@ export default function AICommandCenterPage() {
                 {loadingDashboard ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
                 ) : (
-                  `$${((metrics?.estimatedRevenueSaved || 0) / 100).toLocaleString()}`
+                  `$${((metrics?.estimatedRevenueSavedCents || 0) / 100).toLocaleString()}`
                 )}
               </div>
               <p className="text-xs text-muted-foreground mt-1">Revenue Protected</p>
@@ -521,12 +536,12 @@ export default function AICommandCenterPage() {
                     statValue = enabledFeatures;
                   } else if (feature.stats.key === "weatherActive") {
                     statValue = config?.weatherAlertsEnabled ? "Active" : "Inactive";
-                  } else if (metrics && feature.stats.key in metrics) {
-                    const val = metrics[feature.stats.key as keyof DashboardMetrics];
+                  } else if (metrics) {
+                    const val = metrics[feature.stats.key];
                     if (feature.stats.format === "currency" && typeof val === "number") {
                       statValue = `$${(val / 100).toLocaleString()}`;
                     } else {
-                      statValue = val as string | number;
+                      statValue = val;
                     }
                   }
 
@@ -678,7 +693,7 @@ export default function AICommandCenterPage() {
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
-                ) : (activityFeed as ActivityItem[]).length === 0 ? (
+                ) : activityFeed.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-8 text-center">
                     <Sparkles className="h-10 w-10 text-muted-foreground/50 mb-3" />
                     <p className="font-medium text-foreground">No AI activity yet</p>
@@ -689,7 +704,7 @@ export default function AICommandCenterPage() {
                 ) : (
                   <div className="space-y-3 max-h-[600px] overflow-y-auto">
                     <AnimatePresence mode="popLayout">
-                      {(activityFeed as ActivityItem[]).map((item, index) => {
+                      {activityFeed.map((item, index) => {
                         const Icon = getActivityIcon(item.type);
                         return (
                           <motion.div
@@ -878,7 +893,7 @@ export default function AICommandCenterPage() {
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {(activityFeed as ActivityItem[])
+                      {activityFeed
                         .filter(item => ["auto_reply_sent", "waitlist_auto_offered", "site_released", "anomaly_fixed"].includes(item.type))
                         .slice(0, 10)
                         .map((item) => {
@@ -917,7 +932,7 @@ export default function AICommandCenterPage() {
                             </div>
                           );
                         })}
-                      {(activityFeed as ActivityItem[]).filter(item =>
+                      {activityFeed.filter(item =>
                         ["auto_reply_sent", "waitlist_auto_offered", "site_released", "anomaly_fixed"].includes(item.type)
                       ).length === 0 && (
                         <div className="text-center py-8 text-muted-foreground">

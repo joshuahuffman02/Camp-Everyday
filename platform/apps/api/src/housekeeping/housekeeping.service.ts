@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { TaskType, SiteType, TaskState } from '@prisma/client';
+import { TaskType, SiteType, TaskState, type Prisma } from '@prisma/client';
+import { randomUUID } from "crypto";
 import { TasksService } from '../tasks/tasks.service';
 
 @Injectable()
@@ -18,14 +19,16 @@ export class HousekeepingService {
     siteType?: SiteType;
     name: string;
     estimatedMinutes: number;
-    checklist: any;
-    suppliesNeeded?: any;
+    checklist: Prisma.InputJsonValue;
+    suppliesNeeded?: Prisma.InputJsonValue;
     priority?: number;
     slaMinutes?: number;
     requiresInspection?: boolean;
   }) {
     return this.prisma.cleaningTaskTemplate.create({
       data: {
+        id: randomUUID(),
+        updatedAt: new Date(),
         campgroundId: data.campgroundId,
         taskType: data.taskType,
         siteType: data.siteType,
@@ -62,8 +65,8 @@ export class HousekeepingService {
   async updateTemplate(id: string, data: Partial<{
     name: string;
     estimatedMinutes: number;
-    checklist: any;
-    suppliesNeeded: any;
+    checklist: Prisma.InputJsonValue;
+    suppliesNeeded: Prisma.InputJsonValue;
     priority: number;
     slaMinutes: number;
     requiresInspection: boolean;
@@ -97,6 +100,8 @@ export class HousekeepingService {
   }) {
     return this.prisma.cleaningZone.create({
       data: {
+        id: randomUUID(),
+        updatedAt: new Date(),
         campgroundId: data.campgroundId,
         name: data.name,
         zoneType: data.zoneType,
@@ -167,8 +172,8 @@ export class HousekeepingService {
         housekeepingStatus: status,
       },
       include: {
-        siteClass: true,
-        structureAttributes: true,
+        SiteClass: true,
+        StructureAttributes: true,
       },
       orderBy: [{ zone: 'asc' }, { siteNumber: 'asc' }],
     });
@@ -257,8 +262,8 @@ export class HousekeepingService {
         status: { in: ['confirmed', 'checked_in'] },
       },
       include: {
-        site: true,
-        guest: true,
+        Site: true,
+        Guest: true,
       },
     });
 
@@ -273,8 +278,8 @@ export class HousekeepingService {
         status: { in: ['confirmed', 'pending'] },
       },
       include: {
-        site: true,
-        guest: true,
+        Site: true,
+        Guest: true,
       },
     });
 
@@ -287,7 +292,7 @@ export class HousekeepingService {
         status: 'checked_in',
       },
       include: {
-        site: true,
+        Site: true,
       },
     });
 
@@ -298,7 +303,7 @@ export class HousekeepingService {
 
     // Identify priority units (early arrivals, VIPs)
     const priorityCheckins = checkins.filter(r =>
-      r.earlyCheckInApproved || r.guest.vip
+      r.earlyCheckInApproved || r.Guest?.vip
     );
 
     return {
@@ -306,16 +311,16 @@ export class HousekeepingService {
       expectedCheckouts: checkouts.map(r => ({
         reservationId: r.id,
         siteId: r.siteId,
-        siteName: r.site.name,
-        guestName: `${r.guest.primaryFirstName} ${r.guest.primaryLastName}`,
+        siteName: r.Site.name,
+        guestName: `${r.Guest?.primaryFirstName ?? ""} ${r.Guest?.primaryLastName ?? ""}`.trim(),
         checkoutTime: r.lateCheckoutRequested ?? undefined,
       })),
       expectedCheckins: checkins.map(r => ({
         reservationId: r.id,
         siteId: r.siteId,
-        siteName: r.site.name,
-        guestName: `${r.guest.primaryFirstName} ${r.guest.primaryLastName}`,
-        isVIP: r.guest.vip,
+        siteName: r.Site.name,
+        guestName: `${r.Guest?.primaryFirstName ?? ""} ${r.Guest?.primaryLastName ?? ""}`.trim(),
+        isVIP: r.Guest?.vip ?? false,
         isEarlyArrival: !!r.earlyCheckInApproved,
       })),
       stayoverServices: stayovers.length,

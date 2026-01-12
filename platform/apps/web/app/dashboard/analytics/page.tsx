@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
+import { z } from "zod";
 import {
   Activity,
   Users,
@@ -34,6 +35,16 @@ interface SessionStats {
   byDevice: Record<string, number>;
 }
 
+const SessionStatsSchema = z.object({
+  windowDays: z.number(),
+  totalSessions: z.number(),
+  avgDurationSecs: z.number(),
+  avgPageViews: z.number(),
+  avgActions: z.number(),
+  byActorType: z.record(z.number()),
+  byDevice: z.record(z.number()),
+});
+
 interface FeatureUsage {
   feature: string;
   totalUsage: number;
@@ -42,6 +53,16 @@ interface FeatureUsage {
   successRate: number;
   errorCount: number;
 }
+
+const FeatureUsageSchema = z.object({
+  feature: z.string(),
+  totalUsage: z.number(),
+  uniqueUsers: z.number(),
+  avgDuration: z.number(),
+  successRate: z.number(),
+  errorCount: z.number(),
+});
+const FeatureUsageArraySchema = z.array(FeatureUsageSchema);
 
 interface FunnelAnalysis {
   funnelName: string;
@@ -57,12 +78,33 @@ interface FunnelAnalysis {
   abandonByStep: Record<string, number>;
 }
 
+const FunnelAnalysisSchema = z.object({
+  funnelName: z.string(),
+  windowDays: z.number(),
+  total: z.number(),
+  completed: z.number(),
+  abandoned: z.number(),
+  inProgress: z.number(),
+  completionRate: z.number(),
+  abandonmentRate: z.number(),
+  avgDurationSecs: z.number(),
+  stepCompletionRates: z.array(z.number()),
+  abandonByStep: z.record(z.number()),
+});
+
 interface AnomalySummary {
   unacknowledged: number;
   last24h: number;
   last7d: number;
   bySeverity: Record<string, number>;
 }
+
+const AnomalySummarySchema = z.object({
+  unacknowledged: z.number(),
+  last24h: z.number(),
+  last7d: z.number(),
+  bySeverity: z.record(z.number()),
+});
 
 function formatDuration(seconds: number): string {
   if (seconds < 60) return `${Math.round(seconds)}s`;
@@ -83,6 +125,7 @@ export default function AnalyticsOverviewPage() {
     queryFn: async () => {
       const response = await apiClient.get<SessionStats>(`/analytics/enhanced/reports/sessions`, {
         params: { campgroundId, days: 30 },
+        schema: SessionStatsSchema,
       });
       return response.data;
     },
@@ -95,6 +138,7 @@ export default function AnalyticsOverviewPage() {
     queryFn: async () => {
       const response = await apiClient.get<FeatureUsage[]>(`/analytics/enhanced/reports/features`, {
         params: { campgroundId, days: 30 },
+        schema: FeatureUsageArraySchema,
       });
       return response.data;
     },
@@ -107,6 +151,7 @@ export default function AnalyticsOverviewPage() {
     queryFn: async () => {
       const response = await apiClient.get<FunnelAnalysis>(`/analytics/enhanced/reports/funnel`, {
         params: { campgroundId, funnelName: "booking", days: 30 },
+        schema: FunnelAnalysisSchema,
       });
       return response.data;
     },
@@ -119,6 +164,7 @@ export default function AnalyticsOverviewPage() {
     queryFn: async () => {
       const response = await apiClient.get<AnomalySummary>(`/analytics/anomalies/summary`, {
         params: { campgroundId },
+        schema: AnomalySummarySchema,
       });
       return response.data;
     },

@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { FileSpreadsheet } from "lucide-react";
 
 interface ReservationData {
+  [key: string]: string | number;
   id: string;
   guestName: string;
   siteName: string;

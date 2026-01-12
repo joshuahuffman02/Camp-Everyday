@@ -12,7 +12,8 @@ import {
     UploadedFile,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { OnboardingAiImportService, TargetEntity } from './onboarding-ai-import.service';
+import { OnboardingAiImportService, type UploadDocumentFile } from './onboarding-ai-import.service';
+import type { TargetEntity } from './document-classifier.service';
 import { OnboardingService } from '../onboarding.service';
 
 @Controller('onboarding/session/:sessionId/ai-import')
@@ -46,7 +47,7 @@ export class OnboardingAiImportController {
         @Param('sessionId') sessionId: string,
         @Headers('x-onboarding-token') tokenHeader: string,
         @Body() body: { token?: string },
-        @UploadedFile() file: Express.Multer.File,
+        @UploadedFile() file: UploadDocumentFile,
     ) {
         const token = this.getToken(tokenHeader, undefined, body.token);
 

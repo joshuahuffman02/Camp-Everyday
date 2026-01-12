@@ -1,6 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { CampgroundDataSource, Prisma } from "@prisma/client";
+import { randomUUID } from "crypto";
 
 /**
  * Seed Job Service
@@ -28,6 +29,15 @@ export interface SeedJobProgress {
   errorMessage: string | null;
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const getConfigValue = (config: unknown, key: string): string | undefined => {
+  if (!isRecord(config)) return undefined;
+  const value = config[key];
+  return typeof value === "string" ? value : undefined;
+};
+
 @Injectable()
 export class SeedJobService {
   private readonly logger = new Logger(SeedJobService.name);
@@ -38,12 +48,18 @@ export class SeedJobService {
    * Create a new seed job
    */
   async createJob(dto: CreateSeedJobDto): Promise<string> {
+    const config: Record<string, string> = {};
+    if (dto.targetState) config.targetState = dto.targetState;
+    if (dto.targetRegion) config.targetRegion = dto.targetRegion;
+    const configValue = Object.keys(config).length ? config : undefined;
+
     const job = await this.prisma.campgroundSeedJob.create({
       data: {
-        dataSource: dto.dataSource,
-        targetState: dto.targetState,
-        targetRegion: dto.targetRegion,
+        id: randomUUID(),
+        source: dto.dataSource,
         status: "pending",
+        config: configValue,
+        updatedAt: new Date(),
       },
     });
 
@@ -63,6 +79,7 @@ export class SeedJobService {
       data: {
         status: "running",
         startedAt: new Date(),
+        updatedAt: new Date(),
       },
     });
 
@@ -84,16 +101,16 @@ export class SeedJobService {
     const data: Prisma.CampgroundSeedJobUpdateInput = {};
 
     if (progress.recordsProcessed !== undefined) {
-      data.recordsProcessed = progress.recordsProcessed;
+      data.processedRecords = progress.recordsProcessed;
     }
     if (progress.recordsCreated !== undefined) {
-      data.recordsCreated = progress.recordsCreated;
+      data.createdRecords = progress.recordsCreated;
     }
     if (progress.recordsUpdated !== undefined) {
-      data.recordsUpdated = progress.recordsUpdated;
+      data.updatedRecords = progress.recordsUpdated;
     }
     if (progress.recordsFailed !== undefined) {
-      data.recordsFailed = progress.recordsFailed;
+      data.errorRecords = progress.recordsFailed;
     }
 
     await this.prisma.campgroundSeedJob.update({
@@ -119,10 +136,11 @@ export class SeedJobService {
       data: {
         status: "completed",
         completedAt: new Date(),
-        recordsProcessed: stats.recordsProcessed,
-        recordsCreated: stats.recordsCreated,
-        recordsUpdated: stats.recordsUpdated,
-        recordsFailed: stats.recordsFailed,
+        processedRecords: stats.recordsProcessed,
+        createdRecords: stats.recordsCreated,
+        updatedRecords: stats.recordsUpdated,
+        errorRecords: stats.recordsFailed,
+        updatedAt: new Date(),
       },
     });
 
@@ -140,7 +158,8 @@ export class SeedJobService {
       data: {
         status: "failed",
         completedAt: new Date(),
-        errorMessage,
+        errors: [{ message: errorMessage, at: new Date().toISOString() }],
+        updatedAt: new Date(),
       },
     });
 
@@ -161,28 +180,42 @@ export class SeedJobService {
 
     // Calculate progress percentage
     let progress = 0;
+    const targetState = getConfigValue(job.config, "targetState");
     if (job.status === "completed") {
       progress = 100;
-    } else if (job.status === "running" && job.recordsProcessed > 0) {
+    } else if (job.status === "running" && job.processedRecords > 0) {
       // Estimate based on typical state size (~500 campgrounds avg)
-      const estimatedTotal = job.targetState ? 500 : 25000;
+      const estimatedTotal = targetState ? 500 : 25000;
       progress = Math.min(
         99,
-        Math.round((job.recordsProcessed / estimatedTotal) * 100)
+        Math.round((job.processedRecords / estimatedTotal) * 100)
       );
     }
+
+    const errorMessage = (() => {
+      if (Array.isArray(job.errors) && job.errors.length > 0) {
+        const first = job.errors[0];
+        if (isRecord(first) && typeof first.message === "string") {
+          return first.message;
+        }
+      }
+      if (isRecord(job.errors) && typeof job.errors.message === "string") {
+        return job.errors.message;
+      }
+      return null;
+    })();
 
     return {
       jobId: job.id,
       status: job.status,
       progress,
-      recordsProcessed: job.recordsProcessed,
-      recordsCreated: job.recordsCreated,
-      recordsUpdated: job.recordsUpdated,
-      recordsFailed: job.recordsFailed,
+      recordsProcessed: job.processedRecords,
+      recordsCreated: job.createdRecords,
+      recordsUpdated: job.updatedRecords,
+      recordsFailed: job.errorRecords,
       startedAt: job.startedAt,
       completedAt: job.completedAt,
-      errorMessage: job.errorMessage,
+      errorMessage,
     };
   }
 
@@ -194,7 +227,7 @@ export class SeedJobService {
 
     const where: Prisma.CampgroundSeedJobWhereInput = {};
     if (dataSource) {
-      where.dataSource = dataSource;
+      where.source = dataSource;
     }
 
     return this.prisma.campgroundSeedJob.findMany({
@@ -211,14 +244,16 @@ export class SeedJobService {
     dataSource: CampgroundDataSource,
     targetState?: string
   ) {
-    return this.prisma.campgroundSeedJob.findFirst({
+    const jobs = await this.prisma.campgroundSeedJob.findMany({
       where: {
-        dataSource,
-        targetState,
+        source: dataSource,
         status: "completed",
       },
       orderBy: { completedAt: "desc" },
+      take: targetState ? 50 : 1,
     });
+    if (!targetState) return jobs[0] ?? null;
+    return jobs.find((job) => getConfigValue(job.config, "targetState") === targetState) ?? null;
   }
 
   /**
@@ -228,15 +263,16 @@ export class SeedJobService {
     dataSource: CampgroundDataSource,
     targetState?: string
   ): Promise<boolean> {
-    const runningJob = await this.prisma.campgroundSeedJob.findFirst({
+    const jobs = await this.prisma.campgroundSeedJob.findMany({
       where: {
-        dataSource,
-        targetState,
+        source: dataSource,
         status: "running",
       },
+      orderBy: { createdAt: "desc" },
+      take: targetState ? 50 : 1,
     });
-
-    return !!runningJob;
+    if (!targetState) return jobs.length > 0;
+    return jobs.some((job) => getConfigValue(job.config, "targetState") === targetState);
   }
 
   /**
@@ -258,8 +294,8 @@ export class SeedJobService {
       this.prisma.campgroundSeedJob.aggregate({
         where: { status: "completed" },
         _sum: {
-          recordsCreated: true,
-          recordsUpdated: true,
+          createdRecords: true,
+          updatedRecords: true,
         },
       }),
     ]);
@@ -269,8 +305,8 @@ export class SeedJobService {
       completedJobs: completed,
       failedJobs: failed,
       runningJobs: running,
-      totalRecordsCreated: aggregates._sum.recordsCreated || 0,
-      totalRecordsUpdated: aggregates._sum.recordsUpdated || 0,
+      totalRecordsCreated: aggregates._sum?.createdRecords ?? 0,
+      totalRecordsUpdated: aggregates._sum?.updatedRecords ?? 0,
     };
   }
 

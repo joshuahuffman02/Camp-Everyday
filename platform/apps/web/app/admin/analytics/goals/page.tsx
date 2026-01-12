@@ -59,7 +59,7 @@ interface CreateGoalForm {
   dueDate: string;
 }
 
-const metricOptions = [
+const metricOptions: Array<{ value: string; unit: CreateGoalForm["unit"]; category: CreateGoalForm["category"] }> = [
   { value: "Total Revenue", unit: "currency", category: "revenue" },
   { value: "Average Daily Rate", unit: "currency", category: "revenue" },
   { value: "NPS Score", unit: "score", category: "satisfaction" },
@@ -204,8 +204,8 @@ function CreateGoalModal({
       setForm({
         ...form,
         metric,
-        unit: option.unit as CreateGoalForm["unit"],
-        category: option.category as CreateGoalForm["category"],
+        unit: option.unit,
+        category: option.category,
       });
     }
   };

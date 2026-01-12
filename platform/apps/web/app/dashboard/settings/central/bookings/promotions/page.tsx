@@ -82,6 +82,9 @@ interface PromotionFormData {
   description: string;
 }
 
+const isPromotionType = (value: string): value is PromotionFormData["type"] =>
+  value === "percentage" || value === "flat";
+
 const defaultFormData: PromotionFormData = {
   code: "",
   type: "percentage",
@@ -186,8 +189,9 @@ export default function PromotionsPage() {
       }
       setIsModalOpen(false);
       loadPromotions(campgroundId);
-    } catch (err: any) {
-      setError(err.message || "Failed to save promotion");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to save promotion";
+      setError(message);
     } finally {
       setSaving(false);
     }
@@ -480,7 +484,11 @@ export default function PromotionsPage() {
                 <Label>Discount Type</Label>
                 <Select
                   value={formData.type}
-                  onValueChange={(val) => setFormData({ ...formData, type: val as "percentage" | "flat" })}
+                  onValueChange={(value) => {
+                    if (isPromotionType(value)) {
+                      setFormData({ ...formData, type: value });
+                    }
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue />

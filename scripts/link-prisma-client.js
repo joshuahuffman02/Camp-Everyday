@@ -57,9 +57,18 @@ function findPrismaClientFolder() {
 }
 
 function createSymlink(source, target) {
-  // Remove existing symlink or directory
-  if (fs.existsSync(target)) {
-    const stats = fs.lstatSync(target);
+  // Remove existing symlink or directory (handle broken symlinks too)
+  let stats;
+  try {
+    stats = fs.lstatSync(target);
+  } catch (err) {
+    if (err && err.code !== "ENOENT") {
+      throw err;
+    }
+    stats = null;
+  }
+
+  if (stats) {
     if (stats.isSymbolicLink()) {
       fs.unlinkSync(target);
     } else if (stats.isDirectory()) {

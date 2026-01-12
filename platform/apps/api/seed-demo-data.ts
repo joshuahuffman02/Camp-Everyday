@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient, ReservationStatus, SiteType } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 const adapter = new PrismaPg({
@@ -7,8 +7,14 @@ const adapter = new PrismaPg({
 // @ts-ignore Prisma 7 adapter signature
 const prisma = new PrismaClient({ adapter });
 
-type SiteType = "rv" | "tent" | "cabin" | "group" | "glamping";
-type ReservationStatus = "pending" | "confirmed" | "checked_in" | "checked_out" | "cancelled";
+type SeedSite = Prisma.SiteCreateManyInput & { id: string; siteType: SiteType };
+type SeedGuest = Prisma.GuestCreateManyInput & { id: string };
+type SeedReservation = Prisma.ReservationCreateManyInput & {
+  id: string;
+  guestId: string;
+  departureDate: Date;
+  status: ReservationStatus;
+};
 
 const CAMPGROUND_ID = "cmj3seh4m000b0fy3mhotssri";
 
@@ -116,14 +122,14 @@ const SITE_AMENITIES = {
 async function seedSites() {
   console.log("Seeding sites...");
 
-  const sites = [
+  const sites: SeedSite[] = [
     // RV Sites (30 sites)
     ...Array.from({ length: 30 }, (_, i) => ({
       id: cuid(),
       campgroundId: CAMPGROUND_ID,
       name: `RV Site ${i + 1}`,
       siteNumber: `RV${String(i + 1).padStart(2, "0")}`,
-      siteType: "rv" as SiteType,
+      siteType: "rv",
       maxOccupancy: 6,
       rigMaxLength: 45,
       pullThrough: i < 15,
@@ -143,7 +149,7 @@ async function seedSites() {
       campgroundId: CAMPGROUND_ID,
       name: `Tent Site ${i + 1}`,
       siteNumber: `T${String(i + 1).padStart(2, "0")}`,
-      siteType: "tent" as SiteType,
+      siteType: "tent",
       maxOccupancy: 4,
       petFriendly: true,
       accessible: i === 0,
@@ -157,7 +163,7 @@ async function seedSites() {
       campgroundId: CAMPGROUND_ID,
       name: `Cabin ${i + 1}`,
       siteNumber: `C${String(i + 1).padStart(2, "0")}`,
-      siteType: "cabin" as SiteType,
+      siteType: "cabin",
       maxOccupancy: i < 4 ? 4 : 6,
       petFriendly: i < 4,
       accessible: i === 0,
@@ -171,7 +177,7 @@ async function seedSites() {
       campgroundId: CAMPGROUND_ID,
       name: `Safari Tent ${i + 1}`,
       siteNumber: `G${String(i + 1).padStart(2, "0")}`,
-      siteType: "glamping" as SiteType,
+      siteType: "glamping",
       maxOccupancy: 4,
       petFriendly: false,
       accessible: i === 0,
@@ -189,7 +195,7 @@ async function seedSites() {
 async function seedGuests(count: number) {
   console.log(`Seeding ${count} guests...`);
 
-  const guests = Array.from({ length: count }, () => {
+  const guests: SeedGuest[] = Array.from({ length: count }, () => {
     const state = weightedRandomState();
     const cities = CITIES_BY_STATE[state] || ["Unknown City"];
     const rigInfo = Math.random() > 0.3 ? randomItem(RIG_TYPES) : null;
@@ -217,14 +223,14 @@ async function seedGuests(count: number) {
   return guests;
 }
 
-async function seedReservations(sites: any[], guests: any[]) {
+async function seedReservations(sites: SeedSite[], guests: SeedGuest[]) {
   console.log("Seeding reservations...");
 
   const now = new Date();
   const oneYearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
   const threeMonthsFromNow = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
 
-  const reservations: any[] = [];
+  const reservations: SeedReservation[] = [];
 
   // Generate reservations spread over 15 months (past year + 3 months future)
   for (let i = 0; i < 450; i++) {
@@ -348,7 +354,7 @@ async function seedReservations(sites: any[], guests: any[]) {
   return reservations;
 }
 
-async function seedNps(reservations: any[]) {
+async function seedNps(reservations: SeedReservation[]) {
   console.log("Seeding NPS survey and responses...");
 
   // Create NPS Survey
@@ -411,7 +417,7 @@ async function seedNps(reservations: any[]) {
   return responses;
 }
 
-async function seedReviews(reservations: any[]) {
+async function seedReviews(reservations: SeedReservation[]) {
   console.log("Seeding reviews...");
 
   const completedReservations = reservations.filter(r => r.status === "checked_out");

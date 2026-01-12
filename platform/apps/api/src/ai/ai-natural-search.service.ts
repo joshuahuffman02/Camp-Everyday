@@ -77,6 +77,26 @@ export interface NLSearchResponse {
   fallbackUsed?: boolean; // True if AI parsing failed and we used fallback
 }
 
+interface AvailableSiteRow {
+  id: string;
+  name: string | null;
+  siteNumber: string | null;
+  siteType: string | null;
+  maxOccupancy: number | null;
+  rigMaxLength: number | null;
+  accessible: boolean | null;
+  amenityTags: string[] | null;
+  siteClassId: string | null;
+  siteClassName: string | null;
+  defaultRate: number | string | null;
+  classSiteType: string | null;
+  petFriendly: boolean | null;
+  hookupsPower: boolean | null;
+  hookupsWater: boolean | null;
+  hookupsSewer: boolean | null;
+  status: "available" | "booked" | "locked" | "maintenance";
+}
+
 const SEARCH_SYSTEM_PROMPT = `You are a campground booking assistant. Parse the user's natural language query into structured search parameters.
 
 Today's date is {{TODAY}}.
@@ -365,7 +385,7 @@ export class AiNaturalSearchService {
     campgroundId: string,
     campgroundSlug: string,
     intent: SearchIntent
-  ): Promise<any[]> {
+  ): Promise<AvailableSiteRow[]> {
     // Use raw SQL for performance - similar to public-reservations availability check
     const arrival = new Date(intent.arrivalDate!);
     const departure = new Date(intent.departureDate!);
@@ -396,7 +416,7 @@ export class AiNaturalSearchService {
     }
 
     // Query for available sites
-    const sites = await this.prisma.$queryRawUnsafe<any[]>(`
+    const sites = await this.prisma.$queryRawUnsafe<AvailableSiteRow[]>(`
       SELECT
         s.id,
         s.name,
@@ -448,11 +468,23 @@ export class AiNaturalSearchService {
   /**
    * Score sites based on how well they match the search intent
    */
-  private scoreSites(sites: any[], intent: SearchIntent): NLSearchResult[] {
+  private scoreSites(sites: AvailableSiteRow[], intent: SearchIntent): NLSearchResult[] {
     return sites
       .map((site) => {
         let score = 50; // Base score
         const reasons: string[] = [];
+        const maxOccupancy = typeof site.maxOccupancy === "number"
+          ? site.maxOccupancy
+          : Number(site.maxOccupancy) || 0;
+        const rigMaxLength = typeof site.rigMaxLength === "number"
+          ? site.rigMaxLength
+          : Number(site.rigMaxLength) || 0;
+        const pricePerNight = Number(site.defaultRate) || 0;
+        const siteNumber = site.siteNumber ?? "";
+        const siteName = site.name || siteNumber || "Site";
+        const siteType = site.siteType || site.classSiteType || "Unknown";
+        const siteClassId = site.siteClassId ?? "";
+        const siteClassName = site.siteClassName ?? "Uncategorized";
 
         // Availability is most important
         if (site.status === "available") {
@@ -465,8 +497,8 @@ export class AiNaturalSearchService {
 
         // Site type match
         if (intent.siteType) {
-          const siteType = (site.siteType || site.classSiteType || "").toLowerCase();
-          if (siteType.includes(intent.siteType)) {
+          const normalizedType = siteType.toLowerCase();
+          if (normalizedType.includes(intent.siteType)) {
             score += 10;
             reasons.push(`Matches ${intent.siteType} preference`);
           }
@@ -497,7 +529,6 @@ export class AiNaturalSearchService {
         }
 
         // Price constraint
-        const pricePerNight = Number(site.defaultRate) || 0;
         if (intent.maxPricePerNight && pricePerNight <= intent.maxPricePerNight) {
           score += 5;
           reasons.push(`Within budget ($${(pricePerNight / 100).toFixed(2)}/night)`);
@@ -509,23 +540,23 @@ export class AiNaturalSearchService {
         // Capacity
         if (intent.adults || intent.children) {
           const totalGuests = (intent.adults || 0) + (intent.children || 0);
-          if (site.maxOccupancy >= totalGuests) {
+          if (maxOccupancy >= totalGuests) {
             score += 5;
             reasons.push(`Fits ${totalGuests} guests`);
           } else {
             score -= 20;
-            reasons.push(`Max occupancy: ${site.maxOccupancy}`);
+            reasons.push(`Max occupancy: ${maxOccupancy}`);
           }
         }
 
         // Rig length
-        if (intent.rigLength && site.rigMaxLength) {
-          if (site.rigMaxLength >= intent.rigLength) {
+        if (intent.rigLength && rigMaxLength) {
+          if (rigMaxLength >= intent.rigLength) {
             score += 5;
             reasons.push(`Fits ${intent.rigLength}ft rig`);
           } else {
             score -= 30;
-            reasons.push(`Max rig length: ${site.rigMaxLength}ft`);
+            reasons.push(`Max rig length: ${rigMaxLength}ft`);
           }
         }
 
@@ -534,19 +565,19 @@ export class AiNaturalSearchService {
 
         return {
           siteId: site.id,
-          siteName: site.name || site.siteNumber,
-          siteNumber: site.siteNumber,
-          siteType: site.siteType || site.classSiteType,
+          siteName,
+          siteNumber,
+          siteType,
           siteClass: {
-            id: site.siteClassId,
-            name: site.siteClassName,
-            defaultRate: Number(site.defaultRate) || 0,
+            id: siteClassId,
+            name: siteClassName,
+            defaultRate: pricePerNight,
           },
           status: site.status,
           matchScore: Math.max(0, Math.min(100, score)),
           matchReasons: reasons,
-          pricePerNight: Number(site.defaultRate) || 0,
-          totalPrice: (Number(site.defaultRate) || 0) * nights,
+          pricePerNight,
+          totalPrice: pricePerNight * nights,
           amenities: site.amenityTags || [],
         };
       })

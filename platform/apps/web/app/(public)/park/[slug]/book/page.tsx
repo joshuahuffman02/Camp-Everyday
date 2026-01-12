@@ -33,6 +33,41 @@ type BookingStep = 1 | 2 | 3 | 4;
 
 type AvailableSite = Awaited<ReturnType<typeof apiClient.getPublicAvailability>>[0];
 type Quote = Awaited<ReturnType<typeof apiClient.getPublicQuote>>;
+type PublicCampground = Awaited<ReturnType<typeof apiClient.getPublicCampground>>;
+type CampgroundSiteClass = PublicCampground["siteClasses"][number];
+type Reservation = Awaited<ReturnType<typeof apiClient.createPublicReservation>>;
+type NLSearchResponse = Awaited<ReturnType<typeof apiClient.naturalLanguageSearch>>;
+type NLSearchIntent = NLSearchResponse["intent"];
+type NLSearchResult = NLSearchResponse["results"][number];
+type HoldResponse = { id: string; expiresAt?: string };
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null && !Array.isArray(value);
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+    if (error instanceof Error) return error.message;
+    if (isRecord(error) && typeof error.message === "string") return error.message;
+    return fallback;
+};
+
+const getErrorStatus = (error: unknown) => {
+    if (!isRecord(error)) return undefined;
+    const status = error.status;
+    if (typeof status === "number") return status;
+    if (typeof status === "string") {
+        const parsed = Number(status);
+        return Number.isNaN(parsed) ? undefined : parsed;
+    }
+    return undefined;
+};
+
+const parseHoldResponse = (value: unknown): HoldResponse | null => {
+    if (!isRecord(value)) return null;
+    const id = typeof value.id === "string" ? value.id : null;
+    if (!id) return null;
+    const expiresAt = typeof value.expiresAt === "string" ? value.expiresAt : undefined;
+    return { id, expiresAt };
+};
 
 interface AdditionalGuest {
     firstName: string;
@@ -147,7 +182,7 @@ function PriceEstimate({
     selectedSiteType: string;
     isLoadingSites: boolean;
     step: BookingStep;
-    campgroundSiteClasses?: any[];
+    campgroundSiteClasses?: CampgroundSiteClass[];
 }) {
     const nights = arrivalDate && departureDate ? getNightsBetween(arrivalDate, departureDate) : 0;
 
@@ -195,11 +230,11 @@ function PriceEstimate({
 
         // Fall back to campground site classes if no sites loaded yet (step 1)
         if (step === 1 && campgroundSiteClasses && campgroundSiteClasses.length > 0) {
-            const filteredClasses = campgroundSiteClasses.filter(sc => {
-                if (!sc.defaultRate) return false;
-                if (selectedSiteType === "all") return true;
-                return matchesSiteType(selectedSiteType, sc.siteType);
-            });
+            const filteredClasses = campgroundSiteClasses.filter(
+                (sc): sc is typeof sc & { defaultRate: number } =>
+                    typeof sc.defaultRate === "number" &&
+                    (selectedSiteType === "all" || matchesSiteType(selectedSiteType, sc.siteType))
+            );
 
             if (filteredClasses.length > 0) {
                 const rates = filteredClasses.map(sc => sc.defaultRate / 100);
@@ -345,7 +380,7 @@ function DateStep({
     onSiteTypeChange: (type: string) => void;
     onNext: () => void;
     slug: string;
-    onApplyNLSearch?: (intent: any, results: any[]) => void;
+    onApplyNLSearch?: (intent: NLSearchIntent, results: NLSearchResult[]) => void;
 }) {
     const today = new Date().toISOString().split("T")[0];
     const isValid = arrivalDate && departureDate && arrivalDate < departureDate && arrivalDate >= today;
@@ -575,7 +610,7 @@ function SiteStep({
     arrivalDate: string;
     departureDate: string;
     selectedSiteType?: string;
-    siteClasses?: any[];
+    siteClasses?: CampgroundSiteClass[];
     onChangeSiteType?: (type: string) => void;
     currentSiteType?: string;
     nextAvailability?: { arrivalDate: string; departureDate: string; site: AvailableSite } | null;
@@ -633,13 +668,7 @@ function SiteStep({
             if (filters.petFriendly && !sc?.petFriendly) return false;
             if (filters.accessible && !(site.accessible || sc?.accessible)) return false;
 
-            // Type-safe access to optional properties
-            type SiteWithOptional = typeof site & { pullThrough?: boolean };
-            type SiteClassWithOptional = typeof sc & { rvOrientation?: string };
-            const siteExtended = site as SiteWithOptional;
-            const scExtended = sc as SiteClassWithOptional;
-
-            if (filters.pullThrough && !siteExtended.pullThrough && !scExtended?.rvOrientation?.includes("pull")) return false;
+            if (filters.pullThrough && !site.pullThrough && !sc?.rvOrientation?.includes("pull")) return false;
             return true;
         });
     }, [sites, filters]);
@@ -647,13 +676,13 @@ function SiteStep({
     const hasActiveFilters = Object.values(filters).some(v => v);
 
     const availableAlternativeSites = (allSites || []).filter((site) => site.status === "available");
-    const alternativeTypeSuggestions = availableAlternativeSites.reduce((acc, site) => {
+    const alternativeTypeSuggestions = availableAlternativeSites.reduce<Record<string, AvailableSite[]>>((acc, site) => {
         const type = normalizeSiteType(site.siteClass?.siteType || site.siteType || "other");
         if (currentSiteType && normalizeSiteType(currentSiteType) === type) return acc;
         if (!acc[type]) acc[type] = [];
         acc[type].push(site);
         return acc;
-    }, {} as Record<string, AvailableSite[]>);
+    }, {});
 
     if (isLoading) {
         return (
@@ -690,7 +719,8 @@ function SiteStep({
             const matchingClasses = siteClasses.filter(sc => sc.siteType === selectedSiteType);
             if (matchingClasses.length === 1) {
                 waitlistSiteClassId = matchingClasses[0].id;
-                waitlistLabel = `Join ${matchingClasses[0].name} Waitlist`;
+                const className = matchingClasses[0].name ?? siteTypeLabel(selectedSiteType);
+                waitlistLabel = `Join ${className} Waitlist`;
             } else if (matchingClasses.length > 1) {
                 waitlistLabel = `Join ${selectedSiteType.charAt(0).toUpperCase() + selectedSiteType.slice(1)} Waitlist`;
                 waitlistSiteClassId = matchingClasses[0].id;
@@ -767,12 +797,12 @@ function SiteStep({
     }
 
     // Group by site class (using filtered sites)
-    const sitesByClass = filteredSites.reduce((acc, site) => {
+    const sitesByClass = filteredSites.reduce<Record<string, AvailableSite[]>>((acc, site) => {
         const className = site.siteClass?.name || "Other";
         if (!acc[className]) acc[className] = [];
         acc[className].push(site);
         return acc;
-    }, {} as Record<string, AvailableSite[]>);
+    }, {});
 
     // Filter toggle component
     const FilterChip = ({ label, icon, active, onClick }: { label: string; icon: React.ReactNode; active: boolean; onClick: () => void }) => (
@@ -864,10 +894,7 @@ function SiteStep({
                             const isAvailable = site.status === 'available';
                             const selected = selectedSiteId === site.id;
 
-                            // Type-safe access to optional photoUrl property
-                            type SiteClassWithPhoto = typeof site.siteClass & { photoUrl?: string };
-                            const siteClassExtended = site.siteClass as SiteClassWithPhoto;
-                            const cardImage = siteClassExtended?.photoUrl || heroImage || "/placeholder.png";
+                            const cardImage = site.siteClass?.photoUrl || heroImage || "/placeholder.png";
                             const selectionFeeDisplay = siteSelectionFeeCents && siteSelectionFeeCents > 0
                                 ? `$${(siteSelectionFeeCents / 100).toFixed(2)} site selection fee`
                                 : null;
@@ -1752,14 +1779,14 @@ function ReviewStep({
     onBack: () => void;
     holdExpiresAt?: Date | null;
     onHoldExpiresAtChange?: (value: Date | null) => void;
-    onComplete: (reservation?: any) => void;
+    onComplete: (reservation?: Reservation | null) => void;
     promoCodeFromUrl?: string | null;
     previewToken?: string;
 }) {
     const [clientSecret, setClientSecret] = useState<string | null>(null);
     const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
     const [reservationId, setReservationId] = useState<string | null>(null);
-    const [reservation, setReservation] = useState<any>(null);
+    const [reservation, setReservation] = useState<Reservation | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
     const [bookingError, setBookingError] = useState<string | null>(null);
     const [holdCountdown, setHoldCountdown] = useState<string | null>(null);
@@ -1855,16 +1882,17 @@ function ReviewStep({
     const policyRequirements = useMemo(() => quote?.policyRequirements ?? [], [quote]);
     const bookingPolicies = useMemo(() => {
         return policyRequirements.filter((policy) => {
-            const config = (policy?.config ?? {}) as Record<string, unknown>;
-            const enforcement = config.enforcement ?? "post_booking";
-            const showDuringBooking = config.showDuringBooking ?? true;
+            const config = policy.config ?? {};
+            const enforcement = typeof config.enforcement === "string" ? config.enforcement : "post_booking";
+            const showDuringBooking = typeof config.showDuringBooking === "boolean" ? config.showDuringBooking : true;
             return showDuringBooking || enforcement === "pre_booking";
         });
     }, [policyRequirements]);
     const requiredPolicies = useMemo(() => {
         return bookingPolicies.filter((policy) => {
-            const config = (policy?.config ?? {}) as Record<string, unknown>;
-            return (config.enforcement ?? "post_booking") === "pre_booking";
+            const config = policy.config ?? {};
+            const enforcement = typeof config.enforcement === "string" ? config.enforcement : "post_booking";
+            return enforcement === "pre_booking";
         });
     }, [bookingPolicies]);
 
@@ -1896,8 +1924,8 @@ function ReviewStep({
                     setPromoCode(result.code);
                     setPromoDiscount(result.discountCents);
                     setPromoApplied(true);
-                } catch (err: any) {
-                    setPromoError(err.message || "Invalid promo code");
+                } catch (err: unknown) {
+                    setPromoError(getErrorMessage(err, "Invalid promo code"));
                 } finally {
                     setPromoValidating(false);
                 }
@@ -1918,8 +1946,8 @@ function ReviewStep({
             setPromoApplied(true);
             setPromoError(null);
             trackEvent("deal_applied", { campgroundId, promotionId: result.promotionId, metadata: { code: result.code }, page: `/park/${slug}/book` });
-        } catch (err: any) {
-            setPromoError(err.message || "Invalid promo code");
+        } catch (err: unknown) {
+            setPromoError(getErrorMessage(err, "Invalid promo code"));
             setPromoApplied(false);
             setPromoDiscount(0);
         } finally {
@@ -2025,16 +2053,21 @@ function ReviewStep({
             let holdId: string | undefined = undefined;
             if (!assignOnArrival && campgroundId && selectedSite && arrivalDate && departureDate) {
                 try {
-                    type HoldResponse = { id: string; expiresAt?: string };
-                    const hold = await apiClient.createHold({
+                    const hold = parseHoldResponse(await apiClient.createHold({
                         campgroundId,
                         siteId: selectedSite.id,
                         arrivalDate,
                         departureDate
-                    }) as HoldResponse;
-                    holdId = hold?.id;
-                    if (hold?.expiresAt) {
-                        updateHoldExpiresAt(new Date(hold.expiresAt));
+                    }));
+                    if (hold) {
+                        holdId = hold.id;
+                        if (hold.expiresAt) {
+                            updateHoldExpiresAt(new Date(hold.expiresAt));
+                        } else {
+                            const defaultExpiry = new Date();
+                            defaultExpiry.setMinutes(defaultExpiry.getMinutes() + 10);
+                            updateHoldExpiresAt(defaultExpiry);
+                        }
                     } else {
                         const defaultExpiry = new Date();
                         defaultExpiry.setMinutes(defaultExpiry.getMinutes() + 10);
@@ -2412,9 +2445,9 @@ function ReviewStep({
                     </div>
                     <div className="space-y-3">
                         {bookingPolicies.map((policy) => {
-                            const config = (policy?.config ?? {}) as Record<string, unknown>;
-                            const enforcement = config.enforcement ?? "post_booking";
-                            const requireSignature = config.requireSignature ?? true;
+                            const config = policy.config ?? {};
+                            const enforcement = typeof config.enforcement === "string" ? config.enforcement : "post_booking";
+                            const requireSignature = typeof config.requireSignature === "boolean" ? config.requireSignature : true;
                             const showAcceptance = enforcement === "pre_booking" || requireSignature;
                             const required = enforcement === "pre_booking";
                             const badgeTone =
@@ -2636,7 +2669,7 @@ function ReviewStep({
 
 
 // Success Screen
-function SuccessScreen({ campgroundName, slug, reservation }: { campgroundName: string; slug: string; reservation: any }) {
+function SuccessScreen({ campgroundName, slug, reservation }: { campgroundName: string; slug: string; reservation: Reservation }) {
     const [copied, setCopied] = useState(false);
 
     const handleCopyCode = () => {
@@ -2746,7 +2779,7 @@ function SuccessScreen({ campgroundName, slug, reservation }: { campgroundName: 
                             {reservation.adults} Adults, {reservation.children} Children
                         </p>
                     </div>
-                    {(reservation.siteId || reservation.siteClassId) && (
+                    {(reservation.siteId || reservation.site?.id) && (
                         <div className="col-span-full">
                             <p className="text-sm text-muted-foreground mb-1 flex items-center gap-2">
                                 <MapPin className="h-4 w-4" />
@@ -2865,7 +2898,7 @@ function SuccessScreen({ campgroundName, slug, reservation }: { campgroundName: 
 
 // Main Booking Page
 export default function BookingPage() {
-    const params = useParams();
+    const params = useParams<{ slug?: string }>();
     const router = useRouter();
     const searchParams = useSearchParams();
 
@@ -2884,7 +2917,7 @@ export default function BookingPage() {
     const initialRvType = searchParams.get("rvType") || "";
     const previewToken = searchParams.get("token") || undefined;
 
-    const slug = params.slug as string;
+    const slug = typeof params.slug === "string" ? params.slug : "";
     const [step, setStep] = useState<BookingStep>(initialArrival && initialDeparture ? 2 : 1);
 
     const [arrivalDate, setArrivalDate] = useState(initialArrival);
@@ -2957,7 +2990,7 @@ export default function BookingPage() {
     }, [guestInfo]);
 
     const [isComplete, setIsComplete] = useState(false);
-    const [confirmedReservation, setConfirmedReservation] = useState<any>(null);
+    const [confirmedReservation, setConfirmedReservation] = useState<Reservation | null>(null);
     const [holdExpiresAt, setHoldExpiresAt] = useState<Date | null>(null);
     const lastAvailabilityKey = useRef<string | null>(null);
     const reservationStartLogged = useRef<boolean>(false);
@@ -3038,8 +3071,7 @@ export default function BookingPage() {
     });
 
     const siteSelectionFeeCents = useMemo(() => {
-        type CampgroundWithFee = typeof campground & { siteSelectionFeeCents?: number };
-        const fee = (campground as CampgroundWithFee)?.siteSelectionFeeCents;
+        const fee = campground?.siteSelectionFeeCents;
         return typeof fee === "number" ? fee : null;
     }, [campground]);
 
@@ -3170,11 +3202,11 @@ export default function BookingPage() {
             const res = await apiClient.askAi({ campgroundId: campground.id, question: askQuestion.trim() });
             setAskAnswer(res.answer);
             setAskUsage(res.usage ? { totalTokens: res.usage.totalTokens } : null);
-        } catch (err: any) {
-            if (err?.status === 403) {
+        } catch (err: unknown) {
+            if (getErrorStatus(err) === 403) {
                 setAskError("AI helper is not enabled for this campground.");
             } else {
-                setAskError(err?.message || "Could not get an answer right now.");
+                setAskError(getErrorMessage(err, "Could not get an answer right now."));
             }
         } finally {
             setAskLoading(false);
@@ -3328,8 +3360,8 @@ export default function BookingPage() {
                                         setSelectedSiteId(fallbackSite.id);
                                         setSelectedSiteClassId(fallbackSite.siteClass?.id || null);
                                     } else if ((campground?.siteClasses || []).length > 0) {
-                                        const classMatch = (campground?.siteClasses || []).find((sc: any) =>
-                                            selectedSiteType === "all" ? true : matchesSiteType(selectedSiteType, sc.siteType)
+                                        const classMatch = (campground?.siteClasses || []).find((sc) =>
+                                            selectedSiteType === "all" ? true : matchesSiteType(selectedSiteType, sc.siteType ?? null)
                                         );
                                         setSelectedSiteClassId(classMatch?.id || null);
                                         setSelectedSiteId(null);

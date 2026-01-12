@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { DynamicPricingTrigger } from '@prisma/client';
+import { DynamicPricingTrigger, Prisma } from '@prisma/client';
+import { randomUUID } from "crypto";
 
 interface CreateDynamicRuleDto {
   campgroundId: string;
@@ -23,6 +24,39 @@ interface OccupancyConditions {
   daysOutMax?: number;
 }
 
+const toNumberValue = (value: unknown): number | undefined => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined => {
+  if (value === undefined || value === null) return undefined;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
+};
+
+const normalizeOccupancyConditions = (value: unknown): OccupancyConditions => {
+  if (!isRecord(value)) {
+    return {};
+  }
+  return {
+    occupancyMin: toNumberValue(value.occupancyMin),
+    occupancyMax: toNumberValue(value.occupancyMax),
+    daysOutMin: toNumberValue(value.daysOutMin),
+    daysOutMax: toNumberValue(value.daysOutMax),
+  };
+};
+
 @Injectable()
 export class DynamicPricingService {
   constructor(private readonly prisma: PrismaService) {}
@@ -30,10 +64,11 @@ export class DynamicPricingService {
   async createRule(dto: CreateDynamicRuleDto) {
     return this.prisma.dynamicPricingRule.create({
       data: {
+        id: randomUUID(),
         campgroundId: dto.campgroundId,
         name: dto.name,
         trigger: dto.trigger,
-        conditions: dto.conditions,
+        conditions: toJsonValue(dto.conditions) ?? Prisma.JsonNull,
         adjustmentType: dto.adjustmentType,
         adjustmentValue: dto.adjustmentValue,
         priority: dto.priority ?? 100,
@@ -41,6 +76,7 @@ export class DynamicPricingService {
         isActive: dto.isActive ?? true,
         validFrom: dto.validFrom ? new Date(dto.validFrom) : null,
         validTo: dto.validTo ? new Date(dto.validTo) : null,
+        updatedAt: new Date(),
       },
     });
   }
@@ -65,14 +101,15 @@ export class DynamicPricingService {
 
   async updateRule(campgroundId: string, id: string, dto: Partial<CreateDynamicRuleDto>) {
     await this.getRule(campgroundId, id);
-    const { campgroundId: _campgroundId, ...rest } =
-      dto as Partial<CreateDynamicRuleDto> & { campgroundId?: string };
+    const { campgroundId: _campgroundId, ...rest } = dto;
     return this.prisma.dynamicPricingRule.update({
       where: { id },
       data: {
         name: rest.name,
         trigger: rest.trigger,
-        conditions: rest.conditions,
+        conditions: rest.conditions
+          ? toJsonValue(rest.conditions) ?? Prisma.JsonNull
+          : undefined,
         adjustmentType: rest.adjustmentType,
         adjustmentValue: rest.adjustmentValue,
         priority: rest.priority,
@@ -127,7 +164,7 @@ export class DynamicPricingService {
       }
 
       // Check conditions
-      const conditions = rule.conditions as OccupancyConditions;
+      const conditions = normalizeOccupancyConditions(rule.conditions);
       if (!this.matchesConditions(conditions, occupancy, daysOut)) {
         continue;
       }
@@ -246,6 +283,7 @@ export class DynamicPricingService {
         revenueCents: revenue._sum.totalAmount ?? 0,
       },
       create: {
+        id: randomUUID(),
         campgroundId,
         date,
         totalSites,
@@ -317,6 +355,7 @@ export class DynamicPricingService {
       const confidence = dayOffset < 7 ? 0.9 : dayOffset < 14 ? 0.7 : 0.5;
 
       return {
+        id: randomUUID(),
         campgroundId,
         forecastDate: day.forecast_date,
         projectedRev: Number(day.projected_rev),

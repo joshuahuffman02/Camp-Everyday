@@ -13,8 +13,10 @@ import { ArrowLeft } from "lucide-react";
 export default function SiteDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const campgroundId = params.campgroundId as string;
-  const siteId = params.siteId as string;
+  const campgroundParam = params.campgroundId;
+  const siteParam = params.siteId;
+  const campgroundId = typeof campgroundParam === "string" ? campgroundParam : "";
+  const siteId = typeof siteParam === "string" ? siteParam : "";
 
   const todayIso = new Date().toISOString().slice(0, 10);
   const horizonIso = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);

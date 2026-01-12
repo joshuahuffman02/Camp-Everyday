@@ -2,6 +2,9 @@ import { Injectable, Logger } from "@nestjs/common";
 
 type Severity = "info" | "warning" | "error" | "critical";
 
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
 @Injectable()
 export class AlertingService {
   private readonly logger = new Logger(AlertingService.name);
@@ -21,9 +24,10 @@ export class AlertingService {
         body: JSON.stringify({ text, ...payload }),
       });
       return { ok: true };
-    } catch (err) {
-      this.logger.warn(`Failed to post Slack alert: ${(err as any)?.message ?? err}`);
-      return { ok: false, error: err };
+    } catch (err: unknown) {
+      const message = getErrorMessage(err);
+      this.logger.warn(`Failed to post Slack alert: ${message}`);
+      return { ok: false, error: message };
     }
   }
 
@@ -52,9 +56,10 @@ export class AlertingService {
         body: JSON.stringify(body),
       });
       return { ok: true };
-    } catch (err) {
-      this.logger.warn(`Failed to post PagerDuty alert: ${(err as any)?.message ?? err}`);
-      return { ok: false, error: err };
+    } catch (err: unknown) {
+      const message = getErrorMessage(err);
+      this.logger.warn(`Failed to post PagerDuty alert: ${message}`);
+      return { ok: false, error: message };
     }
   }
 

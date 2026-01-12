@@ -1,16 +1,10 @@
-// @ts-nocheck
-import * as request from "supertest";
-import { Test } from "@nestjs/testing";
-import { ValidationPipe } from "@nestjs/common";
-import { AuditController } from "../audit/audit.controller";
+import { Test, type TestingModule } from "@nestjs/testing";
 import { AuditService } from "../audit/audit.service";
 import { PrismaService } from "../prisma/prisma.service";
-import { JwtAuthGuard } from "../auth/guards";
-import { RolesGuard } from "../auth/guards/roles.guard";
-import { PermissionGuard } from "../permissions/permission.guard";
 
 describe("Audit quick view", () => {
-  let app: any;
+  let moduleRef: TestingModule;
+  let service: AuditService;
   const campgroundId = "camp-quick-audit";
 
   const prismaStub = {
@@ -30,8 +24,7 @@ describe("Audit quick view", () => {
   };
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({
-      controllers: [AuditController],
+    moduleRef = await Test.createTestingModule({
       providers: [
         AuditService,
         {
@@ -39,23 +32,9 @@ describe("Audit quick view", () => {
           useValue: prismaStub
         }
       ]
-    })
-      .overrideGuard(JwtAuthGuard)
-      .useValue({ canActivate: () => true })
-      .overrideGuard(RolesGuard)
-      .useValue({ canActivate: () => true })
-      .overrideGuard(PermissionGuard)
-      .useValue({ canActivate: () => true })
-      .compile();
+    }).compile();
 
-    app = moduleRef.createNestApplication();
-    app.setGlobalPrefix("api");
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    app.use((req: any, _res: any, next: any) => {
-      req.user = { id: "tester" };
-      next();
-    });
-    await app.init();
+    service = moduleRef.get(AuditService);
   });
 
   beforeEach(() => {
@@ -86,43 +65,51 @@ describe("Audit quick view", () => {
         prevHash: null,
         before: { email: "guest@example.com" },
         after: { email: "guest@example.com" },
-        actor: { id: "user-1", email: "owner@test.com" }
+        User: { id: "user-1", email: "owner@test.com" }
       }
     ]);
     prismaStub.auditExport.create.mockResolvedValue({});
   });
 
   afterAll(async () => {
-    await app.close();
+    await moduleRef.close();
   });
 
   it("returns quick-audit snapshot with privacy defaults and audit events", async () => {
-    const api = request(app.getHttpServer());
-    const res = await api.get(`/api/campgrounds/${campgroundId}/audit/quick`).expect(200);
+    const res = await service.quickAudit({ campgroundId, limit: 5 });
 
-    expect(res.body.privacyDefaults).toMatchObject({
+    expect(res.privacyDefaults).toMatchObject({
       redactPII: true,
       consentRequired: true,
       backupRetentionDays: 30,
       keyRotationDays: 90
     });
-    expect(res.body.piiTagCount).toBe(3);
-    expect(Array.isArray(res.body.piiTagsPreview)).toBe(true);
-    expect(Array.isArray(res.body.auditEvents)).toBe(true);
-    expect(res.body.auditEvents[0]).toMatchObject({
+    expect(res.piiTagCount).toBe(3);
+    expect(Array.isArray(res.piiTagsPreview)).toBe(true);
+    expect(Array.isArray(res.auditEvents)).toBe(true);
+    expect(res.auditEvents[0]).toMatchObject({
       action: "update",
       entity: "privacySetting"
     });
   });
 
   it("exports audit events as csv", async () => {
-    const api = request(app.getHttpServer());
-    const res = await api.get(`/api/campgrounds/${campgroundId}/audit?format=csv&limit=5`).expect(200);
+    const headers: Record<string, string> = {};
+    let body = "";
+    const res = {
+      setHeader: (name: string, value: string) => {
+        headers[name.toLowerCase()] = String(value);
+      },
+      send: (payload: string) => {
+        body = String(payload);
+        return payload;
+      }
+    };
 
-    expect(res.headers["content-type"]).toContain("text/csv");
-    expect(res.text.split("\n")[0]).toContain("action");
-    expect(res.text).toContain("update");
+    await service.exportCsv({ campgroundId, limit: 5 }, res);
+
+    expect(headers["content-type"]).toContain("text/csv");
+    expect(body.split("\n")[0]).toContain("action");
+    expect(body).toContain("update");
   });
 });
-
-

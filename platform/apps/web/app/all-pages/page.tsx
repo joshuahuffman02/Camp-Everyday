@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type SVGProps } from "react";
 import Link from "next/link";
 import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { useMenuConfig } from "@/hooks/use-menu-config";
@@ -33,15 +33,20 @@ export default function AllPagesPage() {
   );
 
   // Filter by permissions (basic check)
-  const permissions = (whoami?.allowed as Record<string, boolean> | undefined) || {};
-  const platformRole = (whoami?.user as { platformRole?: string | null } | undefined)?.platformRole ?? null;
+  const platformRole = whoami?.user?.platformRole ?? null;
+  const allowedPermissions = useMemo(() => {
+    const entries = Object.entries(whoami?.allowed ?? {});
+    return new Set(
+      entries.filter(([, value]) => Boolean(value)).map(([key]) => key)
+    );
+  }, [whoami?.allowed]);
   const accessiblePages = useMemo(() => {
     return allPages.filter((page) => {
       if (!page.permissions || page.permissions.length === 0) return true;
       if (platformRole) return true; // Platform admins can see everything
-      return page.permissions.some((p) => permissions[p]);
+      return page.permissions.some((permission) => allowedPermissions.has(permission));
     });
-  }, [allPages, permissions, platformRole]);
+  }, [allPages, allowedPermissions, platformRole]);
 
   // Search and filter
   const filteredPages = useMemo(() => {
@@ -65,18 +70,32 @@ export default function AllPagesPage() {
   );
 
   // Only show categories that have accessible pages
-  const availableCategories = useMemo(() => {
+  const availableCategories = useMemo((): Array<PageCategory | "all"> => {
     const categoriesWithPages = new Set<PageCategory>();
     for (const page of accessiblePages) {
       categoriesWithPages.add(page.category);
     }
-    return ["all" as const, ...Array.from(categoriesWithPages).sort((a, b) => {
-      const order: PageCategory[] = ["operations", "guests", "finance", "marketing", "reports", "store", "staff", "settings", "admin"];
+    return ["all", ...Array.from(categoriesWithPages).sort((a, b) => {
+      const order: PageCategory[] = [
+        "operations",
+        "guests",
+        "finance",
+        "marketing",
+        "reports",
+        "store",
+        "staff",
+        "settings",
+        "admin"
+      ];
       return order.indexOf(a) - order.indexOf(b);
     })];
   }, [accessiblePages]);
 
   const categories = availableCategories;
+  const groupedCategories = useMemo(
+    () => categories.filter((category): category is PageCategory => category !== "all"),
+    [categories]
+  );
 
   return (
     <DashboardShell title="All Pages" subtitle="Browse and pin pages to your menu">
@@ -129,9 +148,10 @@ export default function AllPagesPage() {
       ) : selectedCategory === "all" ? (
         // Show grouped by category when viewing all
         <div className="space-y-8">
-          {Object.entries(pagesByCategory).map(([category, pages]) => {
+          {groupedCategories.map((category) => {
+            const pages = pagesByCategory[category];
             if (pages.length === 0) return null;
-            const catInfo = CATEGORY_INFO[category as PageCategory];
+            const catInfo = CATEGORY_INFO[category];
             return (
               <div key={category}>
                 <div className="mb-4">
@@ -229,14 +249,14 @@ function PageCard({ page, isPinned, onTogglePin }: PageCardProps) {
 
 function PageIcon({ name }: { name: string }) {
   const stroke = "#64748b";
-  const common = {
+  const common: SVGProps<SVGSVGElement> = {
     width: 20,
     height: 20,
     strokeWidth: 1.6,
     stroke,
     fill: "none",
-    strokeLinecap: "round" as const,
-    strokeLinejoin: "round" as const,
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
   };
 
   switch (name) {

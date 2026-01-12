@@ -6,6 +6,7 @@ import {
   SiteType,
   MaintenanceStatus,
   MaintenancePriority,
+  EventType,
   UserRole,
   SocialPlatform,
   SocialPostStatus,
@@ -562,23 +563,32 @@ function buildEvents(campgroundId: string, state: string, seasonStart: Date) {
   const events: Prisma.EventUncheckedCreateInput[] = [];
 
   // Sample events based on location
-  const eventTemplates = state === "MN" ? [
-    { title: "River Fishing Tournament", type: "activity" as const, description: "Catch the biggest walleye and win prizes!", location: "Fishing Dock", price: 2500, capacity: 50 },
-    { title: "Sunset Kayak Tour", type: "activity" as const, description: "Guided kayak paddle along the river bluffs at sunset.", location: "Boat Ramp", price: 3500, capacity: 12 },
-    { title: "Kids Nature Scavenger Hunt", type: "activity" as const, description: "Fun outdoor adventure for kids ages 5-12.", location: "Nature Trail", price: 0, capacity: 20 },
-    { title: "Campfire Cookout Class", type: "workshop" as const, description: "Learn to make delicious campfire meals.", location: "Main Pavilion", price: 1500, capacity: 15 },
-    { title: "Saturday Night Live Music", type: "entertainment" as const, description: "Local bluegrass band performs live.", location: "Amphitheater", price: 0, capacity: 100 },
-    { title: "Memorial Day Weekend BBQ", type: "holiday" as const, description: "Annual kick-off to summer celebration with BBQ and games.", location: "Main Pavilion", price: 1000, capacity: 150 },
-    { title: "4th of July Fireworks", type: "holiday" as const, description: "Watch fireworks over the river.", location: "Riverfront", price: 0, capacity: null },
-    { title: "Weekly Potluck Dinner", type: "recurring" as const, description: "Bring a dish to share every Wednesday evening.", location: "Pavilion", price: 0, capacity: 40 },
+  type EventTemplate = {
+    title: string;
+    type: EventType;
+    description: string;
+    location: string;
+    price: number;
+    capacity: number | null;
+  };
+
+  const eventTemplates: EventTemplate[] = state === "MN" ? [
+    { title: "River Fishing Tournament", type: EventType.activity, description: "Catch the biggest walleye and win prizes!", location: "Fishing Dock", price: 2500, capacity: 50 },
+    { title: "Sunset Kayak Tour", type: EventType.activity, description: "Guided kayak paddle along the river bluffs at sunset.", location: "Boat Ramp", price: 3500, capacity: 12 },
+    { title: "Kids Nature Scavenger Hunt", type: EventType.activity, description: "Fun outdoor adventure for kids ages 5-12.", location: "Nature Trail", price: 0, capacity: 20 },
+    { title: "Campfire Cookout Class", type: EventType.workshop, description: "Learn to make delicious campfire meals.", location: "Main Pavilion", price: 1500, capacity: 15 },
+    { title: "Saturday Night Live Music", type: EventType.entertainment, description: "Local bluegrass band performs live.", location: "Amphitheater", price: 0, capacity: 100 },
+    { title: "Memorial Day Weekend BBQ", type: EventType.holiday, description: "Annual kick-off to summer celebration with BBQ and games.", location: "Main Pavilion", price: 1000, capacity: 150 },
+    { title: "4th of July Fireworks", type: EventType.holiday, description: "Watch fireworks over the river.", location: "Riverfront", price: 0, capacity: null },
+    { title: "Weekly Potluck Dinner", type: EventType.recurring, description: "Bring a dish to share every Wednesday evening.", location: "Pavilion", price: 0, capacity: 40 },
   ] : [
-    { title: "Mountain Sunrise Hike", type: "activity" as const, description: "Early morning hike to catch the sunrise over the peaks.", location: "Trailhead", price: 0, capacity: 15 },
-    { title: "Guided Mountain Biking", type: "activity" as const, description: "Intermediate level trail ride with guide.", location: "Bike Shop", price: 4500, capacity: 8 },
-    { title: "Whitewater Rafting Trip", type: "activity" as const, description: "Half-day rafting adventure on the Arkansas River.", location: "River Put-In", price: 7500, capacity: 10 },
-    { title: "Wilderness Photography Workshop", type: "workshop" as const, description: "Learn to capture stunning mountain landscapes.", location: "Base Camp", price: 5000, capacity: 12 },
-    { title: "Star Gazing Night", type: "entertainment" as const, description: "Telescope viewing with astronomy expert.", location: "Upper Meadow", price: 1000, capacity: 25 },
-    { title: "4th of July Mountain Fest", type: "holiday" as const, description: "Live music, food trucks, and fireworks.", location: "Main Field", price: 0, capacity: 200 },
-    { title: "Weekly Yoga in the Meadow", type: "recurring" as const, description: "Morning yoga class every Saturday.", location: "Meadow", price: 500, capacity: 20 },
+    { title: "Mountain Sunrise Hike", type: EventType.activity, description: "Early morning hike to catch the sunrise over the peaks.", location: "Trailhead", price: 0, capacity: 15 },
+    { title: "Guided Mountain Biking", type: EventType.activity, description: "Intermediate level trail ride with guide.", location: "Bike Shop", price: 4500, capacity: 8 },
+    { title: "Whitewater Rafting Trip", type: EventType.activity, description: "Half-day rafting adventure on the Arkansas River.", location: "River Put-In", price: 7500, capacity: 10 },
+    { title: "Wilderness Photography Workshop", type: EventType.workshop, description: "Learn to capture stunning mountain landscapes.", location: "Base Camp", price: 5000, capacity: 12 },
+    { title: "Star Gazing Night", type: EventType.entertainment, description: "Telescope viewing with astronomy expert.", location: "Upper Meadow", price: 1000, capacity: 25 },
+    { title: "4th of July Mountain Fest", type: EventType.holiday, description: "Live music, food trucks, and fireworks.", location: "Main Field", price: 0, capacity: 200 },
+    { title: "Weekly Yoga in the Meadow", type: EventType.recurring, description: "Morning yoga class every Saturday.", location: "Meadow", price: 500, capacity: 20 },
   ];
 
   eventTemplates.forEach((template, index) => {
@@ -769,32 +779,38 @@ async function seedSocialPlanner(campgroundId: string, seasonStart: Date) {
     })
   ]);
 
+  const weeklyIdeas: Prisma.InputJsonValue = [
+    { type: "promotional", idea: "Early-bird bundle for July 4th", platform: "facebook" },
+    { type: "engagement", idea: "Staff story or fun moment", platform: "instagram" },
+    { type: "behind_the_scenes", idea: "Cabin prep timelapse", platform: "tiktok" }
+  ];
+
+  const weeklyCadence: Prisma.InputJsonValue = [
+    { day: "Tuesday", theme: "Book-Now Highlight" },
+    { day: "Thursday", theme: "Staff Story" },
+    { day: "Saturday", theme: "Guest Experience / UGC" }
+  ];
+
   await prisma.socialWeeklyIdea.create({
     data: {
       campgroundId,
       generatedFor: addDays(new Date(), -((new Date().getDay() + 6) % 7)), // anchor to Monday
-      ideas: [
-        { type: "promotional", idea: "Early-bird bundle for July 4th", platform: "facebook" },
-        { type: "engagement", idea: "Staff story or fun moment", platform: "instagram" },
-        { type: "behind_the_scenes", idea: "Cabin prep timelapse", platform: "tiktok" }
-      ] as any,
-      cadence: [
-        { day: "Tuesday", theme: "Book-Now Highlight" },
-        { day: "Thursday", theme: "Staff Story" },
-        { day: "Saturday", theme: "Guest Experience / UGC" }
-      ] as any
+      ideas: weeklyIdeas,
+      cadence: weeklyCadence
     }
   });
+
+  const strategyPlan: Prisma.InputJsonValue = {
+    hero: "Summer kickoff weekend",
+    topIdeas: ["Pool opening", "Staff spotlight", "Early-bird bundle"]
+  };
 
   await prisma.socialStrategy.create({
     data: {
       campgroundId,
       month: seasonStart,
       annual: false,
-      plan: {
-        hero: "Summer kickoff weekend",
-        topIdeas: ["Pool opening", "Staff spotlight", "Early-bird bundle"]
-      } as any
+      plan: strategyPlan
     }
   });
 
@@ -1670,7 +1686,7 @@ async function seedCampground(
       }
     });
 
-  const membershipDefs = [
+  const membershipDefs: Array<{ user: { id: string }; role: UserRole }> = [
     { user: users[0], role: UserRole.owner },
     { user: users[1], role: UserRole.owner },
     { user: users[2], role: UserRole.manager },
@@ -1678,7 +1694,7 @@ async function seedCampground(
     { user: users[4], role: UserRole.maintenance },
     { user: users[5], role: UserRole.finance },
     { user: users[6], role: UserRole.marketing }
-  ].filter(Boolean) as { user: { id: string }; role: UserRole }[];
+  ];
 
   const memberships = [];
   for (const mem of membershipDefs) {

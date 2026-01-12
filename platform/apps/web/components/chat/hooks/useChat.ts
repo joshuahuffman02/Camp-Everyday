@@ -19,13 +19,24 @@ interface ActionRequired {
   options?: ActionOption[];
 }
 
+type ToolCall = {
+  id: string;
+  name: string;
+  args: Record<string, unknown>;
+};
+
+type ToolResult = {
+  toolCallId: string;
+  result: unknown;
+};
+
 interface ChatMessage {
   id: string;
   conversationId: string;
   role: "user" | "assistant" | "tool" | "system";
   content: string;
-  toolCalls?: any[];
-  toolResults?: any[];
+  toolCalls?: ToolCall[];
+  toolResults?: ToolResult[];
   actionRequired?: ActionRequired;
   createdAt: string;
 }
@@ -35,18 +46,74 @@ interface SendMessageResponse {
   messageId: string;
   role: "assistant";
   content: string;
-  toolCalls?: any[];
-  toolResults?: any[];
-  actionRequired?: any;
+  toolCalls?: ToolCall[];
+  toolResults?: ToolResult[];
+  actionRequired?: ActionRequired;
   createdAt: string;
 }
 
 interface ExecuteActionResponse {
   success: boolean;
   message: string;
-  result?: any;
+  result?: unknown;
   error?: string;
 }
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const getString = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+const isToolCall = (value: unknown): value is ToolCall =>
+  isRecord(value) &&
+  typeof value.id === "string" &&
+  typeof value.name === "string" &&
+  isRecord(value.args);
+
+const isToolResult = (value: unknown): value is ToolResult =>
+  isRecord(value) && typeof value.toolCallId === "string";
+
+const isActionRequired = (value: unknown): value is ActionRequired => {
+  if (!isRecord(value)) return false;
+  const type = value.type;
+  if (type !== "confirmation" && type !== "form" && type !== "selection") return false;
+  return typeof value.actionId === "string" && typeof value.title === "string" && typeof value.description === "string";
+};
+
+const toSendMessageResponse = (value: unknown): SendMessageResponse => {
+  if (!isRecord(value)) {
+    throw new Error("Invalid chat response");
+  }
+  const conversationId = getString(value.conversationId);
+  const messageId = getString(value.messageId);
+  const content = getString(value.content);
+  if (!conversationId || !messageId || !content) {
+    throw new Error("Invalid chat response");
+  }
+  return {
+    conversationId,
+    messageId,
+    role: "assistant",
+    content,
+    toolCalls: Array.isArray(value.toolCalls) ? value.toolCalls.filter(isToolCall) : undefined,
+    toolResults: Array.isArray(value.toolResults) ? value.toolResults.filter(isToolResult) : undefined,
+    actionRequired: isActionRequired(value.actionRequired) ? value.actionRequired : undefined,
+    createdAt: getString(value.createdAt) ?? new Date().toISOString(),
+  };
+};
+
+const toExecuteActionResponse = (value: unknown): ExecuteActionResponse => {
+  if (!isRecord(value)) {
+    return { success: false, message: "Action failed", error: "Invalid response" };
+  }
+  return {
+    success: typeof value.success === "boolean" ? value.success : false,
+    message: getString(value.message) ?? "Action completed",
+    result: value.result,
+    error: getString(value.error),
+  };
+};
 
 interface UseChatOptions {
   campgroundId: string;
@@ -94,7 +161,8 @@ export function useChat({ campgroundId, isGuest, guestId, authToken }: UseChatOp
         throw new Error(error || "Failed to send message");
       }
 
-      return res.json();
+      const data: unknown = await res.json();
+      return toSendMessageResponse(data);
     },
     onMutate: (message) => {
       // Add user message optimistically
@@ -170,7 +238,8 @@ export function useChat({ campgroundId, isGuest, guestId, authToken }: UseChatOp
         throw new Error(error || "Failed to execute action");
       }
 
-      return res.json();
+      const data: unknown = await res.json();
+      return toExecuteActionResponse(data);
     },
     onSuccess: (data) => {
       // Add result as assistant message

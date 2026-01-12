@@ -68,9 +68,10 @@ export function CheckMethod({ onSuccess, onError, onCancel }: CheckMethodProps) 
       });
 
       onSuccess?.(reference);
-    } catch (err: any) {
-      setError(err.message || "Failed to record check payment");
-      onError?.(err.message || "Failed to record check payment");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to record check payment";
+      setError(message);
+      onError?.(message);
     } finally {
       setLoading(false);
     }

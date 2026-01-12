@@ -34,9 +34,59 @@ type SiteStatus = {
   zone?: string;
 };
 
-type HousekeepingApiClient = {
-  getHousekeepingTasks?: () => Promise<unknown[]>;
-  getSiteStatuses?: () => Promise<unknown[]>;
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object";
+
+const getString = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+const getBoolean = (value: unknown): boolean =>
+  typeof value === "boolean" ? value : false;
+
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error ? error.message : fallback;
+
+const parseChecklistItems = (value: unknown): ChecklistItem[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item, idx) => {
+      if (!isRecord(item)) return null;
+      const id = getString(item.id) ?? `item-${idx}`;
+      const label = getString(item.label) ?? getString(item.name) ?? `Item ${idx + 1}`;
+      return { id, label, completed: getBoolean(item.completed) };
+    })
+    .filter((item): item is ChecklistItem => item !== null);
+};
+
+const parseCleaningTask = (value: unknown, idx: number): CleaningTask | null => {
+  if (!isRecord(value)) return null;
+  const id = getString(value.id) ?? `task-${idx}`;
+  const siteId = getString(value.siteId) ?? "";
+  const siteRecord = isRecord(value.site) ? value.site : null;
+  return {
+    id,
+    siteName: getString(siteRecord ? siteRecord.name : undefined) ?? "Unknown",
+    siteId,
+    taskType: getString(value.type) ?? "turnover",
+    state: getString(value.state) ?? "pending",
+    priority: getString(value.priority) ?? "normal",
+    checklist: parseChecklistItems(value.checklist),
+    notes: getString(value.notes),
+    slaDueAt: getString(value.slaDueAt),
+  };
+};
+
+const parseSiteStatus = (value: unknown): SiteStatus | null => {
+  if (!isRecord(value)) return null;
+  const siteId = getString(value.id);
+  const siteName = getString(value.name);
+  if (!siteId || !siteName) return null;
+  return {
+    siteId,
+    siteName,
+    housekeepingStatus: getString(value.housekeepingStatus) ?? "vacant_clean",
+    zone: getString(value.zone),
+  };
 };
 
 export default function HousekeepingPwaPage() {
@@ -89,36 +139,20 @@ export default function HousekeepingPwaPage() {
       }
       try {
         // Fetch housekeeping tasks and site statuses
-        const housekeepingClient = apiClient as unknown as HousekeepingApiClient;
         const [tasksData, sitesData] = await Promise.all([
-          housekeepingClient.getHousekeepingTasks?.().catch(() => []),
-          housekeepingClient.getSiteStatuses?.().catch(() => []),
+          apiClient.getHousekeepingTasks().catch(() => []),
+          apiClient.getSiteStatuses().catch(() => []),
         ]);
 
         if (!isMounted) return;
 
-        const formattedTasks = (tasksData || []).map((t: any) => ({
-          id: t.id,
-          siteName: t.site?.name ?? "Unknown",
-          siteId: t.siteId,
-          taskType: t.type || "turnover",
-          state: t.state || "pending",
-          priority: t.priority || "normal",
-          checklist: Array.isArray(t.checklist) ? t.checklist.map((item: any, idx: number) => ({
-            id: item.id || `item-${idx}`,
-            label: item.label || item.name || `Item ${idx + 1}`,
-            completed: item.completed || false,
-          })) : [],
-          notes: t.notes,
-          slaDueAt: t.slaDueAt,
-        }));
+        const formattedTasks = (tasksData || [])
+          .map((task, idx) => parseCleaningTask(task, idx))
+          .filter((task): task is CleaningTask => task !== null);
 
-        const formattedStatuses = (sitesData || []).map((s: any) => ({
-          siteId: s.id,
-          siteName: s.name,
-          housekeepingStatus: s.housekeepingStatus || "vacant_clean",
-          zone: s.zone,
-        }));
+        const formattedStatuses = (sitesData || [])
+          .map(parseSiteStatus)
+          .filter((status): status is SiteStatus => status !== null);
 
         setTasks(formattedTasks);
         setSiteStatuses(formattedStatuses);
@@ -132,9 +166,9 @@ export default function HousekeepingPwaPage() {
           meta: { tasks: formattedTasks.length },
         });
         void registerBackgroundSync();
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (!isMounted) return;
-        setError(e?.message || "Failed to load");
+        setError(getErrorMessage(e, "Failed to load"));
         if (cached) {
           setTasks(cached.tasks);
           setSiteStatuses(cached.siteStatuses);
@@ -144,7 +178,7 @@ export default function HousekeepingPwaPage() {
             type: "cache",
             status: "pending",
             message: "Using cached housekeeping data after load failure",
-            meta: { error: e?.message },
+            meta: { error: getErrorMessage(e, "Failed to load") },
           });
         }
       } finally {

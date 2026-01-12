@@ -1,15 +1,18 @@
+import { Promotion, PromotionType } from '@prisma/client';
 import { PromotionsService } from './promotions.service';
+import type { PromotionsStore } from './promotions.service';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import type { CreatePromotionDto, UpdatePromotionDto } from './dto/promotions.dto';
 
 describe('PromotionsService', () => {
   let service: PromotionsService;
-  let mockPrisma: any;
+  let mockPrisma: ReturnType<typeof buildMockPrisma>;
 
-  const createMockPromotion = (overrides: any = {}) => ({
+  const createMockPromotion = (overrides: Partial<Promotion> = {}): Promotion => ({
     id: 'promo-1',
     campgroundId: 'cg-1',
     code: 'SUMMER20',
-    type: 'percentage',
+    type: PromotionType.percentage,
     value: 20,
     validFrom: null,
     validTo: null,
@@ -22,16 +25,19 @@ describe('PromotionsService', () => {
     ...overrides,
   });
 
+  const buildMockPrisma = () => ({
+    promotion: {
+      create: jest.fn(),
+      findMany: jest.fn(),
+      findFirst: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
+  }) satisfies PromotionsStore;
+
   beforeEach(() => {
-    mockPrisma = {
-      promotion: {
-        create: jest.fn(),
-        findMany: jest.fn(),
-        findUnique: jest.fn(),
-        update: jest.fn(),
-        delete: jest.fn(),
-      },
-    };
+    mockPrisma = buildMockPrisma();
 
     service = new PromotionsService(mockPrisma);
   });
@@ -50,7 +56,7 @@ describe('PromotionsService', () => {
           campgroundId: 'cg-1',
           code: 'INVALID',
           subtotal: 10000,
-        })).rejects.toThrow('Invalid promo code');
+        })).rejects.toThrow('Promo code not found. Please verify the code and try again');
       });
 
       it('should normalize code to uppercase', async () => {
@@ -168,7 +174,7 @@ describe('PromotionsService', () => {
 
     describe('discount calculation - percentage', () => {
       it('should calculate percentage discount correctly', async () => {
-        const promo = createMockPromotion({ type: 'percentage', value: 20 });
+        const promo = createMockPromotion({ type: PromotionType.percentage, value: 20 });
         mockPrisma.promotion.findUnique.mockResolvedValue(promo);
 
         const result = await service.validate({
@@ -181,7 +187,7 @@ describe('PromotionsService', () => {
       });
 
       it('should round percentage discount to nearest cent', async () => {
-        const promo = createMockPromotion({ type: 'percentage', value: 33 });
+        const promo = createMockPromotion({ type: PromotionType.percentage, value: 33 });
         mockPrisma.promotion.findUnique.mockResolvedValue(promo);
 
         const result = await service.validate({
@@ -194,7 +200,7 @@ describe('PromotionsService', () => {
       });
 
       it('should handle 100% discount', async () => {
-        const promo = createMockPromotion({ type: 'percentage', value: 100 });
+        const promo = createMockPromotion({ type: PromotionType.percentage, value: 100 });
         mockPrisma.promotion.findUnique.mockResolvedValue(promo);
 
         const result = await service.validate({
@@ -209,7 +215,7 @@ describe('PromotionsService', () => {
 
     describe('discount calculation - flat', () => {
       it('should apply flat discount', async () => {
-        const promo = createMockPromotion({ type: 'flat', value: 1500 }); // $15 off
+        const promo = createMockPromotion({ type: PromotionType.flat, value: 1500 }); // $15 off
         mockPrisma.promotion.findUnique.mockResolvedValue(promo);
 
         const result = await service.validate({
@@ -222,7 +228,7 @@ describe('PromotionsService', () => {
       });
 
       it('should cap flat discount at subtotal', async () => {
-        const promo = createMockPromotion({ type: 'flat', value: 5000 }); // $50 off
+        const promo = createMockPromotion({ type: PromotionType.flat, value: 5000 }); // $50 off
         mockPrisma.promotion.findUnique.mockResolvedValue(promo);
 
         const result = await service.validate({
@@ -240,7 +246,7 @@ describe('PromotionsService', () => {
         const promo = createMockPromotion({
           id: 'promo-123',
           code: 'SUMMER20',
-          type: 'percentage',
+          type: PromotionType.percentage,
           value: 20,
         });
         mockPrisma.promotion.findUnique.mockResolvedValue(promo);
@@ -256,7 +262,7 @@ describe('PromotionsService', () => {
           discountCents: 2000,
           promotionId: 'promo-123',
           code: 'SUMMER20',
-          type: 'percentage',
+          type: PromotionType.percentage,
           value: 20,
         });
       });
@@ -268,11 +274,12 @@ describe('PromotionsService', () => {
       const created = createMockPromotion();
       mockPrisma.promotion.create.mockResolvedValue(created);
 
-      await service.create({
+      const dto: CreatePromotionDto = {
         campgroundId: 'cg-1',
         code: '  summer20  ',
         value: 20,
-      } as any);
+      };
+      await service.create(dto);
 
       expect(mockPrisma.promotion.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -285,15 +292,16 @@ describe('PromotionsService', () => {
       const created = createMockPromotion();
       mockPrisma.promotion.create.mockResolvedValue(created);
 
-      await service.create({
+      const dto: CreatePromotionDto = {
         campgroundId: 'cg-1',
         code: 'TEST',
         value: 10,
-      } as any);
+      };
+      await service.create(dto);
 
       expect(mockPrisma.promotion.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
-          type: 'percentage',
+          type: PromotionType.percentage,
           usageLimit: null,
           isActive: true,
           description: null,
@@ -304,10 +312,11 @@ describe('PromotionsService', () => {
 
   describe('update', () => {
     it('should update promotion', async () => {
-      mockPrisma.promotion.findUnique.mockResolvedValue(createMockPromotion());
+      mockPrisma.promotion.findFirst.mockResolvedValue(createMockPromotion());
       mockPrisma.promotion.update.mockResolvedValue(createMockPromotion({ value: 30 }));
 
-      await service.update('promo-1', { value: 30 } as any);
+      const dto: UpdatePromotionDto = { value: 30 };
+      await service.update('cg-1', 'promo-1', dto);
 
       expect(mockPrisma.promotion.update).toHaveBeenCalledWith({
         where: { id: 'promo-1' },
@@ -316,10 +325,11 @@ describe('PromotionsService', () => {
     });
 
     it('should normalize code on update', async () => {
-      mockPrisma.promotion.findUnique.mockResolvedValue(createMockPromotion());
+      mockPrisma.promotion.findFirst.mockResolvedValue(createMockPromotion());
       mockPrisma.promotion.update.mockResolvedValue(createMockPromotion());
 
-      await service.update('promo-1', { code: 'newcode' } as any);
+      const dto: UpdatePromotionDto = { code: 'newcode' };
+      await service.update('cg-1', 'promo-1', dto);
 
       expect(mockPrisma.promotion.update).toHaveBeenCalledWith({
         where: { id: 'promo-1' },
@@ -328,9 +338,10 @@ describe('PromotionsService', () => {
     });
 
     it('should throw NotFoundException for invalid id', async () => {
-      mockPrisma.promotion.findUnique.mockResolvedValue(null);
+      mockPrisma.promotion.findFirst.mockResolvedValue(null);
 
-      await expect(service.update('invalid', {} as any)).rejects.toThrow(NotFoundException);
+      const dto: UpdatePromotionDto = {};
+      await expect(service.update('cg-1', 'invalid', dto)).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -362,10 +373,10 @@ describe('PromotionsService', () => {
 
   describe('remove', () => {
     it('should delete promotion', async () => {
-      mockPrisma.promotion.findUnique.mockResolvedValue(createMockPromotion());
+      mockPrisma.promotion.findFirst.mockResolvedValue(createMockPromotion());
       mockPrisma.promotion.delete.mockResolvedValue(createMockPromotion());
 
-      await service.remove('promo-1');
+      await service.remove('cg-1', 'promo-1');
 
       expect(mockPrisma.promotion.delete).toHaveBeenCalledWith({
         where: { id: 'promo-1' },
@@ -373,9 +384,9 @@ describe('PromotionsService', () => {
     });
 
     it('should throw NotFoundException for invalid id', async () => {
-      mockPrisma.promotion.findUnique.mockResolvedValue(null);
+      mockPrisma.promotion.findFirst.mockResolvedValue(null);
 
-      await expect(service.remove('invalid')).rejects.toThrow(NotFoundException);
+      await expect(service.remove('cg-1', 'invalid')).rejects.toThrow(NotFoundException);
     });
   });
 });

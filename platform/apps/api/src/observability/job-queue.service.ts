@@ -7,11 +7,8 @@ type QueueState = {
   concurrency: number;
   maxQueue: number;
   pending: Array<{
-    fn: () => Promise<unknown>;
-    resolve: (val: unknown) => void;
-    reject: (err: unknown) => void;
+    run: () => Promise<void>;
     jobName?: string;
-    timeoutMs?: number;
     enqueuedAt: number;
   }>;
 };
@@ -46,12 +43,18 @@ export class JobQueueService {
     }
 
     return new Promise<T>((resolve, reject) => {
+      const timeoutMs = opts?.timeoutMs ?? this.defaultTimeoutMs;
       state.pending.push({
-        fn,
-        resolve: (val) => resolve(val as T),
-        reject: (err) => reject(err),
+        run: async () => {
+          try {
+            const result = await this.runWithTimeout(fn, timeoutMs);
+            resolve(result);
+          } catch (err) {
+            reject(err);
+            throw err;
+          }
+        },
         jobName: opts?.jobName ?? queueName,
-        timeoutMs: opts?.timeoutMs,
         enqueuedAt: Date.now(),
       });
       this.drain(state);
@@ -92,7 +95,6 @@ export class JobQueueService {
       });
 
       const started = Date.now();
-      const timeoutMs = job.timeoutMs ?? this.defaultTimeoutMs;
 
       const finish = (success: boolean) => {
         const durationMs = Date.now() - started;
@@ -113,12 +115,10 @@ export class JobQueueService {
       };
 
       try {
-        const res = await this.runWithTimeout(job.fn, timeoutMs);
+        await job.run();
         finish(true);
-        job.resolve(res);
       } catch (err) {
         finish(false);
-        job.reject(err);
       }
     }
   }
@@ -128,9 +128,9 @@ export class JobQueueService {
     const timeoutPromise = new Promise<never>((_, reject) => {
       timeoutHandle = setTimeout(() => reject(new Error(`Job exceeded timeout ${timeoutMs}ms`)), timeoutMs);
     });
-    const result = await Promise.race([fn(), timeoutPromise]);
+    const result = await Promise.race<T>([fn(), timeoutPromise]);
     clearTimeout(timeoutHandle!);
-    return result as T;
+    return result;
   }
 
   /**
@@ -151,4 +151,3 @@ export class JobQueueService {
     };
   }
 }
-

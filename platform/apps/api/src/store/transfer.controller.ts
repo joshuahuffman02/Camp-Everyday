@@ -18,6 +18,11 @@ import { ScopeGuard } from "../permissions/scope.guard";
 import type { AuthUser } from "../auth/auth.types";
 import { InventoryTransferStatus } from "@prisma/client";
 
+const hasCampgroundId = (
+    value: Request
+): value is Request & { campgroundId?: string | null } =>
+    Object.prototype.hasOwnProperty.call(value, "campgroundId");
+
 @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
 @Controller()
 export class TransferController {
@@ -26,7 +31,12 @@ export class TransferController {
     private requireCampgroundId(req: Request, fallback?: string): string {
         const headerValue = req.headers["x-campground-id"];
         const headerCampgroundId = Array.isArray(headerValue) ? headerValue[0] : headerValue;
-        const campgroundId = fallback ?? req.campgroundId ?? headerCampgroundId ?? undefined;
+        const scopedCampgroundId = hasCampgroundId(req) ? req.campgroundId : undefined;
+        const campgroundId =
+            fallback ??
+            (typeof scopedCampgroundId === "string" ? scopedCampgroundId : undefined) ??
+            headerCampgroundId ??
+            undefined;
         if (!campgroundId) {
             throw new BadRequestException("campgroundId is required");
         }
@@ -36,7 +46,6 @@ export class TransferController {
     private assertCampgroundAccess(campgroundId: string, user: AuthUser | null | undefined): void {
         const isPlatformStaff =
             user?.platformRole === "platform_admin" ||
-            user?.platformRole === "platform_superadmin" ||
             user?.platformRole === "support_agent";
         if (isPlatformStaff) {
             return;
@@ -48,13 +57,21 @@ export class TransferController {
         }
     }
 
+    private requireUserId(user: AuthUser | null | undefined): string {
+        const id = user?.id;
+        if (!id) {
+            throw new BadRequestException("User not found");
+        }
+        return id;
+    }
+
     @Get("campgrounds/:campgroundId/store/transfers")
     listTransfers(
         @Param("campgroundId") campgroundId: string,
+        @Req() req: Request,
         @Query("status") status?: string,
         @Query("fromLocationId") fromLocationId?: string,
-        @Query("toLocationId") toLocationId?: string,
-        @Req() req: Request
+        @Query("toLocationId") toLocationId?: string
     ) {
         this.assertCampgroundAccess(campgroundId, req.user);
         const statusValues: Set<string> = new Set(Object.values(InventoryTransferStatus));
@@ -71,8 +88,8 @@ export class TransferController {
     @Get("store/transfers/:id")
     getTransfer(
         @Param("id") id: string,
-        @Query("campgroundId") campgroundId: string | undefined,
-        @Req() req: Request
+        @Req() req: Request,
+        @Query("campgroundId") campgroundId?: string
     ) {
         const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
         this.assertCampgroundAccess(requiredCampgroundId, req.user);
@@ -85,7 +102,7 @@ export class TransferController {
         @Body() body: Omit<CreateTransferDto, "campgroundId">,
         @Req() req: Request
     ) {
-        const userId = req.user?.id || req.user?.userId;
+        const userId = this.requireUserId(req.user);
         this.assertCampgroundAccess(campgroundId, req.user);
         return this.transferService.createTransfer({ campgroundId, ...body }, userId);
     }
@@ -93,10 +110,10 @@ export class TransferController {
     @Patch("store/transfers/:id/approve")
     approveTransfer(
         @Param("id") id: string,
-        @Query("campgroundId") campgroundId: string | undefined,
-        @Req() req: Request
+        @Req() req: Request,
+        @Query("campgroundId") campgroundId?: string
     ) {
-        const userId = req.user?.id || req.user?.userId;
+        const userId = this.requireUserId(req.user);
         const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
         this.assertCampgroundAccess(requiredCampgroundId, req.user);
         return this.transferService.approveTransfer(requiredCampgroundId, id, userId);
@@ -105,10 +122,10 @@ export class TransferController {
     @Patch("store/transfers/:id/complete")
     completeTransfer(
         @Param("id") id: string,
-        @Query("campgroundId") campgroundId: string | undefined,
-        @Req() req: Request
+        @Req() req: Request,
+        @Query("campgroundId") campgroundId?: string
     ) {
-        const userId = req.user?.id || req.user?.userId;
+        const userId = this.requireUserId(req.user);
         const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
         this.assertCampgroundAccess(requiredCampgroundId, req.user);
         return this.transferService.completeTransfer(requiredCampgroundId, id, userId);
@@ -117,10 +134,10 @@ export class TransferController {
     @Patch("store/transfers/:id/cancel")
     cancelTransfer(
         @Param("id") id: string,
-        @Query("campgroundId") campgroundId: string | undefined,
-        @Req() req: Request
+        @Req() req: Request,
+        @Query("campgroundId") campgroundId?: string
     ) {
-        const userId = req.user?.id || req.user?.userId;
+        const userId = this.requireUserId(req.user);
         const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
         this.assertCampgroundAccess(requiredCampgroundId, req.user);
         return this.transferService.cancelTransfer(requiredCampgroundId, id, userId);

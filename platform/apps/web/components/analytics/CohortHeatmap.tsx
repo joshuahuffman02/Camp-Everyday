@@ -112,7 +112,7 @@ export function CohortHeatmap({
                     {row.cohort}
                   </td>
                   {periodKeys.map((key, colIdx) => {
-                    const value = typeof row[key] === "number" ? row[key] as number : 0;
+                    const value = typeof row[key] === "number" ? row[key] : 0;
                     return (
                       <td key={colIdx} className="py-2 px-1">
                         <div

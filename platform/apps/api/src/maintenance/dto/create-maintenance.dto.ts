@@ -1,7 +1,10 @@
 import { IsDateString, IsEnum, IsNotEmpty, IsOptional, IsString } from "class-validator";
 
-export const MaintenanceStatusValues = ["open", "in_progress", "closed"] as const;
-export const MaintenancePriorityValues = ["low", "medium", "high"] as const;
+export type MaintenanceStatusValue = "open" | "in_progress" | "closed";
+export type MaintenancePriorityValue = "low" | "medium" | "high";
+
+export const MaintenanceStatusValues: MaintenanceStatusValue[] = ["open", "in_progress", "closed"];
+export const MaintenancePriorityValues: MaintenancePriorityValue[] = ["low", "medium", "high"];
 
 export class CreateMaintenanceDto {
   @IsString()
@@ -22,11 +25,11 @@ export class CreateMaintenanceDto {
 
   @IsOptional()
   @IsEnum(MaintenanceStatusValues)
-  status?: (typeof MaintenanceStatusValues)[number];
+  status?: MaintenanceStatusValue;
 
   @IsOptional()
   @IsEnum(MaintenancePriorityValues)
-  priority?: (typeof MaintenancePriorityValues)[number];
+  priority?: MaintenancePriorityValue;
 
   @IsOptional()
   @IsDateString()

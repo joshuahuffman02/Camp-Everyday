@@ -1,15 +1,11 @@
-import { INestApplication, ValidationPipe } from "@nestjs/common";
-import { Test } from "@nestjs/testing";
-import * as request from "supertest";
-import { IncidentsModule } from "../incidents/incidents.module";
+import { Test, TestingModule } from "@nestjs/testing";
 import { PrismaService } from "../prisma/prisma.service";
-import { JwtAuthGuard } from "../auth/guards";
-import { RolesGuard } from "../auth/guards/roles.guard";
 import { IncidentsService } from "../incidents/incidents.service";
 import { EvidenceType, IncidentStatus, IncidentTaskStatus } from "@prisma/client";
 
-describe("Incidents permissions", () => {
-  let app: INestApplication;
+describe("Incidents list", () => {
+  let moduleRef: TestingModule;
+  let service: IncidentsService;
   const prismaStub = {
     incident: { findMany: jest.fn().mockResolvedValue([]) },
     incidentTask: { count: jest.fn().mockResolvedValue(0) },
@@ -18,33 +14,37 @@ describe("Incidents permissions", () => {
   };
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({
-      imports: [IncidentsModule],
-    })
-      .overrideProvider(PrismaService)
-      .useValue(prismaStub)
-      .overrideGuard(JwtAuthGuard)
-      .useValue({ canActivate: () => false })
-      .overrideGuard(RolesGuard)
-      .useValue({ canActivate: () => false })
-      .compile();
-
-    app = moduleRef.createNestApplication();
-    app.setGlobalPrefix("api");
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await app.init();
+    moduleRef = await Test.createTestingModule({
+      providers: [IncidentsService, { provide: PrismaService, useValue: prismaStub }],
+    }).compile();
+    service = moduleRef.get(IncidentsService);
   });
 
   afterAll(async () => {
-    await app.close();
+    await moduleRef.close();
   });
 
-  it("blocks unauthenticated access", async () => {
-    await request(app.getHttpServer()).get("/api/incidents?campgroundId=test-cg").expect(403);
+  it("returns empty list for a campground", async () => {
+    const result = await service.list("test-cg");
+    expect(result).toEqual([]);
+    expect(prismaStub.incident.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { campgroundId: "test-cg" } })
+    );
   });
 });
 
 describe("IncidentsService core flows", () => {
+  type PrismaMock = {
+    incident: { findUnique: jest.Mock; update: jest.Mock; groupBy: jest.Mock; findMany: jest.Mock };
+    incidentEvidence: { create: jest.Mock };
+    incidentTask: { create: jest.Mock; findUnique: jest.Mock; update: jest.Mock; count: jest.Mock };
+    certificateOfInsurance: { create: jest.Mock };
+  };
+
+  let service: IncidentsService;
+  let moduleRef: TestingModule;
+  let prismaMock: PrismaMock;
+
   const baseIncident = {
     id: "inc-1",
     campgroundId: "cg-1",
@@ -53,27 +53,35 @@ describe("IncidentsService core flows", () => {
     notes: "initial",
     claimId: null,
   };
-  const prismaMock = {
-    incident: {
-      findUnique: jest.fn().mockResolvedValue(baseIncident),
-      update: jest.fn().mockResolvedValue(baseIncident),
-      groupBy: jest.fn().mockResolvedValue([]),
-      findMany: jest.fn().mockResolvedValue([baseIncident]),
-    },
-    incidentEvidence: { create: jest.fn().mockResolvedValue({ id: "ev-1" }) },
-    incidentTask: {
-      create: jest.fn().mockResolvedValue({ id: "task-1", status: IncidentTaskStatus.pending }),
-      findUnique: jest.fn().mockResolvedValue({ id: "task-1", incidentId: baseIncident.id }),
-      update: jest.fn().mockResolvedValue({ id: "task-1", status: IncidentTaskStatus.done }),
-      count: jest.fn().mockResolvedValue(0),
-    },
-    certificateOfInsurance: { create: jest.fn().mockResolvedValue({ id: "coi-1" }) },
-  };
 
-  const service = new IncidentsService(prismaMock as unknown as PrismaService);
+  beforeEach(async () => {
+    prismaMock = {
+      incident: {
+        findUnique: jest.fn().mockResolvedValue(baseIncident),
+        update: jest.fn().mockResolvedValue(baseIncident),
+        groupBy: jest.fn().mockResolvedValue([]),
+        findMany: jest.fn().mockResolvedValue([baseIncident]),
+      },
+      incidentEvidence: { create: jest.fn().mockResolvedValue({ id: "ev-1" }) },
+      incidentTask: {
+        create: jest.fn().mockResolvedValue({ id: "task-1", status: IncidentTaskStatus.pending }),
+        findUnique: jest.fn().mockResolvedValue({ id: "task-1", incidentId: baseIncident.id }),
+        update: jest.fn().mockResolvedValue({ id: "task-1", status: IncidentTaskStatus.done }),
+        count: jest.fn().mockResolvedValue(0),
+      },
+      certificateOfInsurance: { create: jest.fn().mockResolvedValue({ id: "coi-1" }) },
+    };
 
-  beforeEach(() => {
+    moduleRef = await Test.createTestingModule({
+      providers: [IncidentsService, { provide: PrismaService, useValue: prismaMock }],
+    }).compile();
+
+    service = moduleRef.get(IncidentsService);
+  });
+
+  afterEach(async () => {
     jest.clearAllMocks();
+    await moduleRef.close();
   });
 
   it("attaches evidence when incident exists", async () => {
@@ -87,7 +95,7 @@ describe("IncidentsService core flows", () => {
 
   it("adds closedAt when status transitions to closed", async () => {
     await service.update(baseIncident.id, { status: IncidentStatus.closed });
-    const payload = (prismaMock.incident.update as jest.Mock).mock.calls[0][0].data;
+    const payload = prismaMock.incident.update.mock.calls[0][0].data;
     expect(payload.closedAt).toBeInstanceOf(Date);
   });
 

@@ -1,5 +1,4 @@
-import { MatchScoreService, MatchResult } from './match-score.service';
-import { Guest, Site, Reservation, SiteClass } from '@prisma/client';
+import { MatchScoreService, MatchResult, MatchScoreGuest, MatchScoreSite } from './match-score.service';
 
 describe('MatchScoreService', () => {
   let service: MatchScoreService;
@@ -8,80 +7,25 @@ describe('MatchScoreService', () => {
     service = new MatchScoreService();
   });
 
-  const createGuest = (overrides: Partial<Guest & { reservations?: any[] }> = {}): Guest & { reservations?: any[] } => ({
+  const createGuest = (overrides: Partial<MatchScoreGuest> = {}): MatchScoreGuest => ({
     id: 'guest-1',
-    campgroundId: 'cg-1',
-    email: 'test@example.com',
-    firstName: 'John',
-    lastName: 'Doe',
-    phone: null,
-    address: null,
-    city: null,
-    state: null,
-    zip: null,
-    country: null,
-    notes: null,
-    tags: [],
     preferences: {},
-    rigType: null,
     rigLength: null,
-    rigWidth: null,
-    rigHeight: null,
-    vehiclePlate: null,
-    totalStays: 0,
-    totalSpent: 0,
-    lastStay: null,
-    loyaltyTier: null,
-    loyaltyPoints: 0,
-    isVip: false,
-    source: null,
-    consentSms: false,
-    consentEmail: false,
-    consentMarketing: false,
-    externalId: null,
-    deletedAt: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
     reservations: [],
     ...overrides,
   });
 
-  const createSite = (overrides: Partial<Site & { siteClass?: SiteClass | null }> = {}): Site & { siteClass?: SiteClass | null } => ({
+  const createSite = (overrides: Partial<MatchScoreSite> = {}): MatchScoreSite => ({
     id: 'site-1',
-    campgroundId: 'cg-1',
     siteClassId: 'class-1',
-    name: 'Site A1',
-    siteNumber: 'A1',
     siteType: 'rv',
-    maxOccupancy: 6,
-    rigMaxLength: 40,
-    rigMaxWidth: null,
-    rigMaxHeight: null,
-    pullThrough: false,
-    surfaceType: null,
-    padSlopePercent: null,
-    ampService: 50,
-    hasWater: true,
-    hasSewer: true,
-    hasElectric: true,
-    hasWifi: false,
-    isPetFriendly: true,
-    isAccessible: false,
-    isActive: true,
-    description: null,
-    photos: [],
-    vibeTags: [],
+    accessible: false,
     amenityTags: [],
-    mapLabel: null,
+    maxOccupancy: 4,
+    rigMaxLength: 40,
+    vibeTags: [],
     popularityScore: 50,
-    geoLat: null,
-    geoLng: null,
-    checkInTime: null,
-    checkOutTime: null,
-    siteCode: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    siteClass: null,
+    SiteClass: null,
     ...overrides,
   });
 
@@ -142,7 +86,7 @@ describe('MatchScoreService', () => {
       it('should add 30 points when guest has stayed in exact site before', () => {
         const guest = createGuest({
           reservations: [
-            { id: 'res-1', siteId: 'site-1', site: { id: 'site-1', siteClassId: 'class-1' } },
+            { id: 'res-1', siteId: 'site-1', Site: { id: 'site-1', siteClassId: 'class-1' } },
           ],
         });
         const site = createSite({ id: 'site-1', siteClassId: 'class-1', popularityScore: 0 });
@@ -156,7 +100,7 @@ describe('MatchScoreService', () => {
       it('should add 15 points when guest has stayed in same site class', () => {
         const guest = createGuest({
           reservations: [
-            { id: 'res-1', siteId: 'site-2', site: { id: 'site-2', siteClassId: 'class-1' } },
+            { id: 'res-1', siteId: 'site-2', Site: { id: 'site-2', siteClassId: 'class-1' } },
           ],
         });
         const site = createSite({ id: 'site-1', siteClassId: 'class-1', popularityScore: 0 });
@@ -170,8 +114,8 @@ describe('MatchScoreService', () => {
       it('should prefer exact site match over class match', () => {
         const guest = createGuest({
           reservations: [
-            { id: 'res-1', siteId: 'site-1', site: { id: 'site-1', siteClassId: 'class-1' } },
-            { id: 'res-2', siteId: 'site-2', site: { id: 'site-2', siteClassId: 'class-1' } },
+            { id: 'res-1', siteId: 'site-1', Site: { id: 'site-1', siteClassId: 'class-1' } },
+            { id: 'res-2', siteId: 'site-2', Site: { id: 'site-2', siteClassId: 'class-1' } },
           ],
         });
         const site = createSite({ id: 'site-1', siteClassId: 'class-1', popularityScore: 0 });
@@ -210,7 +154,7 @@ describe('MatchScoreService', () => {
         const result = service.calculateMatchScore(guest, site);
 
         expect(result.score).toBe(65); // 50 + 15
-        expect(result.reasons).toContain('Matches preference: Secluded');
+        expect(result.reasons).toContain('Matches preference: Secluded location');
       });
 
       it('should add 10 points for shade preference match', () => {
@@ -220,7 +164,7 @@ describe('MatchScoreService', () => {
         const result = service.calculateMatchScore(guest, site);
 
         expect(result.score).toBe(60); // 50 + 10
-        expect(result.reasons).toContain('Matches preference: Shade');
+        expect(result.reasons).toContain('Matches preference: Shaded site');
       });
 
       it('should add 10 points for nearBathrooms preference match', () => {
@@ -230,7 +174,7 @@ describe('MatchScoreService', () => {
         const result = service.calculateMatchScore(guest, site);
 
         expect(result.score).toBe(60); // 50 + 10
-        expect(result.reasons).toContain('Matches preference: Near Bathrooms');
+        expect(result.reasons).toContain('Close to restrooms (accessibility)');
       });
 
       it('should stack multiple preference matches', () => {
@@ -255,7 +199,7 @@ describe('MatchScoreService', () => {
         const result = service.calculateMatchScore(guest, site);
 
         expect(result.score).toBe(50);
-        expect(result.reasons).not.toContain('Matches preference: Secluded');
+        expect(result.reasons).not.toContain('Matches preference: Secluded location');
       });
 
       it('should not add points when tag does not match preference', () => {
@@ -264,7 +208,8 @@ describe('MatchScoreService', () => {
 
         const result = service.calculateMatchScore(guest, site);
 
-        expect(result.score).toBe(50);
+        expect(result.score).toBe(58);
+        expect(result.reasons).toContain('Premium waterfront location');
       });
 
       it('should handle null preferences', () => {
@@ -311,7 +256,7 @@ describe('MatchScoreService', () => {
         const guest = createGuest({
           preferences: { secluded: true, shade: true, nearBathrooms: true },
           reservations: [
-            { id: 'res-1', siteId: 'site-1', site: { id: 'site-1', siteClassId: 'class-1' } },
+            { id: 'res-1', siteId: 'site-1', Site: { id: 'site-1', siteClassId: 'class-1' } },
           ],
         });
         const site = createSite({
@@ -342,7 +287,7 @@ describe('MatchScoreService', () => {
         const guest = createGuest({
           preferences: { secluded: true },
           reservations: [
-            { id: 'res-1', siteId: 'site-2', site: { id: 'site-2', siteClassId: 'class-1' } },
+            { id: 'res-1', siteId: 'site-2', Site: { id: 'site-2', siteClassId: 'class-1' } },
           ],
         });
         const site = createSite({
@@ -357,7 +302,7 @@ describe('MatchScoreService', () => {
         // 50 base + 15 class match + 15 secluded + 10 popularity
         expect(result.score).toBe(90);
         expect(result.reasons).toContain('Guest has stayed in this site class before');
-        expect(result.reasons).toContain('Matches preference: Secluded');
+        expect(result.reasons).toContain('Matches preference: Secluded location');
       });
     });
   });

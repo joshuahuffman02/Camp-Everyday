@@ -43,27 +43,79 @@ import {
   AlertDialogTitle,
 } from "../../../../components/ui/alert-dialog";
 
+type GroupSummary = Awaited<ReturnType<typeof apiClient.getGroups>>[number];
+type GroupDetail = Awaited<ReturnType<typeof apiClient.getGroup>>;
+type GroupReservation = NonNullable<GroupDetail["reservations"]>[number];
+type Block = {
+  blockId: string;
+  state: string;
+  reason?: string;
+  windowStart?: string;
+  windowEnd?: string;
+  sites?: unknown[];
+};
+type Site = Awaited<ReturnType<typeof apiClient.getSites>>[number];
+
+type NewBlockState = {
+  siteIds: string[];
+  windowStart: string;
+  windowEnd: string;
+  reason: string;
+};
+
+type NewGroupState = {
+  name: string;
+  sharedPayment: boolean;
+  sharedComm: boolean;
+};
+
 function formatDate(d?: string | Date | null) {
   if (!d) return "—";
   const date = typeof d === "string" ? new Date(d) : d;
   return isNaN(date.getTime()) ? "—" : format(date, "MMM d, yyyy");
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const isString = (value: unknown): value is string => typeof value === "string";
+
+const parseBlock = (value: unknown): Block | null => {
+  if (!isRecord(value)) return null;
+  const blockId = isString(value.blockId) ? value.blockId : undefined;
+  const state = isString(value.state) ? value.state : undefined;
+  if (!blockId || !state) return null;
+  return {
+    blockId,
+    state,
+    reason: isString(value.reason) ? value.reason : undefined,
+    windowStart: isString(value.windowStart) ? value.windowStart : undefined,
+    windowEnd: isString(value.windowEnd) ? value.windowEnd : undefined,
+    sites: Array.isArray(value.sites) ? value.sites : undefined,
+  };
+};
+
+const isBlock = (value: Block | null): value is Block => value !== null;
+
+const parseBlocks = (value: unknown): Block[] =>
+  Array.isArray(value) ? value.map(parseBlock).filter(isBlock) : [];
+
 export default function GroupsPage() {
   const params = useParams();
   const queryClient = useQueryClient();
-  const campgroundId = params.campgroundId as string;
+  const campgroundParam = params.campgroundId;
+  const campgroundId = typeof campgroundParam === "string" ? campgroundParam : "";
 
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [showBlockModal, setShowBlockModal] = useState(false);
   const [showGroupModal, setShowGroupModal] = useState(false);
-  const [newBlock, setNewBlock] = useState({
-    siteIds: [] as string[],
+  const [newBlock, setNewBlock] = useState<NewBlockState>({
+    siteIds: [],
     windowStart: "",
     windowEnd: "",
     reason: "group_hold",
   });
-  const [newGroup, setNewGroup] = useState({
+  const [newGroup, setNewGroup] = useState<NewGroupState>({
     name: "",
     sharedPayment: false,
     sharedComm: true,
@@ -82,9 +134,12 @@ export default function GroupsPage() {
     enabled: !!selectedGroupId,
   });
 
-  const blocksQuery = useQuery({
+  const blocksQuery = useQuery<Block[]>({
     queryKey: ["blocks", campgroundId],
-    queryFn: () => apiClient.listBlocks(campgroundId),
+    queryFn: async () => {
+      const result = await apiClient.listBlocks(campgroundId);
+      return parseBlocks(result);
+    },
     enabled: !!campgroundId,
   });
 
@@ -117,7 +172,10 @@ export default function GroupsPage() {
     queryFn: () => apiClient.getSites(campgroundId),
     enabled: !!campgroundId,
   });
-  const sites = sitesQuery.data || [];
+  const sites: Site[] = sitesQuery.data ?? [];
+  const groups: GroupSummary[] = groupsQuery.data ?? [];
+  const blocks: Block[] = blocksQuery.data ?? [];
+  const selectedGroup = selectedGroupQuery.data ?? null;
 
   const createGroupMutation = useMutation({
     mutationFn: (payload: {
@@ -138,10 +196,6 @@ export default function GroupsPage() {
       setSelectedGroupId(null);
     },
   });
-
-  const groups = groupsQuery.data || [];
-  const blocks = blocksQuery.data || [];
-  const selectedGroup = selectedGroupQuery.data;
 
   return (
     <DashboardShell>
@@ -184,7 +238,7 @@ export default function GroupsPage() {
                 No groups yet. Create one to link reservations.
               </Card>
             ) : (
-              groups.map((group: any) => (
+              groups.map((group) => (
                 <Card
                   key={group.id}
                   className={`p-3 cursor-pointer hover:shadow-md transition-shadow ${selectedGroupId === group.id ? "ring-2 ring-blue-500" : ""
@@ -266,14 +320,14 @@ export default function GroupsPage() {
                       <div className="text-sm text-muted-foreground">No reservations linked.</div>
                     ) : (
                       <div className="space-y-2">
-                        {selectedGroup.reservations?.map((res: any) => (
+                        {selectedGroup.reservations?.map((res: GroupReservation) => (
                           <div
                             key={res.id}
                             className="flex items-center justify-between p-2 border border-border rounded text-sm"
                           >
                             <div>
                               <div className="font-medium">
-                                {res.guest?.firstName} {res.guest?.lastName}
+                                {res.guest?.primaryFirstName} {res.guest?.primaryLastName}
                               </div>
                               <div className="text-xs text-muted-foreground">
                                 {res.site?.name} #{res.site?.siteNumber} •{" "}
@@ -330,7 +384,7 @@ export default function GroupsPage() {
             </Card>
           ) : (
             <div className="grid md:grid-cols-3 gap-3">
-              {blocks.map((block: any) => (
+              {blocks.map((block) => (
                 <Card key={block.blockId} className="p-3">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
@@ -400,7 +454,7 @@ export default function GroupsPage() {
                 <div>
                   <Label className="text-sm font-medium text-foreground">Sites</Label>
                   <div className="mt-1 max-h-40 overflow-auto border border-border rounded p-2 space-y-1">
-                    {sites.map((site: any) => (
+                    {sites.map((site) => (
                       <div key={site.id} className="flex items-center gap-2 text-sm">
                         <Checkbox
                           id={`block-site-${site.id}`}

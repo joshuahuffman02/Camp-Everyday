@@ -101,7 +101,7 @@ export function CancellationsReport({ campgroundId, dateRange }: CancellationsRe
                                     </td>
                                 </tr>
                             ) : (
-                                cancellations.map((r: any) => (
+                                cancellations.map((r) => (
                                     <tr key={r.id} className="hover:bg-muted group transition-colors">
                                         <td className="px-4 py-3 font-medium text-foreground">
                                             <div className="flex items-center gap-2">

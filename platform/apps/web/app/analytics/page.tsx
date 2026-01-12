@@ -10,15 +10,32 @@ import {
   BarChart3, ScrollText, Landmark
 } from "lucide-react";
 
+type ExportStatus = "idle" | "queued" | "processing" | "ready" | "error";
+type ExportFormat = "csv" | "xlsx";
+
+const PERIODS: Array<7 | 30 | 90> = [7, 30, 90];
+
+const isExportStatus = (value: string): value is ExportStatus =>
+  value === "idle" || value === "queued" || value === "processing" || value === "ready" || value === "error";
+
+const isExportFormat = (value: string): value is ExportFormat =>
+  value === "csv" || value === "xlsx";
+
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  return "Unknown error";
+};
+
 export default function AnalyticsPage() {
   const [selectedCampgroundId, setSelectedCampgroundId] = useState<string | null>(null);
   const [selectedCampgroundName, setSelectedCampgroundName] = useState<string | null>(null);
   const [period, setPeriod] = useState<7 | 30 | 90>(30);
   const [exportJobId, setExportJobId] = useState<string | null>(null);
-  const [exportStatus, setExportStatus] = useState<"idle" | "queued" | "processing" | "ready" | "error">("idle");
+  const [exportStatus, setExportStatus] = useState<ExportStatus>("idle");
   const [exportUrl, setExportUrl] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
-  const [exportFormat, setExportFormat] = useState<"csv" | "xlsx">("csv");
+  const [exportFormat, setExportFormat] = useState<ExportFormat>("csv");
   const [exportEmail, setExportEmail] = useState<string>("");
 
   // Read selected campground from localStorage (set by the dashboard switcher)
@@ -54,16 +71,13 @@ export default function AnalyticsPage() {
           setExportError(job.lastError ?? "Export failed");
           clearInterval(interval);
         } else {
-          const validStatuses: Array<"idle" | "queued" | "processing" | "ready" | "error"> = ["idle", "queued", "processing", "ready", "error"];
-          const jobStatus = job.status as string;
-          if (validStatuses.includes(jobStatus as typeof validStatuses[number])) {
-            setExportStatus(jobStatus as typeof validStatuses[number]);
+          if (typeof job.status === "string" && isExportStatus(job.status)) {
+            setExportStatus(job.status);
           }
         }
       } catch (err: unknown) {
-        const error = err as { message?: string };
         setExportStatus("error");
-        setExportError(error?.message ?? "Failed to fetch export");
+        setExportError(getErrorMessage(err) || "Failed to fetch export");
         clearInterval(interval);
       }
     }, 1500);
@@ -133,10 +147,10 @@ export default function AnalyticsPage() {
             </p>
           </div>
           <div className="flex gap-2 items-center">
-            {[7, 30, 90].map(d => (
+            {PERIODS.map((d) => (
               <button
                 key={d}
-                onClick={() => setPeriod(d as 7 | 30 | 90)}
+                onClick={() => setPeriod(d)}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${period === d
                   ? "bg-emerald-600 text-white"
                   : "bg-card border border-border text-foreground hover:border-emerald-300"
@@ -147,7 +161,11 @@ export default function AnalyticsPage() {
             ))}
             <select
               value={exportFormat}
-              onChange={(e) => setExportFormat(e.target.value as "csv" | "xlsx")}
+              onChange={(e) => {
+                if (isExportFormat(e.target.value)) {
+                  setExportFormat(e.target.value);
+                }
+              }}
               className="px-2 py-1.5 rounded-lg border border-border text-sm text-foreground bg-card hover:border-emerald-300 focus:border-emerald-400 focus:outline-none"
             >
               <option value="csv">CSV</option>
@@ -177,9 +195,9 @@ export default function AnalyticsPage() {
                   }
                   const job = await apiClient.queueReportExport(selectedCampgroundId, payload);
                   setExportJobId(job.id);
-                } catch (err: any) {
+                } catch (err: unknown) {
                   setExportStatus("error");
-                  setExportError(err?.message ?? "Failed to start export");
+                  setExportError(getErrorMessage(err) || "Failed to start export");
                 }
               }}
               className="px-3 py-1.5 rounded-lg text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-60"

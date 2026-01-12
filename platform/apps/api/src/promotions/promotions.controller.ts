@@ -18,13 +18,16 @@ import { RolesGuard } from "../auth/guards/roles.guard";
 import { ScopeGuard } from "../permissions/scope.guard";
 import type { Request } from "express";
 import type { AuthUser } from "../auth/auth.types";
+import { PlatformRole } from "@prisma/client";
+
+type CampgroundRequest = Request & { campgroundId?: string; user?: AuthUser | null };
 
 @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
 @Controller("promotions")
 export class PromotionsController {
     constructor(private readonly promotionsService: PromotionsService) { }
 
-    private requireCampgroundId(req: Request, fallback?: string): string {
+    private requireCampgroundId(req: CampgroundRequest, fallback?: string): string {
         const headerValue = req.headers["x-campground-id"];
         const headerCampgroundId = Array.isArray(headerValue) ? headerValue[0] : headerValue;
         const campgroundId = fallback ?? req.campgroundId ?? headerCampgroundId;
@@ -35,9 +38,11 @@ export class PromotionsController {
     }
 
     private assertCampgroundAccess(campgroundId: string, user?: AuthUser | null): void {
-        const isPlatformStaff = user?.platformRole === "platform_admin" ||
-                                user?.platformRole === "platform_superadmin" ||
-                                user?.platformRole === "support_agent";
+        const isPlatformStaff = user?.platformRole === PlatformRole.platform_admin ||
+                                user?.platformRole === PlatformRole.support_agent ||
+                                user?.platformRole === PlatformRole.support_lead ||
+                                user?.platformRole === PlatformRole.regional_support ||
+                                user?.platformRole === PlatformRole.ops_engineer;
         if (isPlatformStaff) {
             return;
         }
@@ -49,13 +54,13 @@ export class PromotionsController {
     }
 
     @Post()
-    create(@Body() createPromotionDto: CreatePromotionDto, @Req() req: Request) {
+    create(@Body() createPromotionDto: CreatePromotionDto, @Req() req: CampgroundRequest) {
         this.assertCampgroundAccess(createPromotionDto.campgroundId, req.user);
         return this.promotionsService.create(createPromotionDto);
     }
 
     @Get("campgrounds/:campgroundId")
-    findAll(@Param("campgroundId") campgroundId: string, @Req() req: Request) {
+    findAll(@Param("campgroundId") campgroundId: string, @Req() req: CampgroundRequest) {
         this.assertCampgroundAccess(campgroundId, req.user);
         return this.promotionsService.findAll(campgroundId);
     }
@@ -64,7 +69,7 @@ export class PromotionsController {
     findOne(
         @Param("id") id: string,
         @Query("campgroundId") campgroundId: string | undefined,
-        @Req() req: Request
+        @Req() req: CampgroundRequest
     ) {
         const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
         this.assertCampgroundAccess(requiredCampgroundId, req.user);
@@ -76,7 +81,7 @@ export class PromotionsController {
         @Param("id") id: string,
         @Body() updatePromotionDto: UpdatePromotionDto,
         @Query("campgroundId") campgroundId: string | undefined,
-        @Req() req: Request
+        @Req() req: CampgroundRequest
     ) {
         const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
         this.assertCampgroundAccess(requiredCampgroundId, req.user);
@@ -87,7 +92,7 @@ export class PromotionsController {
     remove(
         @Param("id") id: string,
         @Query("campgroundId") campgroundId: string | undefined,
-        @Req() req: Request
+        @Req() req: CampgroundRequest
     ) {
         const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
         this.assertCampgroundAccess(requiredCampgroundId, req.user);
@@ -95,7 +100,7 @@ export class PromotionsController {
     }
 
     @Post("validate")
-    validate(@Body() validatePromotionDto: ValidatePromotionDto, @Req() req: Request) {
+    validate(@Body() validatePromotionDto: ValidatePromotionDto, @Req() req: CampgroundRequest) {
         this.assertCampgroundAccess(validatePromotionDto.campgroundId, req.user);
         return this.promotionsService.validate(validatePromotionDto);
     }

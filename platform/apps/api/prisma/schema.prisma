@@ -1586,6 +1586,14 @@ model Campground {
   adaVerified                                                    Boolean                         @default(false)
   adaVerifiedAt                                                  DateTime?
   adaVerifiedBy                                                  String?
+  securityCertificationLevel                                     String?
+  securityAssessment                                             Json?
+  securityAssessmentUpdatedAt                                    DateTime?
+  securityVerified                                               Boolean                         @default(false)
+  securityVerifiedAt                                             DateTime?
+  securityVerifiedBy                                             String?
+  securityAuditorEmail                                           String?
+  securityAuditorOrg                                             String?
   createdAt                                                      DateTime                        @default(now())
   updatedAt                                                      DateTime                        @default(now())
   deletedAt                                                      DateTime?

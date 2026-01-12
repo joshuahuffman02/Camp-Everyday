@@ -1,4 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
+import type { Prisma } from "@prisma/client";
+import { randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 
 /**
@@ -455,16 +457,20 @@ export class SoftwarePagesService {
       return null;
     }
 
+    const content = coerceRecord(page.content);
+    const heroHeadline = getString(content.heroHeadline) ?? page.title;
+    const heroSubheadline = getString(content.heroSubheadline) ?? null;
+
     return {
       id: page.id,
       slug: page.slug,
-      pageType: page.pageType,
+      pageType: page.type,
       title: page.title,
       metaTitle: page.metaTitle || page.title,
       metaDescription: page.metaDescription || "",
-      heroHeadline: page.heroHeadline,
-      heroSubheadline: page.heroSubheadline,
-      content: page.content as Record<string, unknown>,
+      heroHeadline,
+      heroSubheadline,
+      content,
       isPublished: page.isPublished,
       publishedAt: page.publishedAt,
     };
@@ -516,45 +522,58 @@ export class SoftwarePagesService {
     metaDescription?: string;
     heroHeadline: string;
     heroSubheadline?: string;
-    content: Record<string, unknown>;
+    content: unknown;
     isPublished?: boolean;
   }): Promise<SoftwarePageData> {
+    const mergedContent = {
+      ...coerceRecord(data.content),
+      heroHeadline: data.heroHeadline,
+      heroSubheadline: data.heroSubheadline ?? null,
+    };
+    const content = toJsonValue(mergedContent) ?? {};
+    const publishedAt = data.isPublished ? new Date() : null;
+    const now = new Date();
+
     const page = await this.prisma.softwarePage.upsert({
       where: { slug: data.slug },
       update: {
-        pageType: data.pageType,
+        type: data.pageType,
         title: data.title,
         metaTitle: data.metaTitle,
         metaDescription: data.metaDescription,
-        heroHeadline: data.heroHeadline,
-        heroSubheadline: data.heroSubheadline,
-        content: data.content,
+        content,
         isPublished: data.isPublished ?? true,
-        publishedAt: data.isPublished ? new Date() : null,
+        publishedAt,
+        updatedAt: now,
       },
       create: {
+        id: randomUUID(),
         slug: data.slug,
-        pageType: data.pageType,
+        type: data.pageType,
         title: data.title,
         metaTitle: data.metaTitle,
         metaDescription: data.metaDescription,
-        heroHeadline: data.heroHeadline,
-        heroSubheadline: data.heroSubheadline,
-        content: data.content,
+        content,
         isPublished: data.isPublished ?? false,
+        publishedAt,
+        updatedAt: now,
       },
     });
+
+    const pageContent = coerceRecord(page.content);
+    const heroHeadline = getString(pageContent.heroHeadline) ?? page.title;
+    const heroSubheadline = getString(pageContent.heroSubheadline) ?? null;
 
     return {
       id: page.id,
       slug: page.slug,
-      pageType: page.pageType,
+      pageType: page.type,
       title: page.title,
       metaTitle: page.metaTitle || page.title,
       metaDescription: page.metaDescription || "",
-      heroHeadline: page.heroHeadline,
-      heroSubheadline: page.heroSubheadline,
-      content: page.content as Record<string, unknown>,
+      heroHeadline,
+      heroSubheadline,
+      content: pageContent,
       isPublished: page.isPublished,
       publishedAt: page.publishedAt,
     };
@@ -602,3 +621,21 @@ export class SoftwarePagesService {
     return created;
   }
 }
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const coerceRecord = (value: unknown): Record<string, unknown> =>
+  isRecord(value) ? value : {};
+
+const getString = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined => {
+  if (value === undefined || value === null) return undefined;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
+};

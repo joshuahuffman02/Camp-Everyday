@@ -13,12 +13,14 @@ import { apiClient } from "@/lib/api-client";
 import { launchConfetti } from "@/lib/gamification/confetti";
 import { motion, AnimatePresence } from "framer-motion";
 
+type RechartsModule = typeof import("recharts");
+
 // Dynamic import for recharts to reduce initial bundle size
-let PieChart: any = null;
-let Pie: any = null;
-let Cell: any = null;
-let ResponsiveContainer: any = null;
-let Tooltip: any = null;
+let PieChart: RechartsModule["PieChart"] | null = null;
+let Pie: RechartsModule["Pie"] | null = null;
+let Cell: RechartsModule["Cell"] | null = null;
+let ResponsiveContainer: RechartsModule["ResponsiveContainer"] | null = null;
+let Tooltip: RechartsModule["Tooltip"] | null = null;
 
 const loadRecharts = async () => {
   if (!PieChart) {
@@ -97,13 +99,27 @@ const LEVEL_TITLES: Record<number, string> = {
   10: "Champion",
 };
 
-// Types for API responses
-type XpEvent = {
-  id: string;
-  category: string;
-  xp: number;
-  reason?: string | null;
-  createdAt: string;
+type GamificationDashboard = Awaited<ReturnType<typeof apiClient.getGamificationDashboard>>;
+type GamificationLeaderboard = Awaited<ReturnType<typeof apiClient.getGamificationLeaderboard>>;
+type GamificationStats = Awaited<ReturnType<typeof apiClient.getGamificationStats>>;
+type LeaderboardEntry = GamificationLeaderboard["leaderboard"][number];
+type XpEvent = GamificationDashboard["recentEvents"][number];
+
+type CategoryDatum = {
+  name: string;
+  value: number;
+  color: string;
+};
+
+const LEADERBOARD_WINDOWS: Array<"weekly" | "monthly" | "all"> = ["weekly", "monthly", "all"];
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof Error) return error.message;
+  if (isRecord(error) && typeof error.message === "string") return error.message;
+  return fallback;
 };
 
 // Level Up Modal Component
@@ -383,7 +399,7 @@ function AnimatedNumber({ value, prefix = "", suffix = "" }: { value: number; pr
 }
 
 // Podium component for top 3
-function Podium({ leaderboard }: { leaderboard: any[] }) {
+function Podium({ leaderboard }: { leaderboard: LeaderboardEntry[] }) {
   const top3 = leaderboard.slice(0, 3);
   const podiumOrder = top3.length >= 3 ? [top3[1], top3[0], top3[2]] : top3;
   const heights = ["h-24", "h-32", "h-20"];
@@ -474,6 +490,9 @@ export default function GamificationDashboardPage() {
   const [windowKey, setWindowKey] = useState<"weekly" | "monthly" | "all">("weekly");
   const prevLevelRef = useRef<number | null>(null);
   const [isRechartsLoaded, setIsRechartsLoaded] = useState(false);
+  const charts = PieChart && Pie && Cell && ResponsiveContainer && Tooltip
+    ? { PieChart, Pie, Cell, ResponsiveContainer, Tooltip }
+    : null;
 
   // Load recharts library
   useEffect(() => {
@@ -504,7 +523,7 @@ export default function GamificationDashboardPage() {
   }, []);
 
   // Fetch dashboard data
-  const { data: dashboard, isLoading: dashboardLoading, error: dashboardError } = useQuery({
+  const { data: dashboard, isLoading: dashboardLoading, error: dashboardError } = useQuery<GamificationDashboard>({
     queryKey: ["gamification-dashboard", campgroundId],
     queryFn: async () => {
       console.log("[Gamification] Fetching dashboard for campground:", campgroundId);
@@ -524,14 +543,14 @@ export default function GamificationDashboardPage() {
 
   // Fetch leaderboard
   const daysMap: Record<string, number | undefined> = { weekly: 7, monthly: 30, all: undefined };
-  const { data: leaderboardData } = useQuery({
+  const { data: leaderboardData } = useQuery<GamificationLeaderboard>({
     queryKey: ["gamification-leaderboard", campgroundId, windowKey],
     queryFn: () => apiClient.getGamificationLeaderboard(campgroundId!, daysMap[windowKey]),
     enabled: !!campgroundId,
   });
 
   // Fetch stats for category breakdown
-  const { data: statsData } = useQuery({
+  const { data: statsData } = useQuery<GamificationStats>({
     queryKey: ["gamification-stats", campgroundId],
     queryFn: () => apiClient.getGamificationStats(campgroundId!, 30),
     enabled: !!campgroundId,
@@ -557,16 +576,18 @@ export default function GamificationDashboardPage() {
   const totalXp = dashboard?.balance?.totalXp ?? 0;
   const progressPercent = dashboard?.level ? Math.round((dashboard.level.progressToNext || 0) * 100) : 0;
   const xpRemaining = dashboard?.level?.nextMinXp ? dashboard.level.nextMinXp - totalXp : 0;
-  const recentEvents = (dashboard?.recentEvents || []) as XpEvent[];
+  const recentEvents: XpEvent[] = dashboard?.recentEvents ?? [];
 
   // Prepare category breakdown for pie chart
-  const categoryData = useMemo(() => {
-    const cats = statsData?.categories || [];
-    return cats.map((c: any) => ({
-      name: categoryLabels[c.category] || c.category,
-      value: c.xp,
-      color: CATEGORY_COLORS[c.category] || "#94a3b8",
-    })).filter((c: any) => c.value > 0);
+  const categoryData = useMemo<CategoryDatum[]>(() => {
+    const cats = statsData?.categories ?? [];
+    return cats
+      .map((category) => ({
+        name: categoryLabels[category.category] || category.category,
+        value: category.xp,
+        color: CATEGORY_COLORS[category.category] || "#94a3b8",
+      }))
+      .filter((category) => category.value > 0);
   }, [statsData?.categories]);
 
   const userName = whoami?.user
@@ -617,7 +638,10 @@ export default function GamificationDashboardPage() {
               : "There was an error loading your gamification data. Please try refreshing the page."}
           </p>
           <p className="text-xs text-muted-foreground mb-4">
-            {(dashboardError as Error)?.message || (whoamiError as Error)?.message || (loadingTimedOut ? "Request timeout" : "Unknown error")}
+            {getErrorMessage(
+              dashboardError,
+              getErrorMessage(whoamiError, loadingTimedOut ? "Request timeout" : "Unknown error")
+            )}
           </p>
           <Button onClick={() => window.location.reload()} variant="outline">
             Refresh Page
@@ -750,7 +774,7 @@ export default function GamificationDashboardPage() {
                   <CardDescription>Where your XP comes from (last 30 days)</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {!isRechartsLoaded ? (
+                  {!isRechartsLoaded || !charts ? (
                     <div className="text-center py-8 text-muted-foreground">
                       <div className="flex items-center justify-center gap-2">
                         <div className="h-4 w-4 animate-spin rounded-full border-2 border-status-success border-t-transparent" />
@@ -764,9 +788,9 @@ export default function GamificationDashboardPage() {
                     </div>
                   ) : (
                     <div className="flex flex-col items-center">
-                      <ResponsiveContainer width="100%" height={220}>
-                        <PieChart>
-                          <Pie
+                      <charts.ResponsiveContainer width="100%" height={220}>
+                        <charts.PieChart>
+                          <charts.Pie
                             data={categoryData}
                             cx="50%"
                             cy="50%"
@@ -776,11 +800,11 @@ export default function GamificationDashboardPage() {
                             dataKey="value"
                             nameKey="name"
                           >
-                            {categoryData.map((entry: any, index: number) => (
-                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            {categoryData.map((entry, index) => (
+                              <charts.Cell key={`cell-${index}`} fill={entry.color} />
                             ))}
-                          </Pie>
-                          <Tooltip
+                          </charts.Pie>
+                          <charts.Tooltip
                             formatter={(value: number) => [`${value} XP`, ""]}
                             contentStyle={{
                               backgroundColor: "white",
@@ -789,10 +813,10 @@ export default function GamificationDashboardPage() {
                               boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)"
                             }}
                           />
-                        </PieChart>
-                      </ResponsiveContainer>
+                        </charts.PieChart>
+                      </charts.ResponsiveContainer>
                       <div className="flex flex-wrap justify-center gap-3 mt-2">
-                        {categoryData.map((cat: any) => (
+                        {categoryData.map((cat) => (
                           <div key={cat.name} className="flex items-center gap-2 text-sm">
                             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color }} />
                             <span className="text-muted-foreground">{cat.name}</span>
@@ -889,7 +913,7 @@ export default function GamificationDashboardPage() {
                     <CardDescription>See how you stack up against the team</CardDescription>
                   </div>
                   <div className="flex gap-2">
-                    {(["weekly", "monthly", "all"] as const).map((key) => (
+                    {LEADERBOARD_WINDOWS.map((key) => (
                       <Button
                         key={key}
                         size="sm"
@@ -911,7 +935,7 @@ export default function GamificationDashboardPage() {
 
                 {/* Full rankings */}
                 <div className="space-y-2 mt-4">
-                  {(leaderboardData?.leaderboard || []).map((row: any) => {
+                  {(leaderboardData?.leaderboard || []).map((row) => {
                     const isViewer = leaderboardData?.viewer?.userId === row.userId;
                     const isTop3 = row.rank <= 3;
 

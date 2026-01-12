@@ -1,5 +1,10 @@
 import { Injectable, Logger } from "@nestjs/common";
 
+type SlackBlock = Record<string, unknown>;
+
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
 /**
  * Alert severity levels matching PagerDuty severity model
  */
@@ -180,9 +185,10 @@ export class PagerDutySink extends AlertSink {
       }
 
       return { ok: true };
-    } catch (err: any) {
-      this.logger.error(`PagerDuty send failed: ${err?.message || err}`);
-      return { ok: false, error: err?.message || "unknown error" };
+    } catch (err: unknown) {
+      const message = getErrorMessage(err);
+      this.logger.error(`PagerDuty send failed: ${message}`);
+      return { ok: false, error: message || "unknown error" };
     }
   }
 }
@@ -213,7 +219,7 @@ export class SlackSink extends AlertSink {
     const severityEmoji = this.getSeverityEmoji(payload.severity);
     const color = this.getSeverityColor(payload.severity);
 
-    const blocks = [
+    const blocks: SlackBlock[] = [
       {
         type: "header",
         text: {
@@ -243,7 +249,7 @@ export class SlackSink extends AlertSink {
       blocks.push({
         type: "section",
         fields,
-      } as any);
+      });
     }
 
     // Add timestamp
@@ -255,7 +261,7 @@ export class SlackSink extends AlertSink {
           text: `Severity: *${payload.severity.toUpperCase()}* | Source: ${payload.source || "campreserv-api"} | ${(payload.timestamp || new Date()).toISOString()}`,
         },
       ],
-    } as any);
+    });
 
     const body = {
       attachments: [
@@ -280,9 +286,10 @@ export class SlackSink extends AlertSink {
       }
 
       return { ok: true };
-    } catch (err: any) {
-      this.logger.error(`Slack send failed: ${err?.message || err}`);
-      return { ok: false, error: err?.message || "unknown error" };
+    } catch (err: unknown) {
+      const message = getErrorMessage(err);
+      this.logger.error(`Slack send failed: ${message}`);
+      return { ok: false, error: message || "unknown error" };
     }
   }
 
@@ -397,9 +404,10 @@ export class AlertSinksService {
       try {
         const result = await sink.send(payload);
         results[sink.name] = result;
-      } catch (err: any) {
-        this.logger.error(`Sink ${sink.name} threw: ${err?.message || err}`);
-        results[sink.name] = { ok: false, error: err?.message || "exception" };
+      } catch (err: unknown) {
+        const message = getErrorMessage(err);
+        this.logger.error(`Sink ${sink.name} threw: ${message}`);
+        results[sink.name] = { ok: false, error: message || "exception" };
       }
     });
 

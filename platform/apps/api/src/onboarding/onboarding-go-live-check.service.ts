@@ -1,5 +1,9 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { OnboardingStep } from "@prisma/client";
 import { PrismaService } from '../prisma/prisma.service';
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null;
 
 /**
  * Issue that blocks or warns about launching
@@ -88,18 +92,18 @@ export class OnboardingGoLiveCheckService {
             select: {
                 id: true,
                 stripeAccountId: true,
-                sites: {
+                Site: {
                     where: { status: { not: 'maintenance' } },
                     select: { id: true },
                     take: 1,
                 },
-                siteClasses: {
+                SiteClass: {
                     select: {
                         id: true,
                         defaultRate: true,
                     },
                 },
-                memberships: {
+                CampgroundMembership: {
                     select: { id: true },
                     take: 1,
                 },
@@ -110,19 +114,19 @@ export class OnboardingGoLiveCheckService {
             throw new BadRequestException('Campground not found');
         }
 
-        const sessionData = (session.data as Record<string, unknown>) || {};
-        const completedSteps = new Set(session.completedSteps);
+        const sessionData = isRecord(session.data) ? session.data : {};
+        const completedSteps = new Set<OnboardingStep>(session.completedSteps ?? []);
 
         // Check requirements
         const requirements = {
-            sitesExist: campground.sites.length > 0,
-            ratesSet: campground.siteClasses.every((sc: any) => (sc.defaultRate ?? 0) > 0),
-            depositPolicySet: !!sessionData.deposit_policy || completedSteps.has('deposit_policy' as any),
-            teamMemberExists: campground.memberships.length > 0 || completedSteps.has('team_setup' as any),
+            sitesExist: campground.Site.length > 0,
+            ratesSet: campground.SiteClass.every((sc) => (sc.defaultRate ?? 0) > 0),
+            depositPolicySet: !!sessionData.deposit_policy || completedSteps.has(OnboardingStep.deposit_policy),
+            teamMemberExists: campground.CampgroundMembership.length > 0 || completedSteps.has(OnboardingStep.team_setup),
             stripeConnected: !!campground.stripeAccountId,
-            emailTemplatesConfigured: completedSteps.has('communication_setup' as any),
-            cancellationPolicySet: completedSteps.has('cancellation_rules' as any),
-            taxRulesConfigured: completedSteps.has('tax_rules' as any),
+            emailTemplatesConfigured: completedSteps.has(OnboardingStep.communication_setup),
+            cancellationPolicySet: completedSteps.has(OnboardingStep.cancellation_rules),
+            taxRulesConfigured: completedSteps.has(OnboardingStep.tax_rules),
         };
 
         const blockers: GoLiveIssue[] = [];

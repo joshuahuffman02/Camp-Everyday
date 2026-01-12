@@ -17,6 +17,8 @@ import { ScanProductDto } from "./dto/scan-product.dto";
 import { RecordSaleDto, RecordRefundDto } from "./dto/record-sale.dto";
 import { ApiPrincipal } from "../developer-api/types";
 
+type ApiRequest = Request & { apiPrincipal: ApiPrincipal };
+
 @Controller("partner/v1")
 @UseGuards(ApiTokenGuard, ApiScopeGuard)
 export class PartnerApiController {
@@ -28,8 +30,8 @@ export class PartnerApiController {
    */
   @Post("scan")
   @ApiScopes("pos:read")
-  async scanProduct(@Req() req: Request, @Body() dto: ScanProductDto) {
-    const principal: ApiPrincipal = req.apiPrincipal;
+  async scanProduct(@Req() req: ApiRequest, @Body() dto: ScanProductDto) {
+    const principal = req.apiPrincipal;
     return this.partnerApi.scanProduct(principal.campgroundId, dto);
   }
 
@@ -40,13 +42,13 @@ export class PartnerApiController {
   @Get("products")
   @ApiScopes("pos:read")
   async listProducts(
-    @Req() req: Request,
+    @Req() req: ApiRequest,
     @Query("categoryId") categoryId?: string,
     @Query("search") search?: string,
     @Query("limit") limit?: string,
     @Query("offset") offset?: string
   ) {
-    const principal: ApiPrincipal = req.apiPrincipal;
+    const principal = req.apiPrincipal;
     return this.partnerApi.listProducts(principal.campgroundId, {
       categoryId,
       search,
@@ -61,8 +63,8 @@ export class PartnerApiController {
    */
   @Get("products/:sku")
   @ApiScopes("pos:read")
-  async getProductBySku(@Req() req: Request, @Param("sku") sku: string) {
-    const principal: ApiPrincipal = req.apiPrincipal;
+  async getProductBySku(@Req() req: ApiRequest, @Param("sku") sku: string) {
+    const principal = req.apiPrincipal;
     return this.partnerApi.getProductBySku(principal.campgroundId, sku);
   }
 
@@ -72,8 +74,8 @@ export class PartnerApiController {
    */
   @Get("products/:sku/batches")
   @ApiScopes("inventory:read")
-  async getProductBatches(@Req() req: Request, @Param("sku") sku: string) {
-    const principal: ApiPrincipal = req.apiPrincipal;
+  async getProductBatches(@Req() req: ApiRequest, @Param("sku") sku: string) {
+    const principal = req.apiPrincipal;
     const product = await this.partnerApi.getProductBySku(
       principal.campgroundId,
       sku
@@ -87,8 +89,8 @@ export class PartnerApiController {
    */
   @Get("inventory/expiring")
   @ApiScopes("inventory:read")
-  async getExpiringInventory(@Req() req: Request) {
-    const principal: ApiPrincipal = req.apiPrincipal;
+  async getExpiringInventory(@Req() req: ApiRequest) {
+    const principal = req.apiPrincipal;
     return this.partnerApi.getExpiringInventory(principal.campgroundId);
   }
 
@@ -98,8 +100,8 @@ export class PartnerApiController {
    */
   @Post("sales")
   @ApiScopes("pos:write")
-  async recordSale(@Req() req: Request, @Body() dto: RecordSaleDto) {
-    const principal: ApiPrincipal = req.apiPrincipal;
+  async recordSale(@Req() req: ApiRequest, @Body() dto: RecordSaleDto) {
+    const principal = req.apiPrincipal;
     return this.partnerApi.recordSale(
       principal.campgroundId,
       principal.apiClientId,
@@ -114,11 +116,11 @@ export class PartnerApiController {
   @Post("sales/:saleId/refund")
   @ApiScopes("pos:write")
   async recordRefund(
-    @Req() req: Request,
+    @Req() req: ApiRequest,
     @Param("saleId") saleId: string,
     @Body() dto: RecordRefundDto
   ) {
-    const principal: ApiPrincipal = req.apiPrincipal;
+    const principal = req.apiPrincipal;
     return this.partnerApi.recordRefund(principal.campgroundId, saleId, dto);
   }
 }

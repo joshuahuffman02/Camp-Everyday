@@ -40,6 +40,14 @@ import {
 import { cn } from "../../../lib/utils";
 
 type StoreLocation = Awaited<ReturnType<typeof apiClient.getStoreLocations>>[0];
+type StoreLocationType = "physical" | "virtual";
+type StoreLocationFormData = {
+    name: string;
+    code: string;
+    type: StoreLocationType;
+    isDefault: boolean;
+    acceptsOnline: boolean;
+};
 
 export default function StoreLocationsPage() {
     const queryClient = useQueryClient();
@@ -50,10 +58,10 @@ export default function StoreLocationsPage() {
     const [deleteConfirm, setDeleteConfirm] = useState<StoreLocation | null>(null);
 
     // Form state
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState<StoreLocationFormData>({
         name: "",
         code: "",
-        type: "physical" as "physical" | "virtual",
+        type: "physical",
         isDefault: false,
         acceptsOnline: false,
     });

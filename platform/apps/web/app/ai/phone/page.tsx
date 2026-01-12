@@ -41,43 +41,30 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 
-const SPRING_CONFIG = {
-  type: "spring" as const,
+const SPRING_CONFIG: { type: "spring"; stiffness: number; damping: number } = {
+  type: "spring",
   stiffness: 300,
   damping: 25,
 };
 
-type PhoneSession = {
-  id: string;
+type PhoneSession = Awaited<ReturnType<typeof apiClient.getPhoneSessions>>[number] & {
   twilioCallSid?: string;
-  callerPhone: string;
   guestId?: string;
   guestName?: string;
   reservationId?: string;
-  status: string;
-  startedAt: string;
-  endedAt?: string | null;
-  durationSeconds?: number | null;
   transcript?: string;
-  summary?: string | null;
-  intents: string[];
   actionsPerformed?: Record<string, unknown>;
   transferredAt?: string;
   transferReason?: string;
-  resolutionStatus?: string | null;
   tokensUsed?: number;
   costCents?: number;
 };
 
-type PhoneSummary = {
-  totalCalls: number;
-  callsHandled: number;
-  totalCostCents: number;
+type PhoneSummary = Awaited<ReturnType<typeof apiClient.getPhoneSummary>> & {
   topIntents?: Array<{ name: string; count: number }>;
-  resolutionRate?: number;
 };
 
-type AutopilotConfig = {
+type AutopilotConfig = Awaited<ReturnType<typeof apiClient.getAutopilotConfig>> & {
   phoneAgentEnabled?: boolean;
   phoneAgentNumber?: string;
   phoneAgentHoursStart?: string;
@@ -127,14 +114,14 @@ export default function AIPhonePage() {
   const queryClient = useQueryClient();
 
   // Get campground
-  const { data: campgrounds = [] } = useQuery({
+  const { data: campgrounds = [] } = useQuery<Awaited<ReturnType<typeof apiClient.getCampgrounds>>>({
     queryKey: ["campgrounds"],
     queryFn: () => apiClient.getCampgrounds(),
   });
   const campground = campgrounds[0];
 
   // Get phone sessions
-  const { data: sessions = [], isLoading: loadingSessions, refetch } = useQuery({
+  const { data: sessions = [], isLoading: loadingSessions, refetch } = useQuery<PhoneSession[]>({
     queryKey: ["phone-sessions", campground?.id],
     queryFn: () => apiClient.getPhoneSessions(campground!.id),
     enabled: !!campground?.id,
@@ -149,18 +136,15 @@ export default function AIPhonePage() {
   });
 
   // Get autopilot config
-  const { data: autopilotConfig, refetch: refetchConfig } = useQuery({
+  const { data: autopilotConfig, refetch: refetchConfig } = useQuery<AutopilotConfig>({
     queryKey: ["ai-autopilot-config", campground?.id],
-    queryFn: async () => {
-      const result = await apiClient.getAutopilotConfig(campground!.id);
-      return result as AutopilotConfig;
-    },
+    queryFn: () => apiClient.getAutopilotConfig(campground!.id),
     enabled: !!campground?.id,
   });
 
-  const activeCalls = (sessions as PhoneSession[]).filter(s => s.status === "in_progress");
-  const completedCalls = (sessions as PhoneSession[]).filter(s => s.status !== "in_progress");
-  const totalCalls = (sessions as PhoneSession[]).length;
+  const activeCalls = sessions.filter(s => s.status === "in_progress");
+  const completedCalls = sessions.filter(s => s.status !== "in_progress");
+  const totalCalls = sessions.length;
   const avgDuration = completedCalls.length > 0
     ? Math.round(completedCalls.reduce((acc, s) => acc + (s.durationSeconds || 0), 0) / completedCalls.length)
     : 0;
@@ -351,7 +335,7 @@ export default function AIPhonePage() {
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
-            ) : (sessions as PhoneSession[]).length === 0 ? (
+            ) : sessions.length === 0 ? (
               <Card>
                 <CardContent className="py-12">
                   <div className="text-center">
@@ -368,7 +352,7 @@ export default function AIPhonePage() {
             ) : (
               <div className="grid gap-4">
                 <AnimatePresence mode="popLayout">
-                  {(sessions as PhoneSession[]).map((session, index) => {
+                  {sessions.map((session, index) => {
                     const StatusIcon = getStatusIcon(session.status);
                     const statusColor = getStatusColor(session.status);
 

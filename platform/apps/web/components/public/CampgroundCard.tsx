@@ -81,8 +81,8 @@ export function CampgroundCard({
 
     const STORAGE_KEY = "campreserv:saved-campgrounds";
 
-    const readSaved = () => {
-        if (typeof window === "undefined") return [] as string[];
+    const readSaved = (): string[] => {
+        if (typeof window === "undefined") return [];
         try {
             const raw = localStorage.getItem(STORAGE_KEY);
             const parsed = raw ? JSON.parse(raw) : [];
@@ -175,8 +175,10 @@ export function CampgroundCard({
                         // Fallback to gradient if image fails to load
                         const target = e.currentTarget;
                         target.style.display = "none";
-                        const fallback = target.nextElementSibling as HTMLElement;
-                        if (fallback) fallback.style.display = "flex";
+                        const fallback = target.nextElementSibling;
+                        if (fallback instanceof HTMLElement) {
+                            fallback.style.display = "flex";
+                        }
                     }}
                 />
                 <div

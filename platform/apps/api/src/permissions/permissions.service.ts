@@ -1,17 +1,17 @@
 import { Injectable, ForbiddenException } from "@nestjs/common";
-import { ApprovalStatus, PermissionEffect, UserRole } from "@prisma/client";
+import { ApprovalStatus, PermissionEffect, UserRole, PlatformRole } from "@prisma/client";
+import { randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
+import type { AuthUser } from "../auth/auth.types";
 
 type CheckAccessInput = {
-  user: any;
+  user: AuthUser | null;
   campgroundId?: string | null;
   region?: string | null;
   resource: string;
   action: string;
   field?: string;
 };
-
-type PlatformRole = "support_agent" | "support_lead" | "regional_support" | "ops_engineer" | "platform_admin";
 
 const PLATFORM_RULES: Record<PlatformRole, { resource: string; action: string }[]> = {
   support_agent: [
@@ -42,22 +42,21 @@ const PLATFORM_RULES: Record<PlatformRole, { resource: string; action: string }[
 export class PermissionsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  isPlatformStaff(user: any): boolean {
+  isPlatformStaff(user: AuthUser | null | undefined): boolean {
     return !!this.getPlatformRole(user) && this.isPlatformActive(user);
   }
 
-  private getPlatformRole(user: any): PlatformRole | null {
-    const role = user?.platformRole as PlatformRole | undefined;
-    return role ?? null;
+  private getPlatformRole(user: AuthUser | null | undefined): PlatformRole | null {
+    return user?.platformRole ?? null;
   }
 
-  private isPlatformActive(user: any) {
+  private isPlatformActive(user: AuthUser | null | undefined) {
     if (!user) return false;
     if (user.platformActive === false) return false;
     return true;
   }
 
-  private inPlatformRegion(user: any, region?: string | null) {
+  private inPlatformRegion(user: AuthUser | null | undefined, region?: string | null) {
     if (!region) return true;
     const platformRegion = user?.platformRegion;
     const userRegion = user?.region;
@@ -66,21 +65,21 @@ export class PermissionsService {
     return true;
   }
 
-  private getRole(user: any, campgroundId?: string | null): UserRole | null {
+  private getRole(user: AuthUser | null | undefined, campgroundId?: string | null): UserRole | null {
     if (!user) return null;
     if (user.role) return user.role;
     if (Array.isArray(user.ownershipRoles) && user.ownershipRoles.includes("owner")) return UserRole.owner;
 
     const membership = campgroundId
-      ? user.memberships?.find((m: any) => m.campgroundId === campgroundId)
+      ? user.memberships.find((membership) => membership.campgroundId === campgroundId)
       : null;
-    if (membership?.role) return membership.role as UserRole;
+    if (membership?.role) return membership.role;
 
-    if (Array.isArray(user.memberships) && user.memberships.length > 0) {
-      const roles = user.memberships.map((m: any) => m.role).filter(Boolean) as UserRole[];
-      if (roles.length > 0) {
-        return this.prioritizeRole(roles);
-      }
+    if (user.memberships.length > 0) {
+      const roles = user.memberships
+        .map((membership) => membership.role)
+        .filter((role): role is UserRole => role !== null);
+      if (roles.length > 0) return this.prioritizeRole(roles);
     }
     return null;
   }
@@ -124,15 +123,15 @@ export class PermissionsService {
       where: {
         AND: [
           campgroundId ? { campgroundId } : {},
-          region ? { OR: [{ campground: { region } }, { campgroundId: null }] } : {}
+          region ? { campgroundId: null } : {}
         ]
       },
       orderBy: [{ campgroundId: "asc" }, { role: "asc" }, { resource: "asc" }, { action: "asc" }]
     });
 
-    return rules.map((r: any) => {
-      const { regions, cleanFields } = this.splitRegionsFromFields(r.fields ?? []);
-      return { ...r, fields: cleanFields, regions };
+    return rules.map((rule) => {
+      const { regions, cleanFields } = this.splitRegionsFromFields(rule.fields ?? []);
+      return { ...rule, fields: cleanFields, regions };
     });
   }
 
@@ -147,54 +146,67 @@ export class PermissionsService {
     createdById?: string | null;
   }) {
     const fields = this.buildFieldsWithRegions(params.fields ?? [], params.regions ?? []);
-    return this.prisma.permissionRule.upsert({
+    const campgroundId = params.campgroundId ?? null;
+    const existing = await this.prisma.permissionRule.findFirst({
       where: {
-        campgroundId_role_resource_action: {
-          campgroundId: params.campgroundId ?? null,
-          role: params.role,
-          resource: params.resource,
-          action: params.action
+        campgroundId,
+        role: params.role,
+        resource: params.resource,
+        action: params.action
+      }
+    });
+
+    if (existing) {
+      return this.prisma.permissionRule.update({
+        where: { id: existing.id },
+        data: {
+          fields,
+          effect: params.effect ?? PermissionEffect.allow
         }
-      },
-      create: {
-        campgroundId: params.campgroundId ?? null,
+      });
+    }
+
+    return this.prisma.permissionRule.create({
+      data: {
+        id: randomUUID(),
+        campgroundId,
         role: params.role,
         resource: params.resource,
         action: params.action,
         fields,
         effect: params.effect ?? PermissionEffect.allow,
         createdById: params.createdById ?? null
-      },
-      update: {
-        fields,
-        effect: params.effect ?? PermissionEffect.allow
       }
     });
   }
 
   async deleteRule(params: { campgroundId?: string | null; role: UserRole; resource: string; action: string }) {
-    return this.prisma.permissionRule.delete({
+    const rule = await this.prisma.permissionRule.findFirst({
       where: {
-        campgroundId_role_resource_action: {
-          campgroundId: params.campgroundId ?? null,
-          role: params.role,
-          resource: params.resource,
-          action: params.action
-        }
+        campgroundId: params.campgroundId ?? null,
+        role: params.role,
+        resource: params.resource,
+        action: params.action
       }
     });
+
+    if (!rule) {
+      throw new ForbiddenException("Permission rule not found");
+    }
+
+    return this.prisma.permissionRule.delete({ where: { id: rule.id } });
   }
 
-  private isRegionScoped(user: any, region?: string | null) {
+  private isRegionScoped(user: AuthUser | null | undefined, region?: string | null) {
     if (!region) return true;
     if (!user?.region) return true;
     return user.region === region;
   }
 
-  private isCampgroundScoped(user: any, campgroundId?: string | null) {
+  private isCampgroundScoped(user: AuthUser | null | undefined, campgroundId?: string | null) {
     if (!campgroundId) return true;
     const memberships = user?.memberships ?? [];
-    return memberships.some((m: any) => m.campgroundId === campgroundId);
+    return memberships.some((membership) => membership.campgroundId === campgroundId);
   }
 
   async checkAccess(input: CheckAccessInput): Promise<{ allowed: boolean; deniedFields?: string[] }> {
@@ -269,7 +281,7 @@ export class PermissionsService {
   }
 
   private checkPlatformRules(args: {
-    user: any;
+    user: AuthUser | null;
     role: PlatformRole;
     resource: string;
     action: string;
@@ -295,12 +307,14 @@ export class PermissionsService {
 
     return this.prisma.approvalRequest.create({
       data: {
+        id: randomUUID(),
         campgroundId: params.campgroundId ?? null,
         action: params.action,
         requestedBy: params.requestedBy,
         status: autoApprove,
         decidedBy: params.requestedBy,
-        decidedAt: new Date()
+        decidedAt: new Date(),
+        updatedAt: new Date()
       }
     });
   }
@@ -314,7 +328,8 @@ export class PermissionsService {
       data: {
         status: approve ? ApprovalStatus.approved : ApprovalStatus.rejected,
         decidedBy: actorId,
-        decidedAt: new Date()
+        decidedAt: new Date(),
+        updatedAt: new Date()
       }
     });
   }
@@ -327,5 +342,3 @@ export class PermissionsService {
     });
   }
 }
-
-

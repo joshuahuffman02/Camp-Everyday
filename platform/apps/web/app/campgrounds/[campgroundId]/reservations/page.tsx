@@ -17,7 +17,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../../components/ui/tabs";
 import { Textarea } from "../../../../components/ui/textarea";
 import { TableEmpty } from "../../../../components/ui/table";
-import { ReservationSchema, computeDepositDue, CreateCommunicationSchema, DepositConfig } from "@keepr/shared";
+import {
+  CampgroundSchema,
+  CommunicationSchema,
+  LedgerEntrySchema,
+  ReservationSchema,
+  computeDepositDue,
+  CreateCommunicationSchema
+} from "@keepr/shared";
 import type { z } from "zod";
 import { useGanttStore } from "../../../../lib/gantt-store";
 import { BulkMessageModal } from "../../../../components/reservations/BulkMessageModal";
@@ -26,53 +33,74 @@ import { CelebrationOverlay } from "../../../../components/signup/CelebrationOve
 import { FilterChip } from "../../../../components/ui/filter-chip";
 
 type ReservationStatus = z.infer<typeof ReservationSchema>["status"];
+type Reservation = z.infer<typeof ReservationSchema>;
+type LedgerEntry = z.infer<typeof LedgerEntrySchema>;
+type Communication = z.infer<typeof CommunicationSchema>;
+type Campground = z.infer<typeof CampgroundSchema>;
+type DepositRule = NonNullable<Campground["depositRule"]>;
+type ListTab = "all" | "inhouse";
+type CommsFilter = "all" | "messages" | "notes" | "failed";
+type PaymentTender = "card" | "cash" | "check" | "folio";
 type ReservationUpdate = Partial<z.infer<typeof ReservationSchema>> & {
   overrideReason?: string;
   overrideApprovedBy?: string;
 };
 
-// Extended types for entities with populated relations
-type SiteWithClass = {
-  id: string;
-  siteClassId?: string | null;
-  siteClass?: { id: string; name: string; defaultRate?: number; maxOccupancy?: number } | null;
-  [key: string]: unknown;
+type CommDraft = {
+  type?: "note" | "email";
+  subject?: string;
+  body?: string;
+  toAddress?: string;
+  fromAddress?: string;
 };
 
-type HoldResponse = {
-  id: string;
-  [key: string]: unknown;
+type FormState = {
+  siteId: string;
+  guestId: string;
+  arrivalDate: string;
+  departureDate: string;
+  adults: number;
+  children: number;
+  totalAmount: number;
+  paidAmount: number;
+  notes: string;
+  depositRule: DepositRule;
+  promoCode: string;
+  source: string;
+  checkInWindowStart: string;
+  checkInWindowEnd: string;
+  vehiclePlate: string;
+  vehicleState: string;
+  rigType: string;
+  rigLength: string;
+  feesAmount: string;
+  taxesAmount: string;
+  discountsAmount: string;
 };
 
-type ReservationWithGuest = {
-  id: string;
-  guest?: { primaryFirstName: string; primaryLastName: string; email?: string } | null;
-  site?: SiteWithClass | null;
-  feesAmount?: number;
-  taxesAmount?: number;
-  discountsAmount?: number;
-  promoCode?: string;
-  source?: string;
-  checkInWindowStart?: string;
-  checkInWindowEnd?: string;
-  vehiclePlate?: string;
-  vehicleState?: string;
-  rigType?: string;
-  rigLength?: number;
-  [key: string]: unknown;
-};
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
 
-type CampgroundWithConfig = {
-  id: string;
-  depositConfig?: DepositConfig | null;
-  [key: string]: unknown;
-};
+const isPaymentTender = (value: string): value is PaymentTender =>
+  value === "card" || value === "cash" || value === "check" || value === "folio";
+
+const isCommDraftType = (value: string | undefined): value is CommDraft["type"] =>
+  value === "note" || value === "email";
+
+const isReservationStatus = (value: string): value is ReservationStatus =>
+  value === "pending" ||
+  value === "confirmed" ||
+  value === "checked_in" ||
+  value === "checked_out" ||
+  value === "cancelled";
+
+const commFilterOptions: CommsFilter[] = ["all", "messages", "notes", "failed"];
 
 export default function ReservationsPage() {
-  const params = useParams();
+  const params = useParams<{ campgroundId?: string }>();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const campgroundId = params?.campgroundId as string;
+  const campgroundId = params?.campgroundId ?? "";
   const queryClient = useQueryClient();
 
   const campgroundQuery = useQuery({
@@ -100,7 +128,7 @@ export default function ReservationsPage() {
     queryFn: () => apiClient.getGuests()
   });
 
-  const [listTab, setListTab] = useState<"all" | "inhouse">("all");
+  const [listTab, setListTab] = useState<ListTab>("all");
   const [guestForm, setGuestForm] = useState({
     primaryFirstName: "",
     primaryLastName: "",
@@ -108,7 +136,7 @@ export default function ReservationsPage() {
     phone: "",
     notes: ""
   });
-  const [formState, setFormState] = useState({
+  const [formState, setFormState] = useState<FormState>({
     siteId: "",
     guestId: "",
     arrivalDate: "",
@@ -118,7 +146,7 @@ export default function ReservationsPage() {
     totalAmount: 0,
     paidAmount: 0,
     notes: "",
-    depositRule: "none" as "none" | "full" | "half" | "first_night" | "first_night_fees",
+    depositRule: "none",
     promoCode: "",
     source: "",
     checkInWindowStart: "",
@@ -133,14 +161,14 @@ export default function ReservationsPage() {
   });
   const [editing, setEditing] = useState<Record<string, ReservationUpdate | undefined>>({});
   const [paymentInputs, setPaymentInputs] = useState<Record<string, number>>({});
-  const [paymentTenders, setPaymentTenders] = useState<Record<string, "card" | "cash" | "check" | "folio">>({});
+  const [paymentTenders, setPaymentTenders] = useState<Record<string, PaymentTender>>({});
   const [refundInputs, setRefundInputs] = useState<Record<string, number>>({});
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<ReservationStatus | "all">("all");
   const [startFilter, setStartFilter] = useState("");
   const [endFilter, setEndFilter] = useState("");
   const [filterDepositsDue, setFilterDepositsDue] = useState(false);
-  const [commsFilter, setCommsFilter] = useState<"all" | "messages" | "notes" | "failed">("all");
+  const [commsFilter, setCommsFilter] = useState<CommsFilter>("all");
   const [openDetails, setOpenDetails] = useState<Record<string, boolean>>({});
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkPending, setBulkPending] = useState(false);
@@ -168,20 +196,12 @@ export default function ReservationsPage() {
   } | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
-  const [ledgerByRes, setLedgerByRes] = useState<Record<string, any[]>>({});
+  const [ledgerByRes, setLedgerByRes] = useState<Record<string, LedgerEntry[]>>({});
   const [ledgerLoading, setLedgerLoading] = useState<Record<string, boolean>>({});
   const [ledgerErrors, setLedgerErrors] = useState<Record<string, string>>({});
-  const [commsByRes, setCommsByRes] = useState<Record<string, any[]>>({});
+  const [commsByRes, setCommsByRes] = useState<Record<string, Communication[]>>({});
   const [commsLoading, setCommsLoading] = useState<Record<string, boolean>>({});
   const [commsErrors, setCommsErrors] = useState<Record<string, string>>({});
-  type CommDraft = {
-    type?: "note" | "email";
-    subject?: string;
-    body?: string;
-    toAddress?: string;
-    fromAddress?: string;
-  };
-
   const [newComm, setNewComm] = useState<Record<string, CommDraft>>({});
   const [resQuotes, setResQuotes] = useState<
     Record<string, { baseSubtotalCents: number; rulesDeltaCents: number; totalCents: number; nights: number }>
@@ -237,10 +257,7 @@ export default function ReservationsPage() {
   const createReservation = useMutation({
     mutationFn: async () => {
       const selectedSite = sitesQuery.data?.find((s) => s.id === formState.siteId);
-      const selectedClass =
-        siteClassesQuery.data?.find((cls) => cls.id === (selectedSite as SiteWithClass)?.siteClassId) ||
-        (selectedSite as SiteWithClass)?.siteClass ||
-        null;
+      const selectedClass = siteClassesQuery.data?.find((cls) => cls.id === selectedSite?.siteClassId) ?? null;
       const nights =
         formState.arrivalDate && formState.departureDate
           ? Math.max(
@@ -271,7 +288,9 @@ export default function ReservationsPage() {
             arrivalDate: formState.arrivalDate,
             departureDate: formState.departureDate
           });
-          holdId = (hold as HoldResponse)?.id;
+          if (isRecord(hold) && typeof hold.id === "string") {
+            holdId = hold.id;
+          }
         } catch {
           // If hold creation fails, proceed without blocking reservation
         }
@@ -356,7 +375,7 @@ export default function ReservationsPage() {
     mutationFn: (payload: { id: string; data: ReservationUpdate }) => apiClient.updateReservation(payload.id, payload.data),
     onMutate: async (payload) => {
       await queryClient.cancelQueries({ queryKey: reservationsKey });
-      const previous = queryClient.getQueryData<any[]>(reservationsKey);
+      const previous = queryClient.getQueryData<Reservation[]>(reservationsKey);
       if (previous) {
         const next = previous.map((res) =>
           res.id === payload.id
@@ -408,7 +427,7 @@ export default function ReservationsPage() {
             : "bg-status-warning/15 text-status-warning border-status-warning/30";
 
   const toggleDetails = useCallback(
-    async (res: any, forceOpen?: boolean) => {
+    async (res: Reservation, forceOpen?: boolean) => {
       const nextOpen = forceOpen !== undefined ? forceOpen : !openDetails[res.id];
       setOpenDetails(nextOpen ? { [res.id]: true } : {});
       setSelection({ openDetailsId: nextOpen ? res.id : null, highlightedId: nextOpen ? res.id : highlighted });
@@ -498,7 +517,7 @@ export default function ReservationsPage() {
   );
 
   const beginDrag = useCallback(
-    (res: any) => {
+    (res: Reservation) => {
       startDrag({
         reservationId: res.id,
         siteId: res.siteId,
@@ -581,10 +600,7 @@ export default function ReservationsPage() {
   });
 
   const selectedSite = sitesQuery.data?.find((s) => s.id === formState.siteId);
-  const selectedClass =
-    siteClassesQuery.data?.find((cls) => cls.id === (selectedSite as SiteWithClass)?.siteClassId) ||
-    (selectedSite as SiteWithClass)?.siteClass ||
-    null;
+  const selectedClass = siteClassesQuery.data?.find((cls) => cls.id === selectedSite?.siteClassId) ?? null;
   const nights =
     formState.arrivalDate && formState.departureDate
       ? Math.max(
@@ -625,7 +641,7 @@ export default function ReservationsPage() {
         arrivalDate: formState.arrivalDate || undefined,
         depositRule: campgroundQuery.data.depositRule,
         depositPercentage: campgroundQuery.data.depositPercentage ?? null,
-        depositConfig: (campgroundQuery.data as CampgroundWithConfig).depositConfig ?? null
+        depositConfig: campgroundQuery.data?.depositConfig ?? null
       })
       : null;
   const requiredDeposit = suggestedDeposit ?? 0;
@@ -724,7 +740,7 @@ export default function ReservationsPage() {
     if (!reservationsQuery.data) return [];
     return reservationsQuery.data.filter((res) => {
       const term = search.toLowerCase();
-      const guest = `${(res as ReservationWithGuest).guest?.primaryFirstName || ""} ${(res as ReservationWithGuest).guest?.primaryLastName || ""}`.toLowerCase();
+      const guest = `${res.guest?.primaryFirstName || ""} ${res.guest?.primaryLastName || ""}`.toLowerCase();
       const site = `${res.site?.name || res.site?.siteNumber || ""}`.toLowerCase();
       const status = res.status.toLowerCase();
       const matchesTerm = term ? guest.includes(term) || site.includes(term) || status.includes(term) : true;
@@ -748,7 +764,7 @@ export default function ReservationsPage() {
               arrivalDate: res.arrivalDate,
               depositRule: campgroundQuery.data.depositRule,
               depositPercentage: campgroundQuery.data.depositPercentage ?? null,
-              depositConfig: (campgroundQuery.data as CampgroundWithConfig)?.depositConfig ?? null
+              depositConfig: campgroundQuery.data?.depositConfig ?? null
             })
           : 0;
       const depositDue = requiredDeposit > paid;
@@ -761,8 +777,9 @@ export default function ReservationsPage() {
     const data = [...filteredReservations];
     data.sort((a, b) => {
       const dir = sortDir === "asc" ? 1 : -1;
-      const getGuest = (r: any) => `${r.guest?.primaryLastName || ""} ${r.guest?.primaryFirstName || ""}`.trim().toLowerCase();
-      const getSite = (r: any) => `${r.site?.name || r.site?.siteNumber || ""}`.toLowerCase();
+      const getGuest = (r: Reservation) =>
+        `${r.guest?.primaryLastName || ""} ${r.guest?.primaryFirstName || ""}`.trim().toLowerCase();
+      const getSite = (r: Reservation) => `${r.site?.name || r.site?.siteNumber || ""}`.toLowerCase();
       const balanceA = Math.max(0, (a.totalAmount ?? 0) - (a.paidAmount ?? 0));
       const balanceB = Math.max(0, (b.totalAmount ?? 0) - (b.paidAmount ?? 0));
       switch (sortBy) {
@@ -879,7 +896,7 @@ export default function ReservationsPage() {
       const arrival = new Date(r.arrivalDate);
       const departure = new Date(r.departureDate);
       const nights = Math.max(1, Math.round((departure.getTime() - arrival.getTime()) / (1000 * 60 * 60 * 24)));
-      const guest = `${(r as ReservationWithGuest).guest?.primaryFirstName || ""} ${(r as ReservationWithGuest).guest?.primaryLastName || ""}`.trim();
+      const guest = `${r.guest?.primaryFirstName || ""} ${r.guest?.primaryLastName || ""}`.trim();
       const site = r.site?.name || r.site?.siteNumber || "";
       const total = (r.totalAmount ?? 0) / 100;
       const paid = (r.paidAmount ?? 0) / 100;
@@ -914,7 +931,7 @@ export default function ReservationsPage() {
       const arrival = new Date(r.arrivalDate);
       const departure = new Date(r.departureDate);
       const nights = Math.max(1, Math.round((departure.getTime() - arrival.getTime()) / (1000 * 60 * 60 * 24)));
-      const guest = `${(r as ReservationWithGuest).guest?.primaryFirstName || ""} ${(r as ReservationWithGuest).guest?.primaryLastName || ""}`.trim();
+      const guest = `${r.guest?.primaryFirstName || ""} ${r.guest?.primaryLastName || ""}`.trim();
       const site = r.site?.name || r.site?.siteNumber || "";
       const total = (r.totalAmount ?? 0) / 100;
       const paid = (r.paidAmount ?? 0) / 100;
@@ -933,10 +950,10 @@ export default function ReservationsPage() {
 
   const bulkUpdateStatus = async (nextStatus: ReservationStatus, allowed: ReservationStatus[]) => {
     const eligible = (reservationsQuery.data || []).filter(
-      (r) => selectedIds.includes(r.id) && allowed.includes(r.status as ReservationStatus)
+      (r) => selectedIds.includes(r.id) && allowed.includes(r.status)
     );
     const skipped = (reservationsQuery.data || []).filter(
-      (r) => selectedIds.includes(r.id) && !allowed.includes(r.status as ReservationStatus)
+      (r) => selectedIds.includes(r.id) && !allowed.includes(r.status)
     );
     const actionId = Date.now();
     if (!eligible.length) {
@@ -1152,7 +1169,11 @@ export default function ReservationsPage() {
           </CardContent>
         </Card>
 
-        <Tabs value={listTab} onValueChange={(v) => setListTab((v as "all" | "inhouse") || "all")} className="space-y-4">
+        <Tabs
+          value={listTab}
+          onValueChange={(value) => setListTab(value === "inhouse" ? "inhouse" : "all")}
+          className="space-y-4"
+        >
           <div className="flex items-center justify-between">
             <TabsList>
               <TabsTrigger value="all">All reservations</TabsTrigger>
@@ -1244,8 +1265,8 @@ export default function ReservationsPage() {
                   const total = (res.totalAmount ?? 0) / 100;
                   const paid = (res.paidAmount ?? 0) / 100;
                   const balance = Math.max(0, total - paid);
-                  const guestName = `${(res as ReservationWithGuest).guest?.primaryFirstName || ""} ${(res as ReservationWithGuest).guest?.primaryLastName || ""}`.trim() || "Unassigned";
-                  const statusClass = statusBadge(res.status as ReservationStatus);
+                  const guestName = `${res.guest?.primaryFirstName || ""} ${res.guest?.primaryLastName || ""}`.trim() || "Unassigned";
+                  const statusClass = statusBadge(res.status);
                   const balanceClass =
                     balance > 0
                       ? "border-status-warning/30 bg-status-warning/15 text-status-warning"
@@ -1379,8 +1400,8 @@ export default function ReservationsPage() {
                   const total = (res.totalAmount ?? 0) / 100;
                   const paid = (res.paidAmount ?? 0) / 100;
                   const balance = Math.max(0, total - paid);
-                  const guestName = `${(res as ReservationWithGuest).guest?.primaryFirstName || ""} ${(res as ReservationWithGuest).guest?.primaryLastName || ""}`.trim() || "Unassigned";
-                  const statusClass = statusBadge(res.status as ReservationStatus);
+                  const guestName = `${res.guest?.primaryFirstName || ""} ${res.guest?.primaryLastName || ""}`.trim() || "Unassigned";
+                  const statusClass = statusBadge(res.status);
                   const balanceClass =
                     balance > 0
                       ? "border-status-warning/30 bg-status-warning/15 text-status-warning"
@@ -1560,7 +1581,14 @@ export default function ReservationsPage() {
                   </div>
                   <div className="space-y-1">
                     <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Status</div>
-                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <Select
+                      value={statusFilter}
+                      onValueChange={(value) => {
+                        if (value === "all" || isReservationStatus(value)) {
+                          setStatusFilter(value);
+                        }
+                      }}
+                    >
                       <SelectTrigger aria-label="Status filter">
                         <SelectValue placeholder="All statuses" />
                       </SelectTrigger>
@@ -1838,18 +1866,20 @@ export default function ReservationsPage() {
               </div>
             )}
             {tabFilteredReservations.filter((res) => openDetails[res.id] || focusId === res.id).map((res) => {
-              const siteClassName =
-                siteClassesQuery.data?.find((cls) => cls.id === (res.site as SiteWithClass)?.siteClassId)?.name || "";
-              const siteClass = siteClassesQuery.data?.find((cls) => cls.id === (res.site as SiteWithClass)?.siteClassId);
+              const siteClassId = res.site?.siteClass?.id;
+              const siteClassName = siteClassId
+                ? siteClassesQuery.data?.find((cls) => cls.id === siteClassId)?.name || ""
+                : "";
+              const siteClass = siteClassId ? siteClassesQuery.data?.find((cls) => cls.id === siteClassId) : undefined;
               const arrival = new Date(res.arrivalDate);
               const departure = new Date(res.departureDate);
               const nights = Math.max(1, Math.round((departure.getTime() - arrival.getTime()) / (1000 * 60 * 60 * 24)));
               const total = (res.totalAmount ?? 0) / 100;
               const paid = (res.paidAmount ?? 0) / 100;
               const balance = Math.max(0, total - paid);
-              const feesAmount = ((res as ReservationWithGuest).feesAmount ?? 0) / 100;
-              const taxesAmount = ((res as ReservationWithGuest).taxesAmount ?? 0) / 100;
-              const discountsAmount = ((res as ReservationWithGuest).discountsAmount ?? 0) / 100;
+              const feesAmount = (res.feesAmount ?? 0) / 100;
+              const taxesAmount = (res.taxesAmount ?? 0) / 100;
+              const discountsAmount = (res.discountsAmount ?? 0) / 100;
               const resOccupancy = (res.adults ?? 0) + (res.children ?? 0);
               const resMaxOccupancy = siteClass?.maxOccupancy ?? null;
               const resOccupancyOver = resMaxOccupancy ? resOccupancy > resMaxOccupancy : false;
@@ -1871,7 +1901,7 @@ export default function ReservationsPage() {
                     arrivalDate: res.arrivalDate,
                     depositRule: campgroundQuery.data.depositRule,
                     depositPercentage: campgroundQuery.data.depositPercentage ?? null,
-                    depositConfig: (campgroundQuery.data as CampgroundWithConfig).depositConfig ?? null
+                    depositConfig: campgroundQuery.data?.depositConfig ?? null
                   })
                   : 0;
               const editedTotalCents = editing[res.id]?.totalAmount ?? res.totalAmount ?? 0;
@@ -1884,7 +1914,7 @@ export default function ReservationsPage() {
                     arrivalDate: res.arrivalDate,
                     depositRule: campgroundQuery.data.depositRule,
                     depositPercentage: campgroundQuery.data.depositPercentage ?? null,
-                    depositConfig: (campgroundQuery.data as CampgroundWithConfig).depositConfig ?? null
+                    depositConfig: campgroundQuery.data?.depositConfig ?? null
                   })
                   : suggestedDeposit;
               const depositShortfall = Math.max(0, editedDepositDue - editedPaidCents / 100);
@@ -1892,12 +1922,13 @@ export default function ReservationsPage() {
               const depositPaymentTooLow = depositShortfall > 0 && paymentAmount < depositShortfall;
               const conflict = conflictByReservation[res.id];
               const manualOverride =
-                editedTotalCents !== (res.totalAmount ?? 0) || (editing[res.id]?.discountsAmount ?? (res as ReservationWithGuest).discountsAmount ?? 0) !== ((res as ReservationWithGuest).discountsAmount ?? 0);
+                editedTotalCents !== (res.totalAmount ?? 0) ||
+                (editing[res.id]?.discountsAmount ?? (res.discountsAmount ?? 0)) !== (res.discountsAmount ?? 0);
               const overrideMissing =
                 manualOverride &&
                 (!(editing[res.id]?.overrideReason || "").trim() ||
                   !(editing[res.id]?.overrideApprovedBy || "").trim());
-              const guestName = `${(res as ReservationWithGuest).guest?.primaryFirstName || ""} ${(res as ReservationWithGuest).guest?.primaryLastName || ""}`.trim();
+              const guestName = `${res.guest?.primaryFirstName || ""} ${res.guest?.primaryLastName || ""}`.trim();
               const wasSkipped =
                 !!bulkFeedback &&
                 bulkFeedback.skippedIds.includes(res.id);
@@ -2163,16 +2194,16 @@ export default function ReservationsPage() {
                                 <div className="text-sm font-semibold text-foreground">Recent activity</div>
                                 {(() => {
                                   const activity: { id: string; label: string; at: string }[] = [];
-                                  (ledgerByRes[res.id] || []).slice(0, 5).forEach((row: any, idx: number) => {
+                                  (ledgerByRes[res.id] || []).slice(0, 5).forEach((row: LedgerEntry, idx: number) => {
                                     if (row.createdAt) {
                                       activity.push({
                                         id: `ledger-${res.id}-${idx}`,
-                                        label: `${row.type || "Ledger"} ${row.amount ? `$${(row.amount / 100).toFixed(2)}` : ""}`.trim(),
+                                        label: `${row.description || "Ledger"} ${row.amountCents ? `$${(row.amountCents / 100).toFixed(2)}` : ""}`.trim(),
                                         at: row.createdAt
                                       });
                                     }
                                   });
-                                  (commsByRes[res.id] || []).slice(0, 5).forEach((c: any, idx: number) => {
+                                  (commsByRes[res.id] || []).slice(0, 5).forEach((c: Communication, idx: number) => {
                                     if (c.createdAt) {
                                       activity.push({
                                         id: `comm-${res.id}-${idx}`,
@@ -2301,7 +2332,7 @@ export default function ReservationsPage() {
                                     onValueChange={(value) =>
                                       setPaymentTenders((prev) => ({
                                         ...prev,
-                                        [res.id]: (value as "card" | "cash" | "check" | "folio") || "card"
+                                        [res.id]: isPaymentTender(value) ? value : "card"
                                       }))
                                     }
                                   >
@@ -2647,7 +2678,7 @@ export default function ReservationsPage() {
                                           {new Date(r.arrivalDate).toLocaleDateString()} → {new Date(r.departureDate).toLocaleDateString()}
                                         </span>
                                         <span className="text-foreground">{r.site?.name || r.site?.siteNumber || r.siteId}</span>
-                                        <span className={`rounded-full border px-2 py-0.5 text-[11px] capitalize ${statusBadge(r.status as ReservationStatus)}`}>
+                                        <span className={`rounded-full border px-2 py-0.5 text-[11px] capitalize ${statusBadge(r.status)}`}>
                                           {r.status.replace("_", " ")}
                                         </span>
                                         <Button
@@ -2730,7 +2761,7 @@ export default function ReservationsPage() {
                                 <div className="text-xs font-semibold text-foreground">Communications</div>
                                 <div className="flex gap-2 items-center flex-wrap">
                                   <div className="flex gap-1">
-                                    {(["all", "messages", "notes", "failed"] as const).map((f) => (
+                                    {commFilterOptions.map((f) => (
                                       <button
                                         key={f}
                                         className={`rounded-full border px-2 py-1 text-[11px] ${commsFilter === f ? "border-status-success/30 bg-status-success/15 text-status-success" : "border-border text-muted-foreground"}`}
@@ -2789,7 +2820,7 @@ export default function ReservationsPage() {
                                 </div>
                               )}
                               {(commsByRes[res.id] || [])
-                                .filter((c: any) => {
+                                .filter((c: Communication) => {
                                   if (commsFilter === "notes") return (c.type || "").toLowerCase() === "note";
                                   if (commsFilter === "messages") return (c.type || "").toLowerCase() !== "note";
                                   if (commsFilter === "failed") {
@@ -2799,7 +2830,7 @@ export default function ReservationsPage() {
                                   return true;
                                 })
                                 .slice(0, 5)
-                                .map((c: any) => {
+                                .map((c: Communication) => {
                                   const status = c.status || "sent";
                                   const statusClass =
                                     status.startsWith("delivered") || status === "received"
@@ -2850,10 +2881,13 @@ export default function ReservationsPage() {
                                       <Select
                                         value={commDraft.type || "note"}
                                         onValueChange={(value) =>
-                                          setNewComm((prev) => ({
-                                            ...prev,
-                                            [res.id]: { ...(prev[res.id] || { body: "" }), type: value as "note" | "email" }
-                                          }))
+                                          setNewComm((prev) => {
+                                            const nextType = isCommDraftType(value) ? value : "note";
+                                            return {
+                                              ...prev,
+                                              [res.id]: { ...(prev[res.id] || { body: "" }), type: nextType }
+                                            };
+                                          })
                                         }
                                       >
                                         <SelectTrigger className="h-8 w-[96px] px-2 text-xs" aria-label="Communication type">
@@ -2869,7 +2903,7 @@ export default function ReservationsPage() {
                                           className="h-8 flex-1 px-2 py-1 text-xs"
                                           placeholder="To email"
                                           aria-label="Recipient email"
-                                          value={commDraft.toAddress ?? (res as ReservationWithGuest)?.guest?.email ?? ""}
+                                          value={commDraft.toAddress ?? res.guest?.email ?? ""}
                                           onChange={(e) =>
                                             setNewComm((prev) => ({
                                               ...prev,
@@ -3091,19 +3125,19 @@ export default function ReservationsPage() {
                                   status: editing[res.id]?.status ?? res.status,
                                   siteId: editing[res.id]?.siteId ?? res.siteId,
                                   guestId: editing[res.id]?.guestId ?? res.guestId,
-                                  promoCode: editing[res.id]?.promoCode ?? (res as ReservationWithGuest).promoCode ?? undefined,
-                                  source: editing[res.id]?.source ?? (res as ReservationWithGuest).source ?? undefined,
+                                  promoCode: editing[res.id]?.promoCode ?? res.promoCode ?? undefined,
+                                  source: editing[res.id]?.source ?? res.source ?? undefined,
                                   checkInWindowStart:
-                                    editing[res.id]?.checkInWindowStart ?? (res as ReservationWithGuest).checkInWindowStart ?? undefined,
-                                  checkInWindowEnd: editing[res.id]?.checkInWindowEnd ?? (res as ReservationWithGuest).checkInWindowEnd ?? undefined,
-                                  vehiclePlate: editing[res.id]?.vehiclePlate ?? (res as ReservationWithGuest).vehiclePlate ?? undefined,
-                                  vehicleState: editing[res.id]?.vehicleState ?? (res as ReservationWithGuest).vehicleState ?? undefined,
-                                  rigType: editing[res.id]?.rigType ?? (res as ReservationWithGuest).rigType ?? undefined,
-                                  rigLength: editing[res.id]?.rigLength ?? (res as ReservationWithGuest).rigLength ?? undefined,
+                                    editing[res.id]?.checkInWindowStart ?? res.checkInWindowStart ?? undefined,
+                                  checkInWindowEnd: editing[res.id]?.checkInWindowEnd ?? res.checkInWindowEnd ?? undefined,
+                                  vehiclePlate: editing[res.id]?.vehiclePlate ?? res.vehiclePlate ?? undefined,
+                                  vehicleState: editing[res.id]?.vehicleState ?? res.vehicleState ?? undefined,
+                                  rigType: editing[res.id]?.rigType ?? res.rigType ?? undefined,
+                                  rigLength: editing[res.id]?.rigLength ?? res.rigLength ?? undefined,
                                   baseSubtotal: editing[res.id]?.totalAmount ?? res.totalAmount,
-                                  feesAmount: (res as ReservationWithGuest).feesAmount ?? 0,
-                                  taxesAmount: (res as ReservationWithGuest).taxesAmount ?? 0,
-                                  discountsAmount: (res as ReservationWithGuest).discountsAmount ?? 0,
+                                  feesAmount: res.feesAmount ?? 0,
+                                  taxesAmount: res.taxesAmount ?? 0,
+                                  discountsAmount: res.discountsAmount ?? 0,
                                   overrideReason: editing[res.id]?.overrideReason ?? undefined,
                                   overrideApprovedBy: editing[res.id]?.overrideApprovedBy ?? undefined
                                 }

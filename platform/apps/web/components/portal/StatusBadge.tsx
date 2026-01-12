@@ -1,7 +1,7 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, AlertCircle, Clock, AlertTriangle, Info } from "lucide-react";
+import { CheckCircle, AlertCircle, Clock, AlertTriangle, Info, type LucideIcon } from "lucide-react";
 import { STATUS_VARIANTS, StatusVariant } from "@/lib/portal-constants";
 import { cn } from "@/lib/utils";
 
@@ -13,13 +13,13 @@ interface StatusBadgeProps {
   size?: "sm" | "md";
 }
 
-const VARIANT_ICONS = {
+const VARIANT_ICONS: Record<StatusVariant, LucideIcon> = {
   success: CheckCircle,
   warning: AlertTriangle,
   error: AlertCircle,
   info: Info,
   neutral: Clock,
-} as const;
+};
 
 export function StatusBadge({
   status,

@@ -1,7 +1,6 @@
 "use server";
 
-import { auth } from "./auth";
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 
 // Public routes that don't require authentication
 const publicRoutes = [
@@ -13,7 +12,9 @@ const publicRoutes = [
   "/api/auth"
 ];
 
-export function proxy(req: any) {
+type ProxyRequest = NextRequest & { auth?: unknown };
+
+export function proxy(req: ProxyRequest) {
   const { pathname } = req.nextUrl;
 
   // Allow public routes
@@ -38,4 +39,3 @@ export const config = {
     "/((?!_next/static|_next/image|favicon.ico).*)",
   ],
 };
-

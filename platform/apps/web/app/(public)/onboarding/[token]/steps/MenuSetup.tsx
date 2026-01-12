@@ -48,8 +48,8 @@ interface MenuSetupProps {
   onSkip: () => void;
 }
 
-const SPRING_CONFIG = {
-  type: "spring" as const,
+const SPRING_CONFIG: { type: "spring"; stiffness: number; damping: number } = {
+  type: "spring",
   stiffness: 300,
   damping: 25,
 };
@@ -207,8 +207,10 @@ export function MenuSetup({
     (event: DragEndEvent) => {
       const { active, over } = event;
       if (over && active.id !== over.id) {
-        const oldIndex = pinnedPages.indexOf(active.id as string);
-        const newIndex = pinnedPages.indexOf(over.id as string);
+        const activeId = String(active.id);
+        const overId = String(over.id);
+        const oldIndex = pinnedPages.indexOf(activeId);
+        const newIndex = pinnedPages.indexOf(overId);
         const newOrder = arrayMove(pinnedPages, oldIndex, newIndex);
         setPinnedPages(newOrder);
         onChange(newOrder);

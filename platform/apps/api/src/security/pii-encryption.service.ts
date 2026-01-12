@@ -213,12 +213,12 @@ export class PiiEncryptionService {
     /**
      * Encrypt an object's fields based on field names
      */
-    encryptObject<T extends Record<string, unknown>>(obj: T): T {
-        const result = { ...obj };
+    encryptObject(obj: Record<string, unknown>): Record<string, unknown> {
+        const result: Record<string, unknown> = { ...obj };
 
         for (const [key, value] of Object.entries(result)) {
             if (this.shouldEncrypt(key) && typeof value === "string") {
-                (result as any)[key] = this.encrypt(value);
+                result[key] = this.encrypt(value);
             }
         }
 
@@ -228,12 +228,12 @@ export class PiiEncryptionService {
     /**
      * Decrypt an object's fields based on field names
      */
-    decryptObject<T extends Record<string, unknown>>(obj: T): T {
-        const result = { ...obj };
+    decryptObject(obj: Record<string, unknown>): Record<string, unknown> {
+        const result: Record<string, unknown> = { ...obj };
 
         for (const [key, value] of Object.entries(result)) {
             if (this.shouldEncrypt(key) && typeof value === "string") {
-                (result as any)[key] = this.decrypt(value);
+                result[key] = this.decrypt(value);
             }
         }
 

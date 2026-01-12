@@ -67,10 +67,29 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; dot: string }> =
   rejected: { bg: "bg-status-error/15", text: "text-status-error", dot: "bg-status-error" },
 };
 
-const SPRING_CONFIG = {
-  type: "spring" as const,
+const SPRING_CONFIG: { type: "spring"; stiffness: number; damping: number } = {
+  type: "spring",
   stiffness: 200,
   damping: 20,
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const getString = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+const toStaffMember = (value: unknown): StaffMember | null => {
+  if (!isRecord(value)) return null;
+  const user = isRecord(value.user) ? value.user : null;
+  const id = getString(value.userId) ?? getString(value.id);
+  if (!id) return null;
+  return {
+    id,
+    firstName: getString(user?.firstName ?? value.firstName),
+    lastName: getString(user?.lastName ?? value.lastName),
+    email: getString(user?.email ?? value.email),
+  };
 };
 
 export default function StaffSchedulingPage({ params }: { params: { campgroundId: string } }) {
@@ -181,12 +200,12 @@ export default function StaffSchedulingPage({ params }: { params: { campgroundId
 
       if (membersRes?.ok) {
         const members = await membersRes.json();
-        setStaffMembers((members || []).map((m: any) => ({
-          id: m.userId || m.id,
-          firstName: m.user?.firstName || m.firstName,
-          lastName: m.user?.lastName || m.lastName,
-          email: m.user?.email || m.email
-        })));
+        const parsed = Array.isArray(members)
+          ? members
+              .map(toStaffMember)
+              .filter((member): member is StaffMember => Boolean(member))
+          : [];
+        setStaffMembers(parsed);
       }
     } catch {
       // ignore load errors

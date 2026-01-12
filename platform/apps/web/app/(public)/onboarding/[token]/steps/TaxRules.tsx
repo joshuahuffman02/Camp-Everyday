@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
-interface TaxRuleInput {
+export interface TaxRuleInput {
   name: string;
   type: "percentage" | "flat";
   rate: number;
@@ -39,19 +39,24 @@ interface TaxRulesProps {
   isLoading?: boolean;
 }
 
-const SPRING_CONFIG = {
-  type: "spring" as const,
+const SPRING_CONFIG: { type: "spring"; stiffness: number; damping: number } = {
+  type: "spring",
   stiffness: 300,
   damping: 25,
 };
 
 // Common tax presets
-const TAX_PRESETS = [
-  { name: "State Lodging Tax", type: "percentage" as const, rate: 6 },
-  { name: "Local Tourism Tax", type: "percentage" as const, rate: 2 },
-  { name: "County Tax", type: "percentage" as const, rate: 1.5 },
-  { name: "Resort Fee", type: "flat" as const, rate: 5 },
+const TAX_PRESETS: TaxRuleInput[] = [
+  { name: "State Lodging Tax", type: "percentage", rate: 6 },
+  { name: "Local Tourism Tax", type: "percentage", rate: 2 },
+  { name: "County Tax", type: "percentage", rate: 1.5 },
+  { name: "Resort Fee", type: "flat", rate: 5 },
 ];
+
+const taxTypeValues: TaxRuleInput["type"][] = ["percentage", "flat"];
+
+const isTaxType = (value: string): value is TaxRuleInput["type"] =>
+  taxTypeValues.some((option) => option === value);
 
 export function TaxRules({
   initialRules = [],
@@ -298,7 +303,11 @@ export function TaxRules({
                     <Label className="text-sm text-slate-300">Type</Label>
                     <Select
                       value={newType}
-                      onValueChange={(v) => setNewType(v as "percentage" | "flat")}
+                      onValueChange={(v) => {
+                        if (isTaxType(v)) {
+                          setNewType(v);
+                        }
+                      }}
                     >
                       <SelectTrigger className="bg-slate-800/50 border-slate-700 text-white">
                         <SelectValue />

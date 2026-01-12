@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import { WorkflowsService } from './workflows.service';
+import { WorkflowsService, type CreateWorkflowDto, type WorkflowStepDto } from './workflows.service';
 import { WorkflowStatus } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards';
 
@@ -9,7 +9,7 @@ export class WorkflowsController {
   constructor(private readonly service: WorkflowsService) {}
 
   @Post()
-  createWorkflow(@Body() dto: any) {
+  createWorkflow(@Body() dto: CreateWorkflowDto) {
     return this.service.createWorkflow(dto);
   }
 
@@ -27,7 +27,7 @@ export class WorkflowsController {
   }
 
   @Patch(':id')
-  updateWorkflow(@Param('id') id: string, @Body() dto: any) {
+  updateWorkflow(@Param('id') id: string, @Body() dto: Partial<CreateWorkflowDto>) {
     return this.service.updateWorkflow(id, dto);
   }
 
@@ -37,12 +37,12 @@ export class WorkflowsController {
   }
 
   @Post(':workflowId/steps')
-  addStep(@Param('workflowId') workflowId: string, @Body() dto: any) {
+  addStep(@Param('workflowId') workflowId: string, @Body() dto: WorkflowStepDto) {
     return this.service.addStep(workflowId, dto);
   }
 
   @Patch('steps/:stepId')
-  updateStep(@Param('stepId') stepId: string, @Body() dto: any) {
+  updateStep(@Param('stepId') stepId: string, @Body() dto: Partial<WorkflowStepDto>) {
     return this.service.updateStep(stepId, dto);
   }
 
@@ -54,7 +54,7 @@ export class WorkflowsController {
   @Post(':id/trigger')
   triggerWorkflow(
     @Param('id') id: string,
-    @Body() context: { reservationId?: string; guestId?: string; data?: any }
+    @Body() context: { reservationId?: string; guestId?: string; data?: Record<string, unknown> }
   ) {
     return this.service.triggerWorkflow(id, context);
   }
@@ -64,4 +64,3 @@ export class WorkflowsController {
     return this.service.processPendingExecutions();
   }
 }
-

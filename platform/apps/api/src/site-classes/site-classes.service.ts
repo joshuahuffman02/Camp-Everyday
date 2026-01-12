@@ -1,7 +1,12 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateSiteClassDto } from "./dto/create-site-class.dto";
 import { SiteType } from "@prisma/client";
+import { randomUUID } from "crypto";
+
+const SITE_TYPES = new Set<string>(Object.values(SiteType));
+
+const isSiteType = (value: string): value is SiteType => SITE_TYPES.has(value);
 
 @Injectable()
 export class SiteClassesService {
@@ -10,7 +15,7 @@ export class SiteClassesService {
   async findOne(campgroundId: string, id: string) {
     const siteClass = await this.prisma.siteClass.findFirst({
       where: { id, campgroundId },
-      include: { campground: true }
+      include: { Campground: true }
     });
     if (!siteClass) {
       throw new NotFoundException("Site class not found");
@@ -23,17 +28,25 @@ export class SiteClassesService {
   }
 
   create(data: CreateSiteClassDto) {
-    return this.prisma.siteClass.create({ data: { ...data, siteType: data.siteType as SiteType } });
+    const { siteType, ...rest } = data;
+    if (!isSiteType(siteType)) {
+      throw new BadRequestException("Invalid siteType");
+    }
+    return this.prisma.siteClass.create({
+      data: { id: randomUUID(), ...rest, siteType }
+    });
   }
 
   async update(campgroundId: string, id: string, data: Partial<CreateSiteClassDto>) {
     await this.findOne(campgroundId, id);
     const { campgroundId: _campgroundId, siteType, extraAdultFee, extraChildFee, ...rest } = data;
+    const siteTypeValue = siteType && isSiteType(siteType) ? siteType : undefined;
+    if (siteType && !siteTypeValue) throw new BadRequestException("Invalid siteType");
     return this.prisma.siteClass.update({
       where: { id },
       data: {
         ...rest,
-        ...(siteType ? { siteType: siteType as SiteType } : {}),
+        ...(siteTypeValue ? { siteType: siteTypeValue } : {}),
         // Map frontend field names to Prisma field names
         ...(extraAdultFee !== undefined ? { extraAdultFeeCents: extraAdultFee } : {}),
         ...(extraChildFee !== undefined ? { extraChildFeeCents: extraChildFee } : {}),

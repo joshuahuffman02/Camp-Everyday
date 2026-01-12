@@ -38,6 +38,8 @@ interface SettingsTableProps<T extends { id: string }> {
   className?: string;
 }
 
+const isKeyOf = <Obj extends object>(obj: Obj, key: PropertyKey): key is keyof Obj => key in obj;
+
 export function SettingsTable<T extends { id: string }>({
   data,
   columns,
@@ -196,7 +198,9 @@ export function SettingsTable<T extends { id: string }>({
                     >
                       {column.render
                         ? column.render(item)
-                        : String(item[column.key as keyof T] ?? "")}
+                        : isKeyOf(item, column.key)
+                          ? String(item[column.key] ?? "")
+                          : ""}
                     </td>
                   ))}
                   {getRowActions && (

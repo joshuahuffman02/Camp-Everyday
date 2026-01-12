@@ -4,17 +4,17 @@ import { MarkdownDiscountType, MarkdownScope } from "@prisma/client";
 export class CreateMarkdownRuleDto {
     @IsInt()
     @Min(0)
-    daysUntilExpiration: number;
+    daysUntilExpiration!: number;
 
     @IsEnum(MarkdownDiscountType)
-    discountType: MarkdownDiscountType;
+    discountType!: MarkdownDiscountType;
 
     @IsInt()
     @Min(1)
-    discountValue: number; // Percentage (1-100) or flat cents
+    discountValue!: number; // Percentage (1-100) or flat cents
 
     @IsEnum(MarkdownScope)
-    scope: MarkdownScope;
+    scope!: MarkdownScope;
 
     @IsString()
     @IsOptional()

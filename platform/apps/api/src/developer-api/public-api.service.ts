@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import { Prisma } from "@prisma/client";
+import { Prisma, ReservationStatus, SiteType } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { WebhookService, WebhookEvent } from "./webhook.service";
 import { GuestsService } from "../guests/guests.service";
@@ -9,6 +9,8 @@ import { DepositPoliciesService } from "../deposit-policies/deposit-policies.ser
 import { calculateReservationDepositV2 } from "../reservations/reservation-deposit";
 import { AuditService } from "../audit/audit.service";
 import { postBalancedLedgerEntries } from "../ledger/ledger-posting.util";
+import type { CreateGuestDto } from "../guests/dto/create-guest.dto";
+import { randomUUID } from "crypto";
 
 export interface ApiReservationInput {
   siteId: string;
@@ -65,6 +67,28 @@ export class PublicApiService {
     return { balanceAmount, paymentStatus };
   }
 
+  private normalizeReservationStatus(value?: string): ReservationStatus | null {
+    if (!value) return null;
+    switch (value) {
+      case ReservationStatus.pending:
+      case ReservationStatus.confirmed:
+      case ReservationStatus.checked_in:
+      case ReservationStatus.checked_out:
+      case ReservationStatus.cancelled:
+        return value;
+      default:
+        return null;
+    }
+  }
+
+  private isSiteType(value: string): value is SiteType {
+    return Object.values(SiteType).some((siteType) => siteType === value);
+  }
+
+  private normalizeSiteType(value: string): SiteType | null {
+    return this.isSiteType(value) ? value : null;
+  }
+
   private async assertSiteInCampground(siteId: string, campgroundId: string) {
     const site = await this.prisma.site.findUnique({ where: { id: siteId }, select: { campgroundId: true } });
     if (!site || site.campgroundId !== campgroundId) {
@@ -80,27 +104,33 @@ export class PublicApiService {
   }
 
   async listReservations(campgroundId: string) {
-    return this.prisma.reservation.findMany({
+    const reservations = await this.prisma.reservation.findMany({
       where: { campgroundId },
       orderBy: { createdAt: "desc" },
       include: {
-        site: { select: { id: true, name: true, siteNumber: true } },
-        guest: { select: { id: true, primaryFirstName: true, primaryLastName: true, email: true } }
+        Site: { select: { id: true, name: true, siteNumber: true } },
+        Guest: { select: { id: true, primaryFirstName: true, primaryLastName: true, email: true } }
       }
     });
+    return reservations.map(({ Site, Guest, ...rest }) => ({
+      ...rest,
+      site: Site,
+      guest: Guest
+    }));
   }
 
   async getReservation(campgroundId: string, id: string) {
     const reservation = await this.prisma.reservation.findFirst({
       where: { id, campgroundId },
       include: {
-        site: { select: { id: true, name: true, siteNumber: true } },
-        guest: { select: { id: true, primaryFirstName: true, primaryLastName: true, email: true } },
-        payments: true
+        Site: { select: { id: true, name: true, siteNumber: true } },
+        Guest: { select: { id: true, primaryFirstName: true, primaryLastName: true, email: true } },
+        Payment: true
       }
     });
     if (!reservation) throw new NotFoundException("Reservation not found");
-    return reservation;
+    const { Site, Guest, Payment, ...rest } = reservation;
+    return { ...rest, site: Site, guest: Guest, payments: Payment };
   }
 
   /**
@@ -149,11 +179,17 @@ export class PublicApiService {
       where: { id: campgroundId },
       select: { maxDiscountFraction: true }
     });
-    const maxDiscountFraction = (campground as any)?.maxDiscountFraction ?? 0.4;
+    const maxDiscountFraction = Number(campground?.maxDiscountFraction ?? 0.4);
 
     // Determine final amount and validate override if provided
     let totalAmount = pricing.totalCents;
     let pricingSource = "calculated";
+    let overrideAudit: {
+      calculatedTotal: number;
+      overrideTotal: number;
+      reason: string;
+      discountPercent: number;
+    } | null = null;
 
     if (input.totalAmountOverride !== undefined && input.totalAmountOverride !== null) {
       const overrideDelta = input.totalAmountOverride - pricing.totalCents;
@@ -177,20 +213,12 @@ export class PublicApiService {
       totalAmount = input.totalAmountOverride;
       pricingSource = "api_override";
 
-      // Audit the override
-      await this.audit.record({
-        campgroundId,
-        actorId: null,
-        action: "api_pricing_override",
-        entity: "reservation",
-        entityId: null,
-        before: { calculatedTotal: pricing.totalCents },
-        after: {
-          overrideTotal: totalAmount,
-          reason: input.overrideReason,
-          discountPercent: Math.round(discountPct * 100)
-        }
-      });
+      overrideAudit = {
+        calculatedTotal: pricing.totalCents,
+        overrideTotal: totalAmount,
+        reason: input.overrideReason,
+        discountPercent: Math.round(discountPct * 100)
+      };
     }
 
     // Calculate deposit
@@ -207,8 +235,14 @@ export class PublicApiService {
       nights: pricing.nights
     });
 
+    const normalizedStatus = this.normalizeReservationStatus(input.status);
+    if (input.status && !normalizedStatus) {
+      throw new BadRequestException(`Invalid reservation status: ${input.status}`);
+    }
+
     const created = await this.prisma.reservation.create({
       data: {
+        id: randomUUID(),
         campgroundId,
         siteId: input.siteId,
         siteLocked: input.siteLocked ?? false,
@@ -217,7 +251,7 @@ export class PublicApiService {
         departureDate: departure,
         adults: input.adults,
         children: input.children ?? 0,
-        status: (input.status as any) || "confirmed",
+        status: normalizedStatus ?? ReservationStatus.confirmed,
         notes: input.notes || null,
         source: "api",
         // PRICING FIELDS (previously missing!)
@@ -236,6 +270,22 @@ export class PublicApiService {
       }
     });
 
+    if (overrideAudit) {
+      await this.audit.record({
+        campgroundId,
+        actorId: null,
+        action: "api_pricing_override",
+        entity: "reservation",
+        entityId: created.id,
+        before: { calculatedTotal: overrideAudit.calculatedTotal },
+        after: {
+          overrideTotal: overrideAudit.overrideTotal,
+          reason: overrideAudit.reason,
+          discountPercent: overrideAudit.discountPercent
+        }
+      });
+    }
+
     await this.webhook.emit("reservation.created", campgroundId, { reservationId: created.id });
     return created;
   }
@@ -245,6 +295,10 @@ export class PublicApiService {
     if (input.siteId) {
       await this.assertSiteInCampground(input.siteId, campgroundId);
     }
+    const normalizedStatus = this.normalizeReservationStatus(input.status);
+    if (input.status && !normalizedStatus) {
+      throw new BadRequestException(`Invalid reservation status: ${input.status}`);
+    }
     const updated = await this.prisma.reservation.update({
       where: { id },
       data: {
@@ -253,7 +307,7 @@ export class PublicApiService {
         ...(input.departureDate ? { departureDate: new Date(input.departureDate) } : {}),
         ...(input.adults !== undefined ? { adults: input.adults } : {}),
         ...(input.children !== undefined ? { children: input.children } : {}),
-        ...(input.status ? { status: input.status as any } : {}),
+        ...(normalizedStatus ? { status: normalizedStatus } : {}),
         ...(input.notes !== undefined ? { notes: input.notes } : {}),
         ...(input.siteLocked !== undefined ? { siteLocked: input.siteLocked } : {})
       }
@@ -305,8 +359,8 @@ export class PublicApiService {
         include: { SiteClass: true }
       });
 
-      const revenueGl = site?.siteClass?.glCode ?? "REVENUE_UNMAPPED";
-      const revenueAccount = site?.siteClass?.clientAccount ?? "Revenue";
+      const revenueGl = site?.SiteClass?.glCode ?? "REVENUE_UNMAPPED";
+      const revenueAccount = site?.SiteClass?.clientAccount ?? "Revenue";
 
       // Update reservation with new payment totals
       const updatedReservation = await tx.reservation.update({
@@ -320,6 +374,7 @@ export class PublicApiService {
       // Create payment record
       const paymentRecord = await tx.payment.create({
         data: {
+          id: randomUUID(),
           campgroundId,
           reservationId,
           amountCents,
@@ -386,7 +441,7 @@ export class PublicApiService {
 
   async listGuests(campgroundId: string) {
     return this.prisma.guest.findMany({
-      where: { reservations: { some: { campgroundId } } },
+      where: { Reservation: { some: { campgroundId } } },
       orderBy: { createdAt: "desc" },
       take: 100
     });
@@ -396,7 +451,7 @@ export class PublicApiService {
     const guest = await this.prisma.guest.findUnique({
       where: { id },
       include: {
-        reservations: {
+        Reservation: {
           where: { campgroundId },
           orderBy: { arrivalDate: "desc" },
           include: { Site: { select: { id: true, name: true, siteNumber: true } } }
@@ -404,23 +459,32 @@ export class PublicApiService {
       }
     });
     if (!guest) throw new NotFoundException("Guest not found");
-    return guest;
+    const reservations = guest.Reservation.map(({ Site, ...rest }) => ({
+      ...rest,
+      site: Site
+    }));
+    const { Reservation, ...guestData } = guest;
+    return { ...guestData, reservations };
   }
 
   async createGuest(campgroundId: string, input: ApiGuestInput) {
-    const guest = await this.guests.create({
+    if (!input.phone) {
+      throw new BadRequestException("phone is required");
+    }
+    const guestInput: CreateGuestDto = {
       primaryFirstName: input.primaryFirstName,
       primaryLastName: input.primaryLastName,
       email: input.email,
       phone: input.phone
-    } as any);
+    };
+    const guest = await this.guests.create(guestInput);
     await this.webhook.emit("guest.created", campgroundId, { guestId: guest.id });
     return guest;
   }
 
   async updateGuest(campgroundId: string, id: string, input: Partial<ApiGuestInput>) {
     await this.getGuest(campgroundId, id);
-    return this.guests.update(id, input as any);
+    return this.guests.update(id, input);
   }
 
   async deleteGuest(campgroundId: string, id: string) {
@@ -442,12 +506,17 @@ export class PublicApiService {
   }
 
   async createSite(campgroundId: string, input: ApiSiteInput) {
+    const normalizedSiteType = this.normalizeSiteType(input.siteType);
+    if (!normalizedSiteType) {
+      throw new BadRequestException(`Invalid site type: ${input.siteType}`);
+    }
     const created = await this.prisma.site.create({
       data: {
+        id: randomUUID(),
         campgroundId,
         name: input.name,
         siteNumber: input.siteNumber,
-        siteType: input.siteType as any,
+        siteType: normalizedSiteType,
         maxOccupancy: input.maxOccupancy,
         rigMaxLength: input.rigMaxLength ?? null
       }
@@ -458,12 +527,16 @@ export class PublicApiService {
 
   async updateSite(campgroundId: string, id: string, input: Partial<ApiSiteInput>) {
     await this.getSite(campgroundId, id);
+    const normalizedSiteType = input.siteType ? this.normalizeSiteType(input.siteType) : null;
+    if (input.siteType && !normalizedSiteType) {
+      throw new BadRequestException(`Invalid site type: ${input.siteType}`);
+    }
     const updated = await this.prisma.site.update({
       where: { id },
       data: {
         ...(input.name ? { name: input.name } : {}),
         ...(input.siteNumber ? { siteNumber: input.siteNumber } : {}),
-        ...(input.siteType ? { siteType: input.siteType as any } : {}),
+        ...(normalizedSiteType ? { siteType: normalizedSiteType } : {}),
         ...(input.maxOccupancy !== undefined ? { maxOccupancy: input.maxOccupancy } : {}),
         ...(input.rigMaxLength !== undefined ? { rigMaxLength: input.rigMaxLength } : {})
       }

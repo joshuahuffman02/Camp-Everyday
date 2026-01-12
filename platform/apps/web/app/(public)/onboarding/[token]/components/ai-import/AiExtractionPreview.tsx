@@ -28,12 +28,14 @@ import {
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 
+type FieldValue = string | number | boolean | null;
+
 interface FieldConfidence {
   field: string;
-  value: string | number | boolean | null;
+  value: FieldValue;
   confidence: number;
   source: "extracted" | "inferred" | "default";
-  alternatives?: { value: any; confidence: number }[];
+  alternatives?: { value: FieldValue; confidence: number }[];
   requiresReview: boolean;
 }
 
@@ -60,7 +62,7 @@ interface AiExtractionPreviewProps {
   rows: RowConfidence[];
   summary: ExtractionSummary;
   targetEntity: string;
-  onCorrection: (rowNumber: number, field: string, value: any) => void;
+  onCorrection: (rowNumber: number, field: string, value: FieldValue) => void;
   onConfirm: () => void;
   onCancel: () => void;
   isConfirming?: boolean;
@@ -125,7 +127,7 @@ export function AiExtractionPreview({
     return rows.filter((r) => r.overallConfidence >= 0.8);
   }, [rows, showLowConfidence]);
 
-  const startEdit = (rowNumber: number, field: string, currentValue: any) => {
+  const startEdit = (rowNumber: number, field: string, currentValue: FieldValue) => {
     setEditingCell({ row: rowNumber, field });
     setEditValue(String(currentValue ?? ""));
   };
@@ -163,7 +165,7 @@ export function AiExtractionPreview({
     return "bg-red-50";
   };
 
-  const formatValue = (value: any): string => {
+  const formatValue = (value: FieldValue): string => {
     if (value === null || value === undefined) return "-";
     if (typeof value === "boolean") return value ? "Yes" : "No";
     return String(value);

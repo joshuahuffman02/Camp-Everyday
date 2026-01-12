@@ -20,7 +20,7 @@ export class PublicEventsController {
   ): Promise<PublicEventSearchResult> {
     return this.eventsService.searchPublicEvents({
       state: state?.toUpperCase(),
-      eventType: eventType as EventType | undefined,
+      eventType,
       startDate: startDate ? new Date(startDate) : undefined,
       endDate: endDate ? new Date(endDate) : undefined,
       limit: limit ? parseInt(limit, 10) : 24,

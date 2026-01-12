@@ -14,17 +14,17 @@ import { OperationalHours, OperationalHoursData } from "./steps/OperationalHours
 import { StripeConnect } from "./steps/StripeConnect";
 import { ImportOrManual } from "./steps/ImportOrManual";
 import { DataImport } from "./steps/DataImport";
-import { SiteClasses } from "./steps/SiteClasses";
-import { SitesBuilder } from "./steps/SitesBuilder";
+import { SiteClasses, type SiteClassData } from "./steps/SiteClasses";
+import { SitesBuilder, type SiteData } from "./steps/SitesBuilder";
 import { RatePeriods, RatePeriod } from "./steps/RatePeriods";
 import { RatesSetup } from "./steps/RatesSetup";
 import { FeesAndAddons } from "./steps/FeesAndAddons";
-import { TaxRules } from "./steps/TaxRules";
+import { TaxRules, type TaxRuleInput } from "./steps/TaxRules";
 import { BookingRules, BookingRulesData } from "./steps/BookingRules";
-import { DepositPolicy } from "./steps/DepositPolicy";
+import { DepositPolicy, type DepositPolicyData } from "./steps/DepositPolicy";
 import { CancellationRules, CancellationRule } from "./steps/CancellationRules";
 import { WaiversDocuments, WaiversDocumentsData } from "./steps/WaiversDocuments";
-import { ParkRules } from "./steps/ParkRules";
+import { ParkRules, type ParkRulesData } from "./steps/ParkRules";
 import { TeamSetup, TeamMember } from "./steps/TeamSetup";
 import { CommunicationSetup, CommunicationSetupData } from "./steps/CommunicationSetup";
 import { Integrations, IntegrationsData } from "./steps/Integrations";
@@ -35,7 +35,7 @@ import { FeatureTriage, FeatureTriageData } from "./steps/FeatureTriage";
 import { GuidedSetup, GuidedSetupData } from "./steps/GuidedSetup";
 import { ReviewLaunch } from "./steps/ReviewLaunch";
 import { Loader2 } from "lucide-react";
-import { getRecommendedFeatures, type FeatureRecommendations } from "@/lib/feature-recommendations";
+import { type FeatureRecommendations } from "@/lib/feature-recommendations";
 
 interface WizardState {
   currentStep: OnboardingStepKey;
@@ -101,16 +101,10 @@ interface WizardState {
       pricingType: "flat" | "per_night" | "per_person";
     }>;
   };
-  taxRules?: Array<{ name: string; type: string; rate: number }>;
-  depositPolicy?: { strategy: "first_night" | "percent" | "full"; percentValue?: number };
+  taxRules?: TaxRuleInput[];
+  depositPolicy?: DepositPolicyData;
   cancellationRules?: CancellationRule[];
-  parkRules?: {
-    useTemplate: boolean;
-    templateId?: string;
-    customRules?: string;
-    requireSignature: boolean;
-    enforcement: "pre_booking" | "pre_checkin" | "informational";
-  };
+  parkRules?: ParkRulesData;
   teamMembers?: TeamMember[];
   integrations?: IntegrationsData;
   // New step data
@@ -128,11 +122,285 @@ interface WizardState {
   guidedSetup?: GuidedSetupData;
 }
 
+type FeesAndAddonsState = NonNullable<WizardState["feesAndAddons"]>;
+
+const defaultStep: OnboardingStepKey = "park_profile";
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const isString = (value: unknown): value is string => typeof value === "string";
+
+const isNumber = (value: unknown): value is number =>
+  typeof value === "number" && !Number.isNaN(value);
+
+const isBoolean = (value: unknown): value is boolean => typeof value === "boolean";
+
+const isStringArray = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every(isString);
+
+const isNumberArray = (value: unknown): value is number[] =>
+  Array.isArray(value) && value.every(isNumber);
+
+const getString = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+const getRecord = (value: unknown): Record<string, unknown> | undefined =>
+  isRecord(value) ? value : undefined;
+
+const isOnboardingStepKey = (value: string): value is OnboardingStepKey =>
+  onboardingSteps.some((step) => step.key === value);
+
+type SiteType = SiteClassData["siteType"];
+type RentalType = SiteClassData["rentalType"];
+type RvOrientation = NonNullable<SiteClassData["rvOrientation"]>;
+type MeteredType = NonNullable<SiteClassData["meteredType"]>;
+type MeteredBillingMode = NonNullable<SiteClassData["meteredBillingMode"]>;
+type TaxRuleType = TaxRuleInput["type"];
+
+const siteTypeValues: SiteType[] = ["rv", "tent", "cabin", "glamping"];
+const rentalTypeValues: RentalType[] = ["transient", "seasonal", "flexible"];
+const rvOrientationValues: RvOrientation[] = ["back_in", "pull_through"];
+const meteredTypeValues: MeteredType[] = ["power", "water", "sewer"];
+const meteredBillingModeValues: MeteredBillingMode[] = ["per_reading", "cycle", "manual"];
+const taxTypeValues: TaxRuleType[] = ["percentage", "flat"];
+
+const isSiteType = (value: unknown): value is SiteType =>
+  isString(value) && siteTypeValues.some((option) => option === value);
+
+const isRentalType = (value: unknown): value is RentalType =>
+  isString(value) && rentalTypeValues.some((option) => option === value);
+
+const isRvOrientation = (value: unknown): value is RvOrientation =>
+  isString(value) && rvOrientationValues.some((option) => option === value);
+
+const isMeteredType = (value: unknown): value is MeteredType =>
+  isString(value) && meteredTypeValues.some((option) => option === value);
+
+const isMeteredBillingMode = (value: unknown): value is MeteredBillingMode =>
+  isString(value) && meteredBillingModeValues.some((option) => option === value);
+
+const isTaxRuleType = (value: unknown): value is TaxRuleType =>
+  isString(value) && taxTypeValues.some((option) => option === value);
+
+const getRecordField = (record: Record<string, unknown> | undefined, key: string): Record<string, unknown> | undefined => {
+  if (!record) return undefined;
+  const value = record[key];
+  return isRecord(value) ? value : undefined;
+};
+
+const getArrayField = (record: Record<string, unknown> | undefined, key: string): unknown[] | undefined => {
+  if (!record) return undefined;
+  const value = record[key];
+  return Array.isArray(value) ? value : undefined;
+};
+
+const isRatePeriodDateRange = (value: unknown): value is RatePeriod["dateRanges"][number] =>
+  isRecord(value) && isString(value.startDate) && isString(value.endDate);
+
+const isRatePeriod = (value: unknown): value is RatePeriod =>
+  isRecord(value) &&
+  isString(value.id) &&
+  isString(value.name) &&
+  Array.isArray(value.dateRanges) &&
+  value.dateRanges.every(isRatePeriodDateRange) &&
+  (value.icon === undefined || isString(value.icon)) &&
+  (value.isDefault === undefined || isBoolean(value.isDefault));
+
+const isRateEntry = (value: unknown): value is { siteClassId: string; nightlyRate: number } =>
+  isRecord(value) && isString(value.siteClassId) && isNumber(value.nightlyRate);
+
+const isPricingType = (value: unknown): value is FeesAndAddonsState["addOnItems"][number]["pricingType"] =>
+  value === "flat" || value === "per_night" || value === "per_person";
+
+const isPetFeeType = (value: unknown): value is FeesAndAddonsState["petFeeType"] =>
+  value === "per_pet_per_night" || value === "flat";
+
+const isAddOnItem = (value: unknown): value is FeesAndAddonsState["addOnItems"][number] =>
+  isRecord(value) &&
+  isString(value.id) &&
+  isString(value.name) &&
+  isNumber(value.priceCents) &&
+  isPricingType(value.pricingType);
+
+const isFeesAndAddonsData = (value: unknown): value is FeesAndAddonsState =>
+  isRecord(value) &&
+  (value.bookingFeeCents === null || isNumber(value.bookingFeeCents)) &&
+  (value.siteLockFeeCents === null || isNumber(value.siteLockFeeCents)) &&
+  isBoolean(value.petFeeEnabled) &&
+  (value.petFeeCents === null || isNumber(value.petFeeCents)) &&
+  isPetFeeType(value.petFeeType) &&
+  Array.isArray(value.addOnItems) &&
+  value.addOnItems.every(isAddOnItem);
+
+const isTaxRuleInput = (value: unknown): value is TaxRuleInput =>
+  isRecord(value) && isString(value.name) && isTaxRuleType(value.type) && isNumber(value.rate);
+
+const isDepositPolicyData = (value: unknown): value is DepositPolicyData =>
+  isRecord(value) &&
+  (value.strategy === "first_night" || value.strategy === "percent" || value.strategy === "full") &&
+  (value.percentValue === undefined || isNumber(value.percentValue));
+
+const isCancellationFeeType = (value: unknown): value is CancellationRule["feeType"] =>
+  value === "flat" || value === "percent" || value === "nights" || value === "full";
+
+const isCancellationRule = (value: unknown): value is CancellationRule =>
+  isRecord(value) &&
+  isString(value.id) &&
+  isNumber(value.daysBeforeArrival) &&
+  isCancellationFeeType(value.feeType) &&
+  isNumber(value.feeAmount) &&
+  (value.appliesTo === undefined || isStringArray(value.appliesTo));
+
+const isParkRulesEnforcement = (value: unknown): value is ParkRulesData["enforcement"] =>
+  value === "pre_booking" || value === "pre_checkin" || value === "informational";
+
+const isParkRulesData = (value: unknown): value is ParkRulesData =>
+  isRecord(value) &&
+  isBoolean(value.useTemplate) &&
+  isBoolean(value.requireSignature) &&
+  isParkRulesEnforcement(value.enforcement) &&
+  (value.templateId === undefined || isString(value.templateId)) &&
+  (value.customRules === undefined || isString(value.customRules));
+
+const isTeamRole = (value: unknown): value is TeamMember["role"] =>
+  value === "manager" ||
+  value === "front_desk" ||
+  value === "maintenance" ||
+  value === "finance" ||
+  value === "marketing" ||
+  value === "readonly";
+
+const isTeamMember = (value: unknown): value is TeamMember =>
+  isRecord(value) &&
+  isString(value.id) &&
+  isString(value.firstName) &&
+  isString(value.lastName) &&
+  isString(value.email) &&
+  isTeamRole(value.role);
+
+const isOperationalHoursData = (value: unknown): value is OperationalHoursData =>
+  isRecord(value) &&
+  isString(value.checkInTime) &&
+  isString(value.checkOutTime) &&
+  isBoolean(value.quietHoursEnabled) &&
+  isBoolean(value.checkInWindowEnabled) &&
+  (value.quietHoursStart === undefined || isString(value.quietHoursStart)) &&
+  (value.quietHoursEnd === undefined || isString(value.quietHoursEnd)) &&
+  (value.checkInWindowStart === undefined || isString(value.checkInWindowStart)) &&
+  (value.checkInWindowEnd === undefined || isString(value.checkInWindowEnd));
+
+const isBookingRulesData = (value: unknown): value is BookingRulesData =>
+  isRecord(value) &&
+  (value.advanceBookingDays === null || isNumber(value.advanceBookingDays)) &&
+  isNumber(value.minNights) &&
+  isBoolean(value.longTermEnabled) &&
+  (value.longTermMinNights === undefined || isNumber(value.longTermMinNights)) &&
+  (value.longTermAutoApply === undefined || isBoolean(value.longTermAutoApply)) &&
+  isString(value.officeClosesAt) &&
+  isBoolean(value.sameDayCutoffEnabled);
+
+const isWaiverTiming = (value: unknown): value is WaiversDocumentsData["waiverTiming"] =>
+  value === "before_arrival" || value === "at_checkin";
+
+const isWaiversDocumentsData = (value: unknown): value is WaiversDocumentsData =>
+  isRecord(value) &&
+  isBoolean(value.requireWaiver) &&
+  isBoolean(value.requireParkRulesAck) &&
+  isBoolean(value.requireVehicleForm) &&
+  isBoolean(value.requirePetPolicy) &&
+  (value.waiverTiming === undefined || isWaiverTiming(value.waiverTiming)) &&
+  (value.waiverContent === undefined || isString(value.waiverContent)) &&
+  (value.useDefaultWaiver === undefined || isBoolean(value.useDefaultWaiver));
+
+const isPreArrivalReminder = (value: unknown): value is CommunicationSetupData["preArrivalReminders"][number] =>
+  isRecord(value) && isNumber(value.days) && isBoolean(value.enabled) && isString(value.description);
+
+const isCommunicationSetupData = (value: unknown): value is CommunicationSetupData =>
+  isRecord(value) &&
+  isBoolean(value.useCustomDomain) &&
+  isBoolean(value.sendConfirmation) &&
+  Array.isArray(value.preArrivalReminders) &&
+  value.preArrivalReminders.every(isPreArrivalReminder) &&
+  isBoolean(value.sendPostStay) &&
+  isBoolean(value.enableNpsSurvey) &&
+  (value.customDomain === undefined || isString(value.customDomain)) &&
+  (value.npsSendHour === undefined || isNumber(value.npsSendHour));
+
+const isIntegrationsData = (value: unknown): value is IntegrationsData =>
+  isRecord(value) &&
+  isStringArray(value.interestedIn) &&
+  (value.quickbooks === undefined ||
+    (isRecord(value.quickbooks) &&
+      isBoolean(value.quickbooks.connected) &&
+      (value.quickbooks.accountId === undefined || isString(value.quickbooks.accountId)))) &&
+  (value.gateAccess === undefined ||
+    (isRecord(value.gateAccess) &&
+      isBoolean(value.gateAccess.connected) &&
+      (value.gateAccess.provider === undefined || isString(value.gateAccess.provider))));
+
+const isFeatureTriageStatus = (value: unknown): value is FeatureTriageData["selections"][string] =>
+  value === "setup_now" || value === "setup_later" || value === "skip";
+
+const isFeatureTriageData = (value: unknown): value is FeatureTriageData =>
+  isRecord(value) &&
+  isRecord(value.selections) &&
+  Object.values(value.selections).every(isFeatureTriageStatus) &&
+  isBoolean(value.completed);
+
+const isGuidedSetupData = (value: unknown): value is GuidedSetupData =>
+  isRecord(value) &&
+  isStringArray(value.completedFeatures) &&
+  isStringArray(value.skippedFeatures) &&
+  isNumber(value.currentFeatureIndex);
+
+const isSmartQuizData = (value: unknown): value is SmartQuizData =>
+  isRecord(value) &&
+  isRecord(value.answers) &&
+  isRecord(value.recommendations) &&
+  isStringArray(value.recommendations.setupNow) &&
+  isStringArray(value.recommendations.setupLater) &&
+  isStringArray(value.recommendations.skipped) &&
+  isBoolean(value.completed);
+
+const isSiteClassData = (value: unknown): value is SiteClassData =>
+  isRecord(value) &&
+  isString(value.name) &&
+  isSiteType(value.siteType) &&
+  isRentalType(value.rentalType) &&
+  isNumberArray(value.electricAmps) &&
+  isStringArray(value.equipmentTypes) &&
+  (value.slideOutsAccepted === null || isString(value.slideOutsAccepted)) &&
+  isBoolean(value.hookupsWater) &&
+  isBoolean(value.hookupsSewer) &&
+  isNumber(value.defaultRate) &&
+  isNumber(value.maxOccupancy) &&
+  isBoolean(value.petFriendly) &&
+  isNumber(value.occupantsIncluded) &&
+  (value.extraAdultFee === null || isNumber(value.extraAdultFee)) &&
+  (value.extraChildFee === null || isNumber(value.extraChildFee)) &&
+  isStringArray(value.amenityTags) &&
+  isStringArray(value.photos) &&
+  isBoolean(value.meteredEnabled) &&
+  (value.meteredType === null || isMeteredType(value.meteredType)) &&
+  (value.meteredBillingMode === null || isMeteredBillingMode(value.meteredBillingMode)) &&
+  (value.rvOrientation === undefined || value.rvOrientation === null || isRvOrientation(value.rvOrientation)) &&
+  (value.id === undefined || isString(value.id));
+
+const isSiteData = (value: unknown): value is SiteData =>
+  isRecord(value) &&
+  isString(value.name) &&
+  isString(value.siteNumber) &&
+  isString(value.siteClassId) &&
+  (value.rigMaxLength === undefined || isNumber(value.rigMaxLength)) &&
+  (value.powerAmps === undefined || isNumber(value.powerAmps)) &&
+  (value.id === undefined || isString(value.id));
+
 export default function OnboardingPage() {
-  const params = useParams();
+  const { token: tokenParam } = useParams<{ token?: string }>();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const token = params.token as string;
+  const token = tokenParam ?? "";
   const queryClient = useQueryClient();
 
   // Check if returning from Stripe
@@ -167,7 +435,7 @@ export default function OnboardingPage() {
     if (initialized || !sessionQuery.data?.session) return;
 
     const session = sessionQuery.data.session;
-    const data = session.data || {};
+    const data: Record<string, unknown> = isRecord(session.data) ? session.data : {};
 
     // Map old step keys to new ones if needed
     const mapStepKey = (key: string): OnboardingStepKey => {
@@ -179,7 +447,8 @@ export default function OnboardingPage() {
         taxes_and_fees: "tax_rules",
         policies: "deposit_policy",
       };
-      return (mapping[key] as OnboardingStepKey) || (key as OnboardingStepKey);
+      const mapped = mapping[key] ?? key;
+      return isOnboardingStepKey(mapped) ? mapped : defaultStep;
     };
 
     const mappedCompletedSteps = (sessionQuery.data.progress?.completedSteps || [])
@@ -193,52 +462,153 @@ export default function OnboardingPage() {
     );
 
     // Extract signup data for pre-population
+    const signupCampground = getRecord(data.campground);
     const signupData = {
-      name: data.campgroundName || data.campground?.name || "",
-      phone: data.phone || data.campground?.phone || "",
-      email: data.email || data.campground?.email || "",
+      name: getString(data.campgroundName) ?? getString(signupCampground?.name) ?? "",
+      phone: getString(data.phone) ?? getString(signupCampground?.phone) ?? "",
+      email: getString(data.email) ?? getString(signupCampground?.email) ?? "",
     };
 
     // Extract data from step-keyed structure
-    const parkProfileData = data.park_profile?.campground || data.account_profile?.campground || data.campground;
-    const siteClassesData = data.site_classes?.siteClasses || data.siteClasses;
-    const sitesData = data.sites_builder?.sites || data.sites;
-    const ratePeriodsData = data.rate_periods?.ratePeriods || data.ratePeriods;
-    const ratesData = data.rates_setup?.rates || data.rates;
-    const feesAndAddonsData = data.fees_and_addons?.feesAndAddons || data.feesAndAddons;
-    const taxRulesData = data.tax_rules?.taxRules || data.taxRules;
-    const depositPolicyData = data.deposit_policy?.depositPolicy || data.depositPolicy;
-    const cancellationRulesData = data.cancellation_rules?.cancellationRules || data.cancellationRules;
-    const parkRulesData = data.park_rules?.parkRules || data.parkRules;
-    const teamMembersData = data.team_setup?.teamMembers || data.teamMembers;
-    const integrationsData = data.integrations?.integrations || data.integrations;
-    const inventoryPathData = data.inventory_choice?.path || data.inventoryPath;
-    const operationalHoursData = data.operational_hours || data.operationalHours;
-    const bookingRulesData = data.booking_rules || data.bookingRules;
-    const waiversDocumentsData = data.waivers_documents || data.waiversDocuments;
-    const communicationSetupData = data.communication_setup || data.communicationSetup;
-    const smartQuizData = data.smart_quiz;
-    const featureTriageData = data.feature_triage?.featureTriage;
-    const guidedSetupData = data.guided_setup;
-    // Reconstruct recommendations from smart_quiz if available
-    const featureRecommendationsData = smartQuizData
-      ? { setupNow: smartQuizData.recommendedNow || [], setupLater: smartQuizData.recommendedLater || [], skipped: [] }
+    const parkProfileStep = getRecordField(data, "park_profile") ?? getRecordField(data, "account_profile");
+    const parkProfileData =
+      getRecordField(parkProfileStep, "campground") ?? signupCampground;
+    const parkProfileAmenities =
+      parkProfileData && isStringArray(parkProfileData.amenities) ? parkProfileData.amenities : undefined;
+
+    const siteClassesRaw =
+      getArrayField(getRecordField(data, "site_classes"), "siteClasses") ??
+      (Array.isArray(data.siteClasses) ? data.siteClasses : undefined);
+    const siteClassesData = siteClassesRaw?.filter(isSiteClassData).map((item, index) => ({
+      ...item,
+      id: item.id ?? `temp-${index}`,
+    }));
+
+    const sitesRaw =
+      getArrayField(getRecordField(data, "sites_builder"), "sites") ??
+      (Array.isArray(data.sites) ? data.sites : undefined);
+    const sitesData = sitesRaw?.filter(isSiteData).map((item, index) => ({
+      ...item,
+      id: item.id ?? `temp-${index}`,
+    }));
+
+    const ratePeriodsRaw =
+      getArrayField(getRecordField(data, "rate_periods"), "ratePeriods") ??
+      (Array.isArray(data.ratePeriods) ? data.ratePeriods : undefined);
+    const ratePeriodsData = ratePeriodsRaw?.filter(isRatePeriod);
+
+    const ratesRaw =
+      getArrayField(getRecordField(data, "rates_setup"), "rates") ??
+      (Array.isArray(data.rates) ? data.rates : undefined);
+    const ratesData = ratesRaw?.filter(isRateEntry);
+
+    const feesAndAddonsRaw =
+      getRecordField(getRecordField(data, "fees_and_addons"), "feesAndAddons") ??
+      getRecord(data.feesAndAddons);
+    const feesAndAddonsData = isFeesAndAddonsData(feesAndAddonsRaw) ? feesAndAddonsRaw : undefined;
+
+    const taxRulesRaw =
+      getArrayField(getRecordField(data, "tax_rules"), "taxRules") ??
+      (Array.isArray(data.taxRules) ? data.taxRules : undefined);
+    const taxRulesData = taxRulesRaw?.filter(isTaxRuleInput);
+
+    const depositPolicyRaw =
+      getRecordField(getRecordField(data, "deposit_policy"), "depositPolicy") ??
+      getRecord(data.depositPolicy);
+    const depositPolicyData = isDepositPolicyData(depositPolicyRaw) ? depositPolicyRaw : undefined;
+
+    const cancellationRulesRaw =
+      getArrayField(getRecordField(data, "cancellation_rules"), "cancellationRules") ??
+      (Array.isArray(data.cancellationRules) ? data.cancellationRules : undefined);
+    const cancellationRulesData = cancellationRulesRaw?.filter(isCancellationRule);
+
+    const parkRulesRaw =
+      getRecordField(getRecordField(data, "park_rules"), "parkRules") ??
+      getRecord(data.parkRules);
+    const parkRulesData = isParkRulesData(parkRulesRaw) ? parkRulesRaw : undefined;
+
+    const teamMembersRaw =
+      getArrayField(getRecordField(data, "team_setup"), "teamMembers") ??
+      (Array.isArray(data.teamMembers) ? data.teamMembers : undefined);
+    const teamMembersData = teamMembersRaw?.filter(isTeamMember);
+
+    const integrationsRaw =
+      getRecordField(getRecordField(data, "integrations"), "integrations") ??
+      getRecord(data.integrations);
+    const integrationsData = isIntegrationsData(integrationsRaw) ? integrationsRaw : undefined;
+
+    const inventoryPathRaw =
+      getString(getRecordField(data, "inventory_choice")?.path) ??
+      getString(data.inventoryPath);
+    const inventoryPathData =
+      inventoryPathRaw === "import" || inventoryPathRaw === "manual" ? inventoryPathRaw : null;
+
+    const operationalHoursRaw =
+      getRecord(data.operational_hours) ?? getRecord(data.operationalHours);
+    const operationalHoursData = isOperationalHoursData(operationalHoursRaw)
+      ? operationalHoursRaw
       : undefined;
+
+    const bookingRulesRaw =
+      getRecord(data.booking_rules) ?? getRecord(data.bookingRules);
+    const bookingRulesData = isBookingRulesData(bookingRulesRaw) ? bookingRulesRaw : undefined;
+
+    const waiversDocumentsRaw =
+      getRecord(data.waivers_documents) ?? getRecord(data.waiversDocuments);
+    const waiversDocumentsData = isWaiversDocumentsData(waiversDocumentsRaw) ? waiversDocumentsRaw : undefined;
+
+    const communicationSetupRaw =
+      getRecord(data.communication_setup) ?? getRecord(data.communicationSetup);
+    const communicationSetupData = isCommunicationSetupData(communicationSetupRaw)
+      ? communicationSetupRaw
+      : undefined;
+
+    const smartQuizRaw = getRecord(data.smart_quiz);
+    const smartQuizData = smartQuizRaw && isSmartQuizData(smartQuizRaw) ? smartQuizRaw : undefined;
+
+    const featureTriageRaw =
+      getRecordField(getRecordField(data, "feature_triage"), "featureTriage") ??
+      getRecord(data.featureTriage);
+    const featureTriageData = isFeatureTriageData(featureTriageRaw) ? featureTriageRaw : undefined;
+
+    const guidedSetupRaw =
+      getRecord(data.guided_setup) ?? getRecord(data.guidedSetup);
+    const guidedSetupData = isGuidedSetupData(guidedSetupRaw) ? guidedSetupRaw : undefined;
+    // Reconstruct recommendations from smart_quiz if available
+    const recommendedNowRaw = smartQuizRaw ? getArrayField(smartQuizRaw, "recommendedNow") : undefined;
+    const recommendedLaterRaw = smartQuizRaw ? getArrayField(smartQuizRaw, "recommendedLater") : undefined;
+    const featureRecommendationsData =
+      smartQuizData?.recommendations ??
+      (recommendedNowRaw || recommendedLaterRaw
+        ? {
+            setupNow: (recommendedNowRaw ?? []).filter(isString),
+            setupLater: (recommendedLaterRaw ?? []).filter(isString),
+            skipped: [],
+          }
+        : undefined);
 
     setState((prev) => ({
       ...prev,
       campground: {
-        id: session.campgroundId || parkProfileData?.id || "",
-        name: parkProfileData?.name || signupData.name,
-        slug: session.campgroundSlug || parkProfileData?.slug,
-        phone: parkProfileData?.phone || signupData.phone,
-        email: parkProfileData?.email || signupData.email,
-        city: parkProfileData?.city || "",
-        state: parkProfileData?.state || "",
-        amenities: parkProfileData?.amenities,
+        id: session.campgroundId ?? getString(parkProfileData?.id) ?? "",
+        name: getString(parkProfileData?.name) ?? signupData.name,
+        slug: session.campgroundSlug ?? getString(parkProfileData?.slug),
+        phone: getString(parkProfileData?.phone) ?? signupData.phone,
+        email: getString(parkProfileData?.email) ?? signupData.email,
+        city: getString(parkProfileData?.city) ?? "",
+        state: getString(parkProfileData?.state) ?? "",
+        amenities: parkProfileAmenities,
       },
-      stripeConnected: data.stripe_connect?.connected || data.stripeConnected,
-      stripeAccountId: data.stripe_connect?.accountId || data.stripeAccountId,
+      stripeConnected: (() => {
+        const stripeRecord = getRecord(data.stripe_connect);
+        if (stripeRecord && isBoolean(stripeRecord.connected)) return stripeRecord.connected;
+        return isBoolean(data.stripeConnected) ? data.stripeConnected : undefined;
+      })(),
+      stripeAccountId: (() => {
+        const stripeRecord = getRecord(data.stripe_connect);
+        if (stripeRecord && isString(stripeRecord.accountId)) return stripeRecord.accountId;
+        return getString(data.stripeAccountId);
+      })(),
       siteClasses: siteClassesData,
       sites: sitesData,
       ratePeriods: ratePeriodsData,
@@ -401,7 +771,11 @@ export default function OnboardingPage() {
       data: { campground: data },
     });
     // Extract slug from the API response (server generates slug when creating campground)
-    const savedCampground = (result?.session?.data?.park_profile?.campground as Record<string, unknown>) || {};
+    const savedCampground = getRecordField(
+      getRecordField(getRecord(result?.session?.data), "park_profile"),
+      "campground"
+    );
+    const savedSlug = savedCampground ? getString(savedCampground.slug) : undefined;
     const campgroundId = result?.session?.campgroundId || sessionQuery.data?.session.campgroundId || "";
 
     setState((prev) => ({
@@ -409,7 +783,7 @@ export default function OnboardingPage() {
       campground: {
         id: campgroundId,
         name: data.name,
-        slug: (savedCampground.slug as string | undefined),
+        slug: savedSlug,
         phone: data.phone,
         email: data.email,
         city: data.city,
@@ -476,7 +850,7 @@ export default function OnboardingPage() {
     goToStep(path === "import" ? "data_import" : "site_classes");
   };
 
-  const handleSiteClassesSave = async (classes: any[]) => {
+  const handleSiteClassesSave = async (classes: SiteClassData[]) => {
     await saveMutation.mutateAsync({
       step: "site_classes",
       data: { siteClasses: classes },
@@ -492,7 +866,7 @@ export default function OnboardingPage() {
     goToStep("sites_builder");
   };
 
-  const handleSitesSave = async (sites: any[]) => {
+  const handleSitesSave = async (sites: SiteData[]) => {
     await saveMutation.mutateAsync({
       step: "sites_builder",
       data: { sites },
@@ -586,7 +960,7 @@ export default function OnboardingPage() {
     goToStep("tax_rules");
   };
 
-  const handleTaxRulesSave = async (rules: Array<{ name: string; type: string; rate: number }>) => {
+  const handleTaxRulesSave = async (rules: TaxRuleInput[]) => {
     await saveMutation.mutateAsync({
       step: "tax_rules",
       data: { taxRules: rules },
@@ -604,7 +978,7 @@ export default function OnboardingPage() {
     goToStep("deposit_policy");
   };
 
-  const handleDepositPolicySave = async (data: any) => {
+  const handleDepositPolicySave = async (data: DepositPolicyData) => {
     await saveMutation.mutateAsync({
       step: "deposit_policy",
       data: { depositPolicy: data },
@@ -679,7 +1053,7 @@ export default function OnboardingPage() {
     goToStep("park_rules");
   };
 
-  const handleParkRulesSave = async (data: any) => {
+  const handleParkRulesSave = async (data: ParkRulesData) => {
     await saveMutation.mutateAsync({
       step: "park_rules",
       data: { parkRules: data },
@@ -985,19 +1359,19 @@ export default function OnboardingPage() {
         return (
           <SiteClasses
             initialClasses={state.siteClasses?.map((c) => {
-              // Extended type for metered fields
-              type SiteClassWithMetered = typeof c & {
-                meteredEnabled?: boolean;
-                meteredType?: "power" | "water" | "sewer" | null;
-                meteredBillingMode?: "per_reading" | "cycle" | "manual" | null;
-              };
-              const cWithMetered = c as SiteClassWithMetered;
+              const siteType = isSiteType(c.siteType) ? c.siteType : "rv";
+              const rentalType = isRentalType(c.rentalType) ? c.rentalType : "transient";
+              const rvOrientation = isRvOrientation(c.rvOrientation) ? c.rvOrientation : undefined;
+              const meteredType = isMeteredType(c.meteredType) ? c.meteredType : null;
+              const meteredBillingMode = isMeteredBillingMode(c.meteredBillingMode)
+                ? c.meteredBillingMode
+                : null;
 
               return {
                 name: c.name,
-                siteType: c.siteType as "rv" | "tent" | "cabin" | "glamping",
-                rentalType: (c.rentalType as "transient" | "seasonal" | "flexible") || "transient",
-                defaultRate: c.defaultRate / 100,
+                siteType,
+                rentalType,
+                defaultRate: typeof c.defaultRate === "number" ? c.defaultRate / 100 : 0,
                 maxOccupancy: c.maxOccupancy || 6,
                 hookupsWater: c.hookupsWater ?? true,
                 hookupsSewer: c.hookupsSewer ?? false,
@@ -1005,15 +1379,15 @@ export default function OnboardingPage() {
                 electricAmps: c.electricAmps || [],
                 equipmentTypes: c.equipmentTypes || [],
                 slideOutsAccepted: c.slideOutsAccepted || null,
-                rvOrientation: c.rvOrientation as "back_in" | "pull_through" | undefined,
+                rvOrientation,
                 occupantsIncluded: c.occupantsIncluded || 2,
                 extraAdultFee: c.extraAdultFee ?? null,
                 extraChildFee: c.extraChildFee ?? null,
                 amenityTags: c.amenityTags || [],
                 photos: c.photos || [],
-                meteredEnabled: cWithMetered.meteredEnabled || false,
-                meteredType: cWithMetered.meteredType || null,
-                meteredBillingMode: cWithMetered.meteredBillingMode || null,
+                meteredEnabled: c.meteredEnabled ?? false,
+                meteredType,
+                meteredBillingMode,
               };
             })}
             onSave={handleSiteClassesSave}
@@ -1120,11 +1494,7 @@ export default function OnboardingPage() {
       case "tax_rules":
         return (
           <TaxRules
-            initialRules={state.taxRules?.map((r) => ({
-              name: r.name,
-              type: r.type as "percentage" | "flat",
-              rate: r.rate,
-            }))}
+            initialRules={state.taxRules}
             onSave={handleTaxRulesSave}
             onSkip={handleTaxRulesSkip}
             onNext={() => goToStep("deposit_policy")}
@@ -1347,7 +1717,11 @@ export default function OnboardingPage() {
             }}
             onLaunch={handleLaunch}
             onPreview={handlePreview}
-            onGoToStep={(step) => goToStep(step as OnboardingStepKey)}
+            onGoToStep={(step) => {
+              if (isOnboardingStepKey(step)) {
+                goToStep(step);
+              }
+            }}
             sessionId={sessionQuery.data?.session.id}
             campgroundId={state.campground?.id}
             token={token}

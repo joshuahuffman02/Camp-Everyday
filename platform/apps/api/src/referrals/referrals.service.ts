@@ -1,5 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
+import { Prisma } from "@prisma/client";
 import { CreateReferralProgramDto } from "./dto/create-referral-program.dto";
 import { UpdateReferralProgramDto } from "./dto/update-referral-program.dto";
 
@@ -15,10 +17,14 @@ export class ReferralsService {
   }
 
   async createProgram(campgroundId: string, dto: CreateReferralProgramDto) {
+    const orConditions: Prisma.ReferralProgramWhereInput[] = [{ code: dto.code }];
+    if (dto.linkSlug) {
+      orConditions.push({ linkSlug: dto.linkSlug });
+    }
     const exists = await this.prisma.referralProgram.findFirst({
       where: {
         campgroundId,
-        OR: [{ code: dto.code }, dto.linkSlug ? { linkSlug: dto.linkSlug } : undefined].filter(Boolean) as any
+        OR: orConditions
       }
     });
     if (exists) {
@@ -26,6 +32,7 @@ export class ReferralsService {
     }
     return this.prisma.referralProgram.create({
       data: {
+        id: randomUUID(),
         campgroundId,
         code: dto.code,
         linkSlug: dto.linkSlug ?? null,
@@ -45,14 +52,14 @@ export class ReferralsService {
       throw new NotFoundException("Referral program not found");
     }
     if (dto.code || dto.linkSlug) {
+      const conflictConditions: Prisma.ReferralProgramWhereInput[] = [];
+      if (dto.code) conflictConditions.push({ code: dto.code });
+      if (dto.linkSlug) conflictConditions.push({ linkSlug: dto.linkSlug });
       const conflict = await this.prisma.referralProgram.findFirst({
         where: {
           campgroundId,
           id: { not: id },
-          OR: [
-            dto.code ? { code: dto.code } : undefined,
-            dto.linkSlug ? { linkSlug: dto.linkSlug } : undefined
-          ].filter(Boolean) as any
+          OR: conflictConditions
         }
       });
       if (conflict) {

@@ -2,6 +2,9 @@
 
 import { useEffect } from "react";
 import { trackEvent } from "@/lib/analytics";
+import type { apiClient } from "@/lib/api-client";
+
+type AvailableSite = Awaited<ReturnType<typeof apiClient.getPublicAvailability>>[number];
 
 export function useAnalyticsEmitters({
   campgroundId,
@@ -20,7 +23,7 @@ export function useAnalyticsEmitters({
   arrivalDate: string;
   departureDate: string;
   equipment: { type: string; length: string };
-  availableSites?: any[];
+  availableSites?: AvailableSite[];
   selectedSiteId?: string | null;
   step: number;
   reservationStartLogged: React.MutableRefObject<boolean>;
@@ -65,4 +68,3 @@ export function useAnalyticsEmitters({
     });
   }, [campgroundId, step, selectedSiteId, slug, reservationStartLogged]);
 }
-

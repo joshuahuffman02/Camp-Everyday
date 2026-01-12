@@ -62,7 +62,7 @@ interface NotificationTrigger {
   enabled: boolean;
   templateId: string | null;
   delayMinutes: number;
-  conditions?: any;
+  conditions?: unknown;
   createdAt: string;
   updatedAt: string;
   template?: {
@@ -103,7 +103,12 @@ const EVENT_OPTIONS: { value: TriggerEvent; label: string; description: string }
 ];
 const EMPTY_SELECT_VALUE = "__empty";
 
-const CHANNEL_OPTIONS: { value: string; label: string; icon: ReactNode }[] = [
+type Channel = NotificationTrigger["channel"];
+
+const triggerEventSet = new Set<string>(EVENT_OPTIONS.map((opt) => opt.value));
+const isTriggerEvent = (value: string): value is TriggerEvent => triggerEventSet.has(value);
+
+const CHANNEL_OPTIONS: { value: Channel; label: string; icon: ReactNode }[] = [
   { value: "email", label: "Email", icon: <Mail className="h-4 w-4" /> },
   { value: "sms", label: "SMS", icon: <Smartphone className="h-4 w-4" /> },
   { value: "both", label: "Both", icon: <><Mail className="h-4 w-4" /><Smartphone className="h-4 w-4" /></> },
@@ -577,8 +582,10 @@ function TriggerModal({
   const modalRef = useRef<HTMLDivElement>(null);
   const firstFocusRef = useRef<ElementRef<typeof SelectTrigger>>(null);
 
-  const [event, setEvent] = useState<TriggerEvent>(trigger?.event as TriggerEvent ?? "reservation_created");
-  const [channel, setChannel] = useState<"email" | "sms" | "both">(trigger?.channel ?? "email");
+  const [event, setEvent] = useState<TriggerEvent>(() =>
+    trigger && isTriggerEvent(trigger.event) ? trigger.event : "reservation_created"
+  );
+  const [channel, setChannel] = useState<Channel>(trigger?.channel ?? "email");
   const [templateId, setTemplateId] = useState<string | null>(trigger?.templateId ?? null);
   const [enabled, setEnabled] = useState(trigger?.enabled ?? true);
   const [delayMinutes, setDelayMinutes] = useState(trigger?.delayMinutes ?? 0);
@@ -586,13 +593,13 @@ function TriggerModal({
   const [saving, setSaving] = useState(false);
 
   // Fetch available templates
-  const templatesQuery = useQuery({
+  const templatesQuery = useQuery<Template[]>({
     queryKey: ["campaign-templates", campgroundId],
     queryFn: () => apiClient.getCampaignTemplates(campgroundId),
     enabled: !!campgroundId,
   });
 
-  const templates = (templatesQuery.data ?? []) as Template[];
+  const templates = templatesQuery.data ?? [];
 
   // Filter templates by compatible channel
   const compatibleTemplates = templates.filter(t => {
@@ -671,7 +678,14 @@ function TriggerModal({
             <Label htmlFor="event-select" className="block text-sm font-medium text-foreground mb-1">
               When this happens...
             </Label>
-            <Select value={event} onValueChange={(value) => setEvent(value as TriggerEvent)}>
+            <Select
+              value={event}
+              onValueChange={(value) => {
+                if (isTriggerEvent(value)) {
+                  setEvent(value);
+                }
+              }}
+            >
               <SelectTrigger
                 id="event-select"
                 ref={firstFocusRef}
@@ -701,7 +715,7 @@ function TriggerModal({
                   type="button"
                   role="radio"
                   aria-checked={channel === opt.value}
-                  onClick={() => setChannel(opt.value as "email" | "sms" | "both")}
+                  onClick={() => setChannel(opt.value)}
                   className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150
                     focus-visible:ring-2 focus-visible:ring-violet-500 flex items-center justify-center gap-1.5
                     ${channel === opt.value
@@ -911,7 +925,7 @@ function TestTriggerModal({
 
         <div className="flex items-center gap-3 p-3 bg-muted rounded-lg mb-4">
           <div className="p-2 bg-card rounded-lg border border-border text-muted-foreground">
-            {EVENT_ICONS[trigger.event as TriggerEvent]}
+            {EVENT_ICONS[isTriggerEvent(trigger.event) ? trigger.event : "reservation_created"]}
           </div>
           <div>
             <div className="font-medium text-foreground">{eventInfo?.label}</div>

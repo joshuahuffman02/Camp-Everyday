@@ -19,6 +19,7 @@ import { AlertingService } from "../observability/alerting.service";
 import { AiAutoReplyService } from "../ai/ai-auto-reply.service";
 import { AiSentimentService } from "../ai/ai-sentiment.service";
 import { isRecord } from "../utils/type-guards";
+import { randomUUID } from "crypto";
 
 type CommunicationCampground = {
   parkTimeZone?: string | null;
@@ -32,7 +33,8 @@ type CommunicationJob = {
   playbookId: string;
   campgroundId: string;
   attempts: number;
-  metadata?: Record<string, unknown> | null;
+  scheduledAt: Date;
+  metadata?: Prisma.JsonValue | null;
   reservationId?: string | null;
   guestId?: string | null;
 };
@@ -93,6 +95,15 @@ const getErrorMessage = (error: unknown): string =>
 
 const readString = (value: unknown): string | undefined =>
   typeof value === "string" ? value : undefined;
+
+const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined => {
+  if (value === undefined || value === null) return undefined;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
+};
 
 @Controller()
 export class CommunicationsController {
@@ -344,6 +355,7 @@ export class CommunicationsController {
     }
     const communication = await this.prisma.communication.create({
       data: {
+        id: randomUUID(),
         campgroundId: body.campgroundId,
         organizationId: body.organizationId ?? null,
         guestId: body.guestId ?? null,
@@ -429,6 +441,7 @@ export class CommunicationsController {
 
       const comm = await prisma.communication.create({
         data: {
+          id: randomUUID(),
           campgroundId: body.campgroundId,
           organizationId: body.organizationId ?? null,
           guestId: body.guestId ?? null,
@@ -504,6 +517,7 @@ export class CommunicationsController {
       const conversationId = this.generateSmsConversationId(normalizedPhone, campgroundFromPhone, body.campgroundId);
       const comm = await prisma.communication.create({
         data: {
+          id: randomUUID(),
           campgroundId: body.campgroundId,
           organizationId: body.organizationId ?? null,
           guestId: body.guestId ?? null,
@@ -577,6 +591,7 @@ export class CommunicationsController {
     // For other types just create a note record
     const comm = await prisma.communication.create({
       data: {
+        id: randomUUID(),
         campgroundId: body.campgroundId,
         organizationId: body.organizationId ?? null,
         guestId: body.guestId ?? null,
@@ -653,6 +668,7 @@ export class CommunicationsController {
 
     const communication = await this.prisma.communication.create({
       data: {
+        id: randomUUID(),
         campgroundId: resolvedCampgroundId,
         organizationId: null,
         guestId,
@@ -763,6 +779,7 @@ export class CommunicationsController {
 
     const communication = await this.prisma.communication.create({
       data: {
+        id: randomUUID(),
         campgroundId: body.campgroundId || reservation?.campgroundId || "",
         organizationId: null,
         guestId: guest?.id ?? null,
@@ -879,13 +896,15 @@ export class CommunicationsController {
     }
     const template = await this.prisma.communicationTemplate.create({
       data: {
+        id: randomUUID(),
         campgroundId: body.campgroundId,
         name: body.name,
         subject: body.subject ?? null,
         bodyHtml: body.bodyHtml ?? null,
         status: "draft",
         version: 1,
-        auditLog: [{ action: "created", at: new Date().toISOString() }]
+        auditLog: [{ action: "created", at: new Date().toISOString() }],
+        updatedAt: new Date()
       }
     });
     return template;
@@ -931,6 +950,10 @@ export class CommunicationsController {
       at: new Date().toISOString(),
       changes
     };
+    const auditLog = toJsonValue([
+      ...(Array.isArray(existing.auditLog) ? existing.auditLog : []),
+      auditEntry
+    ]) ?? [];
 
     const updated = await this.prisma.communicationTemplate.update({
       where: { id },
@@ -939,7 +962,7 @@ export class CommunicationsController {
         subject: body.subject ?? existing.subject,
         bodyHtml: body.bodyHtml ?? existing.bodyHtml,
         status: body.status ?? existing.status,
-        auditLog: [...(Array.isArray(existing.auditLog) ? existing.auditLog : []), auditEntry]
+        auditLog
       }
     });
     return updated;
@@ -961,21 +984,23 @@ export class CommunicationsController {
   private async processJob(job: CommunicationJob) {
     const playbook = await this.prisma.communicationPlaybook.findUnique({
       where: { id: job.playbookId },
-      include: { campground: true, template: true }
+      include: { Campground: true, CommunicationTemplate: true }
     });
     if (!playbook || !playbook.enabled) {
       await this.prisma.communicationPlaybookJob.update({ where: { id: job.id }, data: { status: "skipped", lastError: "Playbook disabled" } });
       return;
     }
-    if (!playbook.template || playbook.template.status !== "approved") {
+    const campground = playbook.Campground;
+    const template = playbook.CommunicationTemplate;
+    if (!template || template.status !== "approved") {
       await this.prisma.communicationPlaybookJob.update({ where: { id: job.id }, data: { status: "skipped", lastError: "Template not approved" } });
       return;
     }
     const now = new Date();
-    if (this.isQuietHours(playbook.campground, now)) {
+    if (this.isQuietHours(campground, now)) {
       // reschedule to quietHoursEnd in campground timezone
-      const [eh, em] = (playbook.campground.quietHoursEnd || "08:00").split(":").map((n: string) => Number(n));
-      const tz = this.campgroundTz(playbook.campground);
+      const [eh, em] = (campground.quietHoursEnd || "08:00").split(":").map((n: string) => Number(n));
+      const tz = this.campgroundTz(campground);
       const localParts = this.getLocalTimeParts(now, tz);
       const next = this.buildZonedDate(
         { year: localParts.year, month: localParts.month, day: localParts.day },
@@ -1003,10 +1028,10 @@ export class CommunicationsController {
     const reservation = job.reservationId
       ? await this.prisma.reservation.findUnique({ where: { id: job.reservationId }, include: { Guest: true } })
       : null;
-    const guest = reservation?.guest || (job.guestId ? await this.prisma.guest.findUnique({ where: { id: job.guestId } }) : null);
+    const guest = reservation?.Guest || (job.guestId ? await this.prisma.guest.findUnique({ where: { id: job.guestId } }) : null);
 
-    const toEmail = guest?.email || reservation?.guest?.email;
-    const toPhone = guest?.phone || reservation?.guest?.phone;
+    const toEmail = guest?.email || reservation?.Guest?.email;
+    const toPhone = guest?.phone || reservation?.Guest?.phone;
 
     try {
       await this.prisma.communicationPlaybookJob.update({ where: { id: job.id }, data: { status: "processing", attempts: job.attempts + 1 } });
@@ -1031,12 +1056,12 @@ export class CommunicationsController {
         if (!toEmail) throw new BadRequestException("Missing recipient email");
         await this.emailService.sendEmail({
           to: toEmail,
-          subject: playbook.template.subject || "Message from campground",
-          html: playbook.template.bodyHtml || ""
+          subject: template.subject || "Message from campground",
+          html: template.bodyHtml || ""
         });
       } else if (playbook.channel === "sms") {
         if (!toPhone) throw new BadRequestException("Missing recipient phone");
-        await this.smsService.sendSms({ to: toPhone, body: playbook.template.bodyHtml || playbook.template.subject || "Message" });
+        await this.smsService.sendSms({ to: toPhone, body: template.bodyHtml || template.subject || "Message" });
       }
 
       await this.prisma.communicationPlaybookJob.update({
@@ -1131,6 +1156,7 @@ export class CommunicationsController {
 
     let enqueued = 0;
     for (const pb of playbooks) {
+      if (!pb.templateId) continue;
       const tpl = await this.prisma.communicationTemplate.findFirst({
         where: { id: pb.templateId, status: "approved" }
       });
@@ -1142,12 +1168,14 @@ export class CommunicationsController {
         }
         await this.prisma.communicationPlaybookJob.create({
           data: {
+            id: randomUUID(),
             playbookId: pb.id,
             campgroundId: r.campgroundId,
             reservationId: r.id,
             guestId: r.guestId,
             status: "pending",
-            scheduledAt
+            scheduledAt,
+            updatedAt: new Date()
           }
         });
         enqueued++;
@@ -1177,13 +1205,17 @@ export class CommunicationsController {
       actorId: actorId ?? null,
       reason: body.reason ?? null
     };
+    const auditLog = toJsonValue([
+      ...(Array.isArray(existing.auditLog) ? existing.auditLog : []),
+      auditEntry
+    ]) ?? [];
     const updated = await this.prisma.communicationTemplate.update({
       where: { id },
       data: {
         status: "approved",
         approvedById: actorId ?? null,
         approvedAt: new Date(),
-        auditLog: [...(Array.isArray(existing.auditLog) ? existing.auditLog : []), auditEntry]
+        auditLog
       }
     });
     return updated;
@@ -1209,13 +1241,17 @@ export class CommunicationsController {
       actorId: actorId ?? null,
       reason: body.reason ?? null
     };
+    const auditLog = toJsonValue([
+      ...(Array.isArray(existing.auditLog) ? existing.auditLog : []),
+      auditEntry
+    ]) ?? [];
     const updated = await this.prisma.communicationTemplate.update({
       where: { id },
       data: {
         status: "rejected",
         approvedById: null,
         approvedAt: null,
-        auditLog: [...(Array.isArray(existing.auditLog) ? existing.auditLog : []), auditEntry]
+        auditLog
       }
     });
     return updated;
@@ -1256,6 +1292,7 @@ export class CommunicationsController {
     if (!body.campgroundId || !body.type) throw new BadRequestException("campgroundId and type are required");
     return this.prisma.communicationPlaybook.create({
       data: {
+        id: randomUUID(),
         campgroundId: body.campgroundId,
         type: body.type,
         enabled: body.enabled ?? false,
@@ -1265,7 +1302,8 @@ export class CommunicationsController {
         quietHoursStart: body.quietHoursStart ?? null,
         quietHoursEnd: body.quietHoursEnd ?? null,
         throttlePerMinute: body.throttlePerMinute ?? null,
-        routingAssigneeId: body.routingAssigneeId ?? null
+        routingAssigneeId: body.routingAssigneeId ?? null,
+        updatedAt: new Date()
       }
     });
   }
@@ -1398,7 +1436,7 @@ export class CommunicationsController {
       orderBy: { createdAt: "asc" },
       take,
       include: {
-        guest: {
+        Guest: {
           select: {
             id: true,
             primaryFirstName: true,
@@ -1406,13 +1444,13 @@ export class CommunicationsController {
             phone: true
           }
         },
-        reservation: {
+        Reservation: {
           select: {
             id: true,
             arrivalDate: true,
             departureDate: true,
             status: true,
-            site: {
+            Site: {
               select: {
                 siteNumber: true
               }
@@ -1422,7 +1460,21 @@ export class CommunicationsController {
       }
     });
 
-    return { messages, conversationId };
+    const mappedMessages = messages.map(({ Guest, Reservation, ...rest }) => {
+      const reservation = Reservation
+        ? {
+          ...Reservation,
+          site: Reservation.Site ?? null
+        }
+        : null;
+      return {
+        ...rest,
+        guest: Guest ?? null,
+        reservation
+      };
+    });
+
+    return { messages: mappedMessages, conversationId };
   }
 
   /**
@@ -1465,6 +1517,7 @@ export class CommunicationsController {
 
     const comm = await this.prisma.communication.create({
       data: {
+        id: randomUUID(),
         campgroundId: body.campgroundId,
         organizationId: null,
         guestId: lastMessage.guestId,

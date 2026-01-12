@@ -39,7 +39,10 @@ export function KeyboardNavigableTable({
       const rows = Array.from(table.querySelectorAll<HTMLTableRowElement>("tbody tr"));
       if (rows.length === 0) return;
 
-      const currentRow = document.activeElement?.closest("tr") as HTMLTableRowElement | null;
+      const activeElement = document.activeElement;
+      const closestRow =
+        activeElement instanceof HTMLElement ? activeElement.closest("tr") : null;
+      const currentRow = closestRow instanceof HTMLTableRowElement ? closestRow : null;
       const currentIndex = currentRow ? rows.indexOf(currentRow) : -1;
 
       let handled = false;
@@ -87,7 +90,9 @@ export function KeyboardNavigableTable({
         case "Escape":
           e.preventDefault();
           setFocusedRowIndex(-1);
-          (document.activeElement as HTMLElement)?.blur();
+          if (document.activeElement instanceof HTMLElement) {
+            document.activeElement.blur();
+          }
           handled = true;
           break;
       }

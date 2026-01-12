@@ -62,12 +62,14 @@ interface AiAccessLevel {
   progressPercent: number;
 }
 
+type FieldValue = string | number | boolean | null;
+
 interface FieldConfidence {
   field: string;
-  value: string | number | boolean | null;
+  value: FieldValue;
   confidence: number;
   source: "extracted" | "inferred" | "default";
-  alternatives?: { value: any; confidence: number }[];
+  alternatives?: { value: FieldValue; confidence: number }[];
   requiresReview: boolean;
 }
 
@@ -122,6 +124,15 @@ interface DataImportProps {
 type ImportStep = "upload" | "extraction" | "review" | "complete";
 type ImportMode = "ai" | "manual";
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof Error) return error.message;
+  if (isRecord(error) && typeof error.message === "string") return error.message;
+  return fallback;
+};
+
 const SITE_TARGET_FIELDS = [
   { value: "siteNumber", label: "Site Number", required: true },
   { value: "name", label: "Site Name", required: false },
@@ -151,7 +162,7 @@ export function DataImport({
   const [aiAccessLevel, setAiAccessLevel] = useState<AiAccessLevel | null>(null);
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
   const [extractionResult, setExtractionResult] = useState<ExtractionResult | null>(null);
-  const [corrections, setCorrections] = useState<Record<string, Record<string, unknown>>>({});
+  const [corrections, setCorrections] = useState<Record<string, Record<string, FieldValue>>>({});
   const [isChatOpen, setIsChatOpen] = useState(false);
 
   // Import flow state
@@ -232,15 +243,15 @@ export function DataImport({
       const result = await response.json();
       setExtractionResult(result);
       setStep("review");
-    } catch (err: any) {
-      setError(err.message || "Failed to extract data");
+    } catch (error) {
+      setError(getErrorMessage(error, "Failed to extract data"));
     } finally {
       setImporting(false);
     }
   };
 
   // Handle correction
-  const handleCorrection = (rowNumber: number, field: string, value: any) => {
+  const handleCorrection = (rowNumber: number, field: string, value: FieldValue) => {
     setCorrections((prev) => ({
       ...prev,
       [rowNumber]: {
@@ -289,8 +300,8 @@ export function DataImport({
         sitesCreated: result.createdCount || 0,
         siteClassesCreated: result.siteClassesCreated || 0,
       });
-    } catch (err: any) {
-      setError(err.message || "Failed to import data");
+    } catch (error) {
+      setError(getErrorMessage(error, "Failed to import data"));
     } finally {
       setImporting(false);
     }
@@ -315,7 +326,8 @@ export function DataImport({
 
       const reader = new FileReader();
       reader.onload = (e) => {
-        const content = e.target?.result as string;
+        const content = e.target?.result;
+        if (typeof content !== "string") return;
         setCsvContent(content);
         const headers = parseCSVHeaders(content);
         setSourceFields(headers);
@@ -390,8 +402,8 @@ export function DataImport({
 
       const result = await response.json();
       setPreview(result);
-    } catch (err: any) {
-      setError(err.message || "Failed to preview import");
+    } catch (error) {
+      setError(getErrorMessage(error, "Failed to preview import"));
     } finally {
       setImporting(false);
     }
@@ -430,8 +442,8 @@ export function DataImport({
         sitesCreated: result.createdCount || 0,
         siteClassesCreated: result.siteClassesCreated || 0,
       });
-    } catch (err: any) {
-      setError(err.message || "Failed to execute import");
+    } catch (error) {
+      setError(getErrorMessage(error, "Failed to execute import"));
     } finally {
       setImporting(false);
     }

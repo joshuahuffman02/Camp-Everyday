@@ -1,7 +1,8 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import { Activity, ActivitySession, ActivityBooking, ActivityRecurrencePattern } from '@prisma/client';
-import { GenerateSessionsDto, GenerateSessionsPreview, RecurrencePatternType } from './dto/activities.dto';
+import { Activity, ActivitySession, ActivityBooking, ActivityRecurrencePattern, Prisma } from '@prisma/client';
+import { CreateActivityDto, CreateSessionDto, GenerateSessionsDto, GenerateSessionsPreview, RecurrencePatternType } from './dto/activities.dto';
 import { addDays, addWeeks, addMonths, format, getDay, parse, isWeekend, eachDayOfInterval, startOfDay } from 'date-fns';
 
 type ActivityWaitlistEntry = {
@@ -134,11 +135,22 @@ export class ActivitiesService {
     }
 
     // Activities
-    async createActivity(campgroundId: string, data: any): Promise<Activity> {
+    async createActivity(campgroundId: string, data: Omit<CreateActivityDto, "campgroundId">): Promise<Activity> {
+        const { duration, capacity, ...rest } = data;
+        if (duration === undefined) {
+            throw new BadRequestException("Duration is required");
+        }
+        if (capacity === undefined) {
+            throw new BadRequestException("Capacity is required");
+        }
         return this.prisma.activity.create({
             data: {
-                ...data,
+                id: randomUUID(),
+                ...rest,
+                duration,
+                capacity,
                 campgroundId,
+                updatedAt: new Date(),
             },
         });
     }
@@ -153,13 +165,13 @@ export class ActivitiesService {
     async findActivity(id: string): Promise<Activity> {
         const activity = await this.prisma.activity.findUnique({
             where: { id },
-            include: { sessions: true },
+            include: { ActivitySession: true },
         });
         if (!activity) throw new NotFoundException('Activity not found');
         return activity;
     }
 
-    async updateActivity(id: string, data: any): Promise<Activity> {
+    async updateActivity(id: string, data: Prisma.ActivityUpdateInput): Promise<Activity> {
         return this.prisma.activity.update({
             where: { id },
             data,
@@ -173,15 +185,17 @@ export class ActivitiesService {
     }
 
     // Sessions
-    async createSession(activityId: string, data: any): Promise<ActivitySession> {
+    async createSession(activityId: string, data: CreateSessionDto): Promise<ActivitySession> {
         const activity = await this.prisma.activity.findUnique({ where: { id: activityId } });
         if (!activity) throw new NotFoundException('Activity not found');
 
         return this.prisma.activitySession.create({
             data: {
-                ...data,
+                id: randomUUID(),
+                startTime: new Date(data.startTime),
+                endTime: new Date(data.endTime),
                 activityId,
-                capacity: data.capacity || activity.capacity,
+                capacity: data.capacity ?? activity.capacity,
             },
         });
     }
@@ -190,7 +204,7 @@ export class ActivitiesService {
         return this.prisma.activitySession.findMany({
             where: { activityId },
             orderBy: { startTime: 'asc' },
-            include: { bookings: true },
+            include: { ActivityBooking: true },
         });
     }
 
@@ -198,7 +212,7 @@ export class ActivitiesService {
     async createBooking(sessionId: string, guestId: string, quantity: number, reservationId?: string): Promise<ActivityBooking> {
         const session = await this.prisma.activitySession.findUnique({
             where: { id: sessionId },
-            include: { activity: true },
+            include: { Activity: true },
         });
         if (!session) throw new NotFoundException('Session not found');
 
@@ -206,11 +220,12 @@ export class ActivitiesService {
             throw new BadRequestException('Session capacity exceeded');
         }
 
-        const totalAmount = session.activity.price * quantity;
+        const totalAmount = session.Activity.price * quantity;
 
         const [booking, updatedSession] = await this.prisma.$transaction([
             this.prisma.activityBooking.create({
                 data: {
+                    id: randomUUID(),
                     sessionId,
                     guestId,
                     reservationId,
@@ -299,6 +314,7 @@ export class ActivitiesService {
         if (dto.savePattern) {
             const pattern = await this.prisma.activityRecurrencePattern.create({
                 data: {
+                    id: randomUUID(),
                     activityId,
                     patternType: dto.patternType,
                     daysOfWeek: dto.daysOfWeek || [],
@@ -307,6 +323,7 @@ export class ActivitiesService {
                     validFrom: new Date(dto.startDate),
                     validUntil: new Date(dto.endDate),
                     capacity: dto.capacity,
+                    updatedAt: new Date(),
                 },
             });
             patternId = pattern.id;
@@ -316,6 +333,7 @@ export class ActivitiesService {
         const capacity = dto.capacity || activity.capacity;
         await this.prisma.activitySession.createMany({
             data: sessionDates.map((s) => ({
+                id: randomUUID(),
                 activityId,
                 recurrencePatternId: patternId,
                 startTime: s.startTime,
@@ -522,20 +540,23 @@ export class ActivitiesService {
     }) {
         const bundle = await this.prisma.activityBundle.create({
             data: {
+                id: randomUUID(),
                 campgroundId,
                 name: data.name,
                 description: data.description,
                 price: data.price,
                 discountType: data.discountType || 'fixed',
                 discountValue: data.discountValue,
-                items: {
+                updatedAt: new Date(),
+                ActivityBundleItem: {
                     create: data.activityIds.map((activityId) => ({
+                        id: randomUUID(),
                         activityId,
                         quantity: 1,
                     })),
                 },
             },
-            include: { items: { include: { activity: true } } },
+            include: { ActivityBundleItem: { include: { Activity: true } } },
         });
         return bundle;
     }
@@ -543,7 +564,7 @@ export class ActivitiesService {
     async findBundles(campgroundId: string) {
         return this.prisma.activityBundle.findMany({
             where: { campgroundId, isActive: true },
-            include: { items: { include: { activity: true } } },
+            include: { ActivityBundleItem: { include: { Activity: true } } },
             orderBy: { createdAt: 'desc' },
         });
     }
@@ -563,6 +584,7 @@ export class ActivitiesService {
 
             await this.prisma.activityBundleItem.createMany({
                 data: data.activityIds.map((activityId) => ({
+                    id: randomUUID(),
                     bundleId: id,
                     activityId,
                     quantity: 1,
@@ -573,8 +595,8 @@ export class ActivitiesService {
         const { activityIds, ...updateData } = data;
         return this.prisma.activityBundle.update({
             where: { id },
-            data: updateData,
-            include: { items: { include: { activity: true } } },
+            data: { ...updateData, updatedAt: new Date() },
+            include: { ActivityBundleItem: { include: { Activity: true } } },
         });
     }
 

@@ -56,39 +56,17 @@ import {
 import Link from "next/link";
 
 // Type matching the API response
-interface ProductMapping {
-  id: string;
-  campgroundId: string;
-  productId: string;
-  provider: string;
-  externalId: string;
-  externalSku: string | null;
-  lastSyncedAt: string | null;
-  syncStatus: string | null;
-  syncError: string | null;
-  metadata: Record<string, unknown> | null;
-  product: {
-    id: string;
-    name: string;
-    sku: string | null;
-    priceCents: number;
-  };
-}
+type ProductMapping = Awaited<ReturnType<typeof apiClient.listProductMappings>>[number];
 
 // Type matching the API response for unmatched products
-interface ExternalProduct {
-  id: string;
-  externalId: string;
-  externalSku: string | null;
-  metadata: Record<string, unknown> | null;
-}
+type ExternalProduct = Awaited<ReturnType<typeof apiClient.getUnmatchedExternalProducts>>[number];
 
 export default function ProductMappingsPage() {
-  const params = useParams();
+  const params = useParams<{ integrationId?: string }>();
   const router = useRouter();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const integrationId = params.integrationId as string;
+  const integrationId = params.integrationId ?? "";
 
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("all");
@@ -115,15 +93,14 @@ export default function ProductMappingsPage() {
     data: mappings = [],
     isLoading: mappingsLoading,
     refetch: refetchMappings,
-  } = useQuery({
+  } = useQuery<ProductMapping[]>({
     queryKey: ["product-mappings", campgroundId, integration?.provider],
-    queryFn: () =>
-      apiClient.listProductMappings(campgroundId!, integration?.provider),
+    queryFn: () => apiClient.listProductMappings(campgroundId ?? "", integration?.provider),
     enabled: !!campgroundId && !!integration?.provider,
   });
 
   // Fetch unmatched external products
-  const { data: externalProducts = [], isLoading: externalLoading } = useQuery({
+  const { data: externalProducts = [], isLoading: externalLoading } = useQuery<ExternalProduct[]>({
     queryKey: ["external-products", integrationId],
     queryFn: () => apiClient.getUnmatchedExternalProducts(integrationId),
     enabled: !!integrationId && linkDialogOpen,
@@ -216,7 +193,7 @@ export default function ProductMappingsPage() {
   });
 
   // Filter mappings based on search and tab
-  const filteredMappings = (mappings as ProductMapping[]).filter((mapping) => {
+  const filteredMappings = mappings.filter((mapping) => {
     const matchesSearch =
       !searchQuery ||
       mapping.product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -297,11 +274,10 @@ export default function ProductMappingsPage() {
       ? "Vend"
       : integration?.provider || "POS";
 
-  const typedMappings = mappings as ProductMapping[];
   const stats = {
-    total: typedMappings.length,
-    mapped: typedMappings.filter((m) => m.externalId).length,
-    unmatched: typedMappings.filter((m) => !m.externalId).length,
+    total: mappings.length,
+    mapped: mappings.filter((m) => m.externalId).length,
+    unmatched: mappings.filter((m) => !m.externalId).length,
   };
 
   return (
@@ -522,7 +498,7 @@ export default function ProductMappingsPage() {
                   <div className="flex items-center justify-center py-4">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
-                ) : (externalProducts as ExternalProduct[]).length === 0 ? (
+                ) : externalProducts.length === 0 ? (
                   <div className="rounded-lg border p-4 text-center">
                     <p className="text-sm text-muted-foreground">
                       No unlinked products found. Import products from {providerName} first.
@@ -545,7 +521,7 @@ export default function ProductMappingsPage() {
                       <SelectValue placeholder="Select a product..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {(externalProducts as ExternalProduct[]).map((product) => (
+                      {externalProducts.map((product) => (
                         <SelectItem key={product.id} value={product.externalId}>
                           <div className="flex flex-col">
                             <span>ID: {product.externalId}</span>

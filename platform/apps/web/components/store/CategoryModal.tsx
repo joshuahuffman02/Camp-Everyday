@@ -3,18 +3,26 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
-import { ProductCategory } from "@keepr/shared";
+import type { CreateProductCategoryDto, ProductCategory } from "@keepr/shared";
 
 interface CategoryModalProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     category?: ProductCategory | null;
-    onSave: (data: any) => Promise<void>;
+    onSave: (data: CategoryPayload) => Promise<void>;
 }
+
+type CategoryPayload = Omit<CreateProductCategoryDto, "campgroundId">;
+type CategoryFormData = {
+    name: string;
+    description: string;
+    sortOrder: number;
+    isActive: boolean;
+};
 
 export function CategoryModal({ open, onOpenChange, category, onSave }: CategoryModalProps) {
     const [loading, setLoading] = useState(false);
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState<CategoryFormData>({
         name: "",
         description: "",
         sortOrder: 0,
@@ -47,7 +55,8 @@ export function CategoryModal({ open, onOpenChange, category, onSave }: Category
         try {
             await onSave({
                 ...formData,
-                sortOrder: Number(formData.sortOrder)
+                sortOrder: Number(formData.sortOrder),
+                description: formData.description.trim() || null,
             });
             onOpenChange(false);
         } catch (error) {

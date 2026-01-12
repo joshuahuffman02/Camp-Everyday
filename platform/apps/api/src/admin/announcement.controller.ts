@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from "@nestjs/common";
 import { JwtAuthGuard, RolesGuard, Roles } from "../auth/guards";
-import { PlatformRole } from "@prisma/client";
+import { AnnouncementStatus, PlatformRole } from "@prisma/client";
 import { AnnouncementService } from "./announcement.service";
 import type { Request } from "express";
 
@@ -30,7 +30,8 @@ export class AnnouncementController {
 
     @Get()
     async list(@Query("status") status?: string) {
-        return this.announcements.findAll(status);
+        const parsedStatus = status === "draft" || status === "scheduled" || status === "sent" ? status : undefined;
+        return this.announcements.findAll(parsedStatus);
     }
 
     @Get(":id")

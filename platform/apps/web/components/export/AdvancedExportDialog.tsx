@@ -49,12 +49,15 @@ export interface AdvancedExportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   availableColumns: ExportColumn[];
-  data: any[];
+  data: Array<Record<string, unknown>>;
   reportName: string;
   onExport?: (format: ExportFormat, columns: string[], dateRange: { start: Date; end: Date }) => void;
 }
 
 type DateRangeType = 'today' | 'week' | 'month' | 'year' | 'custom';
+const dateRangeTypes: DateRangeType[] = ['today', 'week', 'month', 'year', 'custom'];
+const isDateRangeType = (value: string): value is DateRangeType =>
+  dateRangeTypes.some((option) => option === value);
 
 export function AdvancedExportDialog({
   open,
@@ -148,7 +151,7 @@ export function AdvancedExportDialog({
     }
 
     const filteredData = data.map((row) => {
-      const filtered: any = {};
+      const filtered: Record<string, unknown> = {};
       selectedColumnsList.forEach((col) => {
         filtered[col.label] = row[col.key];
       });
@@ -298,7 +301,11 @@ export function AdvancedExportDialog({
                 </Label>
                 <Select
                   value={dateRangeType}
-                  onValueChange={(value) => setDateRangeType(value as DateRangeType)}
+                  onValueChange={(value) => {
+                    if (isDateRangeType(value)) {
+                      setDateRangeType(value);
+                    }
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue />

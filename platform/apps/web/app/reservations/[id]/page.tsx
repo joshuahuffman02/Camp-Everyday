@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
-import { Reservation } from "@keepr/shared";
+import { Communication, CommunicationPlaybook, CommunicationPlaybookJob, Reservation } from "@keepr/shared";
 import { cn } from "@/lib/utils";
 import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { ReservationHeader } from "@/components/reservations/ReservationHeader";
@@ -13,7 +13,7 @@ import { StayDetails } from "@/components/reservations/StayDetails";
 import { FinancialSummary } from "@/components/reservations/FinancialSummary";
 import { ReservationTimeline } from "@/components/reservations/ReservationTimeline";
 import { MessagesPanel } from "@/components/reservations/MessagesPanel";
-import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, type InfiniteData } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { GitBranch, Loader2, Mail, MessageSquare, Phone, PlusCircle, RotateCcw, StickyNote, PhoneCall } from "lucide-react";
@@ -28,43 +28,97 @@ import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CheckInCelebrationDialog } from "@/components/reservations/CheckInCelebrationDialog";
 
+type CommTypeFilter = "all" | "email" | "sms" | "automation";
+type CommDirectionFilter = "all" | "outbound" | "inbound";
+type CommStatusFilter = "all" | "sent" | "delivered" | "pending" | "failed" | "bounce" | "complaint";
+type ComposeType = "email" | "sms" | "note" | "call";
+type ComposeDirection = "inbound" | "outbound";
+type GroupRole = "primary" | "member";
+type CommunicationsPage = Awaited<ReturnType<typeof apiClient.listCommunications>>;
 type ReservationWithGroup = Reservation & {
     groupId?: string | null;
-    groupRole?: "primary" | "member" | null;
+    groupRole?: GroupRole | null;
 };
+type GroupSummary = Awaited<ReturnType<typeof apiClient.getGroups>>[number];
+type TimelineCommunication = {
+    kind: "communication";
+    id: string;
+    date?: string | null;
+    type: Communication["type"];
+    direction: Communication["direction"];
+    subject?: string | null;
+    body?: string | null;
+    status?: string | null;
+    provider?: string | null;
+    toAddress?: string | null;
+    fromAddress?: string | null;
+};
+type TimelinePlaybook = {
+    kind: "playbook";
+    id: string;
+    date?: string | null;
+    status?: string | null;
+    name: string;
+    attempts?: number | null;
+    lastError?: string | null;
+};
+type TimelineItem = TimelineCommunication | TimelinePlaybook;
+
+const commTypeFilters: CommTypeFilter[] = ["all", "email", "sms", "automation"];
+const commDirectionFilters: CommDirectionFilter[] = ["all", "outbound", "inbound"];
+const commStatusFilters: CommStatusFilter[] = ["all", "sent", "delivered", "pending", "failed", "bounce", "complaint"];
+const composeTypes: ComposeType[] = ["email", "sms", "note", "call"];
+const composeDirections: ComposeDirection[] = ["inbound", "outbound"];
+const groupRoles: GroupRole[] = ["primary", "member"];
+
+const isCommTypeFilter = (value: string): value is CommTypeFilter =>
+    commTypeFilters.some((filter) => filter === value);
+const isCommDirectionFilter = (value: string): value is CommDirectionFilter =>
+    commDirectionFilters.some((filter) => filter === value);
+const isCommStatusFilter = (value: string): value is CommStatusFilter =>
+    commStatusFilters.some((filter) => filter === value);
+const isComposeType = (value: string): value is ComposeType =>
+    composeTypes.some((filter) => filter === value);
+const isComposeDirection = (value: string): value is ComposeDirection =>
+    composeDirections.some((filter) => filter === value);
+const isGroupRole = (value: string): value is GroupRole =>
+    groupRoles.some((filter) => filter === value);
+const resolveGroupRole = (value: string | null | undefined): GroupRole =>
+    value && isGroupRole(value) ? value : "member";
 
 export default function ReservationDetailPage() {
-    const params = useParams();
+    const params = useParams<{ id?: string }>();
     const router = useRouter();
     const { toast } = useToast();
     const [reservation, setReservation] = useState<ReservationWithGroup | null>(null);
     const [loading, setLoading] = useState(true);
     const [processing, setProcessing] = useState(false);
-    const [commTypeFilter, setCommTypeFilter] = useState<string>("all");
-    const [commDirectionFilter, setCommDirectionFilter] = useState<string>("all");
-    const [commStatusFilter, setCommStatusFilter] = useState<string>("all");
-    const [composeType, setComposeType] = useState<"email" | "sms" | "note" | "call">("email");
-    const [composeDirection, setComposeDirection] = useState<"inbound" | "outbound">("outbound");
+    const [commTypeFilter, setCommTypeFilter] = useState<CommTypeFilter>("all");
+    const [commDirectionFilter, setCommDirectionFilter] = useState<CommDirectionFilter>("all");
+    const [commStatusFilter, setCommStatusFilter] = useState<CommStatusFilter>("all");
+    const [composeType, setComposeType] = useState<ComposeType>("email");
+    const [composeDirection, setComposeDirection] = useState<ComposeDirection>("outbound");
     const [composeSubject, setComposeSubject] = useState("");
     const [composeBody, setComposeBody] = useState("");
     const [composeTo, setComposeTo] = useState("");
     const [composeFrom, setComposeFrom] = useState("");
     const [selectedGroupId, setSelectedGroupId] = useState<string>("");
-    const [groupRole, setGroupRole] = useState<"primary" | "member">("member");
+    const [groupRole, setGroupRole] = useState<GroupRole>("member");
     const [showCheckInCelebration, setShowCheckInCelebration] = useState(false);
+    const reservationId = typeof params.id === "string" ? params.id : "";
 
     useEffect(() => {
-        if (params.id) {
-            loadReservation(params.id as string);
+        if (reservationId) {
+            loadReservation(reservationId);
         }
-    }, [params.id]);
+    }, [reservationId]);
 
     const loadReservation = async (id: string) => {
         try {
-            const data = await apiClient.getReservation(id) as ReservationWithGroup;
+            const data: ReservationWithGroup = await apiClient.getReservation(id);
             setReservation(data);
             setSelectedGroupId(data.groupId ?? "");
-            setGroupRole((data.groupRole === "primary" ? "primary" : "member"));
+            setGroupRole(resolveGroupRole(data.groupRole));
         } catch (error) {
             toast({
                 title: "Error",
@@ -83,41 +137,47 @@ export default function ReservationDetailPage() {
     });
     const SLA_MINUTES = campgroundQuery.data?.slaMinutes ?? Number(process.env.NEXT_PUBLIC_SLA_MINUTES || 30);
 
-    const commsQuery = useInfiniteQuery({
-        queryKey: ["communications", "reservation", params.id, commTypeFilter, commDirectionFilter],
-        queryFn: ({ pageParam }: { pageParam?: string }) =>
+    const commsQuery = useInfiniteQuery<
+        CommunicationsPage,
+        Error,
+        InfiniteData<CommunicationsPage, string | undefined>,
+        ["communications", "reservation", string, CommTypeFilter, CommDirectionFilter],
+        string | undefined
+    >({
+        queryKey: ["communications", "reservation", reservationId, commTypeFilter, commDirectionFilter],
+        queryFn: ({ pageParam }) =>
             apiClient.listCommunications({
                 campgroundId: reservation?.campgroundId || "",
-                reservationId: params.id as string,
+                reservationId,
                 limit: 20,
-                type: ["email", "sms", "note", "call"].includes(commTypeFilter) ? commTypeFilter : undefined,
+                type: commTypeFilter === "email" || commTypeFilter === "sms" ? commTypeFilter : undefined,
                 direction: commDirectionFilter === "all" ? undefined : commDirectionFilter,
                 cursor: pageParam
             }),
-        enabled: !!params.id && !!reservation?.campgroundId,
-        initialPageParam: undefined as string | undefined,
+        enabled: !!reservationId && !!reservation?.campgroundId,
+        initialPageParam: undefined,
         getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined
     });
-    const commItems = commsQuery.data?.pages?.flatMap((p: any) => p.items) ?? [];
-    const groupsQuery = useQuery({
+    const commItems = commsQuery.data?.pages.flatMap((page) => page.items) ?? [];
+    const groupsQuery = useQuery<GroupSummary[]>({
         queryKey: ["groups", reservation?.campgroundId],
         queryFn: () => apiClient.getGroups(reservation!.campgroundId),
         enabled: !!reservation?.campgroundId
     });
-    const overdueCount = commItems.filter((c: any) => {
+    const overdueCount = commItems.filter((c) => {
         const createdDate = c.createdAt ? new Date(c.createdAt) : null;
         const minutesSince = createdDate ? (Date.now() - createdDate.getTime()) / 60000 : 0;
         const isInboundPending = c.direction === "inbound" && !(c.status || "").startsWith("delivered") && (c.status || "") !== "sent" && (c.status || "") !== "failed";
         return isInboundPending && minutesSince > SLA_MINUTES;
     }).length;
 
-    const playbookJobsQuery = useQuery({
+    const playbookJobsQuery = useQuery<CommunicationPlaybookJob[]>({
         queryKey: ["communications", "playbook-jobs", reservation?.campgroundId],
         queryFn: () => apiClient.listPlaybookJobs(reservation!.campgroundId),
         enabled: !!reservation?.campgroundId
     });
 
-    const playbooksQuery = useQuery({
+    const playbooksQuery = useQuery<CommunicationPlaybook[]>({
         queryKey: ["communications", "playbooks", reservation?.campgroundId],
         queryFn: () => apiClient.listPlaybooks(reservation!.campgroundId),
         enabled: !!reservation?.campgroundId
@@ -125,8 +185,8 @@ export default function ReservationDetailPage() {
 
     const playbookNameById = useMemo(() => {
         const map: Record<string, string> = {};
-        (playbooksQuery.data || []).forEach((p: any) => {
-            map[p.id] = p.name || p.type || "Playbook";
+        (playbooksQuery.data || []).forEach((playbook) => {
+            map[playbook.id] = playbook.type || "Playbook";
         });
         return map;
     }, [playbooksQuery.data]);
@@ -147,12 +207,12 @@ export default function ReservationDetailPage() {
 
     const timelineItems = useMemo(() => {
         const normalizedStatus = commStatusFilter.toLowerCase();
-        const comms = commItems
-            .filter((c: any) => ["email", "sms"].includes(c.type))
-            .filter((c: any) => (commTypeFilter === "all" || commTypeFilter === "automation" ? true : c.type === commTypeFilter))
-            .filter((c: any) => (commStatusFilter === "all" ? true : (c.status || "").toLowerCase().includes(normalizedStatus)))
-            .map((c: any) => ({
-                kind: "communication" as const,
+        const comms: TimelineItem[] = commItems
+            .filter((c) => ["email", "sms"].includes(c.type))
+            .filter((c) => (commTypeFilter === "all" || commTypeFilter === "automation" ? true : c.type === commTypeFilter))
+            .filter((c) => (commStatusFilter === "all" ? true : (c.status || "").toLowerCase().includes(normalizedStatus)))
+            .map((c) => ({
+                kind: "communication",
                 id: c.id,
                 date: c.createdAt,
                 type: c.type,
@@ -165,16 +225,16 @@ export default function ReservationDetailPage() {
                 fromAddress: c.fromAddress
             }));
 
-        const jobs = (playbookJobsQuery.data || [])
-            .filter((job: any) => {
+        const jobs: TimelineItem[] = (playbookJobsQuery.data || [])
+            .filter((job) => {
                 const matchesReservation = reservation?.id ? job.reservationId === reservation.id : false;
                 const matchesGuest = reservation?.guestId ? job.guestId === reservation.guestId : false;
                 return matchesReservation || matchesGuest;
             })
-            .filter((job: any) => commStatusFilter === "all" ? true : (job.status || "").toLowerCase().includes(normalizedStatus))
-            .filter((job: any) => commTypeFilter === "all" || commTypeFilter === "automation")
-            .map((job: any) => ({
-                kind: "playbook" as const,
+            .filter((job) => commStatusFilter === "all" ? true : (job.status || "").toLowerCase().includes(normalizedStatus))
+            .filter((job) => commTypeFilter === "all" || commTypeFilter === "automation")
+            .map((job) => ({
+                kind: "playbook",
                 id: job.id,
                 date: job.updatedAt || job.scheduledAt || job.createdAt,
                 status: job.status,
@@ -183,7 +243,7 @@ export default function ReservationDetailPage() {
                 lastError: job.lastError
             }));
 
-        return [...comms, ...jobs].sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+        return [...comms, ...jobs].sort((a, b) => new Date(b.date ?? 0).getTime() - new Date(a.date ?? 0).getTime());
     }, [commItems, commStatusFilter, commTypeFilter, playbookJobsQuery.data, playbookNameById, reservation?.guestId, reservation?.id]);
 
     const retryPlaybookMutation = useMutation({
@@ -205,10 +265,9 @@ export default function ReservationDetailPage() {
             return apiClient.updateReservationGroup(reservation.id, payload);
         },
         onSuccess: (updated) => {
-            const updatedWithGroup = updated as ReservationWithGroup;
-            setReservation(updatedWithGroup);
-            setSelectedGroupId(updatedWithGroup.groupId ?? "");
-            setGroupRole((updatedWithGroup.groupRole === "primary" ? "primary" : "member"));
+            setReservation(updated);
+            setSelectedGroupId(updated.groupId ?? "");
+            setGroupRole(resolveGroupRole(updated.groupRole));
             groupsQuery.refetch();
             toast({ title: "Saved", description: "Group assignment updated" });
         },
@@ -219,7 +278,7 @@ export default function ReservationDetailPage() {
 
     useEffect(() => {
         setSelectedGroupId(reservation?.groupId ?? "");
-        setGroupRole((reservation?.groupRole === "primary" ? "primary" : "member"));
+        setGroupRole(resolveGroupRole(reservation?.groupRole));
     }, [reservation?.groupId, reservation?.groupRole]);
 
     useEffect(() => {
@@ -312,7 +371,7 @@ export default function ReservationDetailPage() {
                         {/* Left Column - Main Info */}
                         <div className="lg:col-span-2 space-y-6">
                             {reservation.guest && <GuestCard guest={reservation.guest} />}
-                            {reservation.site && <StayDetails reservation={reservation} site={reservation.site as Parameters<typeof StayDetails>[0]["site"]} />}
+                            {reservation.site && <StayDetails reservation={reservation} site={reservation.site} />}
                             <div className="bg-card rounded-lg border border-border p-4 space-y-3">
                                 <div className="flex items-center justify-between gap-2">
                                     <h2 className="text-lg font-semibold text-foreground">Group assignment</h2>
@@ -366,7 +425,7 @@ export default function ReservationDetailPage() {
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                     <SelectItem value="">Not assigned</SelectItem>
-                                                    {groupsQuery.data?.map((g: any) => (
+                                                    {groupsQuery.data?.map((g) => (
                                                         <SelectItem key={g.id} value={g.id}>
                                                             {`Group #${g.id.slice(0, 8)} • ${g.reservationCount} reservation${g.reservationCount === 1 ? "" : "s"}`}
                                                         </SelectItem>
@@ -379,7 +438,11 @@ export default function ReservationDetailPage() {
                                             <Label className="text-xs" htmlFor="group-role-primary">Role</Label>
                                             <RadioGroup
                                                 value={groupRole}
-                                                onValueChange={(value) => setGroupRole(value as "primary" | "member")}
+                                                onValueChange={(value) => {
+                                                    if (isGroupRole(value)) {
+                                                        setGroupRole(value);
+                                                    }
+                                                }}
                                                 className="flex items-center gap-4 text-sm text-foreground"
                                                 aria-label="Group role"
                                             >
@@ -449,7 +512,14 @@ export default function ReservationDetailPage() {
                                 <div className="flex flex-wrap gap-3 text-sm">
                                     <div className="space-y-1">
                                         <Label className="text-xs" htmlFor="comm-type-filter">Type</Label>
-                                        <Select value={commTypeFilter} onValueChange={setCommTypeFilter}>
+                                        <Select
+                                            value={commTypeFilter}
+                                            onValueChange={(value) => {
+                                                if (isCommTypeFilter(value)) {
+                                                    setCommTypeFilter(value);
+                                                }
+                                            }}
+                                        >
                                             <SelectTrigger id="comm-type-filter" className="h-9 bg-background" aria-label="Communication type">
                                                 <SelectValue />
                                             </SelectTrigger>
@@ -463,7 +533,14 @@ export default function ReservationDetailPage() {
                                     </div>
                                     <div className="space-y-1">
                                         <Label className="text-xs" htmlFor="comm-status-filter">Status (stub)</Label>
-                                        <Select value={commStatusFilter} onValueChange={setCommStatusFilter}>
+                                        <Select
+                                            value={commStatusFilter}
+                                            onValueChange={(value) => {
+                                                if (isCommStatusFilter(value)) {
+                                                    setCommStatusFilter(value);
+                                                }
+                                            }}
+                                        >
                                             <SelectTrigger id="comm-status-filter" className="h-9 bg-background" aria-label="Communication status">
                                                 <SelectValue />
                                             </SelectTrigger>
@@ -480,7 +557,14 @@ export default function ReservationDetailPage() {
                                     </div>
                                     <div className="space-y-1">
                                         <Label className="text-xs" htmlFor="comm-direction-filter">Direction</Label>
-                                        <Select value={commDirectionFilter} onValueChange={setCommDirectionFilter}>
+                                        <Select
+                                            value={commDirectionFilter}
+                                            onValueChange={(value) => {
+                                                if (isCommDirectionFilter(value)) {
+                                                    setCommDirectionFilter(value);
+                                                }
+                                            }}
+                                        >
                                             <SelectTrigger id="comm-direction-filter" className="h-9 bg-background" aria-label="Communication direction">
                                                 <SelectValue />
                                             </SelectTrigger>
@@ -503,7 +587,14 @@ export default function ReservationDetailPage() {
                                         <div className="grid grid-cols-2 gap-3">
                                             <div className="space-y-1">
                                                 <Label className="text-xs" htmlFor="compose-type">Type</Label>
-                                                <Select value={composeType} onValueChange={(value) => setComposeType(value as "email" | "sms" | "note" | "call")}>
+                                                <Select
+                                                    value={composeType}
+                                                    onValueChange={(value) => {
+                                                        if (isComposeType(value)) {
+                                                            setComposeType(value);
+                                                        }
+                                                    }}
+                                                >
                                                     <SelectTrigger id="compose-type" className="h-9 bg-background" aria-label="Compose type">
                                                         <SelectValue />
                                                     </SelectTrigger>
@@ -517,7 +608,14 @@ export default function ReservationDetailPage() {
                                             </div>
                                             <div className="space-y-1">
                                                 <Label className="text-xs" htmlFor="compose-direction">Direction</Label>
-                                                <Select value={composeDirection} onValueChange={(value) => setComposeDirection(value as "inbound" | "outbound")}>
+                                                <Select
+                                                    value={composeDirection}
+                                                    onValueChange={(value) => {
+                                                        if (isComposeDirection(value)) {
+                                                            setComposeDirection(value);
+                                                        }
+                                                    }}
+                                                >
                                                     <SelectTrigger id="compose-direction" className="h-9 bg-background" aria-label="Compose direction">
                                                         <SelectValue />
                                                     </SelectTrigger>
@@ -594,18 +692,18 @@ export default function ReservationDetailPage() {
                                         <div className="text-sm text-muted-foreground">No communications yet.</div>
                                     )}
                                     <div className="relative pl-3 border-l border-border space-y-4">
-                                        {timelineItems.map((item: any) => {
+                                        {timelineItems.map((item) => {
                                             const createdDate = item.date ? new Date(item.date) : null;
-                                            const getCommIcon = () => {
-                                                if (item.kind === "playbook") return GitBranch;
-                                                switch (item.type) {
+                                            const getCommIcon = (entry: TimelineItem) => {
+                                                if (entry.kind === "playbook") return GitBranch;
+                                                switch (entry.type) {
                                                     case "sms": return Phone;
                                                     case "note": return StickyNote;
                                                     case "call": return PhoneCall;
                                                     default: return Mail;
                                                 }
                                             };
-                                            const Icon = getCommIcon();
+                                            const Icon = getCommIcon(item);
                                             return (
                                                 <div key={`${item.kind}-${item.id}`} className="relative pl-4">
                                                     <span className="absolute -left-[9px] top-2 h-4 w-4 rounded-full bg-card border border-border flex items-center justify-center">

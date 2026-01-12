@@ -55,7 +55,10 @@ export function useFeatureProgress() {
   const queryClient = useQueryClient();
 
   const token = isBrowser ? localStorage.getItem("campreserv:authToken") : null;
-  const sessionToken = (session as SessionWithToken | null)?.apiToken;
+  const hasApiToken = (value: unknown): value is SessionWithToken =>
+    typeof value === "object" && value !== null && "apiToken" in value;
+  const sessionToken =
+    hasApiToken(session) && typeof session.apiToken === "string" ? session.apiToken : undefined;
   const authToken = sessionToken || token || "";
   const hasAuth = Boolean(authToken);
 

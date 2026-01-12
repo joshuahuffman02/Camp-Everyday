@@ -15,12 +15,55 @@ import {
   OpTaskState,
   OpSlaStatus,
 } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
+import { randomUUID } from "crypto";
 
 interface BadgeCriteria {
   type: 'task_count' | 'streak' | 'sla_compliance' | 'speed' | 'special';
   threshold: number;
   timeframe?: 'day' | 'week' | 'month' | 'all_time';
 }
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const isBadgeType = (value: unknown): value is BadgeCriteria["type"] =>
+  value === "task_count" ||
+  value === "streak" ||
+  value === "sla_compliance" ||
+  value === "speed" ||
+  value === "special";
+
+const isBadgeTimeframe = (value: unknown): value is NonNullable<BadgeCriteria["timeframe"]> =>
+  value === "day" ||
+  value === "week" ||
+  value === "month" ||
+  value === "all_time";
+
+const parseBadgeCriteria = (value: unknown): BadgeCriteria | null => {
+  if (!isRecord(value)) return null;
+  const type = value.type;
+  const threshold = value.threshold;
+  const timeframe = value.timeframe;
+
+  if (!isBadgeType(type)) return null;
+  if (typeof threshold !== "number") return null;
+  if (timeframe !== undefined && !isBadgeTimeframe(timeframe)) {
+    return null;
+  }
+
+  return {
+    type,
+    threshold,
+    ...(timeframe ? { timeframe } : {}),
+  };
+};
+
+const toBadgeCriteriaJson = (criteria: BadgeCriteria): Prisma.InputJsonValue => ({
+  type: criteria.type,
+  threshold: criteria.threshold,
+  ...(criteria.timeframe ? { timeframe: criteria.timeframe } : {}),
+});
 
 @Injectable()
 export class OpGamificationService {
@@ -81,6 +124,7 @@ export class OpGamificationService {
   ): Promise<OpBadge> {
     return this.prisma.opBadge.create({
       data: {
+        id: randomUUID(),
         campgroundId,
         code: data.code,
         name: data.name,
@@ -88,7 +132,7 @@ export class OpGamificationService {
         icon: data.icon,
         category: data.category,
         tier: data.tier || OpBadgeTier.bronze,
-        criteria: data.criteria as any,
+        criteria: toBadgeCriteriaJson(data.criteria),
         points: data.points || 10,
       },
     });
@@ -271,9 +315,10 @@ export class OpGamificationService {
             },
           },
           create: {
+            id: randomUUID(),
             campgroundId,
             ...badge,
-            criteria: badge.criteria as any,
+            criteria: toBadgeCriteriaJson(badge.criteria),
           },
           update: {},
         });
@@ -302,7 +347,7 @@ export class OpGamificationService {
 
     if (!stats) {
       stats = await this.prisma.opStaffStats.create({
-        data: { userId, campgroundId },
+        data: { id: randomUUID(), userId, campgroundId, updatedAt: new Date() },
       });
     }
 
@@ -327,16 +372,17 @@ export class OpGamificationService {
       period === 'month' ? 'monthPoints' :
       'totalPoints';
 
-    return this.prisma.opStaffStats.findMany({
+    const leaderboard = await this.prisma.opStaffStats.findMany({
       where: { campgroundId },
       orderBy: { [orderByField]: 'desc' },
       take: limit,
       include: {
-        user: {
+        User: {
           select: { id: true, firstName: true, lastName: true },
         },
       },
     });
+    return leaderboard.map(({ User, ...rest }) => ({ ...rest, user: User }));
   }
 
   /**
@@ -353,9 +399,10 @@ export class OpGamificationService {
 
     const badges = await this.prisma.opStaffBadge.findMany({
       where: { userId, campgroundId },
-      include: { badge: true },
+      include: { OpBadge: true },
       orderBy: { earnedAt: 'desc' },
     });
+    const mappedBadges = badges.map(({ OpBadge, ...rest }) => ({ ...rest, badge: OpBadge }));
 
     // Get last 14 days of activity
     const fourteenDaysAgo = new Date();
@@ -374,7 +421,7 @@ export class OpGamificationService {
     const level = this.calculateLevel(stats.totalPoints);
     const nextLevelProgress = this.calculateLevelProgress(stats.totalPoints);
 
-    return { stats, badges, recentActivity, level, nextLevelProgress };
+    return { stats, badges: mappedBadges, recentActivity, level, nextLevelProgress };
   }
 
   /**
@@ -383,19 +430,19 @@ export class OpGamificationService {
   async getAllStaffStats(campgroundId: string): Promise<
     Array<OpStaffStats & {
       user: { id: string; firstName: string; lastName: string };
-      badges: OpStaffBadge[];
     }>
   > {
-    return this.prisma.opStaffStats.findMany({
+    const stats = await this.prisma.opStaffStats.findMany({
       where: { campgroundId },
       include: {
-        user: {
+        User: {
           select: { id: true, firstName: true, lastName: true },
         },
         // Note: This relation might not exist directly - we may need to query badges separately
       },
       orderBy: { totalPoints: 'desc' },
-    }) as any;
+    });
+    return stats.map(({ User, ...rest }) => ({ ...rest, user: User }));
   }
 
   // ============================================================
@@ -418,9 +465,14 @@ export class OpGamificationService {
     streakUpdated: boolean;
     levelUp: boolean;
   }> {
-    const result = {
+    const result: {
+      pointsEarned: number;
+      newBadges: OpBadge[];
+      streakUpdated: boolean;
+      levelUp: boolean;
+    } = {
       pointsEarned: 0,
-      newBadges: [] as OpBadge[],
+      newBadges: [],
       streakUpdated: false,
       levelUp: false,
     };
@@ -451,6 +503,7 @@ export class OpGamificationService {
         userId_campgroundId_date: { userId, campgroundId, date: today },
       },
       create: {
+        id: randomUUID(),
         userId,
         campgroundId,
         date: today,
@@ -586,7 +639,11 @@ export class OpGamificationService {
     for (const badge of allBadges) {
       if (earnedSet.has(badge.id)) continue; // Already earned
 
-      const criteria = badge.criteria as BadgeCriteria;
+      const criteria = parseBadgeCriteria(badge.criteria);
+      if (!criteria) {
+        this.logger.warn(`Badge ${badge.code} has invalid criteria`);
+        continue;
+      }
       let qualified = false;
 
       switch (criteria.type) {
@@ -605,7 +662,8 @@ export class OpGamificationService {
         case 'sla_compliance':
           if (criteria.timeframe === 'day') {
             qualified =
-              dailyStats && dailyStats.tasksCompleted > 0 &&
+              !!dailyStats &&
+              dailyStats.tasksCompleted > 0 &&
               dailyStats.tasksOnTime === dailyStats.tasksCompleted;
           } else {
             qualified =
@@ -630,6 +688,7 @@ export class OpGamificationService {
         try {
           await this.prisma.opStaffBadge.create({
             data: {
+              id: randomUUID(),
               userId,
               badgeId: badge.id,
               campgroundId,
@@ -712,7 +771,7 @@ export class OpGamificationService {
     // Get all campgrounds with staff stats
     const campgrounds = await this.prisma.campground.findMany({
       where: {
-        opStaffStats: { some: {} },
+        OpStaffStats: { some: {} },
       },
       select: { id: true },
     });

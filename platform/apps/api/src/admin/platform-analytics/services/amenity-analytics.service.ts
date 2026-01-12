@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../../../prisma/prisma.service";
 import { DateRange } from "../platform-analytics.service";
 
-interface AmenityData {
+export interface AmenityData {
   amenity: string;
   siteCount: number;
   reservations: number;
@@ -11,7 +11,7 @@ interface AmenityData {
   occupancyRate: number;
 }
 
-interface HookupAnalysis {
+export interface HookupAnalysis {
   hookupType: string;
   siteCount: number;
   reservations: number;
@@ -19,9 +19,20 @@ interface HookupAnalysis {
   averageNightlyRate: number;
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
 @Injectable()
 export class AmenityAnalyticsService {
   constructor(private prisma: PrismaService) {}
+
+  private getHookupType(site: { hookupsPower: boolean; hookupsWater: boolean; hookupsSewer: boolean }): string {
+    const { hookupsPower, hookupsWater, hookupsSewer } = site;
+    if (hookupsPower && hookupsWater && hookupsSewer) return "full";
+    if (hookupsPower && hookupsWater) return "water_electric";
+    if (hookupsPower) return "electric";
+    return "none";
+  }
 
   /**
    * Get full amenity analytics
@@ -136,7 +147,9 @@ export class AmenityAnalyticsService {
       where: { isActive: true },
       select: {
         id: true,
-        hookups: true, // Could be "full", "water_electric", "electric", "none"
+        hookupsPower: true,
+        hookupsWater: true,
+        hookupsSewer: true,
       },
     });
 
@@ -157,7 +170,7 @@ export class AmenityAnalyticsService {
     // Build site to hookup mapping
     const siteHookups: Record<string, string> = {};
     for (const site of sites) {
-      siteHookups[site.id] = site.hookups || "unknown";
+      siteHookups[site.id] = this.getHookupType(site);
     }
 
     // Group by hookup type
@@ -217,7 +230,7 @@ export class AmenityAnalyticsService {
         totalAmount: true,
         arrivalDate: true,
         departureDate: true,
-        site: {
+        Site: {
           select: { amenityTags: true },
         },
       },
@@ -229,7 +242,7 @@ export class AmenityAnalyticsService {
     // First, get all unique amenities
     const allAmenities = new Set<string>();
     for (const res of reservations) {
-      for (const tag of res.site?.amenityTags || []) {
+      for (const tag of res.Site?.amenityTags || []) {
         allAmenities.add(tag);
       }
     }
@@ -246,7 +259,7 @@ export class AmenityAnalyticsService {
         (1000 * 60 * 60 * 24)
       );
       const ratePerNight = nights > 0 ? (res.totalAmount || 0) / nights : 0;
-      const siteAmenities = new Set(res.site?.amenityTags || []);
+      const siteAmenities = new Set(res.Site?.amenityTags || []);
 
       for (const amenity of allAmenities) {
         if (siteAmenities.has(amenity)) {
@@ -293,7 +306,7 @@ export class AmenityAnalyticsService {
       select: {
         id: true,
         name: true,
-        amenities: true,
+        amenitySummary: true,
       },
     });
 
@@ -316,7 +329,7 @@ export class AmenityAnalyticsService {
     const byAmenity: Record<string, { campgrounds: number; totalRevenue: number; totalBookings: number }> = {};
 
     for (const campground of campgrounds) {
-      const amenities = campground.amenities || [];
+      const amenities = isRecord(campground.amenitySummary) ? Object.keys(campground.amenitySummary) : [];
       const campRevenue = revenueMap.get(campground.id);
 
       for (const amenity of amenities) {

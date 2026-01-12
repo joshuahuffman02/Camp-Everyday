@@ -1,8 +1,19 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
+import { randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { ApprovalStatus, Prisma, UserRole } from "@prisma/client";
 
 type ApprovalEntry = { approver: string; at: string };
+type ApprovalAction = "refund" | "payout" | "config_change";
+
+const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined => {
+  if (value === undefined || value === null) return undefined;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
+};
 
 @Injectable()
 export class ApprovalsService {
@@ -27,15 +38,15 @@ export class ApprovalsService {
     // Transform to match frontend expectations
     const transformedRequests = requests.map((r) => ({
       id: r.id,
-      type: r.action as "refund" | "payout" | "config_change",
+      type: this.normalizeAction(r.action),
       amount: r.amount,
       currency: r.currency,
       status: r.status,
       reason: r.reason || "",
       requester: r.requesterName || r.requestedBy,
-      approvals: (r.approvals as ApprovalEntry[]) || [],
+      approvals: this.normalizeApprovals(r.approvals),
       requiredApprovals: r.requiredApprovals,
-      metadata: r.payload as Record<string, unknown>,
+      metadata: this.normalizeMetadata(r.payload),
       createdAt: r.createdAt.toISOString(),
       updatedAt: r.updatedAt.toISOString(),
       policyId: r.policyId,
@@ -44,7 +55,7 @@ export class ApprovalsService {
     const transformedPolicies = policies.map((p) => ({
       id: p.id,
       name: p.name,
-      appliesTo: p.appliesTo as ("refund" | "payout" | "config_change")[],
+      appliesTo: this.normalizeActions(p.appliesTo),
       thresholdCents: p.thresholdCents,
       currency: p.currency,
       approversNeeded: p.approversNeeded,
@@ -79,6 +90,7 @@ export class ApprovalsService {
 
     const request = await this.prisma.approvalRequest.create({
       data: {
+        id: randomUUID(),
         campgroundId: payload.campgroundId,
         action: payload.type,
         requestedBy: payload.requestedBy,
@@ -86,11 +98,12 @@ export class ApprovalsService {
         amount: Math.round(payload.amount * 100), // Convert to cents
         currency: payload.currency,
         reason: payload.reason,
-        payload: payload.metadata ?? {},
+        payload: toJsonValue(payload.metadata),
         status: "pending",
         requiredApprovals,
         approvals: [],
         policyId: policy?.id,
+        updatedAt: new Date(),
       },
     });
 
@@ -120,7 +133,7 @@ export class ApprovalsService {
       throw new NotFoundException(`Approval request ${id} not found`);
     }
 
-    const existingApprovals = (request.approvals as ApprovalEntry[]) || [];
+    const existingApprovals = this.normalizeApprovals(request.approvals);
     const alreadyApproved = existingApprovals.some((a) => a.approver === approver);
 
     let newApprovals = existingApprovals;
@@ -130,7 +143,7 @@ export class ApprovalsService {
 
     const approvalsCount = newApprovals.length;
     const newStatus: ApprovalStatus =
-      approvalsCount >= request.requiredApprovals ? "approved" : "pending_second";
+      approvalsCount >= request.requiredApprovals ? "approved" : "pending";
 
     const updated = await this.prisma.approvalRequest.update({
       where: { id },
@@ -175,7 +188,7 @@ export class ApprovalsService {
         decidedBy: approver,
         decidedAt: new Date(),
         payload: {
-          ...((request.payload as Record<string, unknown>) || {}),
+          ...this.normalizeMetadata(request.payload),
           rejectionReason: reason,
           rejectedBy: approver,
         },
@@ -190,7 +203,7 @@ export class ApprovalsService {
       status: updated.status,
       reason: updated.reason,
       requester: updated.requesterName,
-      approvals: (updated.approvals as ApprovalEntry[]) || [],
+      approvals: this.normalizeApprovals(updated.approvals),
       requiredApprovals: updated.requiredApprovals,
       metadata: updated.payload,
       createdAt: updated.createdAt.toISOString(),
@@ -238,6 +251,7 @@ export class ApprovalsService {
 
     const policy = await this.prisma.approvalPolicy.create({
       data: {
+        id: randomUUID(),
         name: payload.name,
         action,
         appliesTo: payload.appliesTo,
@@ -246,8 +260,11 @@ export class ApprovalsService {
         approversNeeded: payload.approversNeeded ?? 1,
         description: payload.description,
         approverRoles: payload.approverRoles ?? [],
-        campgroundId: payload.campgroundId,
-        createdById: payload.createdById,
+        Campground: payload.campgroundId
+          ? { connect: { id: payload.campgroundId } }
+          : undefined,
+        User: payload.createdById ? { connect: { id: payload.createdById } } : undefined,
+        updatedAt: new Date(),
       },
     });
 
@@ -357,5 +374,35 @@ export class ApprovalsService {
       const meetsThreshold = p.thresholdCents ? amountCents >= p.thresholdCents : true;
       return matchesType && matchesCurrency && meetsThreshold;
     });
+  }
+
+  private normalizeAction(value: string): ApprovalAction {
+    return this.isApprovalAction(value) ? value : "config_change";
+  }
+
+  private normalizeActions(values: string[]): ApprovalAction[] {
+    return values.map((value) => this.normalizeAction(value));
+  }
+
+  private normalizeApprovals(value: unknown): ApprovalEntry[] {
+    if (!Array.isArray(value)) return [];
+    return value.filter(this.isApprovalEntry);
+  }
+
+  private normalizeMetadata(value: unknown): Record<string, unknown> {
+    return this.isRecord(value) ? value : {};
+  }
+
+  private isApprovalAction(value: string): value is ApprovalAction {
+    return value === "refund" || value === "payout" || value === "config_change";
+  }
+
+  private isApprovalEntry(value: unknown): value is ApprovalEntry {
+    if (!this.isRecord(value)) return false;
+    return typeof value.approver === "string" && typeof value.at === "string";
+  }
+
+  private isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null;
   }
 }

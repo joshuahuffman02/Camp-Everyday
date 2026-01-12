@@ -21,7 +21,11 @@ import { useAchievement } from "@/hooks/use-achievement";
 import { AchievementCelebration } from "@/components/ui/achievement-celebration";
 import { haptic } from "@/hooks/use-haptic";
 
-const SPRING_CONFIG = { type: "spring" as const, stiffness: 200, damping: 15 };
+const SPRING_CONFIG: { type: "spring"; stiffness: number; damping: number } = {
+  type: "spring",
+  stiffness: 200,
+  damping: 15,
+};
 
 interface CheckInCelebrationDialogProps {
   open: boolean;

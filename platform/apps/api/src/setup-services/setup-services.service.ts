@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { randomUUID } from "crypto";
 
 // Define types locally to avoid Prisma import issues at runtime
 type SetupServiceType =
@@ -112,6 +113,7 @@ export class SetupServicesService {
 
     const setupService = await this.prisma.setupService.create({
       data: {
+        id: randomUUID(),
         organizationId: data.organizationId,
         serviceType: data.serviceType,
         totalCents: priceCents,
@@ -122,6 +124,7 @@ export class SetupServicesService {
         importNotes: data.importNotes,
         stripePaymentIntentId: data.stripePaymentIntentId,
         status: "pending",
+        updatedAt: new Date(),
       },
     });
 
@@ -263,7 +266,7 @@ export class SetupServicesService {
     const service = await this.prisma.setupService.findUnique({
       where: { id: serviceId },
       include: {
-        organization: {
+        Organization: {
           select: { id: true, name: true },
         },
       },

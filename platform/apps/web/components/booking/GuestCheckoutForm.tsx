@@ -52,7 +52,13 @@ export function GuestCheckoutForm({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (form.validateAll()) {
-      onSubmit(form.values as GuestInfo);
+      onSubmit({
+        firstName: form.values.firstName,
+        lastName: form.values.lastName,
+        email: form.values.email,
+        phone: form.values.phone,
+        zipCode: form.values.zipCode,
+      });
     }
   };
 
@@ -111,6 +117,7 @@ export function GuestCheckoutForm({
           placeholder="hello@keeprstay.com"
           required
           {...form.getFieldProps("email")}
+          onValueChange={(value) => form.setFieldValue("email", value)}
         />
 
         {/* Phone with auto-formatting */}

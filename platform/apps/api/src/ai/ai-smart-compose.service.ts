@@ -26,7 +26,7 @@ export interface InlineCompletion {
   confidence: number;
 }
 
-interface GrammarSuggestion {
+export interface GrammarSuggestion {
   original: string;
   suggestion: string;
   reason: string;

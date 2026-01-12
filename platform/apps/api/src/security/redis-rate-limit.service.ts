@@ -27,6 +27,15 @@ export interface RateLimitResult {
     retryAfter?: number;
 }
 
+const coerceNumber = (value: unknown): number => {
+    if (typeof value === "number") return value;
+    if (typeof value === "string") {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : 0;
+    }
+    return 0;
+};
+
 @Injectable()
 export class RedisRateLimitService {
     private readonly logger = new Logger(RedisRateLimitService.name);
@@ -135,7 +144,7 @@ export class RedisRateLimitService {
 
             const results = await pipeline.exec();
             // ioredis multi returns [[err, result], [err, result], ...]
-            const requestCount = results && results[2] ? (results[2][1] as number) : 0;
+            const requestCount = results && results[2] ? coerceNumber(results[2][1]) : 0;
 
             const remaining = Math.max(0, config.maxRequests - requestCount);
             const allowed = requestCount <= config.maxRequests;

@@ -59,6 +59,7 @@ export function SocialProofStrip({
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-50px" });
   const prefersReducedMotion = useReducedMotionSafe();
+  const easeOut: "easeOut" = "easeOut";
 
   // Fetch real platform stats
   const { data: stats } = useQuery({
@@ -121,7 +122,7 @@ export function SocialProofStrip({
     visible: {
       opacity: 1,
       y: 0,
-      transition: prefersReducedMotion ? undefined : { duration: 0.4, ease: "easeOut" as const },
+      transition: prefersReducedMotion ? undefined : { duration: 0.4, ease: easeOut },
     },
   };
 

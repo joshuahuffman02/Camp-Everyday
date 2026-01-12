@@ -2,6 +2,20 @@ import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
 import { ObservabilityService } from "./observability.service";
 import { AlertSinksService } from "./alert-sinks.service";
+import type { PrismaService } from "../prisma/prisma.service";
+import type { RedisService } from "../redis/redis.service";
+import type { StripeService } from "../payments/stripe.service";
+import type { EmailService } from "../email/email.service";
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const getErrorMessage = (err: unknown, fallback: string): string => {
+  if (err instanceof Error && err.message) return err.message;
+  if (typeof err === "string") return err;
+  if (isRecord(err) && typeof err.message === "string") return err.message;
+  return fallback;
+};
 
 /**
  * Result of a synthetic check
@@ -18,7 +32,7 @@ export interface CheckResult {
 /**
  * Check history entry with additional metadata
  */
-interface CheckHistoryEntry extends CheckResult {
+export interface CheckHistoryEntry extends CheckResult {
   consecutiveFailures: number;
 }
 
@@ -70,10 +84,10 @@ export class SyntheticChecksService implements OnModuleInit {
   private readonly checkConfigs: Map<string, CheckConfig> = new Map();
 
   // Dependencies - will be injected via init
-  private prismaService: any = null;
-  private redisService: any = null;
-  private stripeService: any = null;
-  private emailService: any = null;
+  private prismaService: PrismaService | null = null;
+  private redisService: RedisService | null = null;
+  private stripeService: StripeService | null = null;
+  private emailService: EmailService | null = null;
 
   constructor(
     private readonly observability: ObservabilityService,
@@ -96,15 +110,15 @@ export class SyntheticChecksService implements OnModuleInit {
    * Called after module initialization to avoid circular dependencies
    */
   initDependencies(deps: {
-    prisma?: any;
-    redis?: any;
-    stripe?: any;
-    email?: any;
+    prisma?: PrismaService | null;
+    redis?: RedisService | null;
+    stripe?: StripeService | null;
+    email?: EmailService | null;
   }): void {
-    this.prismaService = deps.prisma;
-    this.redisService = deps.redis;
-    this.stripeService = deps.stripe;
-    this.emailService = deps.email;
+    this.prismaService = deps.prisma ?? null;
+    this.redisService = deps.redis ?? null;
+    this.stripeService = deps.stripe ?? null;
+    this.emailService = deps.email ?? null;
   }
 
   /**
@@ -190,12 +204,12 @@ export class SyntheticChecksService implements OnModuleInit {
         message: ok ? undefined : `Latency ${latencyMs}ms exceeds budget ${this.budgetMs}ms`,
         timestamp: new Date(),
       };
-    } catch (err: any) {
+    } catch (err: unknown) {
       return {
         name: "database",
         ok: false,
         latencyMs: Date.now() - start,
-        message: err?.message || "Database check failed",
+        message: getErrorMessage(err, "Database check failed"),
         timestamp: new Date(),
       };
     }
@@ -235,12 +249,12 @@ export class SyntheticChecksService implements OnModuleInit {
         message: ok ? undefined : `Latency ${latencyMs}ms exceeds budget ${this.budgetMs}ms`,
         timestamp: new Date(),
       };
-    } catch (err: any) {
+    } catch (err: unknown) {
       return {
         name: "redis",
         ok: false,
         latencyMs: Date.now() - start,
-        message: err?.message || "Redis check failed",
+        message: getErrorMessage(err, "Redis check failed"),
         timestamp: new Date(),
       };
     }
@@ -286,12 +300,12 @@ export class SyntheticChecksService implements OnModuleInit {
         message: ok ? undefined : `Latency ${latencyMs}ms exceeds budget ${this.budgetMs}ms`,
         timestamp: new Date(),
       };
-    } catch (err: any) {
+    } catch (err: unknown) {
       return {
         name: "stripe",
         ok: false,
         latencyMs: Date.now() - start,
-        message: err?.message || "Stripe check failed",
+        message: getErrorMessage(err, "Stripe check failed"),
         timestamp: new Date(),
       };
     }
@@ -361,12 +375,12 @@ export class SyntheticChecksService implements OnModuleInit {
         message: ok ? undefined : `Latency ${latencyMs}ms exceeds budget ${this.budgetMs}ms`,
         timestamp: new Date(),
       };
-    } catch (err: any) {
+    } catch (err: unknown) {
       return {
         name: "email",
         ok: false,
         latencyMs: Date.now() - start,
-        message: err?.message || "Email check failed",
+        message: getErrorMessage(err, "Email check failed"),
         timestamp: new Date(),
       };
     }

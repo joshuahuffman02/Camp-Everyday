@@ -35,17 +35,25 @@ type Reservation = {
   status: string;
   arrivalDate: string;
   departureDate: string;
-  balanceAmount: number;
+  balanceAmount?: number;
   totalAmount?: number;
   paidAmount?: number;
   nights?: number;
   adults?: number;
   children?: number;
   siteId?: string | null;
-  site?: { name?: string };
-  guest: { primaryFirstName: string; primaryLastName: string };
+  site?: { name?: string | null } | null;
+  guest?: { primaryFirstName: string; primaryLastName: string } | null;
   notes?: string | null;
 };
+
+type TabKey = "arrivals" | "departures";
+
+const isTabKey = (value: string): value is TabKey =>
+  value === "arrivals" || value === "departures";
+
+const getGuestName = (guest: Reservation["guest"]) =>
+  guest ? `${guest.primaryFirstName} ${guest.primaryLastName}`.trim() : "Guest";
 
 export default function CheckInOutV2() {
   const { toast } = useToast();
@@ -58,7 +66,7 @@ export default function CheckInOutV2() {
   const [campgroundId, setCampgroundId] = useState<string>("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "balance" | "unassigned">("all");
-  const [tab, setTab] = useState<"arrivals" | "departures">("arrivals");
+  const [tab, setTab] = useState<TabKey>("arrivals");
 
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -75,7 +83,7 @@ export default function CheckInOutV2() {
     if (stored) setCampgroundId(stored);
   }, []);
 
-  const reservationsQuery = useQuery({
+  const reservationsQuery = useQuery<Reservation[]>({
     queryKey: ["reservations", campgroundId],
     queryFn: () => apiClient.getReservations(campgroundId),
     enabled: !!campgroundId
@@ -138,7 +146,7 @@ export default function CheckInOutV2() {
     onError: () => toast({ title: "Payment failed", variant: "destructive" })
   });
 
-  const reservations = (reservationsQuery.data as Reservation[]) || [];
+  const reservations = reservationsQuery.data ?? [];
 
   // Arrivals: exclude cancelled, checked_in, and checked_out (only show pending arrivals)
   const arrivals = reservations.filter((r) =>
@@ -160,10 +168,13 @@ export default function CheckInOutV2() {
     return list
       .filter((r) => {
         if (!search) return true;
+        const firstName = r.guest?.primaryFirstName ?? "";
+        const lastName = r.guest?.primaryLastName ?? "";
+        const siteName = r.site?.name ?? "";
         return (
-          r.guest.primaryFirstName.toLowerCase().includes(lower) ||
-          r.guest.primaryLastName.toLowerCase().includes(lower) ||
-          r.site?.name?.toLowerCase().includes(lower)
+          firstName.toLowerCase().includes(lower) ||
+          lastName.toLowerCase().includes(lower) ||
+          siteName.toLowerCase().includes(lower)
         );
       })
       .filter((r) => {
@@ -313,7 +324,15 @@ export default function CheckInOutV2() {
                 <SelectItem value="unassigned">Unassigned site</SelectItem>
               </SelectContent>
             </Select>
-            <Tabs value={tab} onValueChange={(v) => setTab(v as "arrivals" | "departures")} className="space-y-0">
+            <Tabs
+              value={tab}
+              onValueChange={(value) => {
+                if (isTabKey(value)) {
+                  setTab(value);
+                }
+              }}
+              className="space-y-0"
+            >
               <TabsList>
                 <TabsTrigger value="arrivals" className="gap-1">
                   Arrivals
@@ -376,7 +395,7 @@ export default function CheckInOutV2() {
                 className={`overflow-hidden border ${
                   isSelected
                     ? "border-emerald-300 bg-emerald-50/40"
-                    : res.balanceAmount > 0
+                    : (res.balanceAmount ?? 0) > 0
                     ? "border-amber-200 bg-amber-50/40"
                     : "border-border"
                 } shadow-sm`}
@@ -412,9 +431,9 @@ export default function CheckInOutV2() {
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="font-semibold text-lg text-foreground">
-                          {res.guest.primaryFirstName} {res.guest.primaryLastName}
+                          {getGuestName(res.guest)}
                         </h3>
-                        {res.balanceAmount > 0 && (
+                        {(res.balanceAmount ?? 0) > 0 && (
                           <Badge variant="destructive" className="h-5 px-1.5 text-[10px] uppercase tracking-wider">
                             Balance Due
                           </Badge>
@@ -455,7 +474,7 @@ export default function CheckInOutV2() {
                   <div className="flex flex-col items-end gap-3 min-w-[200px]">
                     <div className="text-right">
                       <div className="text-xs text-muted-foreground">Balance</div>
-                      <div className={`font-bold ${res.balanceAmount > 0 ? "text-status-warning" : "text-status-success"}`}>
+                      <div className={`font-bold ${(res.balanceAmount ?? 0) > 0 ? "text-status-warning" : "text-status-success"}`}>
                         {formatMoney(res.balanceAmount)}
                       </div>
                     </div>
@@ -488,7 +507,7 @@ export default function CheckInOutV2() {
                       </Button>
                     ) : (
                       <div className="flex flex-wrap gap-2 justify-end">
-                        {res.balanceAmount > 0 && (
+                        {(res.balanceAmount ?? 0) > 0 && (
                           <Button variant="outline" className="text-status-warning border-status-warning hover:bg-status-warning/15" onClick={() => openPayment(res)}>
                             Settle Balance
                           </Button>
@@ -496,9 +515,9 @@ export default function CheckInOutV2() {
                         <Button
                           onClick={() => handlePayAndCheckout(res)}
                           disabled={checkOutMutation.isPending}
-                          className={res.balanceAmount > 0 ? "bg-amber-600 hover:bg-amber-700" : ""}
+                          className={(res.balanceAmount ?? 0) > 0 ? "bg-amber-600 hover:bg-amber-700" : ""}
                         >
-                          {res.balanceAmount > 0 ? "Pay & Check Out" : "Check Out"}
+                          {(res.balanceAmount ?? 0) > 0 ? "Pay & Check Out" : "Check Out"}
                         </Button>
                       </div>
                     )}
@@ -643,4 +662,3 @@ function HintCard({
     </Link>
   );
 }
-

@@ -37,6 +37,12 @@ type ConversionResult = {
   asOf: string;
 };
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : String(error);
+
 @Injectable()
 export class CurrencyTaxService implements OnModuleInit {
   private readonly logger = new Logger(CurrencyTaxService.name);
@@ -126,13 +132,12 @@ export class CurrencyTaxService implements OnModuleInit {
       }
 
       const data = await response.json();
-
-      if (!data.rates) {
+      if (!isRecord(data) || !isRecord(data.rates)) {
         throw new BadGatewayException("Invalid response from OpenExchangeRates - no rates object");
       }
 
       // Convert API response to our FxRate format
-      const asOf = data.timestamp
+      const asOf = typeof data.timestamp === "number"
         ? new Date(data.timestamp * 1000).toISOString()
         : new Date().toISOString();
 
@@ -151,9 +156,9 @@ export class CurrencyTaxService implements OnModuleInit {
       }
 
       // Also add cross-rates for major pairs (CAD/EUR, etc.)
-      const cad = data.rates.CAD as number;
-      const eur = data.rates.EUR as number;
-      const gbp = data.rates.GBP as number;
+      const cad = typeof data.rates.CAD === "number" ? data.rates.CAD : null;
+      const eur = typeof data.rates.EUR === "number" ? data.rates.EUR : null;
+      const gbp = typeof data.rates.GBP === "number" ? data.rates.GBP : null;
 
       if (cad && eur) {
         newRates.push({ base: "CAD", quote: "EUR", rate: eur / cad, asOf });
@@ -169,8 +174,8 @@ export class CurrencyTaxService implements OnModuleInit {
       this.lastRefreshError = null;
 
       this.logger.log(`FX rates refreshed: ${newRates.length} rates updated from OpenExchangeRates`);
-    } catch (error: any) {
-      this.lastRefreshError = error.message || "Unknown error";
+    } catch (error) {
+      this.lastRefreshError = getErrorMessage(error) || "Unknown error";
       this.logger.error(`Failed to refresh FX rates: ${this.lastRefreshError}`);
       // Don't throw - keep using stale rates rather than breaking the service
     }

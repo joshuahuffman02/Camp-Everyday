@@ -218,13 +218,18 @@ export const GROUP_AMENITIES: AmenityOption[] = [
 ];
 
 // Bed size options for room configuration
-export const BED_SIZES = [
+type BedSizeOption = {
+  id: "king" | "queen" | "full" | "twin" | "bunk";
+  label: string;
+  icon: LucideIcon;
+};
+export const BED_SIZES: BedSizeOption[] = [
   { id: "king", label: "King", icon: BedDouble },
   { id: "queen", label: "Queen", icon: BedDouble },
   { id: "full", label: "Full", icon: Bed },
   { id: "twin", label: "Twin", icon: Bed },
   { id: "bunk", label: "Bunk", icon: Bed },
-] as const;
+];
 
 // Helper to get amenity by id
 export function getAmenityById(id: string, type: "park" | "site" | "cabin"): AmenityOption | undefined {

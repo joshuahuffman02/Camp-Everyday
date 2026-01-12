@@ -41,6 +41,8 @@ interface AuditEntry {
   ipAddress: string | null;
 }
 
+type AuditLogEntry = Awaited<ReturnType<typeof apiClient.getAuditLogs>>[number];
+
 const actionTypeConfig = {
   create: { icon: Plus, color: "text-emerald-600 bg-emerald-100" },
   update: { icon: Edit, color: "text-blue-600 bg-blue-100" },
@@ -77,18 +79,20 @@ export default function AuditLogPage() {
     }
 
     apiClient.getAuditLogs(id, { limit: 100 })
-      .then((entries: any[]) => {
-        const mapped: AuditEntry[] = entries.map((e: any) => ({
-          id: e.id,
-          userId: e.actorId,
-          userName: e.actor ? `${e.actor.firstName || ""} ${e.actor.lastName || ""}`.trim() || e.actor.email : "System",
-          action: e.action,
-          actionType: mapActionToType(e.action),
-          resource: e.resource || "System",
-          resourceId: e.resourceId,
-          details: e.description || e.action,
-          timestamp: e.createdAt,
-          ipAddress: e.ipAddress,
+      .then((entries) => {
+        const mapped: AuditEntry[] = entries.map((entry: AuditLogEntry) => ({
+          id: entry.id,
+          userId: entry.actorId,
+          userName: entry.actor
+            ? `${entry.actor.firstName || ""} ${entry.actor.lastName || ""}`.trim() || entry.actor.email
+            : "System",
+          action: entry.action,
+          actionType: mapActionToType(entry.action),
+          resource: entry.entity || "System",
+          resourceId: entry.entityId,
+          details: entry.action,
+          timestamp: entry.createdAt,
+          ipAddress: entry.ip,
         }));
         setAuditLog(mapped);
         setLoading(false);

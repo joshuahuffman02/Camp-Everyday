@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "next/navigation";
 import { DashboardShell } from "@/components/ui/layout/DashboardShell";
@@ -25,45 +25,62 @@ import { apiClient } from "@/lib/api-client";
 import { formatDistanceToNow, format } from "date-fns";
 import { cn } from "@/lib/utils";
 
+type AutopilotConfig = Awaited<ReturnType<typeof apiClient.getAutopilotConfig>>;
+type AutopilotContextItem = Awaited<ReturnType<typeof apiClient.getAutopilotContext>>[number];
+type ReplyDraft = Awaited<ReturnType<typeof apiClient.getReplyDrafts>>[number];
+type AnomalyAlert = Awaited<ReturnType<typeof apiClient.getAnomalyAlerts>>[number];
+type NoShowRisk = Awaited<ReturnType<typeof apiClient.getNoShowRisks>>[number];
+type CreateContextPayload = Parameters<typeof apiClient.createAutopilotContext>[1];
+type ReviewDraftPayload = {
+  id: string;
+  action: "approve" | "edit" | "reject";
+  content?: string;
+  reason?: string;
+};
+type AnomalyUpdatePayload = {
+  id: string;
+  status: Parameters<typeof apiClient.updateAnomalyStatus>[1];
+};
+
 export default function AiAutopilotPage() {
-  const params = useParams();
-  const campgroundId = params.campgroundId as string;
+  const params = useParams<{ campgroundId: string }>();
+  const campgroundId = params.campgroundId;
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("settings");
-  const [editingContext, setEditingContext] = useState<any>(null);
+  const [editingContext, setEditingContext] = useState<AutopilotContextItem | null>(null);
   const [showContextForm, setShowContextForm] = useState(false);
-  const [selectedDraft, setSelectedDraft] = useState<any>(null);
+  const [selectedDraft, setSelectedDraft] = useState<ReplyDraft | null>(null);
 
   // Fetch autopilot config
-  const { data: config, isLoading: configLoading } = useQuery({
+  const { data: config, isLoading: configLoading } = useQuery<AutopilotConfig>({
     queryKey: ["autopilot-config", campgroundId],
     queryFn: () => apiClient.getAutopilotConfig(campgroundId),
     enabled: !!campgroundId,
   });
 
   // Fetch context items
-  const { data: contextItems } = useQuery({
+  const { data: contextItems } = useQuery<AutopilotContextItem[]>({
     queryKey: ["autopilot-context", campgroundId],
     queryFn: () => apiClient.getAutopilotContext(campgroundId),
     enabled: !!campgroundId && activeTab === "context",
   });
 
   // Fetch reply drafts
-  const { data: replyDrafts } = useQuery({
+  const { data: replyDrafts } = useQuery<ReplyDraft[]>({
     queryKey: ["reply-drafts", campgroundId],
     queryFn: () => apiClient.getReplyDrafts(campgroundId),
     enabled: !!campgroundId && activeTab === "drafts",
   });
 
   // Fetch anomalies
-  const { data: anomalies } = useQuery({
+  const { data: anomalies } = useQuery<AnomalyAlert[]>({
     queryKey: ["anomalies", campgroundId],
     queryFn: () => apiClient.getAnomalyAlerts(campgroundId),
     enabled: !!campgroundId && activeTab === "anomalies",
   });
 
   // Fetch no-show risks
-  const { data: noShowRisks } = useQuery({
+  const { data: noShowRisks } = useQuery<NoShowRisk[]>({
     queryKey: ["no-show-risks", campgroundId],
     queryFn: () => apiClient.getNoShowRisks(campgroundId, true, 14),
     enabled: !!campgroundId && activeTab === "no-shows",
@@ -81,7 +98,7 @@ export default function AiAutopilotPage() {
   });
 
   const createContext = useMutation({
-    mutationFn: (data: any) => apiClient.createAutopilotContext(campgroundId, data),
+    mutationFn: (data: CreateContextPayload) => apiClient.createAutopilotContext(campgroundId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["autopilot-context", campgroundId] });
       setShowContextForm(false);
@@ -94,7 +111,7 @@ export default function AiAutopilotPage() {
   });
 
   const reviewDraft = useMutation({
-    mutationFn: ({ id, action, content, reason }: any) =>
+    mutationFn: ({ id, action, content, reason }: ReviewDraftPayload) =>
       apiClient.reviewReplyDraft(id, action, content, reason),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["reply-drafts", campgroundId] });
@@ -108,7 +125,7 @@ export default function AiAutopilotPage() {
   });
 
   const updateAnomaly = useMutation({
-    mutationFn: ({ id, status }: any) => apiClient.updateAnomalyStatus(id, status),
+    mutationFn: ({ id, status }: AnomalyUpdatePayload) => apiClient.updateAnomalyStatus(id, status),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["anomalies", campgroundId] }),
   });
 
@@ -121,6 +138,11 @@ export default function AiAutopilotPage() {
     mutationFn: (reservationId: string) => apiClient.markNoShowConfirmed(reservationId, "staff_verification"),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["no-show-risks", campgroundId] }),
   });
+
+  const getEditedContent = () => {
+    const element = document.getElementById("editedContent");
+    return element instanceof HTMLTextAreaElement ? element.value : undefined;
+  };
 
   if (configLoading) {
     return (
@@ -433,7 +455,7 @@ export default function AiAutopilotPage() {
             </div>
 
             <div className="space-y-3">
-              {contextItems?.map((item: any) => (
+              {contextItems?.map((item) => (
                 <Card key={item.id} className="group">
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between">
@@ -482,7 +504,7 @@ export default function AiAutopilotPage() {
           {/* Drafts Tab */}
           <TabsContent value="drafts" className="space-y-4">
             <div className="space-y-3">
-              {replyDrafts?.map((draft: any) => (
+              {replyDrafts?.map((draft) => (
                 <Card key={draft.id} className={cn(
                   draft.status === "pending" && "bg-status-info/15"
                 )}>
@@ -555,7 +577,7 @@ export default function AiAutopilotPage() {
           {/* Anomalies Tab */}
           <TabsContent value="anomalies" className="space-y-4">
             <div className="space-y-3">
-              {anomalies?.map((anomaly: any) => (
+              {anomalies?.map((anomaly) => (
                 <Card key={anomaly.id} className={cn(
                   "border-l-4",
                   anomaly.severity === "critical" && "border-l-red-500",
@@ -630,7 +652,7 @@ export default function AiAutopilotPage() {
           {/* No-Shows Tab */}
           <TabsContent value="no-shows" className="space-y-4">
             <div className="space-y-3">
-              {noShowRisks?.map((risk: any) => (
+              {noShowRisks?.map((risk) => (
                 <Card key={risk.id} className={cn(
                   risk.flagged && !risk.guestConfirmed && "bg-status-warning/15"
                 )}>
@@ -722,14 +744,19 @@ export default function AiAutopilotPage() {
           <DialogHeader>
             <DialogTitle>Add Context Item</DialogTitle>
           </DialogHeader>
-          <form onSubmit={(e) => {
+          <form onSubmit={(e: FormEvent<HTMLFormElement>) => {
             e.preventDefault();
-            const formData = new FormData(e.target as HTMLFormElement);
+            const formData = new FormData(e.currentTarget);
+            const typeValue = formData.get("type");
+            const answerValue = formData.get("answer");
+            if (typeof typeValue !== "string" || typeof answerValue !== "string") return;
+            const questionValue = formData.get("question");
+            const categoryValue = formData.get("category");
             createContext.mutate({
-              type: formData.get("type"),
-              question: formData.get("question") || undefined,
-              answer: formData.get("answer"),
-              category: formData.get("category") || undefined,
+              type: typeValue,
+              question: typeof questionValue === "string" && questionValue ? questionValue : undefined,
+              answer: answerValue,
+              category: typeof categoryValue === "string" && categoryValue ? categoryValue : undefined,
             });
           }}>
             <div className="space-y-4 py-4">
@@ -800,19 +827,23 @@ export default function AiAutopilotPage() {
             </div>
           )}
           <DialogFooter className="flex justify-between">
-            <Button
-              variant="destructive"
-              onClick={() => reviewDraft.mutate({ id: selectedDraft?.id, action: "reject" })}
-            >
-              <X className="w-4 h-4 mr-1" />
-              Reject
-            </Button>
-            <div className="flex gap-2">
               <Button
-                variant="outline"
+                variant="destructive"
                 onClick={() => {
-                  const content = (document.getElementById("editedContent") as HTMLTextAreaElement)?.value;
-                  reviewDraft.mutate({ id: selectedDraft?.id, action: "edit", content });
+                  if (!selectedDraft) return;
+                  reviewDraft.mutate({ id: selectedDraft.id, action: "reject" });
+                }}
+              >
+                <X className="w-4 h-4 mr-1" />
+                Reject
+              </Button>
+            <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                  if (!selectedDraft) return;
+                  const content = getEditedContent();
+                  reviewDraft.mutate({ id: selectedDraft.id, action: "edit", content });
                 }}
               >
                 <Edit2 className="w-4 h-4 mr-1" />
@@ -820,8 +851,9 @@ export default function AiAutopilotPage() {
               </Button>
               <Button
                 onClick={() => {
-                  const content = (document.getElementById("editedContent") as HTMLTextAreaElement)?.value;
-                  reviewDraft.mutate({ id: selectedDraft?.id, action: "approve", content });
+                  if (!selectedDraft) return;
+                  const content = getEditedContent();
+                  reviewDraft.mutate({ id: selectedDraft.id, action: "approve", content });
                 }}
               >
                 <Check className="w-4 h-4 mr-1" />

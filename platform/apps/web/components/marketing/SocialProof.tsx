@@ -28,6 +28,7 @@ const valueProps = [
     description: 'Same-day setup. Free data migration.',
   },
 ];
+const EASE_OUT: "easeOut" = "easeOut";
 
 function ValuePropCard({ prop, index }: { prop: typeof valueProps[0]; index: number }) {
   const prefersReducedMotion = useReducedMotionSafe();
@@ -38,7 +39,7 @@ function ValuePropCard({ prop, index }: { prop: typeof valueProps[0]; index: num
       initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: '-30px' }}
-      transition={prefersReducedMotion ? undefined : { duration: 0.4, delay: index * 0.1, ease: 'easeOut' as const }}
+      transition={prefersReducedMotion ? undefined : { duration: 0.4, delay: index * 0.1, ease: EASE_OUT }}
       className="flex items-start gap-4 group"
     >
       {/* Icon */}

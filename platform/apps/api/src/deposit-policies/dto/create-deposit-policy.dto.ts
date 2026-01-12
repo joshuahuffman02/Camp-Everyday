@@ -2,12 +2,13 @@ import { IsBoolean, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Min } from 
 import { DepositApplyTo, DepositDueTiming, DepositStrategy } from "@prisma/client";
 
 // Guarded enums to avoid runtime undefined when prisma client enums are missing
-const DepositStrategyGuard =
-  DepositStrategy ?? ({ first_night: "first_night", percent: "percent", fixed: "fixed" } as const);
-const DepositApplyToGuard =
-  DepositApplyTo ?? ({ lodging_only: "lodging_only", lodging_plus_fees: "lodging_plus_fees" } as const);
-const DepositDueTimingGuard =
-  DepositDueTiming ?? ({ at_booking: "at_booking", before_arrival: "before_arrival" } as const);
+const DepositStrategyFallback = { first_night: "first_night", percent: "percent", fixed: "fixed" };
+const DepositApplyToFallback = { lodging_only: "lodging_only", lodging_plus_fees: "lodging_plus_fees" };
+const DepositDueTimingFallback = { at_booking: "at_booking", before_arrival: "before_arrival" };
+
+const DepositStrategyGuard = DepositStrategy ?? DepositStrategyFallback;
+const DepositApplyToGuard = DepositApplyTo ?? DepositApplyToFallback;
+const DepositDueTimingGuard = DepositDueTiming ?? DepositDueTimingFallback;
 
 export class CreateDepositPolicyDto {
   @IsString()
@@ -51,4 +52,3 @@ export class CreateDepositPolicyDto {
   @Min(1)
   version?: number;
 }
-

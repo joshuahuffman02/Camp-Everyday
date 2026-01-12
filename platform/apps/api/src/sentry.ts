@@ -62,7 +62,8 @@ export function initializeSentry() {
           // Remove sensitive query parameters
           if (event.request.query_string) {
             const queryString = event.request.query_string;
-            if (queryString.includes('token=') || queryString.includes('key=')) {
+            if (typeof queryString === "string" &&
+                (queryString.includes("token=") || queryString.includes("key="))) {
               event.request.query_string = '[REDACTED]';
             }
           }

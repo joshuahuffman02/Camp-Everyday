@@ -32,9 +32,15 @@ interface PayoutRecon {
   driftVsLinesCents: number;
 }
 
+type ValidStatus = "pending" | "in_transit" | "paid" | "failed" | "canceled";
+const validStatuses: ValidStatus[] = ["pending", "in_transit", "paid", "failed", "canceled"];
+const validStatusSet = new Set<string>(validStatuses);
+const isValidStatus = (value: string): value is ValidStatus => validStatusSet.has(value);
+const statusFilters: Array<ValidStatus | "all"> = ["all", ...validStatuses];
+
 export default function PayoutsPage() {
   const [campgroundId, setCampgroundId] = useState<string>("");
-  const [status, setStatus] = useState<string | undefined>();
+  const [status, setStatus] = useState<ValidStatus | undefined>();
   const [reconMap, setReconMap] = useState<Record<string, PayoutRecon>>({});
   const { toast } = useToast();
 
@@ -47,11 +53,7 @@ export default function PayoutsPage() {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["payouts", campgroundId, status],
     queryFn: () => {
-      const validStatuses = ["pending", "in_transit", "paid", "failed", "canceled"] as const;
-      type ValidStatus = typeof validStatuses[number];
-      const payoutStatus = status && validStatuses.includes(status as ValidStatus)
-        ? (status as ValidStatus)
-        : undefined;
+      const payoutStatus = status && isValidStatus(status) ? status : undefined;
       return apiClient.listPayouts(campgroundId, payoutStatus);
     },
     enabled: !!campgroundId,
@@ -72,7 +74,7 @@ export default function PayoutsPage() {
             <p className="text-sm text-muted-foreground">Stripe Connect payouts with balance transaction lines.</p>
           </div>
           <div className="flex gap-2">
-            {["all", "pending", "in_transit", "paid", "failed", "canceled"].map((s) => (
+            {statusFilters.map((s) => (
               <Button
                 key={s}
                 size="sm"
@@ -182,8 +184,9 @@ export default function PayoutsPage() {
                             const recon = await apiClient.getPayoutRecon(campgroundId, payout.id);
                             setReconMap((prev) => ({ ...prev, [payout.id]: recon }));
                             toast({ title: "Recon ready", description: `Drift vs ledger: ${formatMoney(recon.driftVsLedgerCents)}` });
-                          } catch (err: any) {
-                            toast({ title: "Recon failed", description: err.message, variant: "destructive" });
+                          } catch (err: unknown) {
+                            const message = err instanceof Error ? err.message : "Recon failed";
+                            toast({ title: "Recon failed", description: message, variant: "destructive" });
                           }
                         }}
                       >

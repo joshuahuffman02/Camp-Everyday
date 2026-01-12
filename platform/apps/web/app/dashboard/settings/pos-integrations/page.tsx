@@ -77,6 +77,28 @@ const POS_PROVIDERS = [
 ];
 
 type Integration = Awaited<ReturnType<typeof apiClient.listPosIntegrations>>[0];
+type Webhook = {
+  id: string;
+  url: string;
+  description?: string | null;
+  eventTypes?: string[];
+  isActive?: boolean;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object";
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (typeof error === "string") return error;
+  if (isRecord(error) && typeof error.message === "string") return error.message;
+  return fallback;
+};
+
+const isWebhook = (value: unknown): value is Webhook =>
+  isRecord(value) && typeof value.id === "string" && typeof value.url === "string";
+
+const getWebhooks = (value: unknown): Webhook[] =>
+  Array.isArray(value) ? value.filter(isWebhook) : [];
 
 export default function PosIntegrationsPage() {
   const { toast } = useToast();
@@ -106,8 +128,8 @@ export default function PosIntegrationsPage() {
       qc.invalidateQueries({ queryKey: ["pos-integrations", campgroundId] });
       resetDialog();
     },
-    onError: (err: any) => {
-      toast({ title: "Failed to create connection", description: err?.message, variant: "destructive" });
+    onError: (err: unknown) => {
+      toast({ title: "Failed to create connection", description: getErrorMessage(err, "Create failed"), variant: "destructive" });
     },
   });
 
@@ -120,8 +142,8 @@ export default function PosIntegrationsPage() {
         toast({ title: "Connection failed", description: data.message, variant: "destructive" });
       }
     },
-    onError: (err: any) => {
-      toast({ title: "Test failed", description: err?.message, variant: "destructive" });
+    onError: (err: unknown) => {
+      toast({ title: "Test failed", description: getErrorMessage(err, "Test failed"), variant: "destructive" });
     },
   });
 
@@ -132,8 +154,8 @@ export default function PosIntegrationsPage() {
       toast({ title: "Sync started", description: data.message });
       qc.invalidateQueries({ queryKey: ["pos-integrations", campgroundId] });
     },
-    onError: (err: any) => {
-      toast({ title: "Sync failed", description: err?.message, variant: "destructive" });
+    onError: (err: unknown) => {
+      toast({ title: "Sync failed", description: getErrorMessage(err, "Sync failed"), variant: "destructive" });
     },
   });
 
@@ -143,8 +165,8 @@ export default function PosIntegrationsPage() {
       toast({ title: "Connection removed" });
       qc.invalidateQueries({ queryKey: ["pos-integrations", campgroundId] });
     },
-    onError: (err: any) => {
-      toast({ title: "Failed to remove", description: err?.message, variant: "destructive" });
+    onError: (err: unknown) => {
+      toast({ title: "Failed to remove", description: getErrorMessage(err, "Remove failed"), variant: "destructive" });
     },
   });
 
@@ -522,8 +544,8 @@ function WebhooksTab({ campgroundId }: { campgroundId: string }) {
       setCreatedSecret(data.secret);
       qc.invalidateQueries({ queryKey: ["webhooks", campgroundId] });
     },
-    onError: (err: any) => {
-      toast({ title: "Failed to create webhook", description: err?.message, variant: "destructive" });
+    onError: (err: unknown) => {
+      toast({ title: "Failed to create webhook", description: getErrorMessage(err, "Create failed"), variant: "destructive" });
     },
   });
 
@@ -662,7 +684,7 @@ function WebhooksTab({ campgroundId }: { campgroundId: string }) {
             Loading webhooks...
           </CardContent>
         </Card>
-      ) : webhooksQuery.data?.length === 0 ? (
+      ) : getWebhooks(webhooksQuery.data).length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <div className="text-muted-foreground mb-4">
@@ -686,7 +708,9 @@ function WebhooksTab({ campgroundId }: { campgroundId: string }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {webhooksQuery.data?.map((webhook: any) => (
+              {getWebhooks(webhooksQuery.data).map((webhook) => {
+                const eventTypes = webhook.eventTypes ?? [];
+                return (
                 <TableRow key={webhook.id}>
                   <TableCell>
                     <div className="font-mono text-sm truncate max-w-xs">{webhook.url}</div>
@@ -696,14 +720,14 @@ function WebhooksTab({ campgroundId }: { campgroundId: string }) {
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
-                      {webhook.eventTypes?.slice(0, 3).map((event: string) => (
+                      {eventTypes.slice(0, 3).map((event: string) => (
                         <Badge key={event} variant="outline" className="text-xs">
                           {event.split(".").pop()}
                         </Badge>
                       ))}
-                      {webhook.eventTypes?.length > 3 && (
+                      {eventTypes.length > 3 && (
                         <Badge variant="outline" className="text-xs">
-                          +{webhook.eventTypes.length - 3}
+                          +{eventTypes.length - 3}
                         </Badge>
                       )}
                     </div>
@@ -725,7 +749,8 @@ function WebhooksTab({ campgroundId }: { campgroundId: string }) {
                     </Button>
                   </TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
         </Card>

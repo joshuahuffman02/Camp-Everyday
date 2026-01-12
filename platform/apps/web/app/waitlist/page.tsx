@@ -17,46 +17,15 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-interface WaitlistEntry {
-  id: string;
-  campgroundId: string;
-  guestId: string | null;
-  siteId: string | null;
-  siteTypeId: string | null;
-  arrivalDate: string | null;
-  departureDate: string | null;
-  status: "active" | "offered" | "converted" | "fulfilled" | "expired" | "cancelled";
-  type: "regular" | "seasonal";
-  contactName: string | null;
-  contactEmail: string | null;
-  contactPhone: string | null;
-  notes: string | null;
-  priority: number;
-  autoOffer: boolean;
-  maxPrice: number | null;
-  flexibleDates: boolean;
-  flexibleDays: number;
-  notifiedCount: number;
-  lastNotifiedAt: string | null;
-  convertedReservationId: string | null;
-  convertedAt: string | null;
-  createdAt: string;
-  guest?: {
-    primaryFirstName: string | null;
-    primaryLastName: string | null;
-    email: string | null;
-  } | null;
-  site?: { siteNumber: string } | null;
-  siteClass?: { name: string } | null;
-}
+type WaitlistEntryList = Awaited<ReturnType<typeof apiClient.getWaitlist>>;
+type WaitlistEntry = WaitlistEntryList[number];
+type WaitlistStatsResponse = Awaited<ReturnType<typeof apiClient.getWaitlistStats>>;
+type StatusFilter = "all" | "active" | "offered" | "converted" | "expired";
+type TypeFilter = "all" | "regular" | "seasonal";
 
-interface WaitlistStats {
-  active: number;
-  offered: number;
-  converted: number;
-  expired: number;
-  total: number;
-}
+const TYPE_FILTERS: TypeFilter[] = ["all", "regular", "seasonal"];
+const isTypeFilter = (value: string): value is TypeFilter =>
+  TYPE_FILTERS.some((filter) => filter === value);
 
 const STATUS_COLORS: Record<string, string> = {
   active: "bg-status-success-bg text-status-success-text border-status-success-border",
@@ -76,8 +45,8 @@ const PRIORITY_COLORS = [
 
 export default function WaitlistPage() {
   const [campgroundId, setCampgroundId] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<string>("active");
-  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingEntry, setEditingEntry] = useState<WaitlistEntry | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -89,15 +58,21 @@ export default function WaitlistPage() {
     if (stored) setCampgroundId(stored);
   }, []);
 
-  const entriesQuery = useQuery({
+  const entriesQuery = useQuery<WaitlistEntryList>({
     queryKey: ["waitlist", campgroundId, typeFilter],
-    queryFn: () => apiClient.getWaitlist(campgroundId!, typeFilter === "all" ? undefined : typeFilter),
+    queryFn: () => {
+      if (!campgroundId) throw new Error("Missing campgroundId");
+      return apiClient.getWaitlist(campgroundId, typeFilter === "all" ? undefined : typeFilter);
+    },
     enabled: !!campgroundId,
   });
 
-  const statsQuery = useQuery({
+  const statsQuery = useQuery<WaitlistStatsResponse>({
     queryKey: ["waitlist-stats", campgroundId],
-    queryFn: () => apiClient.getWaitlistStats(campgroundId!),
+    queryFn: () => {
+      if (!campgroundId) throw new Error("Missing campgroundId");
+      return apiClient.getWaitlistStats(campgroundId);
+    },
     enabled: !!campgroundId,
   });
 
@@ -110,10 +85,10 @@ export default function WaitlistPage() {
   });
 
   const normalizeStatus = (status: WaitlistEntry["status"]) => (status === "fulfilled" ? "converted" : status);
-  const entries = ((entriesQuery.data ?? []) as WaitlistEntry[]).filter((e) =>
+  const entries = (entriesQuery.data ?? []).filter((e) =>
     statusFilter === "all" || normalizeStatus(e.status) === statusFilter
   );
-  const stats = statsQuery.data as WaitlistStats | undefined;
+  const stats = statsQuery.data;
 
   // Auto-switch from "active" to "all" only once when there are no active entries
   const hasAutoSwitchedRef = React.useRef(false);
@@ -127,13 +102,14 @@ export default function WaitlistPage() {
     }
   }, [stats, statusFilter]);
 
-  const formatDate = (d: string | null) => {
+  const formatDate = (d: string | null | undefined) => {
     if (!d) return "—";
     return new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   };
 
-  const getPriorityInfo = (priority: number) => {
-    return PRIORITY_COLORS.find(p => priority >= p.min && priority <= p.max) ?? PRIORITY_COLORS[0];
+  const getPriorityInfo = (priority: number | null | undefined) => {
+    const value = typeof priority === "number" ? priority : 0;
+    return PRIORITY_COLORS.find(p => value >= p.min && value <= p.max) ?? PRIORITY_COLORS[0];
   };
 
   if (!campgroundId) {
@@ -182,7 +158,11 @@ export default function WaitlistPage() {
         <div className="flex gap-3 mb-6" data-testid="waitlist-filters">
           <select
             value={typeFilter}
-            onChange={e => setTypeFilter(e.target.value)}
+            onChange={(e) => {
+              if (isTypeFilter(e.target.value)) {
+                setTypeFilter(e.target.value);
+              }
+            }}
             className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm"
             data-testid="waitlist-type-filter"
           >
@@ -239,7 +219,7 @@ export default function WaitlistPage() {
                         <td className="px-4 py-3">
                           <div className="text-slate-900">{formatDate(entry.arrivalDate)}</div>
                           <div className="text-xs text-slate-500">→ {formatDate(entry.departureDate)}</div>
-                          {entry.flexibleDates && (
+                          {entry.flexibleDates && typeof entry.flexibleDays === "number" && (
                             <span className="text-xs text-status-warning">±{entry.flexibleDays} days</span>
                           )}
                         </td>

@@ -1,32 +1,27 @@
 import { Injectable } from "@nestjs/common";
+import { AuditAction, Prisma } from "@prisma/client";
+import { randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 
-type AuditAction = "CREATE" | "UPDATE" | "DELETE" | "LOGIN" | "LOGOUT" | "SYNC" | "EXPORT" | "IMPORT";
+type AuditLogCreateInput = Omit<Prisma.PlatformAuditLogCreateInput, "id">;
 
 @Injectable()
 export class AuditLogService {
     constructor(private readonly prisma: PrismaService) { }
 
-    async log(params: {
-        userId?: string;
-        userEmail?: string;
-        action: AuditAction;
-        resource: string;
-        resourceId?: string;
-        details?: string;
-        metadata?: Record<string, unknown>;
-        ipAddress?: string;
-        userAgent?: string;
-    }) {
+    async log(params: AuditLogCreateInput) {
         return this.prisma.platformAuditLog.create({
-            data: params as any,
+            data: {
+                id: randomUUID(),
+                ...params,
+            },
         });
     }
 
     async findAll(params: {
         limit?: number;
         offset?: number;
-        action?: string;
+        action?: AuditAction;
         resource?: string;
         userId?: string;
         startDate?: Date;
@@ -34,14 +29,15 @@ export class AuditLogService {
     }) {
         const { limit = 100, offset = 0, action, resource, userId, startDate, endDate } = params;
 
-        const where: any = {};
+        const where: Prisma.PlatformAuditLogWhereInput = {};
         if (action) where.action = action;
         if (resource) where.resource = resource;
         if (userId) where.userId = userId;
         if (startDate || endDate) {
-            where.createdAt = {};
-            if (startDate) where.createdAt.gte = startDate;
-            if (endDate) where.createdAt.lte = endDate;
+            where.createdAt = {
+                ...(startDate ? { gte: startDate } : {}),
+                ...(endDate ? { lte: endDate } : {}),
+            };
         }
 
         const [items, total] = await Promise.all([

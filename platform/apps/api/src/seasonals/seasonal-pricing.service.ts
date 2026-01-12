@@ -6,7 +6,9 @@ import {
   SeasonalIncentiveType,
   SeasonalBillingFrequency,
   SeasonalPaymentMethod,
+  Prisma,
 } from ".prisma/client";
+import { randomUUID } from "crypto";
 
 export interface GuestPricingContext {
   isMetered: boolean;
@@ -59,6 +61,15 @@ export interface PricingCalculation {
   billingFrequency: SeasonalBillingFrequency;
 }
 
+const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined => {
+  if (value === undefined || value === null) return undefined;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
+};
+
 @Injectable()
 export class SeasonalPricingService {
   private readonly logger = new Logger(SeasonalPricingService.name);
@@ -76,11 +87,11 @@ export class SeasonalPricingService {
     const rateCard = await this.prisma.seasonalRateCard.findUnique({
       where: { id: rateCardId },
       include: {
-        discounts: {
+        SeasonalDiscount: {
           where: { isActive: true },
           orderBy: { priority: "desc" },
         },
-        incentives: {
+        SeasonalIncentive: {
           where: { isActive: true },
         },
       },
@@ -96,7 +107,7 @@ export class SeasonalPricingService {
     const earnedIncentives: EarnedIncentive[] = [];
 
     // Evaluate each discount
-    for (const discount of rateCard.discounts) {
+    for (const discount of rateCard.SeasonalDiscount) {
       if (this.evaluateCondition(discount.conditionType, discount.conditionValue, guestContext)) {
         const amount = this.calculateDiscountAmount(
           discount.discountType,
@@ -125,7 +136,7 @@ export class SeasonalPricingService {
     runningTotal = Math.max(0, runningTotal);
 
     // Evaluate incentives
-    for (const incentive of rateCard.incentives) {
+    for (const incentive of rateCard.SeasonalIncentive) {
       if (this.evaluateCondition(incentive.conditionType, incentive.conditionValue, guestContext)) {
         earnedIncentives.push({
           incentiveId: incentive.id,
@@ -572,28 +583,30 @@ export class SeasonalPricingService {
         },
       },
       create: {
+        id: randomUUID(),
         seasonalGuestId,
         rateCardId,
         seasonYear,
         baseRate: pricing.baseRate,
         totalDiscount: pricing.totalDiscount,
         finalRate,
-        appliedDiscounts: pricing.appliedDiscounts,
-        earnedIncentives: pricing.earnedIncentives,
-        paymentSchedule: pricing.paymentSchedule,
+        appliedDiscounts: toJsonValue(pricing.appliedDiscounts) ?? [],
+        earnedIncentives: toJsonValue(pricing.earnedIncentives) ?? [],
+        paymentSchedule: toJsonValue(pricing.paymentSchedule) ?? [],
         billingFrequency: pricing.billingFrequency,
         manualAdjustment: manualAdjustment?.amount,
         adjustmentReason: manualAdjustment?.reason,
         adjustmentBy: manualAdjustment?.userId,
+        updatedAt: new Date(),
       },
       update: {
         rateCardId,
         baseRate: pricing.baseRate,
         totalDiscount: pricing.totalDiscount,
         finalRate,
-        appliedDiscounts: pricing.appliedDiscounts,
-        earnedIncentives: pricing.earnedIncentives,
-        paymentSchedule: pricing.paymentSchedule,
+        appliedDiscounts: toJsonValue(pricing.appliedDiscounts) ?? [],
+        earnedIncentives: toJsonValue(pricing.earnedIncentives) ?? [],
+        paymentSchedule: toJsonValue(pricing.paymentSchedule) ?? [],
         billingFrequency: pricing.billingFrequency,
         manualAdjustment: manualAdjustment?.amount,
         adjustmentReason: manualAdjustment?.reason,

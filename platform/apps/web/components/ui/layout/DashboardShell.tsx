@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ReactNode, useCallback, useEffect, useMemo, useRef, useState, type SVGProps } from "react";
 import { useSession } from "next-auth/react";
 import { cn } from "../../../lib/utils";
 import { AdminTopBar } from "./AdminTopBar";
@@ -68,6 +68,39 @@ type IconName =
   | "lock"
   | "trophy";
 
+const iconNameValues: IconName[] = [
+  "dashboard",
+  "camp",
+  "calendar",
+  "pricing",
+  "reservation",
+  "guest",
+  "wrench",
+  "ledger",
+  "reports",
+  "audit",
+  "megaphone",
+  "tag",
+  "form",
+  "brand",
+  "policy",
+  "users",
+  "payments",
+  "sparkles",
+  "message",
+  "ticket",
+  "star",
+  "plus",
+  "clock",
+  "alert",
+  "lock",
+  "trophy",
+];
+const iconNameSet = new Set<string>(iconNameValues);
+const isIconName = (value: string): value is IconName => iconNameSet.has(value);
+const resolveIconName = (value?: string): IconName =>
+  value && isIconName(value) ? value : "sparkles";
+
 type NavItem = {
   label: string;
   href: string;
@@ -94,7 +127,7 @@ type NavSection = {
 
 const Icon = ({ name, active }: { name: IconName; active?: boolean }) => {
   const stroke = active ? "hsl(var(--action-primary))" : "hsl(var(--muted-foreground))";
-  const common = { width: 18, height: 18, strokeWidth: 1.6, stroke, fill: "none", strokeLinecap: "round", strokeLinejoin: "round" } as const;
+  const common = { width: 18, height: 18, strokeWidth: 1.6, stroke, fill: "none", strokeLinecap: "round", strokeLinejoin: "round" } satisfies SVGProps<SVGSVGElement>;
   switch (name) {
     case "dashboard":
       return (
@@ -288,20 +321,6 @@ const Icon = ({ name, active }: { name: IconName; active?: boolean }) => {
   }
 };
 
-// Extended user type with platform role
-interface UserWithPlatformRole {
-  platformRole?: string | null;
-  memberships?: Array<{ campgroundId: string }>;
-}
-
-// Extended session type with API token
-interface SessionWithApiToken {
-  apiToken?: string;
-  user?: {
-    id?: string;
-  };
-}
-
 /**
  * Layout density controls the maximum container width for data-dense pages.
  * - "normal": Standard max-width (max-w-7xl) for content-focused pages
@@ -369,8 +388,10 @@ export function DashboardShell({ children, className, title, subtitle, density =
     (event: DragEndEvent) => {
       const { active, over } = event;
       if (over && active.id !== over.id) {
-        const oldIndex = pinnedPages.indexOf(active.id as string);
-        const newIndex = pinnedPages.indexOf(over.id as string);
+        const activeId = typeof active.id === "string" ? active.id : String(active.id);
+        const overId = typeof over.id === "string" ? over.id : String(over.id);
+        const oldIndex = pinnedPages.indexOf(activeId);
+        const newIndex = pinnedPages.indexOf(overId);
         if (oldIndex !== -1 && newIndex !== -1) {
           const newOrder = arrayMove(pinnedPages, oldIndex, newIndex);
           reorderPages(newOrder);
@@ -393,15 +414,14 @@ export function DashboardShell({ children, className, title, subtitle, density =
   // Permission helpers
   const memberships = whoami?.user?.memberships ?? [];
   const hasCampgroundAccess = memberships.length > 0;
-  const platformRole = (whoami?.user as UserWithPlatformRole | undefined)?.platformRole ?? null;
+  const platformRole = whoami?.user?.platformRole ?? null;
   const supportAllowed =
     whoami?.allowed?.supportRead || whoami?.allowed?.supportAssign || whoami?.allowed?.supportAnalytics;
   const allowSupport = !!supportAllowed && (platformRole ? true : hasCampgroundAccess);
   const allowOps = (whoami?.allowed?.operationsWrite ?? false) && (platformRole ? true : hasCampgroundAccess);
 
   // Role-based visibility for nav sections
-  // Cast allowed to any to access permissions that may not be in the strict type
-  const allowed = whoami?.allowed as Record<string, boolean> | undefined;
+  const allowed = whoami?.allowed;
   // Check for manager-level or higher permissions (financeRead, reportsRead, or any write permission)
   const isManager = Boolean(
     platformRole ||
@@ -420,8 +440,10 @@ export function DashboardShell({ children, className, title, subtitle, density =
 
   // Sync API token from session to localStorage
   useEffect(() => {
-    const extendedSession = session as SessionWithApiToken | null;
-    const apiToken = extendedSession?.apiToken;
+    const apiToken =
+      session && "apiToken" in session && typeof session.apiToken === "string"
+        ? session.apiToken
+        : undefined;
     if (apiToken) {
       localStorage.setItem("campreserv:authToken", apiToken);
     }
@@ -670,7 +692,7 @@ export function DashboardShell({ children, className, title, subtitle, density =
             href: pageDef.href,
             icon: pageDef.icon,
             tooltip: pageDef.description,
-          } as NavItem;
+          };
         }
 
         const savedReport = savedReportMap.get(href);
@@ -680,7 +702,7 @@ export function DashboardShell({ children, className, title, subtitle, density =
             href,
             icon: "reports",
             tooltip: savedReport.description ?? "Saved report"
-          } as NavItem;
+          };
         }
 
         return {
@@ -688,9 +710,8 @@ export function DashboardShell({ children, className, title, subtitle, density =
           href,
           icon: "star",
           tooltip: href
-        } as NavItem;
-      })
-      .filter(Boolean) as NavItem[];
+        };
+      });
   }, [pinnedPages, allNavItems, allPages, selected]);
 
   const toCommandItem = useCallback((item: NavItem, subtitle?: string): CommandItem => ({
@@ -803,7 +824,7 @@ export function DashboardShell({ children, className, title, subtitle, density =
                 </svg>
               </span>
             )}
-            <Icon name={(item.icon as IconName) ?? "sparkles"} active={isActive} />
+            <Icon name={resolveIconName(item.icon)} active={isActive} />
             {!isCollapsed && item.label}
           </span>
           {!isCollapsed && showPin && (
@@ -921,7 +942,7 @@ export function DashboardShell({ children, className, title, subtitle, density =
                         )}
                         onClick={() => setMobileNavOpen(false)}
                       >
-                        <Icon name={(item.icon as IconName) ?? "sparkles"} active={isActive} />
+                        <Icon name={resolveIconName(item.icon)} active={isActive} />
                         <span>{item.label}</span>
                       </Link>
                     );

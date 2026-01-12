@@ -3,7 +3,7 @@ import { assertReservationDepositV2, calculateReservationDepositV2 } from "../re
 describe("Reservation deposit v2 helpers", () => {
   it("returns v2:none when no deposit policy exists", async () => {
     const depositPoliciesService = { calculateDeposit: jest.fn().mockResolvedValue(null) };
-    const result = await calculateReservationDepositV2(depositPoliciesService as any, {
+    const result = await calculateReservationDepositV2(depositPoliciesService, {
       campgroundId: "cg1",
       siteClassId: null,
       totalAmountCents: 20000,
@@ -25,7 +25,7 @@ describe("Reservation deposit v2 helpers", () => {
     };
 
     await expect(
-      assertReservationDepositV2(depositPoliciesService as any, {
+      assertReservationDepositV2(depositPoliciesService, {
         campgroundId: "cg1",
         siteClassId: null,
         totalAmountCents: 20000,
@@ -45,7 +45,7 @@ describe("Reservation deposit v2 helpers", () => {
       })
     };
 
-    const result = await assertReservationDepositV2(depositPoliciesService as any, {
+    const result = await assertReservationDepositV2(depositPoliciesService, {
       campgroundId: "cg1",
       siteClassId: null,
       totalAmountCents: 20000,

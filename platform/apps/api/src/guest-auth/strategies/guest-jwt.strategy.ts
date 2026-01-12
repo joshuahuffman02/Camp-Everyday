@@ -3,7 +3,6 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
-import { Request } from 'express';
 import type { Request } from "express";
 
 /**
@@ -32,28 +31,23 @@ export class GuestJwtStrategy extends PassportStrategy(Strategy, 'guest-jwt') {
         private readonly prisma: PrismaService,
     ) {
         const jwtSecret = config?.get<string>('JWT_SECRET') || process.env.JWT_SECRET;
+        const isProduction = process.env.NODE_ENV === 'production';
 
         // SECURITY: Never use a default secret - require explicit configuration
+        if (!jwtSecret && isProduction) {
+            throw new InternalServerErrorException('CRITICAL: JWT_SECRET environment variable is required in production');
+        }
+
+        // In development, use a random secret (tokens won't persist across restarts)
+        const secretOrKey = jwtSecret ?? `dev-guest-${Date.now()}-${Math.random().toString(36)}`;
         if (!jwtSecret) {
-            const isProduction = process.env.NODE_ENV === 'production';
-            if (isProduction) {
-                throw new InternalServerErrorException('CRITICAL: JWT_SECRET environment variable is required in production');
-            }
-            // In development, use a random secret (tokens won't persist across restarts)
-            const devSecret = `dev-guest-${Date.now()}-${Math.random().toString(36)}`;
             console.warn('[SECURITY] JWT_SECRET not set for guest auth. Using random secret - guest tokens will not persist across restarts.');
-            super({
-                jwtFromRequest: extractJwtFromCookieOrHeader,
-                ignoreExpiration: false,
-                secretOrKey: devSecret,
-            });
-            return;
         }
 
         super({
             jwtFromRequest: extractJwtFromCookieOrHeader,
             ignoreExpiration: false,
-            secretOrKey: jwtSecret,
+            secretOrKey,
         });
     }
 

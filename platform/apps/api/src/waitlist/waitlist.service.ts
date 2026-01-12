@@ -1,10 +1,15 @@
-import { ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { randomUUID } from "crypto";
 import { PrismaService } from '../prisma/prisma.service';
+import type { PrismaService as PrismaServiceType } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
+import type { EmailService as EmailServiceType } from '../email/email.service';
 import { CreateWaitlistEntryDto } from '@keepr/shared';
 import { IdempotencyStatus, WaitlistStatus, WaitlistType } from '@prisma/client';
 import { IdempotencyService } from '../payments/idempotency.service';
+import type { IdempotencyService as IdempotencyServiceType } from '../payments/idempotency.service';
 import { ObservabilityService } from '../observability/observability.service';
+import type { ObservabilityService as ObservabilityServiceType } from '../observability/observability.service';
 import type { Request } from "express";
 
 interface CreateStaffWaitlistDto {
@@ -26,87 +31,131 @@ interface CreateStaffWaitlistDto {
 }
 
 export interface WaitlistMatch {
-    entry: any;
+    entry: WaitlistScoreEntry;
     score: number;
     reasons: string[];
 }
+
+export type WaitlistStore = {
+    waitlistEntry: Pick<
+        PrismaServiceType["waitlistEntry"],
+        "create" | "findMany" | "findUnique" | "update" | "updateMany" | "delete"
+    >;
+    $queryRaw: PrismaServiceType["$queryRaw"];
+};
+
+export type WaitlistEmailSender = Pick<EmailServiceType, "sendEmail">;
+export type WaitlistIdempotency = Pick<IdempotencyServiceType, "start" | "complete" | "fail" | "findBySequence">;
+export type WaitlistObservability = Pick<ObservabilityServiceType, "recordOfferLag">;
+
+export type WaitlistActor = { campgroundId?: string | null; tenantId?: string | null };
+type WaitlistCreatePayload = CreateWaitlistEntryDto & { tenantId?: string | null };
+
+export type WaitlistScoreGuest = {
+    reservationCount?: number | null;
+    email?: string | null;
+    primaryFirstName?: string | null;
+};
+
+export type WaitlistScoreEntry = {
+    id?: string;
+    campgroundId?: string | null;
+    priority?: number | null;
+    createdAt: Date | string;
+    guest?: WaitlistScoreGuest | null;
+    Guest?: WaitlistScoreGuest | null;
+    arrivalDate?: Date | string | null;
+    departureDate?: Date | string | null;
+    siteId?: string | null;
+    maxPrice?: number | null;
+    autoOffer?: boolean | null;
+    contactEmail?: string | null;
+    contactName?: string | null;
+    notifiedCount?: number | null;
+};
+
+const toWaitlistType = (value?: string | null): WaitlistType | null => {
+    if (value === WaitlistType.regular || value === WaitlistType.seasonal) return value;
+    return null;
+};
+
+export const calculatePriorityScore = (
+    entry: WaitlistScoreEntry,
+    freedArrival: Date,
+    freedDeparture: Date
+): { score: number; reasons: string[] } => {
+    let score = 0;
+    const reasons: string[] = [];
+    const guest = entry.guest ?? entry.Guest ?? null;
+
+    // Base priority (user-defined or default)
+    score += (entry.priority || 50);
+    reasons.push(`Base priority: ${entry.priority || 50}`);
+
+    // Loyalty bonus: returning guests
+    if ((guest?.reservationCount ?? 0) > 0) {
+        const loyaltyBonus = Math.min((guest?.reservationCount ?? 0) * 5, 25);
+        score += loyaltyBonus;
+        reasons.push(`Loyalty bonus: +${loyaltyBonus} (${guest?.reservationCount ?? 0} stays)`);
+    }
+
+    // Exact date match bonus
+    if (entry.arrivalDate && entry.departureDate) {
+        const entryArr = new Date(entry.arrivalDate);
+        const entryDep = new Date(entry.departureDate);
+        const freedArr = new Date(freedArrival);
+        const freedDep = new Date(freedDeparture);
+        
+        if (entryArr.getTime() === freedArr.getTime() && entryDep.getTime() === freedDep.getTime()) {
+            score += 30;
+            reasons.push(`Exact date match: +30`);
+        } else {
+            // Partial overlap bonus
+            score += 10;
+            reasons.push(`Date overlap: +10`);
+        }
+    }
+
+    // Specific site preference bonus
+    if (entry.siteId) {
+        score += 15;
+        reasons.push(`Specific site preference: +15`);
+    }
+
+    // How long they've been waiting
+    const waitDays = Math.floor((Date.now() - new Date(entry.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+    const waitBonus = Math.min(waitDays, 30);
+    score += waitBonus;
+    reasons.push(`Wait time bonus: +${waitBonus} (${waitDays} days)`);
+
+    // Premium/higher rate willingness
+    if (entry.maxPrice && entry.maxPrice > 0) {
+        score += 10;
+        reasons.push(`Price flexibility: +10`);
+    }
+
+    // Auto-offer enabled bonus
+    if (entry.autoOffer) {
+        score += 20;
+        reasons.push(`Auto-offer enabled: +20`);
+    }
+
+    return { score, reasons };
+};
 
 @Injectable()
 export class WaitlistService {
     private readonly logger = new Logger(WaitlistService.name);
 
     constructor(
-        private readonly prisma: PrismaService,
-        private readonly emailService: EmailService,
-        private readonly idempotency: IdempotencyService,
-        private readonly observability: ObservabilityService,
+        @Inject(PrismaService) private readonly prisma: WaitlistStore,
+        @Inject(EmailService) private readonly emailService: WaitlistEmailSender,
+        @Inject(IdempotencyService) private readonly idempotency: WaitlistIdempotency,
+        @Inject(ObservabilityService) private readonly observability: WaitlistObservability,
     ) { }
 
-    /**
-     * Calculate priority score for a waitlist entry
-     * Higher score = higher priority
-     */
-    private calculatePriorityScore(entry: any, freedArrival: Date, freedDeparture: Date): { score: number; reasons: string[] } {
-        let score = 0;
-        const reasons: string[] = [];
-
-        // Base priority (user-defined or default)
-        score += (entry.priority || 50);
-        reasons.push(`Base priority: ${entry.priority || 50}`);
-
-        // Loyalty bonus: returning guests
-        if (entry.guest?.reservationCount > 0) {
-            const loyaltyBonus = Math.min(entry.guest.reservationCount * 5, 25);
-            score += loyaltyBonus;
-            reasons.push(`Loyalty bonus: +${loyaltyBonus} (${entry.guest.reservationCount} stays)`);
-        }
-
-        // Exact date match bonus
-        if (entry.arrivalDate && entry.departureDate) {
-            const entryArr = new Date(entry.arrivalDate);
-            const entryDep = new Date(entry.departureDate);
-            const freedArr = new Date(freedArrival);
-            const freedDep = new Date(freedDeparture);
-            
-            if (entryArr.getTime() === freedArr.getTime() && entryDep.getTime() === freedDep.getTime()) {
-                score += 30;
-                reasons.push(`Exact date match: +30`);
-            } else {
-                // Partial overlap bonus
-                score += 10;
-                reasons.push(`Date overlap: +10`);
-            }
-        }
-
-        // Specific site preference bonus
-        if (entry.siteId) {
-            score += 15;
-            reasons.push(`Specific site preference: +15`);
-        }
-
-        // How long they've been waiting
-        const waitDays = Math.floor((Date.now() - new Date(entry.createdAt).getTime()) / (1000 * 60 * 60 * 24));
-        const waitBonus = Math.min(waitDays, 30);
-        score += waitBonus;
-        reasons.push(`Wait time bonus: +${waitBonus} (${waitDays} days)`);
-
-        // Premium/higher rate willingness
-        if (entry.maxPrice && entry.maxPrice > 0) {
-            score += 10;
-            reasons.push(`Price flexibility: +10`);
-        }
-
-        // Auto-offer enabled bonus
-        if (entry.autoOffer) {
-            score += 20;
-            reasons.push(`Auto-offer enabled: +20`);
-        }
-
-        return { score, reasons };
-    }
-
-    async create(dto: CreateWaitlistEntryDto, idempotencyKey?: string, sequence?: string | number | null, actor?: any) {
-        const scope = { campgroundId: (dto as any).campgroundId ?? actor?.campgroundId ?? null, tenantId: (dto as any).tenantId ?? actor?.tenantId ?? null };
+    async create(dto: WaitlistCreatePayload, idempotencyKey?: string, sequence?: string | number | null, actor?: WaitlistActor) {
+        const scope = { campgroundId: dto.campgroundId ?? actor?.campgroundId ?? null, tenantId: dto.tenantId ?? actor?.tenantId ?? null };
         const scopeKey = this.scopeKey(scope);
         if (sequence) {
             const seqExisting = await this.idempotency.findBySequence(scopeKey, "waitlist/create", sequence);
@@ -127,6 +176,7 @@ export class WaitlistService {
 
         const result = await this.prisma.waitlistEntry.create({
             data: {
+                id: randomUUID(),
                 ...dto,
                 status: WaitlistStatus.active,
             },
@@ -136,7 +186,7 @@ export class WaitlistService {
         return result;
     }
 
-    async createStaffEntry(dto: CreateStaffWaitlistDto, idempotencyKey?: string, sequence?: string | number | null, actor?: any) {
+    async createStaffEntry(dto: CreateStaffWaitlistDto, idempotencyKey?: string, sequence?: string | number | null, actor?: WaitlistActor) {
         const scope = { campgroundId: dto.campgroundId ?? actor?.campgroundId ?? null, tenantId: actor?.tenantId ?? null };
         const scopeKey = this.scopeKey(scope);
         if (sequence) {
@@ -156,10 +206,12 @@ export class WaitlistService {
             throw new ConflictException("Request already in progress");
         }
 
+        const waitlistType = toWaitlistType(dto.type) ?? WaitlistType.regular;
         const result = await this.prisma.waitlistEntry.create({
             data: {
+                id: randomUUID(),
                 campgroundId: dto.campgroundId,
-                type: dto.type as WaitlistType,
+                type: waitlistType,
                 contactName: dto.contactName,
                 contactEmail: dto.contactEmail || null,
                 contactPhone: dto.contactPhone || null,
@@ -220,15 +272,13 @@ export class WaitlistService {
             active: bigint;
             offered: bigint;
             converted: bigint;
-            fulfilled: bigint;
             expired: bigint;
             cancelled: bigint;
         }]>`
             SELECT
                 COUNT(*) FILTER (WHERE status = 'active') as active,
-                COUNT(*) FILTER (WHERE status = 'offered') as offered,
-                COUNT(*) FILTER (WHERE status = 'converted') as converted,
-                COUNT(*) FILTER (WHERE status = 'fulfilled') as fulfilled,
+                COUNT(*) FILTER (WHERE status = 'active' AND "lastOfferSentAt" IS NOT NULL) as offered,
+                COUNT(*) FILTER (WHERE status = 'fulfilled') as converted,
                 COUNT(*) FILTER (WHERE status = 'expired') as expired,
                 COUNT(*) FILTER (WHERE status = 'cancelled') as cancelled
             FROM "WaitlistEntry"
@@ -237,14 +287,14 @@ export class WaitlistService {
         const stats = result[0];
         const active = Number(stats?.active ?? 0);
         const offered = Number(stats?.offered ?? 0);
-        const convertedTotal = Number(stats?.converted ?? 0) + Number(stats?.fulfilled ?? 0);
+        const convertedTotal = Number(stats?.converted ?? 0);
         const expiredTotal = Number(stats?.expired ?? 0) + Number(stats?.cancelled ?? 0);
         return {
             active,
             offered,
             converted: convertedTotal,
             expired: expiredTotal,
-            total: active + offered + convertedTotal + expiredTotal
+            total: active + convertedTotal + expiredTotal
         };
     }
 
@@ -255,11 +305,12 @@ export class WaitlistService {
         const limit = Math.min(options?.limit ?? 100, 500);
         const offset = options?.offset ?? 0;
         const type = options?.type;
+        const waitlistType = toWaitlistType(type);
 
         return this.prisma.waitlistEntry.findMany({
             where: {
                 campgroundId,
-                ...(type && type !== 'all' ? { type: type as WaitlistType } : {}),
+                ...(waitlistType ? { type: waitlistType } : {}),
             },
             include: { Guest: true, Site: true, SiteClass: true },
             orderBy: { createdAt: 'desc' },
@@ -284,7 +335,7 @@ export class WaitlistService {
         });
     }
 
-    async accept(id: string, idempotencyKey?: string, sequence?: string | number | null, actor?: any) {
+    async accept(id: string, idempotencyKey?: string, sequence?: string | number | null, actor?: WaitlistActor) {
         const scope = { campgroundId: actor?.campgroundId ?? null, tenantId: actor?.tenantId ?? null };
         const scopeKey = this.scopeKey(scope);
         if (sequence) {
@@ -323,7 +374,7 @@ export class WaitlistService {
             data: { status: WaitlistStatus.fulfilled }
         });
 
-        const snapshot = { entryId: id, status: "accepted" as const };
+        const snapshot: { entryId: string; status: "accepted" } = { entryId: id, status: "accepted" };
         if (idempotencyKey) await this.idempotency.complete(idempotencyKey, snapshot);
         return snapshot;
     }
@@ -362,8 +413,8 @@ export class WaitlistService {
         });
 
         // Calculate priority scores and sort
-        const scoredMatches: WaitlistMatch[] = entries.map((entry: any) => {
-            const { score, reasons } = this.calculatePriorityScore(entry, arrival, departure);
+        const scoredMatches: WaitlistMatch[] = entries.map((entry) => {
+            const { score, reasons } = calculatePriorityScore(entry, arrival, departure);
             return { entry, score, reasons };
         }).sort((a: WaitlistMatch, b: WaitlistMatch) => b.score - a.score);
 
@@ -379,13 +430,14 @@ export class WaitlistService {
         let autoOffered = 0;
 
         for (const { entry, score } of matches) {
-            if (!entry.guest && !entry.contactEmail) {
+            const guest = entry.guest ?? entry.Guest ?? null;
+            if (!guest && !entry.contactEmail) {
                 this.logger.warn(`Skipping waitlist entry ${entry.id} due to missing contact info`);
                 continue;
             }
 
-            const email = entry.guest?.email || entry.contactEmail;
-            const name = entry.guest?.primaryFirstName || entry.contactName || 'Guest';
+            const email = guest?.email || entry.contactEmail;
+            const name = guest?.primaryFirstName || entry.contactName || 'Guest';
 
             if (!email) continue;
 
@@ -427,7 +479,7 @@ export class WaitlistService {
                     to: email,
                     subject,
                     html,
-                    campgroundId: entry.campgroundId
+                    campgroundId: entry.campgroundId ?? undefined
                 });
 
                 await this.prisma.waitlistEntry.update({
@@ -435,7 +487,7 @@ export class WaitlistService {
                     data: {
                         lastNotifiedAt: new Date(),
                         notifiedCount: (entry.notifiedCount ?? 0) + 1,
-                        status: isAutoOffer ? 'offered' as WaitlistStatus : WaitlistStatus.active
+                        status: WaitlistStatus.active
                     }
                 });
 
@@ -467,7 +519,7 @@ export class WaitlistService {
         return this.prisma.waitlistEntry.update({
             where: { id },
             data: {
-                status: 'converted' as WaitlistStatus,
+                status: WaitlistStatus.fulfilled,
                 convertedReservationId: reservationId,
                 convertedAt: new Date()
             }
@@ -487,7 +539,7 @@ export class WaitlistService {
                 createdAt: { lt: threshold }
             },
             data: {
-                status: 'expired' as WaitlistStatus
+                status: WaitlistStatus.expired
             }
         });
 
@@ -501,7 +553,7 @@ export class WaitlistService {
 
     private async guardIdempotency(
         key: string | undefined,
-        body: any,
+        body: unknown,
         scope: { campgroundId?: string | null; tenantId?: string | null },
         endpoint: string,
         sequence?: string | number | null

@@ -233,7 +233,8 @@ export function KeyboardShortcutsProvider({ children }: KeyboardShortcutsProvide
   // Track focus state
   useEffect(() => {
     const handleFocusIn = (e: FocusEvent) => {
-      const target = e.target as HTMLElement;
+      const target = e.target;
+      if (!(target instanceof HTMLElement)) return;
       const isInput =
         target.tagName === "INPUT" ||
         target.tagName === "TEXTAREA" ||
@@ -258,7 +259,8 @@ export function KeyboardShortcutsProvider({ children }: KeyboardShortcutsProvide
   // Global keyboard listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
+      const target = e.target;
+      if (!(target instanceof HTMLElement)) return;
       const isTyping =
         target.tagName === "INPUT" ||
         target.tagName === "TEXTAREA" ||
@@ -364,7 +366,7 @@ interface WindowWithKeyboardShortcuts extends Window {
   useEffect(() => {
     // Store these in window for easy access from other components
     if (typeof window !== "undefined") {
-      const win = window as WindowWithKeyboardShortcuts;
+      const win: WindowWithKeyboardShortcuts = window;
       win.__keyboardShortcuts = {
         onSearch: (fn: () => void) => {
           onSearchRef.current = fn;

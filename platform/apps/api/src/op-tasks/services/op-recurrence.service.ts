@@ -11,11 +11,70 @@ import {
   OpTask,
   OpTaskState,
   OpTriggerEvent,
+  OpTaskTemplate,
+  Prisma,
 } from '@prisma/client';
+import { randomUUID } from "crypto";
 import {
   CreateOpRecurrenceRuleDto,
   UpdateOpRecurrenceRuleDto,
 } from '../dto/op-task.dto';
+
+type CampgroundSeason = {
+  timezone: string | null;
+  seasonStart: Date | null;
+  seasonEnd: Date | null;
+};
+
+type RecurrenceRuleWithTemplate = OpRecurrenceRule & { OpTaskTemplate: OpTaskTemplate };
+type RecurrenceRuleWithTemplateAndCampground = RecurrenceRuleWithTemplate & {
+  Campground?: CampgroundSeason | null;
+};
+
+type ChecklistTemplateItem = {
+  id: string;
+  text: string;
+  required?: boolean;
+  category?: string;
+  estimatedMinutes?: number;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const normalizeChecklistTemplate = (value: unknown): ChecklistTemplateItem[] => {
+  if (!Array.isArray(value)) return [];
+  const items: ChecklistTemplateItem[] = [];
+  for (const item of value) {
+    if (!isRecord(item)) continue;
+    if (typeof item.id !== "string" || typeof item.text !== "string") continue;
+    items.push({
+      id: item.id,
+      text: item.text,
+      required: item.required === true ? true : undefined,
+      category: typeof item.category === "string" ? item.category : undefined,
+      estimatedMinutes: typeof item.estimatedMinutes === "number" ? item.estimatedMinutes : undefined,
+    });
+  }
+  return items;
+};
+
+const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined => {
+  if (value === undefined || value === null) return undefined;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
+};
+
+const toNullableJsonInput = (
+  value: unknown
+): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined => {
+  if (value === undefined) return undefined;
+  if (value === null) return Prisma.JsonNull;
+  return toJsonValue(value) ?? Prisma.JsonNull;
+};
 
 @Injectable()
 export class OpRecurrenceService {
@@ -49,6 +108,7 @@ export class OpRecurrenceService {
 
     return this.prisma.opRecurrenceRule.create({
       data: {
+        id: randomUUID(),
         campgroundId,
         name: dto.name,
         templateId: dto.templateId,
@@ -64,11 +124,12 @@ export class OpRecurrenceService {
         assignToUserId: dto.assignToUserId,
         nextGenerationAt,
         isActive: true,
+        updatedAt: new Date(),
       },
       include: {
-        template: true,
-        assignToTeam: true,
-        assignToUser: { select: { id: true, firstName: true, lastName: true } },
+        OpTaskTemplate: true,
+        OpTeam: true,
+        User: { select: { id: true, firstName: true, lastName: true } },
       },
     });
   }
@@ -88,10 +149,10 @@ export class OpRecurrenceService {
       },
       orderBy: [{ pattern: 'asc' }, { name: 'asc' }],
       include: {
-        template: true,
-        assignToTeam: true,
-        assignToUser: { select: { id: true, firstName: true, lastName: true } },
-        _count: { select: { tasks: true } },
+        OpTaskTemplate: true,
+        OpTeam: true,
+        User: { select: { id: true, firstName: true, lastName: true } },
+        _count: { select: { OpTask: true } },
       },
     });
   }
@@ -103,10 +164,10 @@ export class OpRecurrenceService {
     const rule = await this.prisma.opRecurrenceRule.findUnique({
       where: { id },
       include: {
-        template: true,
-        assignToTeam: true,
-        assignToUser: { select: { id: true, firstName: true, lastName: true } },
-        _count: { select: { tasks: true } },
+        OpTaskTemplate: true,
+        OpTeam: true,
+        User: { select: { id: true, firstName: true, lastName: true } },
+        _count: { select: { OpTask: true } },
       },
     });
 
@@ -164,11 +225,12 @@ export class OpRecurrenceService {
         ...(dto.assignToUserId !== undefined && { assignToUserId: dto.assignToUserId }),
         ...(dto.isActive !== undefined && { isActive: dto.isActive }),
         nextGenerationAt,
+        updatedAt: new Date(),
       },
       include: {
-        template: true,
-        assignToTeam: true,
-        assignToUser: { select: { id: true, firstName: true, lastName: true } },
+        OpTaskTemplate: true,
+        OpTeam: true,
+        User: { select: { id: true, firstName: true, lastName: true } },
       },
     });
   }
@@ -201,8 +263,8 @@ export class OpRecurrenceService {
         nextGenerationAt: { lte: now },
       },
       include: {
-        template: true,
-        campground: { select: { timezone: true, seasonStart: true, seasonEnd: true } },
+        OpTaskTemplate: true,
+        Campground: { select: { timezone: true, seasonStart: true, seasonEnd: true } },
       },
     });
 
@@ -221,11 +283,11 @@ export class OpRecurrenceService {
    * Generate tasks for a specific rule
    */
   async generateTasksForRule(
-    rule: OpRecurrenceRule & { template: any; campground?: any },
+    rule: RecurrenceRuleWithTemplateAndCampground,
   ): Promise<OpTask[]> {
     // Check seasonal rules
     if (rule.pattern === OpRecurrencePattern.seasonal) {
-      const campground = rule.campground ?? await this.prisma.campground.findUnique({
+      const campground = rule.Campground ?? await this.prisma.campground.findUnique({
         where: { id: rule.campgroundId },
         select: { seasonStart: true, seasonEnd: true },
       });
@@ -275,7 +337,7 @@ export class OpRecurrenceService {
    * Create a single task from a recurrence rule
    */
   private async createTaskFromRule(
-    rule: OpRecurrenceRule & { template: any },
+    rule: RecurrenceRuleWithTemplate,
     siteId: string | null,
     locationDesc?: string,
   ): Promise<OpTask | null> {
@@ -300,31 +362,34 @@ export class OpRecurrenceService {
     }
 
     // Calculate SLA due time
-    const slaDueAt = rule.template.slaMinutes
-      ? new Date(Date.now() + rule.template.slaMinutes * 60 * 1000)
+    const slaDueAt = rule.OpTaskTemplate.slaMinutes
+      ? new Date(Date.now() + rule.OpTaskTemplate.slaMinutes * 60 * 1000)
       : null;
 
     return this.prisma.opTask.create({
       data: {
+        id: randomUUID(),
         campgroundId: rule.campgroundId,
-        category: rule.template.category,
+        category: rule.OpTaskTemplate.category,
         title: siteId
-          ? `${rule.template.name} - ${locationDesc}`
-          : rule.template.name,
-        description: rule.template.description,
-        priority: rule.template.priority,
+          ? `${rule.OpTaskTemplate.name} - ${locationDesc}`
+          : rule.OpTaskTemplate.name,
+        description: rule.OpTaskTemplate.description,
+        priority: rule.OpTaskTemplate.priority,
         siteId: siteId,
         locationDescription: siteId ? undefined : locationDesc,
-        assignedToUserId: rule.assignToUserId ?? rule.template.defaultAssigneeId,
-        assignedToTeamId: rule.assignToTeamId ?? rule.template.defaultTeamId,
+        assignedToUserId: rule.assignToUserId ?? rule.OpTaskTemplate.defaultAssigneeId,
+        assignedToTeamId: rule.assignToTeamId ?? rule.OpTaskTemplate.defaultTeamId,
         slaDueAt,
         slaStatus: 'on_track',
-        checklist: rule.template.checklistTemplate
-          ? (rule.template.checklistTemplate as any[]).map((item) => ({
-              ...item,
-              completed: false,
-            }))
-          : null,
+        checklist: toNullableJsonInput((() => {
+          const templateItems = normalizeChecklistTemplate(rule.OpTaskTemplate.checklistTemplate);
+          if (templateItems.length === 0) return null;
+          return templateItems.map((item) => ({
+            ...item,
+            completed: false,
+          }));
+        })()),
         checklistProgress: 0,
         templateId: rule.templateId,
         recurrenceRuleId: rule.id,
@@ -333,6 +398,7 @@ export class OpRecurrenceService {
         state: rule.assignToUserId || rule.assignToTeamId
           ? OpTaskState.assigned
           : OpTaskState.pending,
+        updatedAt: new Date(),
       },
     });
   }
@@ -511,7 +577,7 @@ export class OpRecurrenceService {
   async triggerGeneration(id: string): Promise<OpTask[]> {
     const rule = await this.prisma.opRecurrenceRule.findUnique({
       where: { id },
-      include: { template: true, campground: true },
+      include: { OpTaskTemplate: true, Campground: true },
     });
 
     if (!rule) {

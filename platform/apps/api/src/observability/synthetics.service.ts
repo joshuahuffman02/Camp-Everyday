@@ -6,7 +6,13 @@ type SyntheticSpec = {
   name: string;
   path: string;
   method?: "GET" | "POST";
-  body?: any;
+  body?: unknown;
+};
+
+const getErrorMessage = (err: unknown): string | undefined => {
+  if (err instanceof Error && err.message) return err.message;
+  if (typeof err === "string") return err;
+  return undefined;
 };
 
 @Injectable()
@@ -36,7 +42,7 @@ export class SyntheticsService {
     }
   }
 
-  private async runSingle(spec: SyntheticSpec) {
+  private async runSingle(spec: SyntheticSpec): Promise<void> {
     const started = Date.now();
     const url = `${this.baseUrl}${spec.path}`;
     try {
@@ -45,11 +51,15 @@ export class SyntheticsService {
         headers.Authorization = `Bearer ${process.env.SYNTHETIC_TOKEN}`;
       }
 
-      const res = await fetch(url, {
+      const options: RequestInit = {
         method: spec.method ?? "GET",
         headers,
-        body: spec.body ? JSON.stringify(spec.body) : undefined,
-      } as any);
+      };
+      if (spec.body !== undefined) {
+        options.body = JSON.stringify(spec.body);
+      }
+
+      const res = await fetch(url, options);
       const latency = Date.now() - started;
       const ok = res.ok && latency <= this.budgetMs;
       this.observability.recordSynthetic(spec.name, ok, latency, ok ? undefined : `HTTP ${res.status} latency ${latency}ms`);
@@ -58,8 +68,9 @@ export class SyntheticsService {
       }
     } catch (err) {
       const latency = Date.now() - started;
-      this.observability.recordSynthetic(spec.name, false, latency, (err as any)?.message);
-      this.logger.warn(`Synthetic ${spec.name} error: ${(err as any)?.message ?? err}`);
+      const message = getErrorMessage(err);
+      this.observability.recordSynthetic(spec.name, false, latency, message);
+      this.logger.warn(`Synthetic ${spec.name} error: ${message ?? String(err)}`);
     }
   }
 }

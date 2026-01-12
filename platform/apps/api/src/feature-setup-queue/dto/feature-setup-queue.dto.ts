@@ -1,13 +1,7 @@
 import { IsString, IsOptional, IsEnum, IsInt, Min, IsArray } from "class-validator";
+import { FeatureSetupStatus } from ".prisma/client";
 
-// Local enum definition (matches Prisma schema)
-// Using this until Prisma client generation is fixed
-export enum FeatureSetupStatus {
-  setup_now = "setup_now",
-  setup_later = "setup_later",
-  skipped = "skipped",
-  completed = "completed",
-}
+export { FeatureSetupStatus };
 
 export class CreateFeatureQueueDto {
   @IsString()

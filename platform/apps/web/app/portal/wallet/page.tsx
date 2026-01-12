@@ -132,8 +132,9 @@ export default function WalletPage() {
             await apiClient.deletePortalPaymentMethod(storedToken, paymentMethodId);
             setPaymentMethods((prev) => prev.filter((pm) => pm.id !== paymentMethodId));
             toast({ title: "Card removed", description: "Payment method deleted successfully." });
-        } catch (err: any) {
-            toast({ title: "Error", description: err.message || "Failed to delete card", variant: "destructive" });
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : "Failed to delete card";
+            toast({ title: "Error", description: message, variant: "destructive" });
         } finally {
             setDeletingCard(false);
             setDeleteCardConfirm(null);

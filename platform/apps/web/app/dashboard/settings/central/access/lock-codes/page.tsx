@@ -78,6 +78,53 @@ interface LockCode {
   lastRotated?: string;
 }
 
+const lockCodeTypes: LockCode["type"][] = ["gate", "cabin", "amenity", "wifi", "master"];
+const lockCodeTypeSet = new Set<string>(lockCodeTypes);
+const isLockCodeType = (value: string): value is LockCode["type"] => lockCodeTypeSet.has(value);
+
+const rotationOptions: LockCode["rotationSchedule"][] = ["none", "daily", "weekly", "monthly", "per-guest"];
+const rotationOptionSet = new Set<string>(rotationOptions);
+const isRotationSchedule = (value: string): value is LockCode["rotationSchedule"] =>
+  rotationOptionSet.has(value);
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const getString = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+const getBoolean = (value: unknown): boolean | undefined =>
+  typeof value === "boolean" ? value : undefined;
+
+const toLockCode = (value: unknown): LockCode | null => {
+  if (!isRecord(value)) return null;
+  const id = getString(value.id);
+  const name = getString(value.name);
+  const code = getString(value.code);
+  const typeValue = getString(value.type);
+  if (!id || !name || !code || !typeValue || !isLockCodeType(typeValue)) return null;
+  const appliesTo = Array.isArray(value.appliesTo)
+    ? value.appliesTo.filter((item): item is string => typeof item === "string")
+    : [];
+  const rawRotation = getString(value.rotationSchedule) ?? "none";
+  const normalizedRotation = rawRotation.replace("_", "-");
+  const rotationSchedule = isRotationSchedule(normalizedRotation)
+    ? normalizedRotation
+    : "none";
+  return {
+    id,
+    name,
+    code,
+    type: typeValue,
+    appliesTo,
+    rotationSchedule,
+    showOnConfirmation: getBoolean(value.showOnConfirmation) ?? false,
+    showAtCheckin: getBoolean(value.showAtCheckin) ?? false,
+    isActive: getBoolean(value.isActive) ?? true,
+    lastRotated: getString(value.lastRotatedAt),
+  };
+};
+
 const typeConfig = {
   gate: {
     label: "Gate Code",
@@ -127,18 +174,10 @@ const fetchLockCodes = async (campgroundId: string): Promise<LockCode[]> => {
   if (!response.ok) throw new Error('Failed to fetch lock codes');
   const data = await response.json();
   // Transform backend data to frontend format
-  return data.map((item: any) => ({
-    id: item.id,
-    name: item.name,
-    code: item.code,
-    type: item.type,
-    appliesTo: item.appliesTo || [],
-    rotationSchedule: item.rotationSchedule?.replace('_', '-') || 'none',
-    showOnConfirmation: item.showOnConfirmation,
-    showAtCheckin: item.showAtCheckin,
-    isActive: item.isActive,
-    lastRotated: item.lastRotatedAt,
-  }));
+  if (!Array.isArray(data)) {
+    return [];
+  }
+  return data.map(toLockCode).filter((item): item is LockCode => Boolean(item));
 };
 
 const createLockCode = async (campgroundId: string, data: Partial<LockCode>): Promise<LockCode> => {
@@ -585,12 +624,21 @@ export default function LockCodesPage() {
 
             <div className="space-y-2">
               <Label htmlFor="type">Type</Label>
-              <Select value={formType} onValueChange={(v) => setFormType(v as LockCode["type"])}>
+              <Select
+                value={formType}
+                onValueChange={(value) => {
+                  if (isLockCodeType(value)) {
+                    setFormType(value);
+                  }
+                }}
+              >
                 <SelectTrigger id="type">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {Object.entries(typeConfig).map(([key, config]) => (
+                  {lockCodeTypes.map((key) => {
+                    const config = typeConfig[key];
+                    return (
                     <SelectItem key={key} value={key}>
                       <div className="flex items-center gap-2">
                         <config.icon className="h-4 w-4" />
@@ -602,7 +650,8 @@ export default function LockCodesPage() {
                         </div>
                       </div>
                     </SelectItem>
-                  ))}
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>
@@ -629,14 +678,21 @@ export default function LockCodesPage() {
 
             <div className="space-y-2">
               <Label htmlFor="rotation">Rotation Schedule</Label>
-              <Select value={formRotation} onValueChange={(v) => setFormRotation(v as LockCode["rotationSchedule"])}>
+              <Select
+                value={formRotation}
+                onValueChange={(value) => {
+                  if (isRotationSchedule(value)) {
+                    setFormRotation(value);
+                  }
+                }}
+              >
                 <SelectTrigger id="rotation">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {Object.entries(rotationLabels).map(([key, label]) => (
+                  {rotationOptions.map((key) => (
                     <SelectItem key={key} value={key}>
-                      {label}
+                      {rotationLabels[key]}
                     </SelectItem>
                   ))}
                 </SelectContent>

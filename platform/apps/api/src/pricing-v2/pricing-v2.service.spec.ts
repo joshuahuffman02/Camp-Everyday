@@ -1,4 +1,13 @@
-import { PricingV2Service, PricingBreakdown } from './pricing-v2.service';
+import {
+  PricingV2Service,
+  PricingBreakdown,
+  computeNights,
+  computeAdjustment,
+  extractMinNights,
+  ruleApplies,
+  PricingRuleConstraints
+} from './pricing-v2.service';
+import type { PricingV2Store, PricingAuditWriter } from './pricing-v2.service';
 import { PricingStackMode, AdjustmentType, PricingRuleType, Prisma } from '@prisma/client';
 
 // Decimal is exported from Prisma namespace
@@ -6,35 +15,34 @@ const { Decimal } = Prisma;
 
 describe('PricingV2Service', () => {
   let service: PricingV2Service;
-  let mockPrisma: any;
-  let mockAudit: any;
+  let mockPrisma: ReturnType<typeof buildMockPrisma>;
+  let mockAudit: ReturnType<typeof buildMockAudit>;
+
+  const buildMockPrisma = () => ({
+    pricingRuleV2: {
+      findMany: jest.fn().mockResolvedValue([]),
+      findFirst: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+      count: jest.fn().mockResolvedValue(0),
+    },
+    demandBand: {
+      findUnique: jest.fn(),
+    },
+  }) satisfies PricingV2Store;
+
+  const buildMockAudit = () => ({
+    record: jest.fn().mockResolvedValue(undefined),
+  }) satisfies PricingAuditWriter;
 
   beforeEach(() => {
-    mockPrisma = {
-      pricingRuleV2: {
-        findMany: jest.fn().mockResolvedValue([]),
-        findUnique: jest.fn(),
-        create: jest.fn(),
-        update: jest.fn(),
-        delete: jest.fn(),
-        count: jest.fn().mockResolvedValue(0),
-      },
-      demandBand: {
-        findUnique: jest.fn(),
-      },
-    };
-    mockAudit = {
-      record: jest.fn().mockResolvedValue(undefined),
-    };
+    mockPrisma = buildMockPrisma();
+    mockAudit = buildMockAudit();
     service = new PricingV2Service(mockPrisma, mockAudit);
   });
 
   describe('computeNights (private)', () => {
-    // Access private method for testing
-    const computeNights = (arrival: Date, departure: Date): number => {
-      return (service as any).computeNights(arrival, departure);
-    };
-
     it('should calculate 1 night for same day departure', () => {
       const arrival = new Date('2025-01-01');
       const departure = new Date('2025-01-01');
@@ -79,10 +87,6 @@ describe('PricingV2Service', () => {
   });
 
   describe('computeAdjustment (private)', () => {
-    const computeAdjustment = (type: AdjustmentType, value: Decimal, baseCents: number): number => {
-      return (service as any).computeAdjustment(type, value, baseCents);
-    };
-
     describe('percent adjustments', () => {
       it('should calculate 10% increase correctly', () => {
         const result = computeAdjustment(AdjustmentType.percent, new Decimal(0.1), 10000);
@@ -134,10 +138,6 @@ describe('PricingV2Service', () => {
   });
 
   describe('extractMinNights (private)', () => {
-    const extractMinNights = (calendarRefId?: string | null): number | null => {
-      return (service as any).extractMinNights(calendarRefId);
-    };
-
     it('should extract minNights from calendar ref', () => {
       expect(extractMinNights('minNights:3')).toBe(3);
     });
@@ -177,11 +177,7 @@ describe('PricingV2Service', () => {
   });
 
   describe('ruleApplies (private)', () => {
-    const ruleApplies = (rule: any, day: Date, dow: number, nights: number): boolean => {
-      return (service as any).ruleApplies(rule, day, dow, nights);
-    };
-
-    const createRule = (overrides: any = {}) => ({
+    const createRule = (overrides: Partial<PricingRuleConstraints> = {}): PricingRuleConstraints => ({
       startDate: null,
       endDate: null,
       dowMask: null,
@@ -309,7 +305,7 @@ describe('PricingV2Service', () => {
         {
           id: 'rule-1',
           name: 'Weekend Premium',
-          type: PricingRuleType.seasonal,
+          type: PricingRuleType.season,
           stackMode: PricingStackMode.additive,
           adjustmentType: AdjustmentType.percent,
           adjustmentValue: new Decimal(0.2), // 20%
@@ -344,7 +340,7 @@ describe('PricingV2Service', () => {
         {
           id: 'rule-1',
           name: 'Flat Discount',
-          type: PricingRuleType.seasonal,
+          type: PricingRuleType.season,
           stackMode: PricingStackMode.additive,
           adjustmentType: AdjustmentType.flat,
           adjustmentValue: new Decimal(-1000), // -$10
@@ -375,7 +371,7 @@ describe('PricingV2Service', () => {
         {
           id: 'rule-1',
           name: 'Override Rate',
-          type: PricingRuleType.seasonal,
+          type: PricingRuleType.season,
           stackMode: PricingStackMode.override,
           adjustmentType: AdjustmentType.flat,
           adjustmentValue: new Decimal(2000),
@@ -391,7 +387,7 @@ describe('PricingV2Service', () => {
         {
           id: 'rule-2',
           name: 'Additional Discount',
-          type: PricingRuleType.seasonal,
+          type: PricingRuleType.season,
           stackMode: PricingStackMode.additive,
           adjustmentType: AdjustmentType.flat,
           adjustmentValue: new Decimal(-500),
@@ -425,7 +421,7 @@ describe('PricingV2Service', () => {
         {
           id: 'rule-1',
           name: 'Small Increase',
-          type: PricingRuleType.seasonal,
+          type: PricingRuleType.season,
           stackMode: PricingStackMode.max,
           adjustmentType: AdjustmentType.flat,
           adjustmentValue: new Decimal(500),
@@ -440,7 +436,7 @@ describe('PricingV2Service', () => {
         {
           id: 'rule-2',
           name: 'Large Increase',
-          type: PricingRuleType.seasonal,
+          type: PricingRuleType.season,
           stackMode: PricingStackMode.max,
           adjustmentType: AdjustmentType.flat,
           adjustmentValue: new Decimal(1500),
@@ -471,7 +467,7 @@ describe('PricingV2Service', () => {
         {
           id: 'rule-1',
           name: 'Big Discount',
-          type: PricingRuleType.seasonal,
+          type: PricingRuleType.season,
           stackMode: PricingStackMode.additive,
           adjustmentType: AdjustmentType.flat,
           adjustmentValue: new Decimal(-4000),
@@ -503,7 +499,7 @@ describe('PricingV2Service', () => {
         {
           id: 'rule-1',
           name: 'Big Increase',
-          type: PricingRuleType.seasonal,
+          type: PricingRuleType.season,
           stackMode: PricingStackMode.additive,
           adjustmentType: AdjustmentType.flat,
           adjustmentValue: new Decimal(10000),

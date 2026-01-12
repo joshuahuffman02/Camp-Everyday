@@ -16,8 +16,6 @@ type ExtendedCartItem = CartItem & {
 import { recordTelemetry } from "../../lib/sync-telemetry";
 import { RoundUpInline } from "../checkout/RoundUpForCharity";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "";
-
 type TerminalReader = {
     id: string;
     label: string;
@@ -33,24 +31,40 @@ type SavedCard = {
     nickname: string | null;
 };
 
-async function fetchJSON<T = any>(url: string, init?: RequestInit): Promise<T> {
-    const res = await fetch(url, init);
-    if (!res.ok) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`Request failed ${res.status}: ${text}`);
-    }
-    if (res.status === 204) return undefined as T;
-    return res.json() as Promise<T>;
-}
+type StoreOrder = Awaited<ReturnType<typeof apiClient.createStoreOrder>>;
 
-const posApi = {
-    createStoreOrder: (campgroundId: string, payload: any, headers?: Record<string, string>) =>
-        fetchJSON(`${API_BASE}/campgrounds/${campgroundId}/store/orders`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", ...(headers || {}) },
-            body: JSON.stringify(payload)
-        })
+type FulfillmentType = "pickup" | "curbside" | "delivery" | "table_service";
+
+type StoreOrderPaymentMethod = "card" | "cash" | "charge_to_site" | "guest_wallet";
+
+type StoreOrderPayload = {
+    items: Array<{
+        productId: string;
+        qty: number;
+        priceCents: number;
+    }>;
+    paymentMethod: StoreOrderPaymentMethod;
+    channel: "pos";
+    fulfillmentType: FulfillmentType;
+    locationId?: string;
+    paymentId?: string;
+    charityDonation?: {
+        charityId: string;
+        amountCents: number;
+    };
+    guestId?: string;
+    siteNumber?: string;
+    deliveryInstructions?: string;
 };
+
+type CharityDonation = {
+    optedIn: boolean;
+    amountCents: number;
+    charityId: string | null;
+};
+
+const getErrorMessage = (err: unknown) =>
+    err instanceof Error ? err.message : "Failed to process order";
 
 interface CheckoutModalProps {
     isOpen: boolean;
@@ -58,10 +72,10 @@ interface CheckoutModalProps {
     cart: ExtendedCartItem[];
     campgroundId: string;
     locationId?: string | null;
-    onSuccess: (order: any) => void;
+    onSuccess: (order: StoreOrder) => void;
     onQueued: () => void;
     isOnline: boolean;
-    queueOrder: (payload: any) => void;
+    queueOrder: (payload: StoreOrderPayload) => void;
     guestId?: string | null;
     guestName?: string | null;
     walletBalanceCents?: number;
@@ -73,11 +87,15 @@ export function CheckoutModal({ isOpen, onClose, cart, campgroundId, locationId,
     const [method, setMethod] = useState<PaymentMethod>("card");
     const [loading, setLoading] = useState(false);
     const [siteSearch, setSiteSearch] = useState("");
-    const [fulfillment, setFulfillment] = useState<"pickup" | "curbside" | "delivery" | "table_service">("pickup");
+    const [fulfillment, setFulfillment] = useState<FulfillmentType>("pickup");
     const [deliveryInstructions, setDeliveryInstructions] = useState("");
     const [locationHint, setLocationHint] = useState("");
     const [error, setError] = useState<string | null>(null);
-    const [charityDonation, setCharityDonation] = useState<{ optedIn: boolean; amountCents: number; charityId: string | null }>({ optedIn: false, amountCents: 0, charityId: null });
+    const [charityDonation, setCharityDonation] = useState<CharityDonation>({
+        optedIn: false,
+        amountCents: 0,
+        charityId: null
+    });
 
     // Terminal state
     const [readers, setReaders] = useState<TerminalReader[]>([]);
@@ -179,7 +197,7 @@ export function CheckoutModal({ isOpen, onClose, cart, campgroundId, locationId,
                     guestId: guestId || undefined,
                 };
 
-                const order = await posApi.createStoreOrder(campgroundId, payload);
+                const order = await apiClient.createStoreOrder(campgroundId, payload);
                 onSuccess(order);
                 return;
             }
@@ -223,20 +241,22 @@ export function CheckoutModal({ isOpen, onClose, cart, campgroundId, locationId,
                     guestId,
                 };
 
-                const order = await posApi.createStoreOrder(campgroundId, payload);
+                const order = await apiClient.createStoreOrder(campgroundId, payload);
                 onSuccess(order);
                 return;
             }
 
             // Standard payment flow (card, cash, charge_to_site, guest_wallet)
-            const payload: any = {
+            const payload: StoreOrderPayload = {
                 items: cart.map(item => ({
                     productId: item.id,
                     qty: item.qty,
                     // Use effective price if available (location-specific)
                     priceCents: item.effectivePriceCents ?? item.priceCents,
                 })),
-                paymentMethod: method,
+                paymentMethod: method === "card" || method === "cash" || method === "charge_to_site" || method === "guest_wallet"
+                    ? method
+                    : "card",
                 channel: "pos",
                 fulfillmentType: fulfillment,
                 locationId: locationId || undefined,
@@ -245,7 +265,7 @@ export function CheckoutModal({ isOpen, onClose, cart, campgroundId, locationId,
                     amountCents: charityDonation.amountCents,
                 } : undefined,
                 // Include guestId for wallet payments
-                guestId: method === "guest_wallet" ? guestId : undefined,
+                guestId: method === "guest_wallet" ? guestId ?? undefined : undefined,
             };
 
             if (method === "charge_to_site") {
@@ -271,14 +291,14 @@ export function CheckoutModal({ isOpen, onClose, cart, campgroundId, locationId,
                 return;
             }
 
-            const order = await posApi.createStoreOrder(campgroundId, payload);
+            const order = await apiClient.createStoreOrder(campgroundId, payload);
             recordTelemetry({ source: "pos", type: "sync", status: "success", message: "Order processed", meta: { items: cart.length, paymentMethod: method } });
             onSuccess(order);
-        } catch (err: any) {
+        } catch (err) {
             console.error(err);
-            setError(err.message || "Failed to process order");
+            setError(getErrorMessage(err));
             setTerminalStatus("");
-            recordTelemetry({ source: "pos", type: "error", status: "failed", message: "Order failed", meta: { error: err?.message } });
+            recordTelemetry({ source: "pos", type: "error", status: "failed", message: "Order failed", meta: { error: getErrorMessage(err) } });
         } finally {
             setLoading(false);
         }

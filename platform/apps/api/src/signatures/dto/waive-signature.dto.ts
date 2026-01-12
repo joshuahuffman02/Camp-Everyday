@@ -1,20 +1,21 @@
 import { IsIn, IsOptional, IsString } from "class-validator";
+import { WaiverReason } from "@prisma/client";
 
 const WAIVER_REASONS = [
-  "returning_same_terms",
-  "corporate_agreement",
-  "grandfathered",
-  "family_member",
-  "owner_discretion",
-  "other"
-] as const;
+  WaiverReason.returning_same_terms,
+  WaiverReason.corporate_agreement,
+  WaiverReason.grandfathered,
+  WaiverReason.family_member,
+  WaiverReason.owner_discretion,
+  WaiverReason.other,
+];
 
 export class WaiveSignatureDto {
   @IsString()
-  id: string;
+  id!: string;
 
-  @IsIn(WAIVER_REASONS as unknown as string[])
-  reason: (typeof WAIVER_REASONS)[number];
+  @IsIn(WAIVER_REASONS)
+  reason!: WaiverReason;
 
   @IsOptional()
   @IsString()

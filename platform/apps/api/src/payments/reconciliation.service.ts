@@ -1,18 +1,128 @@
-import { Injectable, Logger, NotFoundException } from "@nestjs/common";
-import { GlAccountType } from "@prisma/client";
+import { Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { GlAccountType, type Payout } from "@prisma/client";
+import fetch from "node-fetch";
 import { PrismaService } from "../prisma/prisma.service";
 import { StripeService } from "./stripe.service";
-import fetch from "node-fetch";
 import { LedgerService } from "../ledger/ledger.service";
+
+type StripePayoutLike = {
+  id: string;
+  amount?: number | null;
+  fee?: number | null;
+  status?: string | null;
+  arrival_date?: number | null;
+  currency?: string | null;
+  destination?: string | null;
+  stripe_account?: string | null;
+  statement_descriptor?: string | null;
+};
+
+type StripeBalanceTransactionLike = {
+  id: string;
+  amount: number;
+  currency?: string | null;
+  fee?: number | null;
+  type?: string | null;
+  reporting_category?: string | null;
+  source?: unknown;
+  payment_intent?: string | null;
+  created: number;
+};
+
+type StripeDisputeLike = {
+  id: string;
+  amount: number;
+  charge?: string | null;
+  payment_intent?: string | null;
+  account?: string | null;
+  metadata?: Record<string, string> | null;
+  status?: string | null;
+  reason?: string | null;
+  currency?: string | null;
+  evidence_details?: { due_by?: number | null } | null;
+  evidence?: { product_description?: string | null } | null;
+};
+
+type AsyncResult<T> = jest.MockedFunction<(...args: unknown[]) => Promise<T>>;
+
+type PayoutLineSummary = { amountCents: number; reservationId?: string | null };
+type PayoutRecord = Pick<Payout, "id" | "campgroundId"> & {
+  amountCents?: number | null;
+  feeCents?: number | null;
+  stripePayoutId?: string | null;
+  paidAt?: Date | null;
+  arrivalDate?: Date | null;
+};
+type PayoutWithLines = PayoutRecord & { lines?: PayoutLineSummary[] };
+type LedgerEntrySummary = { direction: "credit" | "debit"; amountCents: number };
+
+export type PaymentsReconciliationStore = {
+  campground: { findFirst: AsyncResult<{ id: string } | null> };
+  payment: {
+    findFirst: AsyncResult<{ reservationId: string | null; campgroundId: string } | null>;
+    create: AsyncResult<unknown>;
+  };
+  payout: {
+    upsert: AsyncResult<PayoutRecord>;
+    findFirst: AsyncResult<PayoutWithLines | null>;
+    update: AsyncResult<PayoutRecord>;
+  };
+  payoutLine: { create: AsyncResult<unknown> };
+  payoutRecon: { upsert: AsyncResult<{ id: string }> };
+  payoutReconLine: { create: AsyncResult<unknown> };
+  dispute: {
+    upsert: AsyncResult<unknown>;
+    findUnique: AsyncResult<{ reason?: string | null } | null>;
+  };
+  reservation: {
+    findUnique: AsyncResult<{ id: string; paidAmount?: number | null; totalAmount: number } | null>;
+    update: AsyncResult<unknown>;
+  };
+  ledgerEntry: {
+    findFirst: AsyncResult<{ id: string } | null>;
+    findMany: AsyncResult<LedgerEntrySummary[]>;
+  };
+};
+
+export type StripeServiceLike = {
+  listBalanceTransactionsForPayout: AsyncResult<{ data: StripeBalanceTransactionLike[] }>;
+  listPayouts: AsyncResult<{ data: StripePayoutLike[] }>;
+};
+
+export type LedgerServiceLike = {
+  ensureAccount: AsyncResult<string>;
+  postEntries: AsyncResult<{ entryIds: string[] }>;
+};
+
+export function mapReconLineType(
+  tx: StripeBalanceTransactionLike
+): "payout" | "fee" | "chargeback" | "reserve" | "adjustment" | "other" {
+  const txType = tx.type;
+  if (txType === "payout") return "payout";
+  if (txType === "application_fee" || tx.reporting_category === "fee") return "fee";
+  if (tx.reporting_category === "charge_dispute" || txType === "dispute") return "chargeback";
+  if (txType === "reserve_transaction") return "reserve";
+  if (txType === "adjustment") return "adjustment";
+  return "other";
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const toStringId = (value: unknown): string | null => {
+  if (typeof value === "string") return value;
+  if (isRecord(value) && typeof value.id === "string") return value.id;
+  return null;
+};
 
 @Injectable()
 export class PaymentsReconciliationService {
   private readonly logger = new Logger(PaymentsReconciliationService.name);
 
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly stripeService: StripeService,
-    private readonly ledger: LedgerService
+    @Inject(PrismaService) private readonly prisma: PaymentsReconciliationStore,
+    @Inject(StripeService) private readonly stripeService: StripeServiceLike,
+    @Inject(LedgerService) private readonly ledger: LedgerServiceLike
   ) { }
 
   async sendAlert(message: string) {
@@ -37,7 +147,7 @@ export class PaymentsReconciliationService {
     const cg = await this.prisma.campground.findFirst({
       where: { stripeAccountId: accountId },
       select: { id: true }
-    } as any);
+    });
     return cg?.id ?? '';
   }
 
@@ -112,16 +222,6 @@ export class PaymentsReconciliationService {
     });
   }
 
-  private mapReconLineType(tx: any): "payout" | "fee" | "chargeback" | "reserve" | "adjustment" | "other" {
-    const txType = (tx as any).type;
-    if (txType === "payout") return "payout";
-    if (txType === "application_fee" || tx.reporting_category === "fee") return "fee";
-    if (tx.reporting_category === "charge_dispute" || txType === "dispute") return "chargeback";
-    if (txType === "reserve_transaction") return "reserve";
-    if (txType === "adjustment") return "adjustment";
-    return "other";
-  }
-
   private async createPayoutReconLine(opts: {
     payoutReconId: string;
     type: "payout" | "fee" | "chargeback" | "reserve" | "adjustment" | "other";
@@ -147,7 +247,7 @@ export class PaymentsReconciliationService {
     });
   }
 
-  private async upsertPayoutReconEnvelope(payoutRecord: any, payout: any) {
+  private async upsertPayoutReconEnvelope(payoutRecord: PayoutRecord, payout: StripePayoutLike) {
     const payoutDate = payout.arrival_date ? new Date(payout.arrival_date * 1000) : null;
     const expected = payout.amount ?? 0;
     const actual = (payout.amount ?? 0) - (payout.fee ?? 0);
@@ -176,9 +276,9 @@ export class PaymentsReconciliationService {
     });
   }
 
-  async upsertDispute(dispute: any) {
-    const disputeId = dispute.id as string;
-    const amountCents = dispute.amount as number;
+  async upsertDispute(dispute: StripeDisputeLike) {
+    const disputeId = dispute.id;
+    const amountCents = dispute.amount;
     const chargeId = dispute.charge ?? null;
     const paymentIntentId = dispute.payment_intent ?? null;
 
@@ -196,15 +296,15 @@ export class PaymentsReconciliationService {
 
     if (!reservationId && (chargeId || paymentIntentId)) {
       // Try to find the payment that matches this charge or payment intent
-      const payment = await this.prisma.payment.findFirst({
-        where: {
-          OR: [
-            chargeId ? { stripeChargeId: chargeId } : null,
-            paymentIntentId ? { stripePaymentIntentId: paymentIntentId } : null
-          ].filter(Boolean) as any[]
-        },
-        select: { reservationId: true }
-      });
+      const orConditions: Array<{ stripeChargeId?: string; stripePaymentIntentId?: string }> = [];
+      if (chargeId) orConditions.push({ stripeChargeId: chargeId });
+      if (paymentIntentId) orConditions.push({ stripePaymentIntentId: paymentIntentId });
+      const payment = orConditions.length > 0
+        ? await this.prisma.payment.findFirst({
+            where: { OR: orConditions },
+            select: { reservationId: true }
+          })
+        : null;
       if (payment?.reservationId) {
         reservationId = payment.reservationId;
       }
@@ -215,7 +315,7 @@ export class PaymentsReconciliationService {
       where: { stripeDisputeId: disputeId },
       update: {
         amountCents,
-        status: (dispute.status as string) ?? "needs_response",
+        status: dispute.status ?? "needs_response",
         reason: dispute.reason ?? null,
         evidenceDueBy: dispute.evidence_details?.due_by ? new Date(dispute.evidence_details.due_by * 1000) : null,
         notes: dispute.evidence?.product_description ?? null
@@ -229,7 +329,7 @@ export class PaymentsReconciliationService {
         payoutId: null,
         amountCents,
         currency: dispute.currency || 'usd',
-        status: (dispute.status as string) ?? "needs_response",
+        status: dispute.status ?? "needs_response",
         reason: dispute.reason ?? null,
         evidenceDueBy: dispute.evidence_details?.due_by ? new Date(dispute.evidence_details.due_by * 1000) : null,
         notes: dispute.evidence?.product_description ?? null
@@ -270,8 +370,10 @@ export class PaymentsReconciliationService {
     // Find the reservation
     const reservation = await this.prisma.reservation.findUnique({
       where: { id: reservationId },
-      include: {
-        Site: { include: { SiteClass: true } }
+      select: {
+        id: true,
+        paidAmount: true,
+        totalAmount: true
       }
     });
 
@@ -343,13 +445,13 @@ export class PaymentsReconciliationService {
     );
   }
 
-  async upsertPayoutFromStripe(payout: any) {
+  async upsertPayoutFromStripe(payout: StripePayoutLike) {
     const payoutRecord = await this.prisma.payout.upsert({
       where: { stripePayoutId: payout.id },
       update: {
         amountCents: payout.amount,
         feeCents: payout.fee,
-        status: (payout.status as string) ?? "pending",
+        status: payout.status ?? "pending",
         arrivalDate: payout.arrival_date ? new Date(payout.arrival_date * 1000) : null,
         paidAt: payout.status === 'paid' && payout.arrival_date ? new Date(payout.arrival_date * 1000) : null,
         statementDescriptor: payout.statement_descriptor ?? null
@@ -361,7 +463,7 @@ export class PaymentsReconciliationService {
         amountCents: payout.amount,
         feeCents: payout.fee,
         currency: payout.currency || 'usd',
-        status: (payout.status as string) ?? "pending",
+        status: payout.status ?? "pending",
         arrivalDate: payout.arrival_date ? new Date(payout.arrival_date * 1000) : null,
         paidAt: payout.status === 'paid' && payout.arrival_date ? new Date(payout.arrival_date * 1000) : null,
         statementDescriptor: payout.statement_descriptor ?? null
@@ -370,36 +472,39 @@ export class PaymentsReconciliationService {
     return payoutRecord;
   }
 
-  async ingestPayoutTransactions(payout: any, payoutRecord: any) {
+  async ingestPayoutTransactions(payout: StripePayoutLike, payoutRecord: PayoutRecord) {
     const stripeAccountId = payout.destination || payout.stripe_account;
     if (!stripeAccountId) return;
 
     const recon = await this.upsertPayoutReconEnvelope(payoutRecord, payout);
     const txns = await this.stripeService.listBalanceTransactionsForPayout(payout.id, stripeAccountId);
-    for (const tx of txns.data) {
-      const chargeId = tx.source as any;
+    const transactions: StripeBalanceTransactionLike[] = txns.data;
+    for (const tx of transactions) {
+      const chargeId = toStringId(tx.source);
       const payment = chargeId
         ? await this.prisma.payment.findFirst({
             where: { stripeChargeId: chargeId },
             select: { reservationId: true, campgroundId: true }
-          } as any)
+          })
         : null;
       const reservationId = payment?.reservationId ?? null;
       const campgroundId = payment?.campgroundId ?? payoutRecord.campgroundId;
 
+      const txType = tx.type ?? "unknown";
+      const paymentIntentId = toStringId(tx.payment_intent);
       await this.createPayoutLine({
         payoutId: payoutRecord.id,
-        type: (tx as any).type,
+        type: txType,
         amount: tx.amount,
-        currency: tx.currency,
-        description: `BTX ${tx.id} (${(tx as any).type})`,
+        currency: tx.currency ?? undefined,
+        description: `BTX ${tx.id} (${txType})`,
         reservationId,
-        paymentIntentId: (tx as any).payment_intent ?? null,
+        paymentIntentId: paymentIntentId ?? null,
         chargeId,
         balanceTransactionId: tx.id
       });
 
-      const createdAt = new Date((tx as any).created * 1000);
+      const createdAt = new Date(tx.created * 1000);
       const amountAbs = Math.abs(tx.amount);
       let glEntryId: string | undefined;
 
@@ -420,7 +525,6 @@ export class PaymentsReconciliationService {
       }
 
       // Chargebacks/disputes: debit chargebacks, credit cash
-      const txType = (tx as any).type;
       if (tx.reporting_category === "charge_dispute" || txType === "dispute") {
         const cbLedger = await this.postDoubleEntry({
           campgroundId,
@@ -454,18 +558,18 @@ export class PaymentsReconciliationService {
 
       await this.createPayoutReconLine({
         payoutReconId: recon.id,
-        type: this.mapReconLineType(tx),
+        type: mapReconLineType(tx),
         amountCents: tx.amount,
-        currency: tx.currency,
+        currency: tx.currency ?? undefined,
         sourceTxId: tx.id,
         sourceTs: createdAt,
         glEntryId: glEntryId ?? null,
-        notes: `BTX ${tx.id} (${(tx as any).type})`
+        notes: `BTX ${tx.id} (${txType})`
       });
     }
   }
 
-  async reconcilePayout(payout: any) {
+  async reconcilePayout(payout: StripePayoutLike) {
     const payoutRecord = await this.upsertPayoutFromStripe(payout);
     await this.ingestPayoutTransactions(payout, payoutRecord);
     await this.postNetCashMovement(payoutRecord);
@@ -479,15 +583,15 @@ export class PaymentsReconciliationService {
     });
     if (!payout) throw new NotFoundException("Payout not found");
 
-    const lineSum = (payout.lines || []).reduce((acc: number, l: any) => acc + l.amountCents, 0);
-    const reservationIds = Array.from(new Set((payout.lines || []).map((l: any) => l.reservationId).filter(Boolean)));
+    const lineSum = (payout.lines || []).reduce((acc, line) => acc + line.amountCents, 0);
+    const reservationIds = Array.from(new Set((payout.lines || []).map((line) => line.reservationId).filter(Boolean)));
 
     let ledgerNet = 0;
     if (reservationIds.length > 0) {
       const ledgerEntries = await this.prisma.ledgerEntry.findMany({
         where: { reservationId: { in: reservationIds } }
       });
-      ledgerNet = ledgerEntries.reduce((acc: number, e: any) => acc + (e.direction === "credit" ? e.amountCents : -e.amountCents), 0);
+      ledgerNet = ledgerEntries.reduce((acc, entry) => acc + (entry.direction === "credit" ? entry.amountCents : -entry.amountCents), 0);
     }
 
     const payoutNet = (payout.amountCents ?? 0) - (payout.feeCents ?? 0);
@@ -532,7 +636,7 @@ export class PaymentsReconciliationService {
     };
   }
 
-  private async postNetCashMovement(payoutRecord: any) {
+  private async postNetCashMovement(payoutRecord: PayoutRecord) {
     const net = (payoutRecord?.amountCents ?? 0) - (payoutRecord?.feeCents ?? 0);
     if (!payoutRecord?.campgroundId || net === 0) return;
     const externalRef = payoutRecord.stripePayoutId ?? payoutRecord.id;
@@ -582,4 +686,3 @@ export class PaymentsReconciliationService {
     return results;
   }
 }
-

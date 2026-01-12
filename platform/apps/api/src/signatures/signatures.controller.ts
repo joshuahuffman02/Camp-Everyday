@@ -12,6 +12,9 @@ import { MarkPaperSignedDto } from "./dto/mark-paper-signed.dto";
 import { WaiveSignatureDto } from "./dto/waive-signature.dto";
 import { SendRenewalCampaignDto } from "./dto/send-renewal-campaign.dto";
 import type { Request } from "express";
+import type { AuthUser } from "../auth/auth.types";
+
+type AuthenticatedRequest = Omit<Request, "user"> & { user: AuthUser };
 
 @Controller("signatures")
 export class SignaturesController {
@@ -21,24 +24,24 @@ export class SignaturesController {
   @Roles(UserRole.owner, UserRole.manager, UserRole.front_desk, UserRole.finance)
   @RequireScope({ resource: "reservations", action: "write" })
   @Post("requests")
-  async create(@Req() req: Request, @Body() dto: CreateSignatureRequestDto) {
-    return this.signatures.createAndSend(dto, req?.user?.id ?? null);
+  async create(@Req() req: AuthenticatedRequest, @Body() dto: CreateSignatureRequestDto) {
+    return this.signatures.createAndSend(dto, req.user.id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
   @Roles(UserRole.owner, UserRole.manager, UserRole.front_desk, UserRole.finance)
   @RequireScope({ resource: "reservations", action: "write" })
   @Post("requests/:id/resend")
-  async resend(@Req() req: Request, @Param("id") id: string) {
-    return this.signatures.resend(id, req?.user?.id ?? null);
+  async resend(@Req() req: AuthenticatedRequest, @Param("id") id: string) {
+    return this.signatures.resend(id, req.user.id);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
   @Roles(UserRole.owner, UserRole.manager, UserRole.front_desk, UserRole.finance)
   @RequireScope({ resource: "reservations", action: "write" })
   @Post("requests/:id/void")
-  async voidRequest(@Req() req: Request, @Param("id") id: string) {
-    return this.signatures.voidRequest(id, req?.user?.id ?? null);
+  async voidRequest(@Req() req: AuthenticatedRequest, @Param("id") id: string) {
+    return this.signatures.voidRequest(id, req.user.id);
   }
 
   // ==================== PAPER SIGNING ====================
@@ -47,7 +50,7 @@ export class SignaturesController {
   @Roles(UserRole.owner, UserRole.manager, UserRole.front_desk)
   @RequireScope({ resource: "reservations", action: "write" })
   @Post("requests/:id/paper-signed")
-  async markPaperSigned(@Req() req: Request, @Param("id") id: string, @Body() dto: Omit<MarkPaperSignedDto, "id">) {
+  async markPaperSigned(@Req() req: AuthenticatedRequest, @Param("id") id: string, @Body() dto: Omit<MarkPaperSignedDto, "id">) {
     return this.signatures.markPaperSigned({ ...dto, id }, req.user.id);
   }
 
@@ -57,7 +60,7 @@ export class SignaturesController {
   @Roles(UserRole.owner, UserRole.manager)
   @RequireScope({ resource: "reservations", action: "write" })
   @Post("requests/:id/waive")
-  async waiveSignature(@Req() req: Request, @Param("id") id: string, @Body() dto: Omit<WaiveSignatureDto, "id">) {
+  async waiveSignature(@Req() req: AuthenticatedRequest, @Param("id") id: string, @Body() dto: Omit<WaiveSignatureDto, "id">) {
     return this.signatures.waiveSignature({ ...dto, id }, req.user.id);
   }
 
@@ -139,7 +142,7 @@ export class SignaturesController {
   @Roles(UserRole.owner, UserRole.manager)
   @RequireScope({ resource: "reservations", action: "write" })
   @Post("contracts/renewal-campaign")
-  async sendRenewalCampaign(@Req() req: Request, @Body() dto: SendRenewalCampaignDto) {
+  async sendRenewalCampaign(@Req() req: AuthenticatedRequest, @Body() dto: SendRenewalCampaignDto) {
     return this.signatures.sendRenewalCampaign(dto, req.user.id);
   }
 
@@ -153,7 +156,7 @@ export class SignaturesController {
   @Roles(UserRole.owner, UserRole.manager, UserRole.front_desk, UserRole.finance)
   @RequireScope({ resource: "reservations", action: "write" })
   @Post("coi")
-  async uploadCoi(@Req() req: Request, @Body() dto: CoiUploadDto) {
-    return this.signatures.createCoi(dto, req?.user?.id ?? null);
+  async uploadCoi(@Req() req: AuthenticatedRequest, @Body() dto: CoiUploadDto) {
+    return this.signatures.createCoi(dto, req.user.id);
   }
 }

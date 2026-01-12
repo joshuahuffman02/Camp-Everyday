@@ -45,33 +45,92 @@ import { StatusBadge, getOrderStatusVariant, getStatusLabel } from "@/components
 import { ReservationSelector } from "@/components/portal/ReservationSelector";
 import { ArrivalCountdown } from "@/components/portal/ArrivalCountdown";
 
-// Define local types until we have shared types fully integrated
-type GuestData = {
+type GuestData = Awaited<ReturnType<typeof apiClient.getGuestMe>>;
+type PublicEvent = Awaited<ReturnType<typeof apiClient.getPublicEvents>>[number] & {
+  category?: string | null;
+};
+type PortalProduct = Awaited<ReturnType<typeof apiClient.getPortalProducts>>[number];
+type PortalOrderItem = {
+  productId: string;
+  name: string;
+  qty: number;
+  priceCents: number;
+};
+type PortalOrder = {
   id: string;
-  primaryFirstName: string;
-  primaryLastName: string;
-  email: string;
-  reservations: Array<{
-    id: string;
-    arrivalDate: string;
-    departureDate: string;
-    status: string;
-    adults: number;
-    children: number;
-    campground: {
-      name: string;
-      slug: string;
-      heroImageUrl: string | null;
-      amenities: string[];
-      checkInTime: string | null;
-      checkOutTime: string | null;
-    };
-    site: {
-      name: string;
-      siteNumber: string;
-      siteType: string;
-    };
-  }>;
+  reservationId: string;
+  items: PortalOrderItem[];
+  totalCents: number;
+  deliveryMode: "delivery" | "pickup";
+  status: string;
+  placedAt?: string;
+};
+type PortalCommunication = {
+  id: string;
+  type: "email" | "sms";
+  subject: string;
+  status: string;
+  preview: string;
+  sentAt: string;
+};
+type QueuedUpsell = {
+  id: string;
+  reservationId: string;
+  campgroundSlug: string;
+  upsellId: string;
+  title: string;
+  priceCents: number;
+  queuedAt: string;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const isPortalOrderItem = (value: unknown): value is PortalOrderItem => {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.productId === "string" &&
+    typeof value.name === "string" &&
+    typeof value.qty === "number" &&
+    typeof value.priceCents === "number"
+  );
+};
+
+const isPortalOrder = (value: unknown): value is PortalOrder => {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.id === "string" &&
+    typeof value.reservationId === "string" &&
+    Array.isArray(value.items) &&
+    value.items.every(isPortalOrderItem) &&
+    typeof value.totalCents === "number" &&
+    (value.deliveryMode === "delivery" || value.deliveryMode === "pickup") &&
+    typeof value.status === "string" &&
+    (value.placedAt === undefined || typeof value.placedAt === "string")
+  );
+};
+
+const isQueuedUpsell = (value: unknown): value is QueuedUpsell => {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.id === "string" &&
+    typeof value.reservationId === "string" &&
+    typeof value.campgroundSlug === "string" &&
+    typeof value.upsellId === "string" &&
+    typeof value.title === "string" &&
+    typeof value.priceCents === "number" &&
+    typeof value.queuedAt === "string"
+  );
+};
+
+const parseStoredOrders = (raw: string | null): PortalOrder[] => {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter(isPortalOrder) : [];
+  } catch {
+    return [];
+  }
 };
 
 type UpsellOption = {
@@ -129,30 +188,29 @@ export default function MyStayPage() {
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState<string | null>(null);
   const [selectedReservationId, setSelectedReservationId] = useState<string | null>(null);
-  const [events, setEvents] = useState<any[]>([]);
+  const [events, setEvents] = useState<PublicEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<PortalProduct[]>([]);
   const [addOns, setAddOns] = useState<AddOn[]>([]);
   const [addOnsLoading, setAddOnsLoading] = useState(false);
   const [cart, setCart] = useState<Record<string, { name: string; priceCents: number; qty: number }>>({});
   const [orderLoading, setOrderLoading] = useState(false);
   const [queuedUpsells, setQueuedUpsells] = useState(0);
   const [deliveryMode, setDeliveryMode] = useState<"delivery" | "pickup">("delivery");
-  const [orders, setOrders] = useState<any[]>([]);
+  const [orders, setOrders] = useState<PortalOrder[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
-  const [commsHistory, setCommsHistory] = useState<any[]>([]);
+  const [commsHistory, setCommsHistory] = useState<PortalCommunication[]>([]);
   const [commsLoading, setCommsLoading] = useState(false);
 
   const fetchGuest = useCallback(async (authToken: string) => {
     try {
       const data = await apiClient.getGuestMe(authToken);
-      // @ts-ignore - zod schema might need adjustment for dates vs strings
       setGuest(data);
       // Auto-select first upcoming reservation
       const now = new Date();
       const upcomingReservations = (data.reservations ?? [])
-        .filter((r: any) => new Date(r.departureDate) >= now)
-        .sort((a: any, b: any) => new Date(a.arrivalDate).getTime() - new Date(b.arrivalDate).getTime());
+        .filter((r) => new Date(r.departureDate) >= now)
+        .sort((a, b) => new Date(a.arrivalDate).getTime() - new Date(b.arrivalDate).getTime());
       if (upcomingReservations.length > 0 && !selectedReservationId) {
         setSelectedReservationId(upcomingReservations[0].id);
       }
@@ -207,7 +265,7 @@ export default function MyStayPage() {
 
   useEffect(() => {
     if (!upsellQueueKey) return;
-    const existing = loadQueueGeneric<any>(upsellQueueKey);
+    const existing = loadQueueGeneric<QueuedUpsell>(upsellQueueKey).filter(isQueuedUpsell);
     setQueuedUpsells(existing.length);
   }, [upsellQueueKey]);
 
@@ -267,11 +325,7 @@ export default function MyStayPage() {
       setOrdersLoading(true);
       try {
         const storedOrders = localStorage.getItem(`campreserv:orders:${currentReservation.id}`);
-        if (storedOrders) {
-          setOrders(JSON.parse(storedOrders));
-        } else {
-          setOrders([]);
-        }
+        setOrders(parseStoredOrders(storedOrders));
       } catch (err) {
         console.error("Failed to load orders", err);
         setOrders([]);
@@ -338,7 +392,7 @@ export default function MyStayPage() {
       priceCents: upsell.priceCents,
       queuedAt: new Date().toISOString(),
     };
-    const existing = loadQueueGeneric<any>(upsellQueueKey);
+    const existing = loadQueueGeneric<QueuedUpsell>(upsellQueueKey).filter(isQueuedUpsell);
     const next = [...existing, payload];
     saveQueueGeneric(upsellQueueKey, next);
     setQueuedUpsells(next.length);
@@ -374,9 +428,10 @@ export default function MyStayPage() {
         placedAt: new Date().toISOString(),
       };
       const storageKey = `campreserv:orders:${currentReservation.id}`;
-      const existingOrders = JSON.parse(localStorage.getItem(storageKey) || "[]");
-      localStorage.setItem(storageKey, JSON.stringify([newOrder, ...existingOrders]));
-      setOrders([newOrder, ...existingOrders]);
+      const existingOrders = parseStoredOrders(localStorage.getItem(storageKey));
+      const nextOrders = [newOrder, ...existingOrders];
+      localStorage.setItem(storageKey, JSON.stringify(nextOrders));
+      setOrders(nextOrders);
 
       setCart({});
       toast({
@@ -385,7 +440,6 @@ export default function MyStayPage() {
           deliveryMode === "delivery"
             ? `Your order will be delivered to Site ${currentReservation.site.siteNumber}. ${isFirstOrder ? "Sit back and relax!" : ""}`
             : `Your order will be ready for pickup at the office.${isFirstOrder ? " We'll notify you!" : ""}`,
-        duration: isFirstOrder ? 5000 : 3000,
       });
     } catch (err) {
       console.error("Order failed", err);
@@ -775,7 +829,10 @@ export default function MyStayPage() {
                       }}
                     />
                   ) : (
-                    events.map((event, index) => (
+                    events.map((event, index) => {
+                      const startTime = event.startTime ? new Date(event.startTime) : null;
+                      const endTime = event.endTime ? new Date(event.endTime) : null;
+                      return (
                       <motion.div
                         key={event.id}
                         initial={{ opacity: 0, y: 10 }}
@@ -792,14 +849,15 @@ export default function MyStayPage() {
                             {event.category && <Badge variant="outline">{event.category}</Badge>}
                           </div>
                           <div className="text-sm text-muted-foreground">
-                            {format(new Date(event.startTime), "EEE, MMM d • h:mm a")}
-                            {event.endTime ? ` - ${format(new Date(event.endTime), "h:mm a")}` : ""}
+                            {startTime ? format(startTime, "EEE, MMM d • h:mm a") : "Time TBD"}
+                            {endTime ? ` - ${format(endTime, "h:mm a")}` : ""}
                           </div>
                           {event.location && <div className="text-xs text-muted-foreground">Location: {event.location}</div>}
                           {event.description && <div className="text-sm text-foreground">{event.description}</div>}
                         </div>
                       </motion.div>
-                    ))
+                      );
+                    })
                   )}
                 </CardContent>
               </Card>

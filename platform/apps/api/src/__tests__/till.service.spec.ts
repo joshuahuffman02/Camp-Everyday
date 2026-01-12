@@ -1,5 +1,8 @@
 import { BadRequestException } from "@nestjs/common";
+import { Test } from "@nestjs/testing";
 import { TillService } from "../pos/till.service";
+import { PrismaService } from "../prisma/prisma.service";
+import { AuditService } from "../audit/audit.service";
 
 // Local enum stand-ins to avoid depending on generated Prisma enums in tests
 const TillMovementType = {
@@ -7,36 +10,68 @@ const TillMovementType = {
   cash_refund: "cash_refund",
   paid_in: "paid_in",
   paid_out: "paid_out",
-  adjustment: "adjustment"
-} as const;
+  adjustment: "adjustment",
+};
 
 const TillSessionStatus = {
   open: "open",
-  closed: "closed"
-} as const;
+  closed: "closed",
+};
+
+type PrismaMock = {
+  tillSession: {
+    findFirst: jest.Mock;
+    create: jest.Mock;
+    findMany: jest.Mock;
+    findUnique: jest.Mock;
+    update: jest.Mock;
+  };
+  tillMovement: {
+    create: jest.Mock;
+  };
+};
+
+const createService = async (prisma: PrismaMock, audit: { record: jest.Mock }) => {
+  const moduleRef = await Test.createTestingModule({
+    providers: [
+      TillService,
+      { provide: PrismaService, useValue: prisma },
+      { provide: AuditService, useValue: audit },
+    ],
+  }).compile();
+
+  return { service: moduleRef.get(TillService), close: () => moduleRef.close() };
+};
 
 describe("TillService", () => {
-  const prisma: any = {
+  const prisma: PrismaMock = {
     tillSession: {
       findFirst: jest.fn(),
       create: jest.fn(),
       findMany: jest.fn(),
       findUnique: jest.fn(),
-      update: jest.fn()
+      update: jest.fn(),
     },
     tillMovement: {
-      create: jest.fn()
-    }
+      create: jest.fn(),
+    },
   };
 
-  let audit: any;
+  let audit: { record: jest.Mock };
   let service: TillService;
+  let close: () => Promise<void>;
   const actor = { id: "user-1", campgroundId: "camp-1" };
 
-  beforeEach(() => {
+  beforeEach(async () => {
     jest.clearAllMocks();
     audit = { record: jest.fn() };
-    service = new TillService(prisma, audit);
+    const result = await createService(prisma, audit);
+    service = result.service;
+    close = result.close;
+  });
+
+  afterEach(async () => {
+    await close();
   });
 
   it("prevents opening a till when one is already open for the terminal", async () => {
@@ -56,12 +91,12 @@ describe("TillService", () => {
       currency: "usd",
       terminalId: "term-1",
       openingFloatCents: 0,
-      movements: []
+      TillMovement: [],
     });
 
-    await expect(
-      service.recordCashSale("session-1", 5000, "eur", "cart-1", actor)
-    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.recordCashSale("session-1", 5000, "eur", "cart-1", actor)).rejects.toBeInstanceOf(
+      BadRequestException
+    );
 
     expect(prisma.tillMovement.create).not.toHaveBeenCalled();
   });
@@ -73,7 +108,7 @@ describe("TillService", () => {
       currency: "usd",
       terminalId: "term-1",
       openingFloatCents: 1000,
-      movements: [{ type: TillMovementType.cash_sale, amountCents: 500, currency: "usd" }]
+      TillMovement: [{ type: TillMovementType.cash_sale, amountCents: 500, currency: "usd" }],
     });
 
     await expect(service.paidOut("session-1", { amountCents: 200, note: "petty cash" }, actor)).rejects.toBeInstanceOf(
@@ -103,14 +138,14 @@ describe("TillService", () => {
       createdAt: new Date("2025-12-10T08:00:00Z"),
       updatedAt: new Date("2025-12-10T08:00:00Z"),
       terminalId: "term-1",
-      movements: [{ type: TillMovementType.cash_sale, amountCents: 1000, currency: "usd" }]
+      TillMovement: [{ type: TillMovementType.cash_sale, amountCents: 1000, currency: "usd" }],
     });
     prisma.tillSession.update.mockResolvedValue({
       id: "session-1",
       status: TillSessionStatus.closed,
       expectedCloseCents: 11000,
       countedCloseCents: 10200,
-      overShortCents: -800
+      overShortCents: -800,
     });
 
     const result = await service.close("session-1", { countedCloseCents: 10200 }, actor);
@@ -151,10 +186,10 @@ describe("TillService", () => {
         terminal: { id: "term-A", locationId: "loc-1" },
         openedBy: { id: actor.id, email: "open@example.com" },
         closedBy: { id: actor.id, email: "close@example.com" },
-        movements: [
+        TillMovement: [
           { type: TillMovementType.cash_sale, amountCents: 1000, currency: "usd" },
-          { type: TillMovementType.paid_out, amountCents: 200, currency: "usd" }
-        ]
+          { type: TillMovementType.paid_out, amountCents: 200, currency: "usd" },
+        ],
       },
       {
         id: "sess-2",
@@ -176,8 +211,8 @@ describe("TillService", () => {
         terminal: { id: "term-B", locationId: null },
         openedBy: { id: actor.id, email: "open2@example.com" },
         closedBy: null,
-        movements: [{ type: TillMovementType.cash_sale, amountCents: 500, currency: "USD" }]
-      }
+        TillMovement: [{ type: TillMovementType.cash_sale, amountCents: 500, currency: "USD" }],
+      },
     ]);
 
     const report = await service.dailyReport({ date: "2025-12-10T00:00:00Z" }, actor);
@@ -191,16 +226,15 @@ describe("TillService", () => {
       paidOutCents: 200,
       expectedCloseCents: 13300,
       countedCloseCents: 10750,
-      overShortCents: -50
+      overShortCents: -50,
     });
 
-    const sess1 = report.sessions.find((s: any) => s.id === "sess-1");
+    const sess1 = report.sessions.find((session) => session.id === "sess-1");
     expect(sess1?.expectedCloseCents).toBe(10800);
     expect(sess1?.overShortCents).toBe(-50);
 
-    const sess2 = report.sessions.find((s: any) => s.id === "sess-2");
+    const sess2 = report.sessions.find((session) => session.id === "sess-2");
     expect(sess2?.expectedCloseCents).toBe(2500);
     expect(sess2?.overShortCents).toBeNull();
   });
 });
-

@@ -1,15 +1,31 @@
 import { describe, it, expect, jest } from "@jest/globals";
+import { Test, type TestingModule } from "@nestjs/testing";
 import { OtaController } from "../src/ota/ota.controller";
 import { OtaService } from "../src/ota/ota.service";
+import { PrismaService } from "../src/prisma/prisma.service";
 
 describe("OTA config stub endpoint", () => {
+  let moduleRef: TestingModule;
+  let controller: OtaController;
+
+  beforeEach(async () => {
+    moduleRef = await Test.createTestingModule({
+      controllers: [OtaController],
+      providers: [
+        OtaService,
+        { provide: PrismaService, useValue: {} },
+      ],
+    }).compile();
+
+    controller = moduleRef.get(OtaController);
+    Object.defineProperty(globalThis, "fetch", { value: jest.fn(), configurable: true });
+  });
+
+  afterEach(async () => {
+    await moduleRef.close();
+  });
+
   it("stores and returns OTA config without external calls", async () => {
-    const prisma: any = {};
-    const service = new OtaService(prisma);
-    const controller = new OtaController(service as any);
-
-    (global as any).fetch = jest.fn();
-
     const saved = await controller.saveConfig("cg-test", {
       provider: "Hipcamp",
       externalAccountId: "acct_123",
@@ -33,7 +49,6 @@ describe("OTA config stub endpoint", () => {
     expect(syncStatus.lastSyncStatus).toBe("stubbed");
     expect(syncStatus.pendingSyncs).toBe(0);
 
-    expect((global as any).fetch).not.toHaveBeenCalled();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 });
-

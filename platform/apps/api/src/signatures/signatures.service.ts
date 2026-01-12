@@ -11,63 +11,98 @@ import { MarkPaperSignedDto } from "@/signatures/dto/mark-paper-signed.dto";
 import { WaiveSignatureDto } from "@/signatures/dto/waive-signature.dto";
 import { ContractStats } from "@/signatures/dto/contract-stats.dto";
 import { SendRenewalCampaignDto } from "@/signatures/dto/send-renewal-campaign.dto";
-import { createHash, randomBytes } from "crypto";
+import { createHash, randomBytes, randomUUID } from "crypto";
+import {
+  CoiStatus,
+  DocumentTemplate,
+  Guest,
+  Prisma,
+  SignatureDeliveryChannel,
+  SignatureDocumentType,
+  SignatureMethod,
+  SignatureRequest,
+  SignatureRequestStatus,
+} from "@prisma/client";
 
-const SignatureRequestStatus = {
-  preview: "preview",
-  draft: "draft",
-  sent: "sent",
-  viewed: "viewed",
-  signed: "signed",
-  signed_paper: "signed_paper",
-  waived: "waived",
-  declined: "declined",
-  voided: "voided",
-  expired: "expired"
-} as const;
-type SignatureRequestStatus = (typeof SignatureRequestStatus)[keyof typeof SignatureRequestStatus];
+const SIGNATURE_REQUEST_STATUSES: SignatureRequestStatus[] = [
+  SignatureRequestStatus.preview,
+  SignatureRequestStatus.draft,
+  SignatureRequestStatus.sent,
+  SignatureRequestStatus.viewed,
+  SignatureRequestStatus.signed,
+  SignatureRequestStatus.signed_paper,
+  SignatureRequestStatus.waived,
+  SignatureRequestStatus.declined,
+  SignatureRequestStatus.voided,
+  SignatureRequestStatus.expired,
+];
 
-const SignatureMethod = {
-  digital: "digital",
-  paper: "paper",
-  waived: "waived"
-} as const;
-type SignatureMethod = (typeof SignatureMethod)[keyof typeof SignatureMethod];
+const SIGNATURE_DOCUMENT_TYPES: SignatureDocumentType[] = [
+  SignatureDocumentType.long_term_stay,
+  SignatureDocumentType.seasonal,
+  SignatureDocumentType.monthly,
+  SignatureDocumentType.park_rules,
+  SignatureDocumentType.deposit,
+  SignatureDocumentType.waiver,
+  SignatureDocumentType.coi,
+  SignatureDocumentType.other,
+];
 
-const WaiverReason = {
-  returning_same_terms: "returning_same_terms",
-  corporate_agreement: "corporate_agreement",
-  grandfathered: "grandfathered",
-  family_member: "family_member",
-  owner_discretion: "owner_discretion",
-  other: "other"
-} as const;
-type WaiverReason = (typeof WaiverReason)[keyof typeof WaiverReason];
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
 
-const SignatureDeliveryChannel = {
-  email: "email",
-  sms: "sms",
-  email_and_sms: "email_and_sms"
-} as const;
-type SignatureDeliveryChannel = (typeof SignatureDeliveryChannel)[keyof typeof SignatureDeliveryChannel];
+const toStringValue = (value: unknown): string | null => {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return null;
+};
 
-const SignatureDocumentType = {
-  long_term_stay: "long_term_stay",
-  park_rules: "park_rules",
-  deposit: "deposit",
-  waiver: "waiver",
-  coi: "coi",
-  other: "other"
-} as const;
-type SignatureDocumentType = (typeof SignatureDocumentType)[keyof typeof SignatureDocumentType];
+const toNumberValue = (value: unknown): number | null => {
+  const parsed = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  if (!Number.isFinite(parsed)) return null;
+  return parsed;
+};
 
-const CoiStatus = {
-  pending: "pending",
-  active: "active",
-  voided: "voided",
-  expired: "expired"
-} as const;
-type CoiStatus = (typeof CoiStatus)[keyof typeof CoiStatus];
+const getMetadataRecord = (metadata: unknown): Record<string, unknown> =>
+  isRecord(metadata) ? metadata : {};
+
+const getRecordField = (record: Record<string, unknown>, key: string): Record<string, unknown> | null => {
+  const value = record[key];
+  return isRecord(value) ? value : null;
+};
+
+const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined => {
+  if (value === undefined || value === null) return undefined;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
+};
+
+const toJsonInput = (
+  value: unknown
+): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined => {
+  if (value === undefined) return undefined;
+  if (value === null) return Prisma.JsonNull;
+  return toJsonValue(value) ?? Prisma.JsonNull;
+};
+
+const isSignatureRequestStatus = (value: string): value is SignatureRequestStatus =>
+  SIGNATURE_REQUEST_STATUSES.some((status) => status === value);
+
+const isSignatureDocumentType = (value: string): value is SignatureDocumentType =>
+  SIGNATURE_DOCUMENT_TYPES.some((type) => type === value);
+
+const parseSignatureRequestStatus = (value: string | undefined): SignatureRequestStatus | undefined => {
+  if (!value) return undefined;
+  return isSignatureRequestStatus(value) ? value : undefined;
+};
+
+const parseSignatureDocumentType = (value: string | undefined): SignatureDocumentType | undefined => {
+  if (!value) return undefined;
+  return isSignatureDocumentType(value) ? value : undefined;
+};
 
 const FINAL_SIGNATURE_STATES: SignatureRequestStatus[] = [
   SignatureRequestStatus.signed,
@@ -119,19 +154,21 @@ export class SignaturesService {
     return target > new Date() ? target : new Date(Date.now() + fallbackDays * 60 * 60 * 1000);
   }
 
-  private getReminderCadenceDays(request: any) {
-    const cadence = Number(request?.metadata?.reminderCadenceDays);
-    if (!Number.isFinite(cadence) || cadence <= 0) return null;
+  private getReminderCadenceDays(request: Pick<SignatureRequest, "metadata">) {
+    const metadata = getMetadataRecord(request.metadata);
+    const cadence = toNumberValue(metadata.reminderCadenceDays);
+    if (!cadence || cadence <= 0) return null;
     return cadence;
   }
 
-  private getReminderMaxCount(request: any) {
-    const max = Number(request?.metadata?.reminderMaxCount);
-    if (!Number.isFinite(max) || max <= 0) return null;
+  private getReminderMaxCount(request: Pick<SignatureRequest, "metadata">) {
+    const metadata = getMetadataRecord(request.metadata);
+    const max = toNumberValue(metadata.reminderMaxCount);
+    if (!max || max <= 0) return null;
     return max;
   }
 
-  private buildStubPdf(request: any, payload?: SignatureWebhookDto) {
+  private buildStubPdf(request: SignatureRequest, payload?: SignatureWebhookDto) {
     const lines = [
       `Campground: ${request.campgroundId}`,
       `Reservation: ${request.reservationId ?? "n/a"}`,
@@ -144,7 +181,10 @@ export class SignaturesService {
     return `data:application/pdf;base64,${base64}`;
   }
 
-  private async deliverRequest(request: any, context?: { reservation?: any; guest?: any; message?: string }) {
+  private async deliverRequest(
+    request: SignatureRequest,
+    context?: { reservation?: unknown; guest?: Guest | null; message?: string }
+  ) {
     const link = this.signingUrl(request.token);
     const subject = request.subject || "Signature requested";
     const recipientEmail = request.recipientEmail || context?.guest?.email;
@@ -166,8 +206,8 @@ export class SignaturesService {
         to: recipientEmail,
         subject,
         html,
-        reservationId: request.reservationId,
-        guestId: request.guestId,
+        reservationId: request.reservationId ?? undefined,
+        guestId: request.guestId ?? undefined,
         campgroundId: request.campgroundId
       });
     }
@@ -175,7 +215,12 @@ export class SignaturesService {
     if (request.deliveryChannel === SignatureDeliveryChannel.sms || request.deliveryChannel === SignatureDeliveryChannel.email_and_sms) {
       if (recipientPhone) {
         const body = `Keepr Host: Signature needed for your stay. ${link}`;
-        await this.sms.sendSms({ to: recipientPhone, body, reservationId: request.reservationId, campgroundId: request.campgroundId });
+        await this.sms.sendSms({
+          to: recipientPhone,
+          body,
+          reservationId: request.reservationId ?? undefined,
+          campgroundId: request.campgroundId
+        });
       } else {
         this.logger.warn(`SMS delivery requested but no phone found for request ${request.id}`);
       }
@@ -191,7 +236,7 @@ export class SignaturesService {
       throw new BadRequestException("campgroundId is required");
     }
 
-    const guest = reservation?.guest ?? (dto.guestId ? await this.prisma.guest.findUnique({ where: { id: dto.guestId } }) : null);
+    const guest = reservation?.Guest ?? (dto.guestId ? await this.prisma.guest.findUnique({ where: { id: dto.guestId } }) : null);
     const token = randomBytes(24).toString("hex");
     const expiresAt = dto.expiresAt ? new Date(dto.expiresAt) : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
     const cadenceDays = dto.metadata?.reminderCadenceDays ? Number(dto.metadata.reminderCadenceDays) : null;
@@ -220,6 +265,7 @@ export class SignaturesService {
 
     const created = await this.prisma.signatureRequest.create({
       data: {
+        id: randomUUID(),
         campgroundId,
         reservationId: reservation?.id ?? dto.reservationId ?? null,
         guestId: guest?.id ?? dto.guestId ?? null,
@@ -241,7 +287,8 @@ export class SignaturesService {
         availableForSigningAt,
         renewsContractId: dto.renewsContractId ?? null,
         seasonYear: dto.seasonYear ?? null,
-        metadata: dto.metadata ?? null
+        metadata: toJsonInput(dto.metadata),
+        updatedAt: new Date()
       }
     });
 
@@ -281,10 +328,14 @@ export class SignaturesService {
     recipientPhone?: string | null;
     metadata?: Record<string, unknown>;
   }) {
+    if (!dto.campgroundId) {
+      throw new BadRequestException("campgroundId is required");
+    }
     const token = randomBytes(24).toString("hex");
     const request = await this.prisma.signatureRequest.create({
       data: {
-        campgroundId: dto.campgroundId!,
+        id: randomUUID(),
+        campgroundId: dto.campgroundId,
         reservationId: dto.reservationId ?? null,
         guestId: dto.guestId ?? null,
         templateId: dto.templateId ?? null,
@@ -298,7 +349,8 @@ export class SignaturesService {
         recipientEmail: dto.recipientEmail ?? null,
         recipientPhone: dto.recipientPhone ?? null,
         sentAt: new Date(),
-        metadata: dto.metadata ?? null
+        metadata: toJsonInput(dto.metadata),
+        updatedAt: new Date()
       }
     });
 
@@ -335,7 +387,7 @@ export class SignaturesService {
       ? await this.prisma.reservation.findUnique({ where: { id: updated.reservationId }, include: { Guest: true } })
       : null;
 
-    await this.deliverRequest(updated, { reservation, guest: reservation?.guest });
+    await this.deliverRequest(updated, { reservation, guest: reservation?.Guest });
 
     await this.audit.record({
       campgroundId: updated.campgroundId,
@@ -380,7 +432,7 @@ export class SignaturesService {
   async handleWebhook(dto: SignatureWebhookDto) {
     const request = await this.prisma.signatureRequest.findUnique({
       where: { token: dto.token },
-      include: { reservation: true, guest: true }
+      include: { Reservation: true, Guest: true }
     });
     if (!request) throw new NotFoundException("Signature request not found");
 
@@ -435,18 +487,21 @@ export class SignaturesService {
     if (dto.status === "signed") {
       const pdfUrl = dto.pdfUrl || this.buildStubPdf(updatedRequest, dto);
       const checksum = createHash("sha256").update(pdfUrl).digest("hex");
+      const metadataInput = dto.metadata !== undefined ? toJsonInput(dto.metadata) : undefined;
       artifact = await this.prisma.signatureArtifact.upsert({
         where: { requestId: request.id },
         update: {
           pdfUrl,
           storageKey: dto.storageKey ?? artifact?.storageKey ?? null,
           checksum,
-          metadata: dto.metadata ?? artifact?.metadata ?? null,
+          ...(metadataInput !== undefined ? { metadata: metadataInput } : {}),
           completedAt: dto.completedAt ? new Date(dto.completedAt) : now,
           reservationId: updatedRequest.reservationId,
-          guestId: updatedRequest.guestId
+          guestId: updatedRequest.guestId,
+          updatedAt: new Date()
         },
         create: {
+          id: randomUUID(),
           requestId: request.id,
           campgroundId: updatedRequest.campgroundId,
           reservationId: updatedRequest.reservationId,
@@ -454,8 +509,9 @@ export class SignaturesService {
           pdfUrl,
           storageKey: dto.storageKey ?? null,
           checksum,
-          metadata: dto.metadata ?? null,
-          completedAt: dto.completedAt ? new Date(dto.completedAt) : now
+          metadata: toJsonInput(dto.metadata),
+          completedAt: dto.completedAt ? new Date(dto.completedAt) : now,
+          updatedAt: new Date()
         }
       });
     }
@@ -476,27 +532,46 @@ export class SignaturesService {
   }
 
   async listByReservation(reservationId: string) {
-    return this.prisma.signatureRequest.findMany({
+    const requests = await this.prisma.signatureRequest.findMany({
       where: { reservationId },
-      include: { artifact: true, template: true }
+      include: { SignatureArtifact: true, DocumentTemplate: true }
     });
+    return requests.map(({ SignatureArtifact, DocumentTemplate, ...rest }) => ({
+      ...rest,
+      artifact: SignatureArtifact ?? null,
+      template: DocumentTemplate ?? null
+    }));
   }
 
   async getById(id: string) {
-    return this.prisma.signatureRequest.findUnique({
+    const request = await this.prisma.signatureRequest.findUnique({
       where: { id },
-      include: { artifact: true, template: true }
+      include: { SignatureArtifact: true, DocumentTemplate: true }
     });
+    if (!request) return null;
+    const { SignatureArtifact, DocumentTemplate, ...rest } = request;
+    return {
+      ...rest,
+      artifact: SignatureArtifact ?? null,
+      template: DocumentTemplate ?? null
+    };
   }
 
   async getByToken(token: string) {
-    return this.prisma.signatureRequest.findUnique({
+    const request = await this.prisma.signatureRequest.findUnique({
       where: { token },
-      include: { artifact: true, template: true }
+      include: { SignatureArtifact: true, DocumentTemplate: true }
     });
+    if (!request) return null;
+    const { SignatureArtifact, DocumentTemplate, ...rest } = request;
+    return {
+      ...rest,
+      artifact: SignatureArtifact ?? null,
+      template: DocumentTemplate ?? null
+    };
   }
 
-  private scoreTemplate(tpl: any, siteId?: string | null, siteClassId?: string | null) {
+  private scoreTemplate(tpl: DocumentTemplate, siteId?: string | null, siteClassId?: string | null) {
     let score = 0;
     if (tpl.siteId && tpl.siteId === siteId) score += 3;
     if (tpl.siteClassId && tpl.siteClassId === siteClassId) score += 2;
@@ -505,44 +580,55 @@ export class SignaturesService {
     return score;
   }
 
-  async autoSendForReservation(reservation: any) {
-    if (!reservation?.campgroundId || !reservation?.id) return null;
+  async autoSendForReservation(reservation: unknown) {
+    if (!isRecord(reservation)) return null;
+    const campgroundId = toStringValue(reservation.campgroundId);
+    const reservationId = toStringValue(reservation.id);
+    if (!campgroundId || !reservationId) return null;
 
-    const guest =
-      reservation.guest ??
-      (reservation.guestId
-        ? await this.prisma.guest.findUnique({ where: { id: reservation.guestId } })
-        : null);
-    if (!guest?.email) return null;
+    const guestRecord =
+      getRecordField(reservation, "guest") ?? getRecordField(reservation, "Guest");
+    const guestId = toStringValue(reservation.guestId) ?? (guestRecord ? toStringValue(guestRecord.id) : null);
+    const guestEmail = guestRecord ? toStringValue(guestRecord.email) : null;
+    const guestPhone = guestRecord ? toStringValue(guestRecord.phone) : null;
+
+    const guestFromDb = guestId ? await this.prisma.guest.findUnique({ where: { id: guestId } }) : null;
+    if (!guestFromDb?.email && !guestEmail) return null;
+
+    const siteId = toStringValue(reservation.siteId);
+    const siteRecord = getRecordField(reservation, "site") ?? getRecordField(reservation, "Site");
+    const siteClassId = siteRecord ? toStringValue(siteRecord.siteClassId) : null;
 
     const templates = await this.prisma.documentTemplate.findMany({
       where: {
-        campgroundId: reservation.campgroundId,
+        campgroundId,
         isActive: true,
         autoSend: true,
-        OR: [
-          reservation.siteId ? { siteId: reservation.siteId } : undefined,
-          reservation.site?.siteClassId ? { siteClassId: reservation.site.siteClassId } : undefined,
-          { siteId: null, siteClassId: null }
-        ].filter(Boolean) as any[]
+        OR: (() => {
+          const clauses: Prisma.DocumentTemplateWhereInput[] = [];
+          if (siteId) clauses.push({ siteId });
+          if (siteClassId) clauses.push({ siteClassId });
+          clauses.push({ siteId: null, siteClassId: null });
+          return clauses;
+        })()
       }
     });
 
     if (!templates.length) return null;
 
     const ranked = templates
-      .map((tpl: any) => ({
+      .map((tpl) => ({
         tpl,
-        score: this.scoreTemplate(tpl, reservation.siteId, reservation.site?.siteClassId ?? null)
+        score: this.scoreTemplate(tpl, siteId, siteClassId ?? null)
       }))
-      .sort((a: { tpl: any; score: number }, b: { tpl: any; score: number }) => b.score - a.score);
+      .sort((a, b) => b.score - a.score);
 
     const template = ranked[0]?.tpl;
     if (!template) return null;
 
     const existing = await this.prisma.signatureRequest.findFirst({
       where: {
-        reservationId: reservation.id,
+        reservationId,
         documentType: template.type,
         status: { notIn: FINAL_SIGNATURE_STATES }
       }
@@ -552,20 +638,20 @@ export class SignaturesService {
     try {
       return await this.createAndSend(
         {
-          campgroundId: reservation.campgroundId,
-          reservationId: reservation.id,
-          guestId: guest.id,
+          campgroundId,
+          reservationId,
+          guestId: guestFromDb?.id ?? guestId ?? undefined,
           templateId: template.id,
           documentType: template.type,
           subject: template.name,
-          recipientEmail: guest.email,
-          recipientPhone: guest.phone ?? undefined,
+          recipientEmail: guestFromDb?.email ?? guestEmail ?? undefined,
+          recipientPhone: guestFromDb?.phone ?? guestPhone ?? undefined,
           message: template.content ? template.content.slice(0, 280) : undefined
         },
         null
       );
     } catch (err) {
-      this.logger.warn(`Auto-send signature failed for reservation ${reservation.id}: ${err}`);
+      this.logger.warn(`Auto-send signature failed for reservation ${reservationId}: ${err}`);
       return null;
     }
   }
@@ -575,6 +661,7 @@ export class SignaturesService {
     const reminderAt = expiresAt ? this.computeReminder(expiresAt, 7) : null;
     const upload = await this.prisma.coiUpload.create({
       data: {
+        id: randomUUID(),
         campgroundId: dto.campgroundId,
         reservationId: dto.reservationId ?? null,
         guestId: dto.guestId ?? null,
@@ -583,7 +670,8 @@ export class SignaturesService {
         status: dto.status ?? CoiStatus.active,
         expiresAt,
         reminderAt,
-        notes: dto.notes ?? null
+        notes: dto.notes ?? null,
+        updatedAt: new Date()
       }
     });
 
@@ -680,6 +768,7 @@ export class SignaturesService {
 
     const paperSignedAt = dto.paperSignedAt ? new Date(dto.paperSignedAt) : new Date();
 
+    const metadataRecord = getMetadataRecord(existing.metadata);
     const updated = await this.prisma.signatureRequest.update({
       where: { id: dto.id },
       data: {
@@ -690,10 +779,10 @@ export class SignaturesService {
         paperArtifactUrl: dto.paperArtifactUrl ?? null,
         signedAt: paperSignedAt,
         reminderAt: null, // Stop reminders
-        metadata: {
-          ...(existing.metadata as object || {}),
-          paperSigningNotes: dto.notes
-        }
+        metadata: toJsonInput({
+          ...metadataRecord,
+          paperSigningNotes: dto.notes ?? null
+        })
       }
     });
 
@@ -703,16 +792,19 @@ export class SignaturesService {
       update: {
         pdfUrl: dto.paperArtifactUrl || "paper-signed-no-scan",
         completedAt: paperSignedAt,
-        metadata: { paperSigned: true, receivedBy: actorId }
+        metadata: toJsonInput({ paperSigned: true, receivedBy: actorId }),
+        updatedAt: new Date()
       },
       create: {
+        id: randomUUID(),
         requestId: existing.id,
         campgroundId: existing.campgroundId,
         reservationId: existing.reservationId,
         guestId: existing.guestId,
         pdfUrl: dto.paperArtifactUrl || "paper-signed-no-scan",
         completedAt: paperSignedAt,
-        metadata: { paperSigned: true, receivedBy: actorId }
+        metadata: toJsonInput({ paperSigned: true, receivedBy: actorId }),
+        updatedAt: new Date()
       }
     });
 
@@ -751,7 +843,7 @@ export class SignaturesService {
         status: SignatureRequestStatus.waived,
         signatureMethod: SignatureMethod.waived,
         signatureWaived: true,
-        waiverReason: dto.reason as WaiverReason,
+        waiverReason: dto.reason,
         waiverNotes: dto.notes ?? null,
         waivedBy: actorId,
         waivedAt,
@@ -775,9 +867,10 @@ export class SignaturesService {
   // ==================== CONTRACT STATS ====================
 
   async getContractStats(campgroundId: string, seasonYear?: number, documentType?: string): Promise<ContractStats> {
-    const where: any = { campgroundId };
+    const where: Prisma.SignatureRequestWhereInput = { campgroundId };
     if (seasonYear) where.seasonYear = seasonYear;
-    if (documentType) where.documentType = documentType;
+    const parsedDocumentType = parseSignatureDocumentType(documentType);
+    if (parsedDocumentType) where.documentType = parsedDocumentType;
 
     const counts = await this.prisma.signatureRequest.groupBy({
       by: ["status"],
@@ -845,22 +938,31 @@ export class SignaturesService {
     limit?: number;
     offset?: number;
   }) {
-    const where: any = { campgroundId };
+    const where: Prisma.SignatureRequestWhereInput = { campgroundId };
     if (options?.seasonYear) where.seasonYear = options.seasonYear;
-    if (options?.documentType) where.documentType = options.documentType;
+    const parsedDocumentType = parseSignatureDocumentType(options?.documentType);
+    if (parsedDocumentType) where.documentType = parsedDocumentType;
     if (options?.guestId) where.guestId = options.guestId;
     if (options?.status) {
-      where.status = Array.isArray(options.status) ? { in: options.status } : options.status;
+      const statusList = Array.isArray(options.status) ? options.status : [options.status];
+      const parsedStatuses = statusList
+        .map((status) => parseSignatureRequestStatus(status))
+        .filter((status): status is SignatureRequestStatus => Boolean(status));
+      if (parsedStatuses.length === 1) {
+        where.status = parsedStatuses[0];
+      } else if (parsedStatuses.length > 1) {
+        where.status = { in: parsedStatuses };
+      }
     }
 
-    const [contracts, total] = await Promise.all([
+    const [contractsRaw, total] = await Promise.all([
       this.prisma.signatureRequest.findMany({
         where,
         include: {
-          guest: { select: { id: true, primaryFirstName: true, primaryLastName: true, email: true, phone: true } },
-          template: { select: { id: true, name: true, type: true } },
-          artifact: { select: { id: true, pdfUrl: true, completedAt: true } },
-          reservation: { select: { id: true, arrivalDate: true, departureDate: true, siteId: true } }
+          Guest: { select: { id: true, primaryFirstName: true, primaryLastName: true, email: true, phone: true } },
+          DocumentTemplate: { select: { id: true, name: true, type: true } },
+          SignatureArtifact: { select: { id: true, pdfUrl: true, completedAt: true } },
+          Reservation: { select: { id: true, arrivalDate: true, departureDate: true, siteId: true } }
         },
         orderBy: [{ seasonYear: "desc" }, { createdAt: "desc" }],
         take: options?.limit ?? 50,
@@ -868,6 +970,14 @@ export class SignaturesService {
       }),
       this.prisma.signatureRequest.count({ where })
     ]);
+
+    const contracts = contractsRaw.map(({ Guest, DocumentTemplate, SignatureArtifact, Reservation, ...rest }) => ({
+      ...rest,
+      guest: Guest ?? null,
+      template: DocumentTemplate ?? null,
+      artifact: SignatureArtifact ?? null,
+      reservation: Reservation ?? null
+    }));
 
     return { contracts, total };
   }
@@ -915,7 +1025,7 @@ export class SignaturesService {
           guestId: recipient.guestId,
           reservationId: recipient.reservationId,
           templateId: dto.templateId,
-          documentType: template.type as any,
+          documentType: template.type,
           deliveryChannel: dto.deliveryChannel,
           subject: dto.subject || `${dto.seasonYear} Seasonal Contract`,
           message: dto.message,
@@ -967,15 +1077,15 @@ export class SignaturesService {
   async getContractPdfUrl(requestId: string) {
     const request = await this.prisma.signatureRequest.findUnique({
       where: { id: requestId },
-      include: { artifact: true, template: true }
+      include: { SignatureArtifact: true, DocumentTemplate: true }
     });
 
     if (!request) throw new NotFoundException("Signature request not found");
 
     // If there's an artifact with a PDF, return it
-    if (request.artifact?.pdfUrl) {
+    if (request.SignatureArtifact?.pdfUrl) {
       return {
-        url: request.artifact.pdfUrl,
+        url: request.SignatureArtifact.pdfUrl,
         status: request.status,
         signedAt: request.signedAt || request.paperSignedAt,
         isPreview: false
@@ -986,7 +1096,7 @@ export class SignaturesService {
     // In production, this would generate an actual PDF
     return {
       url: null,
-      previewContent: request.template?.content ?? null,
+      previewContent: request.DocumentTemplate?.content ?? null,
       status: request.status,
       isPreview: true
     };

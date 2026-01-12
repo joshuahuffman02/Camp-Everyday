@@ -21,6 +21,11 @@ export interface ParticleConfig {
   shapes?: string[];
 }
 
+type TimeOfDay = NonNullable<ParticleConfig["timeOfDay"]>[number];
+const timeOfDayOptions: TimeOfDay[] = ["morning", "afternoon", "evening", "night"];
+const isTimeOfDay = (value: string): value is TimeOfDay =>
+  timeOfDayOptions.some((option) => option === value);
+
 export const seasonalConfigs: Record<Season, ParticleConfig> = {
   fall: {
     name: "Falling Leaves",
@@ -105,5 +110,8 @@ export function shouldShowParticles(
   if (!config.timeOfDay || config.timeOfDay.length === 0) {
     return true;
   }
-  return config.timeOfDay.includes(timeOfDay as "morning" | "afternoon" | "evening" | "night");
+  if (!isTimeOfDay(timeOfDay)) {
+    return false;
+  }
+  return config.timeOfDay.includes(timeOfDay);
 }

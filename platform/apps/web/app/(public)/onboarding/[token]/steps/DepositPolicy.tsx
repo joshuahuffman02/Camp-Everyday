@@ -6,7 +6,7 @@ import { Shield, Check, DollarSign, Percent, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-interface DepositPolicyData {
+export interface DepositPolicyData {
   strategy: "first_night" | "percent" | "full";
   percentValue?: number;
 }
@@ -18,15 +18,23 @@ interface DepositPolicyProps {
   isLoading?: boolean;
 }
 
-const SPRING_CONFIG = {
-  type: "spring" as const,
+const SPRING_CONFIG: { type: "spring"; stiffness: number; damping: number } = {
+  type: "spring",
   stiffness: 300,
   damping: 25,
 };
 
-const policies = [
+const policies: Array<{
+  id: DepositPolicyData["strategy"];
+  title: string;
+  description: string;
+  icon: typeof Moon;
+  example: string;
+  color: string;
+  recommended?: boolean;
+}> = [
   {
-    id: "first_night" as const,
+    id: "first_night",
     title: "First Night",
     description: "Collect the first night as deposit",
     icon: Moon,
@@ -34,7 +42,7 @@ const policies = [
     color: "violet",
   },
   {
-    id: "percent" as const,
+    id: "percent",
     title: "50% Deposit",
     description: "Collect half the total upfront",
     icon: Percent,
@@ -43,7 +51,7 @@ const policies = [
     recommended: true,
   },
   {
-    id: "full" as const,
+    id: "full",
     title: "Full Payment",
     description: "Collect everything at booking",
     icon: DollarSign,

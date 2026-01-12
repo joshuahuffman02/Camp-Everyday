@@ -43,8 +43,9 @@ export function PromoCodeInput({ disabled = false }: PromoCodeInputProps) {
       } else {
         setError("Invalid or expired promo code");
       }
-    } catch (err: any) {
-      setError(err.message || "Failed to apply promo code");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to apply promo code";
+      setError(message);
     } finally {
       setApplying(false);
     }

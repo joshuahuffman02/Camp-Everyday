@@ -177,7 +177,7 @@ export class SitemapService {
       where: { isPublished: true },
       select: {
         slug: true,
-        pageType: true,
+        type: true,
         publishedAt: true,
       },
     });
@@ -186,7 +186,7 @@ export class SitemapService {
       loc: `${this.baseUrl}/software/${p.slug}`,
       lastmod: p.publishedAt?.toISOString(),
       changefreq: "monthly",
-      priority: p.pageType === "competitor_comparison" ? 0.8 : 0.7,
+      priority: p.type === "competitor_comparison" ? 0.8 : 0.7,
     }));
 
     // Add static software pages

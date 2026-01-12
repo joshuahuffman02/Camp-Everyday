@@ -32,24 +32,24 @@ import {
 // DTOs with validation
 class SubmitClaimRequestDto implements SubmitClaimDto {
   @IsString()
-  campgroundId: string;
+  campgroundId!: string;
 
   @IsEnum(ClaimVerificationMethod)
-  verificationMethod: ClaimVerificationMethod;
+  verificationMethod!: ClaimVerificationMethod;
 
   @IsString()
   @MinLength(2)
-  businessName: string;
+  businessName!: string;
 
   @IsString()
   @MinLength(2)
-  contactName: string;
+  contactName!: string;
 
   @IsEmail()
-  contactEmail: string;
+  contactEmail!: string;
 
   @IsString()
-  contactPhone: string;
+  contactPhone!: string;
 
   @IsOptional()
   @IsString()
@@ -62,22 +62,22 @@ class SubmitClaimRequestDto implements SubmitClaimDto {
 
 class VerifyClaimRequestDto {
   @IsString()
-  claimId: string;
+  claimId!: string;
 
   @IsString()
   @MinLength(6)
-  verificationCode: string;
+  verificationCode!: string;
 }
 
 class ApproveClaimRequestDto {
   @IsString()
-  organizationId: string;
+  organizationId!: string;
 }
 
 class RejectClaimRequestDto {
   @IsString()
   @MinLength(10)
-  reason: string;
+  reason!: string;
 }
 
 // User payload type

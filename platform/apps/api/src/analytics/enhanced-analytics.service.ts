@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { AnalyticsActorType, AnalyticsEventName, Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import { randomUUID } from "crypto";
 import {
   TrackAdminEventDto,
   TrackSessionDto,
@@ -15,6 +16,15 @@ type RequestScope = {
   campgroundId?: string | null;
   organizationId?: string | null;
   userId?: string | null;
+};
+
+const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined => {
+  if (value === undefined || value === null) return undefined;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
 };
 
 /**
@@ -45,10 +55,11 @@ export class EnhancedAnalyticsService {
 
     if (existing) {
       // Session already exists, update it
+      const actorType: AnalyticsActorType = dto.actorType;
       return this.prisma.analyticsSession.update({
         where: { sessionId: dto.sessionId },
         data: {
-          actorType: dto.actorType as AnalyticsActorType,
+          actorType,
           userId: dto.userId ?? existing.userId,
           guestId: dto.guestId ?? existing.guestId,
           updatedAt: new Date(),
@@ -57,10 +68,12 @@ export class EnhancedAnalyticsService {
     }
 
     // Create new session
+    const actorType: AnalyticsActorType = dto.actorType;
     return this.prisma.analyticsSession.create({
       data: {
+        id: randomUUID(),
         sessionId: dto.sessionId,
-        actorType: dto.actorType as AnalyticsActorType,
+        actorType,
         userId: dto.userId,
         guestId: dto.guestId,
         campgroundId,
@@ -77,6 +90,7 @@ export class EnhancedAnalyticsService {
         utmSource: dto.utmSource,
         utmMedium: dto.utmMedium,
         utmCampaign: dto.utmCampaign,
+        updatedAt: new Date(),
       },
     });
   }
@@ -168,12 +182,13 @@ export class EnhancedAnalyticsService {
     // Create the analytics event
     const event = await this.prisma.analyticsEvent.create({
       data: {
+        id: randomUUID(),
         sessionId: dto.sessionId,
         eventName: dto.eventName,
         occurredAt,
         page: dto.page,
         deviceType: dto.deviceType,
-        metadata: {
+        metadata: toJsonValue({
           pageTitle: dto.pageTitle,
           featureArea: dto.featureArea,
           actionType: dto.actionType,
@@ -187,9 +202,9 @@ export class EnhancedAnalyticsService {
           errorMessage: dto.errorMessage,
           errorCode: dto.errorCode,
           ...dto.metadata,
-        },
-        campground: campgroundId ? { connect: { id: campgroundId } } : undefined,
-        organization: organizationId ? { connect: { id: organizationId } } : undefined,
+        }),
+        Campground: campgroundId ? { connect: { id: campgroundId } } : undefined,
+        Organization: organizationId ? { connect: { id: organizationId } } : undefined,
       },
     });
 
@@ -259,13 +274,13 @@ export class EnhancedAnalyticsService {
     });
 
     const now = new Date();
-    const stepField = `step${dto.step}At` as keyof typeof funnel;
-
     if (!funnel) {
       // Create new funnel
       const stepNames = dto.stepName ? [dto.stepName] : [];
+      const metadata = toJsonValue(dto.metadata);
       funnel = await this.prisma.analyticsFunnel.create({
         data: {
+          id: randomUUID(),
           campgroundId,
           organizationId: dto.organizationId ?? scope.organizationId,
           sessionId: dto.sessionId,
@@ -277,7 +292,8 @@ export class EnhancedAnalyticsService {
           step5At: dto.step === 5 ? now : undefined,
           step6At: dto.step === 6 ? now : undefined,
           stepNames,
-          metadata: dto.metadata,
+          metadata,
+          updatedAt: now,
         },
       });
     } else {
@@ -287,17 +303,38 @@ export class EnhancedAnalyticsService {
         stepNames.push(dto.stepName);
       }
 
-      const updateData: Record<string, unknown> = {
+      const updateData: Prisma.AnalyticsFunnelUpdateInput = {
         stepNames,
         updatedAt: now,
       };
-      updateData[stepField] = now;
+      switch (dto.step) {
+        case 1:
+          updateData.step1At = now;
+          break;
+        case 2:
+          updateData.step2At = now;
+          break;
+        case 3:
+          updateData.step3At = now;
+          break;
+        case 4:
+          updateData.step4At = now;
+          break;
+        case 5:
+          updateData.step5At = now;
+          break;
+        case 6:
+          updateData.step6At = now;
+          break;
+        default:
+          throw new BadRequestException("Invalid funnel step");
+      }
 
       if (dto.metadata) {
-        updateData.metadata = {
-          ...(funnel.metadata as object || {}),
+        updateData.metadata = toJsonValue({
+          ...this.normalizeMetadata(funnel.metadata),
           ...dto.metadata,
-        };
+        });
       }
 
       funnel = await this.prisma.analyticsFunnel.update({
@@ -309,17 +346,18 @@ export class EnhancedAnalyticsService {
     // Track funnel step event
     await this.prisma.analyticsEvent.create({
       data: {
+        id: randomUUID(),
         sessionId: dto.sessionId,
         eventName: AnalyticsEventName.funnel_step,
         occurredAt: now,
-        metadata: {
+        metadata: toJsonValue({
           funnelName: dto.funnelName,
           step: dto.step,
           stepName: dto.stepName,
           ...dto.metadata,
-        },
-        campground: { connect: { id: campgroundId } },
-        organization: dto.organizationId ? { connect: { id: dto.organizationId } } : undefined,
+        }),
+        Campground: { connect: { id: campgroundId } },
+        Organization: dto.organizationId ? { connect: { id: dto.organizationId } } : undefined,
       },
     });
 
@@ -368,10 +406,10 @@ export class EnhancedAnalyticsService {
     }
 
     if (dto.metadata) {
-      updateData.metadata = {
-        ...(funnel.metadata as object || {}),
+      updateData.metadata = toJsonValue({
+        ...this.normalizeMetadata(funnel.metadata),
         ...dto.metadata,
-      };
+      });
     }
 
     const updated = await this.prisma.analyticsFunnel.update({
@@ -382,20 +420,21 @@ export class EnhancedAnalyticsService {
     // Track completion/abandonment event
     await this.prisma.analyticsEvent.create({
       data: {
+        id: randomUUID(),
         sessionId: dto.sessionId,
         eventName: dto.outcome === "completed"
           ? AnalyticsEventName.funnel_complete
           : AnalyticsEventName.funnel_abandon,
         occurredAt: now,
-        metadata: {
+        metadata: toJsonValue({
           funnelName: dto.funnelName,
           outcome: dto.outcome,
           abandonedStep: dto.abandonedStep,
           abandonReason: dto.abandonReason,
           totalDurationSecs,
           ...dto.metadata,
-        },
-        campground: { connect: { id: campgroundId } },
+        }),
+        Campground: { connect: { id: campgroundId } },
       },
     });
 
@@ -455,6 +494,7 @@ export class EnhancedAnalyticsService {
       // Create new record
       await this.prisma.analyticsFeatureUsage.create({
         data: {
+          id: randomUUID(),
           campgroundId,
           organizationId: scope.organizationId,
           date: today,
@@ -465,6 +505,7 @@ export class EnhancedAnalyticsService {
           avgDurationSecs: dto.durationSecs,
           successRate: dto.outcome === "success" ? 1 : dto.outcome === "failure" ? 0 : null,
           errorCount: dto.outcome === "failure" ? 1 : 0,
+          updatedAt: new Date(),
         },
       });
     }
@@ -472,18 +513,19 @@ export class EnhancedAnalyticsService {
     // Track the event
     await this.prisma.analyticsEvent.create({
       data: {
+        id: randomUUID(),
         sessionId: dto.sessionId,
         eventName: AnalyticsEventName.admin_feature_use,
         occurredAt: new Date(),
-        metadata: {
+        metadata: toJsonValue({
           feature: dto.feature,
           subFeature: dto.subFeature,
           durationSecs: dto.durationSecs,
           outcome: dto.outcome,
           errorMessage: dto.errorMessage,
           ...dto.metadata,
-        },
-        campground: { connect: { id: campgroundId } },
+        }),
+        Campground: { connect: { id: campgroundId } },
       },
     });
 
@@ -531,13 +573,14 @@ export class EnhancedAnalyticsService {
 
     await this.prisma.analyticsLiveEvent.create({
       data: {
+        id: randomUUID(),
         campgroundId: params.campgroundId,
         organizationId: params.organizationId,
         sessionId: params.sessionId,
         eventType: params.eventType,
         actorType: params.actorType,
         actorId: params.actorId,
-        eventData: params.eventData,
+        eventData: toJsonValue(params.eventData) ?? {},
         expiresAt,
       },
     });
@@ -746,7 +789,7 @@ export class EnhancedAnalyticsService {
         date: { gte: since },
       },
       include: {
-        user: {
+        User: {
           select: {
             id: true,
             firstName: true,
@@ -815,6 +858,7 @@ export class EnhancedAnalyticsService {
           },
         },
         create: {
+          id: randomUUID(),
           campgroundId: row.campgroundId,
           date: yesterday,
           path: row.page,
@@ -822,6 +866,7 @@ export class EnhancedAnalyticsService {
           views: Number(row.views),
           uniqueSessions: Number(row.uniqueSessions),
           uniqueUsers: Number(row.uniqueUsers),
+          updatedAt: new Date(),
         },
         update: {
           views: Number(row.views),
@@ -900,6 +945,7 @@ export class EnhancedAnalyticsService {
           },
         },
         create: {
+          id: randomUUID(),
           campgroundId: metric.campgroundId,
           userId: metric.userId,
           date: yesterday,
@@ -909,6 +955,7 @@ export class EnhancedAnalyticsService {
           pageViews: metric.pageViews,
           actionsCount: metric.actions,
           errorsCount: metric.errors,
+          updatedAt: new Date(),
         },
         update: {
           sessionsCount: metric.sessions,
@@ -991,5 +1038,13 @@ export class EnhancedAnalyticsService {
     if (path.includes("/promotions") || path.includes("/marketing")) return "marketing";
     if (path.includes("/ai")) return "ai";
     return "other";
+  }
+
+  private normalizeMetadata(value: unknown): Record<string, unknown> {
+    return this.isRecord(value) ? value : {};
+  }
+
+  private isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null;
   }
 }

@@ -1,7 +1,5 @@
-// @ts-nocheck
 import { Response } from "node-fetch";
-import { DeveloperApiClient } from "../../../../packages/sdk/src/client";
-import type { ReservationPayload } from "../../../../packages/sdk/src/types";
+import { DeveloperApiClient, type ReservationPayload, type Scope } from "@keepr/sdk";
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -12,19 +10,20 @@ function jsonResponse(body: unknown, status = 200) {
 
 describe("SDK OAuth + reservations CRUD (mocked)", () => {
   const baseUrl = "https://api.example.com";
+  const scopes: Scope[] = ["reservations:read", "reservations:write"];
   const config = {
     baseUrl,
     clientId: "client-id",
     clientSecret: "client-secret",
     campgroundId: "camp-1",
-    scopes: ["reservations:read", "reservations:write"] as const
+    scopes
   };
 
   let fetchMock: jest.Mock;
 
   beforeEach(() => {
     fetchMock = jest.fn();
-    (global as any).fetch = fetchMock;
+    Object.defineProperty(globalThis, "fetch", { value: fetchMock, configurable: true });
   });
 
   afterEach(() => {
@@ -135,4 +134,3 @@ describe("SDK OAuth + reservations CRUD (mocked)", () => {
     );
   });
 });
-

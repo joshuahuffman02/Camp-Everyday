@@ -79,7 +79,7 @@ export class PrivacyController {
   @Post("preview")
   async preview(
     @Param("campgroundId") campgroundId: string,
-    @Body() body: { resource?: string; sample: any }
+    @Body() body: { resource?: string; sample: unknown }
   ) {
     return this.privacy.previewRedaction(campgroundId, body.resource, body.sample);
   }
@@ -97,4 +97,3 @@ export class PrivacyController {
     return this.privacy.exportConsentBundle(campgroundId);
   }
 }
-

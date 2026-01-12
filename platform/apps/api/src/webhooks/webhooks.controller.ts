@@ -12,10 +12,12 @@ import {
   BadRequestException,
   NotFoundException,
 } from "@nestjs/common";
+import { randomBytes, randomUUID } from "crypto";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard, Roles } from "../auth/guards/roles.guard";
 import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import { UserRole, PlatformRole } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { WebhookDeliveryService } from "./webhook-delivery.service";
 import { WebhookLogsService } from "./webhook-logs.service";
 import { WebhookSecurityService } from "./webhook-security.service";
@@ -23,6 +25,7 @@ import {
   EventCatalog,
   EventCatalogSummary,
   getAllCategories,
+  getAllEventTypes,
   getEventDefinition,
   getEventExample,
   validateEventTypes,
@@ -121,6 +124,20 @@ class QueryLogsDto {
   offset?: string;
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const isJsonValue = (value: unknown): value is Prisma.InputJsonValue => {
+  if (value === null) return true;
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return true;
+  if (Array.isArray(value)) return value.every(isJsonValue);
+  if (isRecord(value)) return Object.values(value).every(isJsonValue);
+  return false;
+};
+
+const toJsonInput = (value: unknown): Prisma.InputJsonValue | undefined =>
+  isJsonValue(value) ? value : undefined;
+
 /**
  * Webhooks Controller
  *
@@ -160,7 +177,10 @@ export class WebhooksController {
    */
   @Get("event-catalog/:eventType")
   getEventDefinition(@Param("eventType") eventType: string) {
-    const definition = getEventDefinition(eventType as WebhookEvent);
+    if (!isWebhookEvent(eventType)) {
+      throw new NotFoundException(`Event type '${eventType}' not found`);
+    }
+    const definition = getEventDefinition(eventType);
     if (!definition) {
       throw new NotFoundException(`Event type '${eventType}' not found`);
     }
@@ -205,7 +225,7 @@ export class WebhooksController {
         createdAt: true,
         updatedAt: true,
         _count: {
-          select: { deliveries: true },
+          select: { WebhookDelivery: true },
         },
       },
     });
@@ -225,7 +245,7 @@ export class WebhooksController {
     const endpoint = await this.prisma.webhookEndpoint.findFirst({
       where: { id, campgroundId },
       include: {
-        _count: { select: { deliveries: true } },
+        _count: { select: { WebhookDelivery: true } },
       },
     });
 
@@ -256,17 +276,18 @@ export class WebhooksController {
     }
 
     // Generate secret
-    const crypto = await import("crypto");
-    const secret = `wh_${crypto.randomBytes(16).toString("hex")}`;
+    const secret = `wh_${randomBytes(16).toString("hex")}`;
 
     const endpoint = await this.prisma.webhookEndpoint.create({
       data: {
+        id: randomUUID(),
         campgroundId: dto.campgroundId,
         url: dto.url,
         description: dto.description,
         eventTypes: dto.eventTypes,
         secret,
         isActive: true,
+        updatedAt: new Date(),
       },
     });
 
@@ -444,7 +465,10 @@ export class WebhooksController {
     }
 
     // Get example payload for the event type
-    const eventType = dto.eventType as WebhookEvent;
+    if (!isWebhookEvent(dto.eventType)) {
+      throw new BadRequestException(`Invalid event type '${dto.eventType}'`);
+    }
+    const eventType = dto.eventType;
     let payload = dto.customPayload;
 
     if (!payload) {
@@ -461,10 +485,15 @@ export class WebhooksController {
       };
     }
 
+    const payloadValue = toJsonInput(payload);
+    if (!payloadValue) {
+      throw new BadRequestException("Payload must be JSON-serializable");
+    }
+
     // Create a test delivery
-    const eventPayload = {
+    const eventPayload: Prisma.InputJsonValue = {
       event: eventType,
-      data: payload,
+      data: payloadValue,
       timestamp: new Date().toISOString(),
       _test: true,
     };
@@ -478,6 +507,7 @@ export class WebhooksController {
     // Create delivery record
     const delivery = await this.prisma.webhookDelivery.create({
       data: {
+        id: randomUUID(),
         webhookEndpointId: endpoint.id,
         eventType,
         status: "pending",
@@ -573,15 +603,15 @@ export class WebhooksController {
   ) {
     // Verify the delivery belongs to this campground
     const delivery = await this.prisma.webhookDelivery.findFirst({
-      where: { id, webhookEndpoint: { campgroundId } },
-      include: { webhookEndpoint: true },
+      where: { id, WebhookEndpoint: { campgroundId } },
+      include: { WebhookEndpoint: true },
     });
 
     if (!delivery) {
       throw new NotFoundException(`Delivery ${id} not found`);
     }
 
-    if (!delivery.webhookEndpoint) {
+    if (!delivery.WebhookEndpoint) {
       throw new NotFoundException("Webhook endpoint not found");
     }
 
@@ -594,8 +624,8 @@ export class WebhooksController {
 
     const result = await this.deliveryService.attemptDelivery(
       delivery.id,
-      delivery.webhookEndpoint.url,
-      delivery.webhookEndpoint.secret,
+      delivery.WebhookEndpoint.url,
+      delivery.WebhookEndpoint.secret,
       body
     );
 
@@ -639,7 +669,7 @@ export class WebhooksController {
   ) {
     // Verify ownership
     const delivery = await this.prisma.webhookDelivery.findFirst({
-      where: { id, webhookEndpoint: { campgroundId }, status: "dead_letter" },
+      where: { id, WebhookEndpoint: { campgroundId }, status: "dead_letter" },
     });
 
     if (!delivery) {
@@ -719,3 +749,8 @@ export class WebhooksController {
     return this.deliveryService.purgeDeadLetterQueue(days);
   }
 }
+
+const WEBHOOK_EVENTS = new Set<string>(getAllEventTypes());
+
+const isWebhookEvent = (value: string): value is WebhookEvent =>
+  WEBHOOK_EVENTS.has(value);

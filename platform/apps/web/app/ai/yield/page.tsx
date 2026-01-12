@@ -42,8 +42,8 @@ import {
 } from "@/hooks/use-realtime";
 import { useToast } from "@/hooks/use-toast";
 
-const SPRING_CONFIG = {
-  type: "spring" as const,
+const SPRING_CONFIG: { type: "spring"; stiffness: number; damping: number } = {
+  type: "spring",
   stiffness: 300,
   damping: 25,
 };
@@ -126,7 +126,6 @@ export default function YieldDashboardPage() {
         toast({
           title: "Metrics Updated",
           description: "Yield metrics refreshed after booking change",
-          duration: 3000,
         });
       }
     },
@@ -142,7 +141,6 @@ export default function YieldDashboardPage() {
       toast({
         title: "New Pricing Recommendation",
         description: `${eventData.reason} - potential +${formatCurrency(eventData.estimatedRevenueDelta)}`,
-        duration: 5000,
       });
     },
     [queryClient, toast]

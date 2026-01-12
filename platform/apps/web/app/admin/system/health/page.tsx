@@ -59,11 +59,12 @@ export default function SystemHealthPage() {
                 message: res.ok ? `Responding in ${latency}ms` : `Status: ${res.status}`,
                 lastChecked: new Date(),
             });
-        } catch (err: any) {
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : "Connection failed";
             results.push({
                 name: "API Server",
                 status: "down",
-                message: err.message || "Connection failed",
+                message,
                 lastChecked: new Date(),
             });
         }
@@ -84,11 +85,12 @@ export default function SystemHealthPage() {
                 message: res.ok ? `Query in ${latency}ms` : `Status: ${res.status}`,
                 lastChecked: new Date(),
             });
-        } catch (err: any) {
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : "Query failed";
             results.push({
                 name: "Database",
                 status: "down",
-                message: err.message || "Query failed",
+                message,
                 lastChecked: new Date(),
             });
         }
@@ -114,11 +116,12 @@ export default function SystemHealthPage() {
                     : `Response in ${latency}ms`,
                 lastChecked: new Date(),
             });
-        } catch (err: any) {
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : "Auth check failed";
             results.push({
                 name: "Auth Service",
                 status: "down",
-                message: err.message || "Auth check failed",
+                message,
                 lastChecked: new Date(),
             });
         }

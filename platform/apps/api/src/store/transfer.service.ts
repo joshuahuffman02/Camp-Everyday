@@ -1,6 +1,7 @@
 import { Injectable, ConflictException, NotFoundException, BadRequestException } from "@nestjs/common";
 import { Prisma, InventoryTransferStatus } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import { randomUUID } from "crypto";
 
 export interface CreateTransferDto {
     campgroundId: string;
@@ -14,6 +15,63 @@ export interface TransferItemDto {
     productId: string;
     qty: number;
 }
+
+const transferInclude = {
+    StoreLocation_InventoryTransfer_fromLocationIdToStoreLocation: {
+        select: { id: true, name: true, code: true },
+    },
+    StoreLocation_InventoryTransfer_toLocationIdToStoreLocation: {
+        select: { id: true, name: true, code: true },
+    },
+    User_InventoryTransfer_requestedByIdToUser: {
+        select: { id: true, firstName: true, lastName: true },
+    },
+    User_InventoryTransfer_approvedByIdToUser: {
+        select: { id: true, firstName: true, lastName: true },
+    },
+    User_InventoryTransfer_completedByIdToUser: {
+        select: { id: true, firstName: true, lastName: true },
+    },
+    InventoryTransferItem: {
+        include: {
+            Product: { select: { id: true, name: true, sku: true, priceCents: true } },
+        },
+    },
+    _count: { select: { InventoryTransferItem: true } },
+} satisfies Prisma.InventoryTransferInclude;
+
+type TransferWithRelations = Prisma.InventoryTransferGetPayload<{
+    include: typeof transferInclude;
+}>;
+
+const normalizeTransfer = (transfer: TransferWithRelations) => {
+    const {
+        StoreLocation_InventoryTransfer_fromLocationIdToStoreLocation: fromLocation,
+        StoreLocation_InventoryTransfer_toLocationIdToStoreLocation: toLocation,
+        User_InventoryTransfer_requestedByIdToUser: requestedBy,
+        User_InventoryTransfer_approvedByIdToUser: approvedBy,
+        User_InventoryTransfer_completedByIdToUser: completedBy,
+        InventoryTransferItem,
+        _count,
+        ...rest
+    } = transfer;
+
+    const items = InventoryTransferItem.map((item) => {
+        const { Product, ...itemRest } = item;
+        return { ...itemRest, product: Product };
+    });
+
+    return {
+        ...rest,
+        fromLocation,
+        toLocation,
+        requestedBy,
+        approvedBy,
+        completedBy,
+        items,
+        _count: _count ? { items: _count.InventoryTransferItem } : undefined,
+    };
+};
 
 @Injectable()
 export class TransferService {
@@ -30,28 +88,18 @@ export class TransferService {
             toLocationId?: string;
         }
     ) {
-        return this.prisma.inventoryTransfer.findMany({
+        const transfers = await this.prisma.inventoryTransfer.findMany({
             where: {
                 campgroundId,
                 ...(filters?.status ? { status: filters.status } : {}),
                 ...(filters?.fromLocationId ? { fromLocationId: filters.fromLocationId } : {}),
                 ...(filters?.toLocationId ? { toLocationId: filters.toLocationId } : {}),
             },
-            include: {
-                fromLocation: { select: { id: true, name: true, code: true } },
-                toLocation: { select: { id: true, name: true, code: true } },
-                requestedBy: { select: { id: true, firstName: true, lastName: true } },
-                approvedBy: { select: { id: true, firstName: true, lastName: true } },
-                completedBy: { select: { id: true, firstName: true, lastName: true } },
-                items: {
-                    include: {
-                        product: { select: { id: true, name: true, sku: true } },
-                    },
-                },
-                _count: { select: { items: true } },
-            },
+            include: transferInclude,
             orderBy: { createdAt: "desc" },
         });
+
+        return transfers.map(normalizeTransfer);
     }
 
     /**
@@ -60,22 +108,11 @@ export class TransferService {
     async getTransfer(campgroundId: string, id: string) {
         const transfer = await this.prisma.inventoryTransfer.findFirst({
             where: { id, campgroundId },
-            include: {
-                fromLocation: true,
-                toLocation: true,
-                requestedBy: { select: { id: true, firstName: true, lastName: true } },
-                approvedBy: { select: { id: true, firstName: true, lastName: true } },
-                completedBy: { select: { id: true, firstName: true, lastName: true } },
-                items: {
-                    include: {
-                        product: { select: { id: true, name: true, sku: true, priceCents: true } },
-                    },
-                },
-            },
+            include: transferInclude,
         });
 
         if (!transfer) throw new NotFoundException("Transfer not found");
-        return transfer;
+        return normalizeTransfer(transfer);
     }
 
     /**
@@ -128,31 +165,27 @@ export class TransferService {
         }
 
         // Create transfer with items
-        return this.prisma.inventoryTransfer.create({
+        const transfer = await this.prisma.inventoryTransfer.create({
             data: {
+                id: randomUUID(),
                 campgroundId: data.campgroundId,
                 fromLocationId: data.fromLocationId,
                 toLocationId: data.toLocationId,
                 status: "pending",
                 notes: data.notes,
                 requestedById,
-                items: {
+                InventoryTransferItem: {
                     create: data.items.map((item) => ({
+                        id: randomUUID(),
                         productId: item.productId,
                         qty: item.qty,
                     })),
                 },
             },
-            include: {
-                fromLocation: { select: { id: true, name: true, code: true } },
-                toLocation: { select: { id: true, name: true, code: true } },
-                items: {
-                    include: {
-                        product: { select: { id: true, name: true, sku: true } },
-                    },
-                },
-            },
+            include: transferInclude,
         });
+
+        return normalizeTransfer(transfer);
     }
 
     /**
@@ -161,7 +194,11 @@ export class TransferService {
     async approveTransfer(campgroundId: string, id: string, approvedById: string) {
         const transfer = await this.prisma.inventoryTransfer.findFirst({
             where: { id, campgroundId },
-            include: { items: true },
+            include: {
+                InventoryTransferItem: {
+                    include: { Product: { select: { id: true, name: true, sku: true, priceCents: true } } },
+                },
+            },
         });
 
         if (!transfer) throw new NotFoundException("Transfer not found");
@@ -170,7 +207,7 @@ export class TransferService {
         }
 
         // Re-verify stock availability
-        for (const item of transfer.items) {
+        for (const item of transfer.InventoryTransferItem) {
             const inventory = await this.prisma.locationInventory.findUnique({
                 where: { productId_locationId: { productId: item.productId, locationId: transfer.fromLocationId } },
             });
@@ -182,18 +219,17 @@ export class TransferService {
             }
         }
 
-        return this.prisma.inventoryTransfer.update({
+        const updated = await this.prisma.inventoryTransfer.update({
             where: { id },
             data: {
                 status: "in_transit",
                 approvedById,
                 approvedAt: new Date(),
             },
-            include: {
-                fromLocation: { select: { id: true, name: true, code: true } },
-                toLocation: { select: { id: true, name: true, code: true } },
-            },
+            include: transferInclude,
         });
+
+        return normalizeTransfer(updated);
     }
 
     /**
@@ -203,9 +239,9 @@ export class TransferService {
         const transfer = await this.prisma.inventoryTransfer.findFirst({
             where: { id, campgroundId },
             include: {
-                items: { include: { product: true } },
-                fromLocation: true,
-                toLocation: true,
+                InventoryTransferItem: { include: { Product: true } },
+                StoreLocation_InventoryTransfer_fromLocationIdToStoreLocation: true,
+                StoreLocation_InventoryTransfer_toLocationIdToStoreLocation: true,
             },
         });
 
@@ -218,7 +254,7 @@ export class TransferService {
         return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
             const now = new Date();
 
-            for (const item of transfer.items) {
+            for (const item of transfer.InventoryTransferItem) {
                 // Get current stock at both locations
                 const [fromInventory, toInventory] = await Promise.all([
                     tx.locationInventory.findUnique({
@@ -234,7 +270,7 @@ export class TransferService {
 
                 if (fromPrevQty < item.qty) {
                     throw new BadRequestException(
-                        `Insufficient stock for ${item.product.name} (need: ${item.qty}, have: ${fromPrevQty})`
+                        `Insufficient stock for ${item.Product.name} (need: ${item.qty}, have: ${fromPrevQty})`
                     );
                 }
 
@@ -245,6 +281,7 @@ export class TransferService {
                 await tx.locationInventory.upsert({
                     where: { productId_locationId: { productId: item.productId, locationId: transfer.fromLocationId } },
                     create: {
+                        id: randomUUID(),
                         productId: item.productId,
                         locationId: transfer.fromLocationId,
                         stockQty: fromNewQty,
@@ -256,6 +293,7 @@ export class TransferService {
                 await tx.locationInventory.upsert({
                     where: { productId_locationId: { productId: item.productId, locationId: transfer.toLocationId } },
                     create: {
+                        id: randomUUID(),
                         productId: item.productId,
                         locationId: transfer.toLocationId,
                         stockQty: toNewQty,
@@ -266,6 +304,7 @@ export class TransferService {
                 // Log transfer_out movement
                 await tx.inventoryMovement.create({
                     data: {
+                        id: randomUUID(),
                         campgroundId: transfer.campgroundId,
                         productId: item.productId,
                         locationId: transfer.fromLocationId,
@@ -282,6 +321,7 @@ export class TransferService {
                 // Log transfer_in movement
                 await tx.inventoryMovement.create({
                     data: {
+                        id: randomUUID(),
                         campgroundId: transfer.campgroundId,
                         productId: item.productId,
                         locationId: transfer.toLocationId,
@@ -297,7 +337,7 @@ export class TransferService {
             }
 
             // Update transfer status
-            return tx.inventoryTransfer.update({
+            const updated = await tx.inventoryTransfer.update({
                 where: { id },
                 data: {
                     status: "completed",
@@ -308,16 +348,10 @@ export class TransferService {
                         ? { approvedById: completedById, approvedAt: now }
                         : {}),
                 },
-                include: {
-                    fromLocation: { select: { id: true, name: true, code: true } },
-                    toLocation: { select: { id: true, name: true, code: true } },
-                    items: {
-                        include: {
-                            product: { select: { id: true, name: true, sku: true } },
-                        },
-                    },
-                },
+                include: transferInclude,
             });
+
+            return normalizeTransfer(updated);
         });
     }
 

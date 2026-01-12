@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException, UnauthorizedException, Logger } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { Prisma } from "@prisma/client";
 import * as OTPAuth from "otpauth";
 import * as QRCode from "qrcode";
 import { randomBytes, createCipheriv, createDecipheriv } from "crypto";
@@ -165,8 +166,8 @@ export class TotpService {
         }
 
         // Try backup codes
-        if (user.totpBackupCodes) {
-            const backupCodes = user.totpBackupCodes as string[];
+        const backupCodes = normalizeBackupCodes(user.totpBackupCodes);
+        if (backupCodes) {
             const usedIndex = await this.checkBackupCode(code, backupCodes);
 
             if (usedIndex >= 0) {
@@ -217,7 +218,7 @@ export class TotpService {
                 totpEnabled: false,
                 totpSecret: null,
                 totpPendingSecret: null,
-                totpBackupCodes: null,
+                totpBackupCodes: Prisma.DbNull,
                 totpEnabledAt: null,
             },
         });
@@ -331,3 +332,8 @@ export class TotpService {
         return decrypted;
     }
 }
+
+const normalizeBackupCodes = (value: unknown): string[] | null =>
+    Array.isArray(value) && value.every((entry) => typeof entry === "string")
+        ? [...value]
+        : null;

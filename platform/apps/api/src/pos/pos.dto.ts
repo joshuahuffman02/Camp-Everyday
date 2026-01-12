@@ -1,5 +1,6 @@
 import { Type } from "class-transformer";
 import { IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsPositive, IsString, ValidateNested } from "class-validator";
+import { Prisma } from "@prisma/client";
 
 class CartItemInput {
   @IsString()
@@ -142,7 +143,7 @@ export class OfflineReplayDto {
   @IsString()
   taxVersion!: string;
 
-  payload!: any; // raw offline cart payload for server reprice
+  payload!: Prisma.InputJsonValue; // raw offline cart payload for server reprice
 
   @IsOptional()
   @IsString()

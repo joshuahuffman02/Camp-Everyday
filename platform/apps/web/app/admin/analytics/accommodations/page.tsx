@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import type { ReactNode } from "react";
 import { Building2, Truck, Tent, Home, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -12,9 +13,48 @@ import {
   formatCurrency,
 } from "@/components/analytics";
 
+type AccommodationTypeDistribution = {
+  type: string;
+  revenueShare: number;
+  siteCount: number;
+  reservations: number;
+  revenue: number;
+  occupancyRate: number;
+};
+
+type UtilizationByType = {
+  months?: string[];
+  byType?: {
+    rv?: number[];
+    tent?: number[];
+    cabin?: number[];
+    glamping?: number[];
+  };
+};
+
+type RigTypeBreakdown = {
+  rigType: string;
+  count: number;
+  percentage: number;
+  averageLength: number;
+  averageSpend: number;
+};
+
+type AccommodationData = {
+  overview?: {
+    totalSites?: number;
+    activeReservations?: number;
+    overallOccupancy?: number;
+    topPerformingType?: string | null;
+  };
+  typeDistribution?: AccommodationTypeDistribution[];
+  utilizationByType?: UtilizationByType;
+  rigTypes?: RigTypeBreakdown[];
+};
+
 export default function AccommodationsPage() {
   const [dateRange, setDateRange] = useState("last_12_months");
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<AccommodationData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -35,19 +75,38 @@ export default function AccommodationsPage() {
     fetchData();
   }, [dateRange]);
 
-  const typeIcons: Record<string, React.ReactNode> = {
+  const typeIcons: Record<string, ReactNode> = {
     rv: <Truck className="h-5 w-5 text-blue-400" />,
     tent: <Tent className="h-5 w-5 text-green-400" />,
     cabin: <Home className="h-5 w-5 text-amber-400" />,
     glamping: <Sparkles className="h-5 w-5 text-purple-400" />,
   };
 
-  const pieData = (data?.typeDistribution || []).map((item: any) => ({
+  const toNumber = (value: unknown): number | undefined =>
+    typeof value === "number" ? value : undefined;
+  const formatCount = (value: unknown): string => {
+    const numberValue = toNumber(value);
+    return numberValue !== undefined ? numberValue.toLocaleString() : "—";
+  };
+  const formatPercent = (value: unknown): string => {
+    const numberValue = toNumber(value);
+    return numberValue !== undefined ? `${numberValue.toFixed(1)}%` : "—";
+  };
+  const formatLength = (value: unknown): string => {
+    const numberValue = toNumber(value);
+    return numberValue !== undefined ? numberValue.toString() : "—";
+  };
+  const formatMoney = (value: unknown): string => {
+    const numberValue = toNumber(value);
+    return numberValue !== undefined ? formatCurrency(numberValue) : "—";
+  };
+
+  const pieData = (data?.typeDistribution || []).map((item) => ({
     name: item.type.charAt(0).toUpperCase() + item.type.slice(1),
     value: item.revenueShare,
   }));
 
-  const utilizationData = (data?.utilizationByType?.months || []).map((month: string, idx: number) => ({
+  const utilizationData = (data?.utilizationByType?.months || []).map((month, idx) => ({
     month,
     rv: data?.utilizationByType?.byType?.rv?.[idx] || 0,
     tent: data?.utilizationByType?.byType?.tent?.[idx] || 0,
@@ -55,7 +114,7 @@ export default function AccommodationsPage() {
     glamping: data?.utilizationByType?.byType?.glamping?.[idx] || 0,
   }));
 
-  const hasData = data && data.overview && data.overview.totalSites > 0;
+  const hasData = (data?.overview?.totalSites ?? 0) > 0;
 
   if (!loading && !hasData) {
     return (
@@ -134,15 +193,41 @@ export default function AccommodationsPage() {
                 label: "Type",
                 format: (v) => (
                   <div className="flex items-center gap-2">
-                    {typeIcons[v]}
-                    <span className="capitalize">{v}</span>
+                    {typeIcons[typeof v === "string" ? v : ""] || <Building2 className="h-5 w-5 text-slate-400" />}
+                    <span className="capitalize">{typeof v === "string" ? v : "Unknown"}</span>
                   </div>
                 ),
               },
-              { key: "siteCount", label: "Sites", align: "right", format: (v) => v.toLocaleString() },
-              { key: "reservations", label: "Reservations", align: "right", format: (v) => v.toLocaleString() },
-              { key: "revenue", label: "Revenue", align: "right", format: (v) => formatCurrency(v) },
-              { key: "occupancyRate", label: "Occupancy", align: "right", format: (v) => `${v.toFixed(1)}%` },
+              {
+                key: "siteCount",
+                label: "Sites",
+                align: "right",
+                format: (v) => (toNumber(v) ?? 0).toLocaleString(),
+              },
+              {
+                key: "reservations",
+                label: "Reservations",
+                align: "right",
+                format: (v) => (toNumber(v) ?? 0).toLocaleString(),
+              },
+              {
+                key: "revenue",
+                label: "Revenue",
+                align: "right",
+                format: (v) => {
+                  const numberValue = toNumber(v);
+                  return numberValue !== undefined ? formatCurrency(numberValue) : "—";
+                },
+              },
+              {
+                key: "occupancyRate",
+                label: "Occupancy",
+                align: "right",
+                format: (v) => {
+                  const numberValue = toNumber(v);
+                  return numberValue !== undefined ? `${numberValue.toFixed(1)}%` : "—";
+                },
+              },
             ]}
             data={data?.typeDistribution || []}
             loading={loading}
@@ -183,10 +268,10 @@ export default function AccommodationsPage() {
         description="Detailed analysis of RV types used by guests"
         columns={[
           { key: "rigType", label: "RV Type" },
-          { key: "count", label: "Reservations", align: "right", format: (v) => v.toLocaleString() },
-          { key: "percentage", label: "% of Total", align: "right", format: (v) => `${v.toFixed(1)}%` },
-          { key: "averageLength", label: "Avg Length (ft)", align: "right", format: (v) => v.toString() },
-          { key: "averageSpend", label: "Avg Spend", align: "right", format: (v) => formatCurrency(v) },
+          { key: "count", label: "Reservations", align: "right", format: (v) => formatCount(v) },
+          { key: "percentage", label: "% of Total", align: "right", format: (v) => formatPercent(v) },
+          { key: "averageLength", label: "Avg Length (ft)", align: "right", format: (v) => formatLength(v) },
+          { key: "averageSpend", label: "Avg Spend", align: "right", format: (v) => formatMoney(v) },
         ]}
         data={data?.rigTypes || []}
         loading={loading}

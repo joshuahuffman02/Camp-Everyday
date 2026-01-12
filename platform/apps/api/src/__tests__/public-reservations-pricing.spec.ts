@@ -1,3 +1,5 @@
+import { createHmac } from "crypto";
+import { Test, TestingModule } from "@nestjs/testing";
 import { PublicReservationsService } from "../public-reservations/public-reservations.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { LockService } from "../redis/lock.service";
@@ -5,6 +7,12 @@ import { PromotionsService } from "../promotions/promotions.service";
 import { EmailService } from "../email/email.service";
 import { AbandonedCartService } from "../abandoned-cart/abandoned-cart.service";
 import { MembershipsService } from "../memberships/memberships.service";
+import { SignaturesService } from "../signatures/signatures.service";
+import { PoliciesService } from "../policies/policies.service";
+import { AccessControlService } from "../access-control/access-control.service";
+import { PricingV2Service } from "../pricing-v2/pricing-v2.service";
+import { DepositPoliciesService } from "../deposit-policies/deposit-policies.service";
+import { StripeService } from "../payments/stripe.service";
 
 jest.mock("@prisma/client", () => ({
   PrismaClient: class { },
@@ -21,6 +29,44 @@ jest.mock("@prisma/client", () => ({
     percentage: "percentage",
     flat: "flat"
   },
+  SignatureRequestStatus: {
+    preview: "preview",
+    draft: "draft",
+    sent: "sent",
+    viewed: "viewed",
+    signed: "signed",
+    signed_paper: "signed_paper",
+    waived: "waived",
+    declined: "declined",
+    voided: "voided",
+    expired: "expired"
+  },
+  SignatureDocumentType: {
+    long_term_stay: "long_term_stay",
+    seasonal: "seasonal",
+    monthly: "monthly",
+    park_rules: "park_rules",
+    deposit: "deposit",
+    waiver: "waiver",
+    coi: "coi",
+    other: "other"
+  },
+  SignatureDeliveryChannel: {
+    email: "email",
+    sms: "sms",
+    email_and_sms: "email_and_sms"
+  },
+  SignatureMethod: {
+    digital: "digital",
+    paper: "paper",
+    waived: "waived"
+  },
+  CoiStatus: {
+    pending: "pending",
+    active: "active",
+    expired: "expired",
+    rejected: "rejected"
+  },
   MembershipType: class { },
   GuestMembership: class { },
   Prisma: {}
@@ -32,35 +78,107 @@ type PrismaMock = {
   taxRule: { findMany: jest.Mock };
   campground: { findUnique: jest.Mock };
   reservation: { findUnique: jest.Mock };
-} & Partial<PrismaService>;
+  onboardingInvite: { findUnique: jest.Mock };
+};
+
+type LockMock = { withLocks: jest.Mock };
+type PromotionsMock = { validate: jest.Mock };
+type MembershipsMock = { getActiveMembershipById: jest.Mock; getActiveMembershipByGuest: jest.Mock };
+type PoliciesMock = { evaluatePolicies: jest.Mock };
+type PricingV2Mock = { evaluate: jest.Mock };
+type DepositPoliciesMock = { resolve: jest.Mock; calculateDeposit: jest.Mock };
+
+type ReservationRecord = {
+  id: string;
+  campgroundId: string;
+  siteId: string;
+  guestId: string;
+  arrivalDate: Date;
+  departureDate: Date;
+  promoCode: string | null;
+  taxWaiverSigned: boolean | null;
+  Guest: { primaryFirstName: string; primaryLastName: string };
+  Campground: { name: string; slug: string; city: string; state: string; timezone: string };
+  Site: { SiteClass: { name: string; photos: string[] } };
+};
+
+type QuoteResult = Awaited<ReturnType<PublicReservationsService["getQuote"]>>;
 
 describe("PublicReservationsService pricing", () => {
   let service: PublicReservationsService;
   let prisma: PrismaMock;
-  let pricingV2Service: { evaluate: jest.Mock };
+  let moduleRef: TestingModule;
+  let locks: LockMock;
+  let promotionsService: PromotionsMock;
+  let membershipsService: MembershipsMock;
+  let policiesService: PoliciesMock;
+  let pricingV2Service: PricingV2Mock;
+  let depositPoliciesService: DepositPoliciesMock;
+  let emailService: Partial<EmailService>;
+  let abandonedCartService: Partial<AbandonedCartService>;
+  let signaturesService: Partial<SignaturesService>;
+  let accessControlService: Partial<AccessControlService>;
+  let stripeService: Partial<StripeService>;
 
-  beforeEach(() => {
+  const tokenSecret = "test-public-reservation-secret";
+  const originalTokenSecret = process.env.PUBLIC_RESERVATION_TOKEN_SECRET;
+
+  beforeAll(() => {
+    process.env.PUBLIC_RESERVATION_TOKEN_SECRET = tokenSecret;
+  });
+
+  afterAll(() => {
+    if (originalTokenSecret === undefined) {
+      delete process.env.PUBLIC_RESERVATION_TOKEN_SECRET;
+    } else {
+      process.env.PUBLIC_RESERVATION_TOKEN_SECRET = originalTokenSecret;
+    }
+  });
+
+  beforeEach(async () => {
     prisma = {
       pricingRule: { findMany: jest.fn() },
       site: { findUnique: jest.fn() },
       taxRule: { findMany: jest.fn() },
       campground: { findUnique: jest.fn() },
-      reservation: { findUnique: jest.fn() }
-    } as PrismaMock;
+      reservation: { findUnique: jest.fn() },
+      onboardingInvite: { findUnique: jest.fn() }
+    };
+    locks = { withLocks: jest.fn((_keys: string[], fn: () => Promise<unknown>) => fn()) };
+    promotionsService = { validate: jest.fn() };
+    membershipsService = { getActiveMembershipById: jest.fn(), getActiveMembershipByGuest: jest.fn() };
+    policiesService = { evaluatePolicies: jest.fn().mockResolvedValue([]) };
     pricingV2Service = { evaluate: jest.fn() };
-    service = new PublicReservationsService(
-      prisma as unknown as PrismaService,
-      { withLocks: (_keys: any, fn: any) => fn() } as LockService,
-      { validate: jest.fn() } as unknown as PromotionsService,
-      {} as EmailService,
-      {} as AbandonedCartService,
-      { getActiveMembershipById: jest.fn(), getActiveMembershipByGuest: jest.fn() } as unknown as MembershipsService,
-      {} as any, // signatures
-      { evaluatePolicies: jest.fn().mockResolvedValue({ waiverRequired: false, signatureRequired: false }) } as any, // policies
-      {} as any, // accessControl
-      pricingV2Service as any,
-      { resolve: jest.fn().mockResolvedValue(null), calculateDeposit: jest.fn().mockResolvedValue(null) } as any // depositPolicies
-    );
+    depositPoliciesService = { resolve: jest.fn().mockResolvedValue(null), calculateDeposit: jest.fn().mockResolvedValue(null) };
+    emailService = {};
+    abandonedCartService = {};
+    signaturesService = {};
+    accessControlService = {};
+    stripeService = {};
+
+    moduleRef = await Test.createTestingModule({
+      providers: [
+        PublicReservationsService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: LockService, useValue: locks },
+        { provide: PromotionsService, useValue: promotionsService },
+        { provide: EmailService, useValue: emailService },
+        { provide: AbandonedCartService, useValue: abandonedCartService },
+        { provide: MembershipsService, useValue: membershipsService },
+        { provide: SignaturesService, useValue: signaturesService },
+        { provide: PoliciesService, useValue: policiesService },
+        { provide: AccessControlService, useValue: accessControlService },
+        { provide: PricingV2Service, useValue: pricingV2Service },
+        { provide: DepositPoliciesService, useValue: depositPoliciesService },
+        { provide: StripeService, useValue: stripeService }
+      ]
+    }).compile();
+
+    service = moduleRef.get(PublicReservationsService);
+  });
+
+  afterEach(async () => {
+    await moduleRef.close();
   });
 
   it("applies promo then membership and computes taxes on discounted subtotal", async () => {
@@ -104,14 +222,12 @@ describe("PublicReservationsService pricing", () => {
       type: "percentage",
       value: 20
     });
-    // @ts-ignore
-    service["promotionsService"].validate = promoValidate;
+    promotionsService.validate = promoValidate;
 
     // Membership 10%
-    // @ts-ignore
-    service["memberships"].getActiveMembershipById = jest.fn().mockResolvedValue({
+    membershipsService.getActiveMembershipById = jest.fn().mockResolvedValue({
       id: "mem1",
-      membershipType: { discountPercent: 10, isActive: true }
+      MembershipType: { discountPercent: 10, isActive: true }
     });
 
     const quote = await service.getQuote("slug", {
@@ -168,10 +284,8 @@ describe("PublicReservationsService pricing", () => {
     });
 
     // No promos/memberships here
-    // @ts-ignore
-    service["promotionsService"].validate = jest.fn();
-    // @ts-ignore
-    service["memberships"].getActiveMembershipById = jest.fn();
+    promotionsService.validate = jest.fn();
+    membershipsService.getActiveMembershipById = jest.fn();
 
     // Without waiver: taxes apply, waiverRequired flagged
     const quoteNoWaiver = await service.getQuote("slug", {
@@ -224,8 +338,7 @@ describe("PublicReservationsService pricing", () => {
     prisma.taxRule.findMany = jest.fn().mockResolvedValue([]); // ignore taxes here
 
     // Promo flat $50 off (5000 cents)
-    // @ts-ignore
-    service["promotionsService"].validate = jest.fn().mockResolvedValue({
+    promotionsService.validate = jest.fn().mockResolvedValue({
       valid: true,
       discountCents: 5000,
       promotionId: "promo-flat",
@@ -235,10 +348,9 @@ describe("PublicReservationsService pricing", () => {
     });
 
     // Membership 30% off -> $30
-    // @ts-ignore
-    service["memberships"].getActiveMembershipById = jest.fn().mockResolvedValue({
+    membershipsService.getActiveMembershipById = jest.fn().mockResolvedValue({
       id: "mem-big",
-      membershipType: { discountPercent: 30, isActive: true }
+      MembershipType: { discountPercent: 30, isActive: true }
     });
 
     const quote = await service.getQuote("slug", {
@@ -288,10 +400,8 @@ describe("PublicReservationsService pricing", () => {
     prisma.taxRule.findMany = jest.fn().mockResolvedValue([]); // no taxes, no exemptions
 
     // No promos/memberships
-    // @ts-ignore
-    service["promotionsService"].validate = jest.fn();
-    // @ts-ignore
-    service["memberships"].getActiveMembershipById = jest.fn();
+    promotionsService.validate = jest.fn();
+    membershipsService.getActiveMembershipById = jest.fn();
 
     const quote = await service.getQuote("slug", {
       siteId: "site1",
@@ -338,10 +448,8 @@ describe("PublicReservationsService pricing", () => {
     });
 
     // No promos/memberships
-    // @ts-ignore
-    service["promotionsService"].validate = jest.fn();
-    // @ts-ignore
-    service["memberships"].getActiveMembershipById = jest.fn();
+    promotionsService.validate = jest.fn();
+    membershipsService.getActiveMembershipById = jest.fn();
 
     const quote = await service.getQuote("slug", {
       siteId: "site1",
@@ -359,7 +467,7 @@ describe("PublicReservationsService pricing", () => {
   });
 
   it("surfaces rejected discounts when fetching a reservation", async () => {
-    const reservationRecord = {
+    const reservationRecord: ReservationRecord = {
       id: "res1",
       campgroundId: "cg1",
       siteId: "site1",
@@ -368,23 +476,43 @@ describe("PublicReservationsService pricing", () => {
       departureDate: new Date("2025-06-02"),
       promoCode: "PROMO20",
       taxWaiverSigned: false,
-      guest: { primaryFirstName: "Guest", primaryLastName: "One" },
-      campground: { name: "Camp One", slug: "camp-one", city: "X", state: "Y", timezone: "UTC" },
-      site: { siteClass: { name: "A", photos: [] } }
+      Guest: { primaryFirstName: "Guest", primaryLastName: "One" },
+      Campground: { name: "Camp One", slug: "camp-one", city: "X", state: "Y", timezone: "UTC" },
+      Site: { SiteClass: { name: "A", photos: [] } }
     };
 
-    prisma.reservation.findUnique = jest.fn().mockResolvedValue(reservationRecord as any);
-    // @ts-ignore
-    service["memberships"].getActiveMembershipByGuest = jest.fn().mockResolvedValue(null);
+    prisma.reservation.findUnique = jest.fn().mockResolvedValue(reservationRecord);
+    membershipsService.getActiveMembershipByGuest = jest.fn().mockResolvedValue(null);
 
-    const mockQuote = {
-      appliedDiscounts: [{ id: "promo", type: "promo", amountCents: 4000 }],
+    const mockQuote: QuoteResult = {
+      nights: 1,
+      baseSubtotalCents: 10000,
+      rulesDeltaCents: 0,
+      totalCents: 10000,
+      discountCents: 4000,
+      discountCapped: false,
+      promotionId: "promo",
+      appliedDiscounts: [{ id: "promo", type: "promo", amountCents: 4000, capped: false }],
       rejectedDiscounts: [{ id: "membership", reason: "non_stackable" }],
-      discountCapped: false
+      totalAfterDiscountCents: 6000,
+      taxesCents: 0,
+      totalWithTaxesCents: 6000,
+      perNightCents: 6000,
+      taxWaiverRequired: false,
+      taxWaiverText: null,
+      taxExemptionApplied: false,
+      referralProgramId: null,
+      referralDiscountCents: 0,
+      referralIncentiveType: null,
+      referralIncentiveValue: 0,
+      referralSource: null,
+      referralChannel: null,
+      policyRequirements: []
     };
-    const quoteSpy = jest.spyOn(service, "getQuote").mockResolvedValue(mockQuote as any);
+    const quoteSpy = jest.spyOn(service, "getQuote").mockResolvedValue(mockQuote);
 
-    const result = await service.getReservation("res1");
+    const token = createHmac("sha256", tokenSecret).update("res1").digest("base64url");
+    const result = await service.getReservation("res1", token);
 
     expect(result.appliedDiscounts).toEqual(mockQuote.appliedDiscounts);
     expect(result.rejectedDiscounts).toEqual(mockQuote.rejectedDiscounts);

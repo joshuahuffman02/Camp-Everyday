@@ -20,7 +20,7 @@ import { useToast } from "../../components/ui/use-toast";
 import { HelpAnchor } from "../../components/help/HelpAnchor";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../../components/ui/dialog";
 import { apiClient } from "../../lib/api-client";
-import { saveReport, type SavedReport } from "@/components/reports/savedReports";
+import { saveReport } from "@/components/reports/savedReports";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { FileDown, Calendar, FileSpreadsheet, X, ChevronDown, ChevronUp, TrendingUp, Users, BarChart3, Megaphone, LineChart, Calculator, ClipboardList, ExternalLink, SlidersHorizontal, Filter } from "lucide-react";
@@ -41,43 +41,123 @@ import { ExportDialog } from "@/components/reports/ExportDialog";
 import { useReportExport } from "@/components/reports/useReportExport";
 import type { ExportFormat } from "@/lib/export-utils";
 import { buildReportHref } from "@/lib/report-links";
+import type { CreatePricingRuleDto, Reservation, Site, SiteClass } from "@keepr/shared";
 
-// Type definitions for entities with populated relations
-type SiteWithClass = {
-  id: string;
+type ReportStatus = "all" | "confirmed" | "checked_in" | "pending" | "cancelled";
+type ReportGroupBy = "none" | "site" | "status" | "date" | "siteType";
+type PickupInterval = "weekly" | "daily";
+type PickupInclude = "all" | "confirmed" | "paid";
+
+type ReportFilters = {
+  status: ReportStatus;
   siteType: string;
-  siteClass?: { id: string; name: string } | null;
-  latitude?: number | null;
-  longitude?: number | null;
-  [key: string]: unknown;
+  groupBy: ReportGroupBy;
 };
 
-interface CreatePricingRulePayload {
-  label: string;
-  startDate: string;
-  endDate: string;
-  isActive: boolean;
-  ruleType: "flat" | "percent" | "dow";
-  flatAdjust?: number;
-  percentAdjust?: number;
-  dayOfWeek?: number;
-  siteClassId?: string;
-  siteId?: string;
-}
+type PickupFilters = {
+  comparisonA: string;
+  comparisonB: string;
+  occupancyStart: string;
+  interval: PickupInterval;
+  include: PickupInclude;
+  activityOnly: boolean;
+  siteClassId: string;
+};
 
-type ReservationWithGuest = {
+type SiteClassRef = Pick<SiteClass, "id" | "name">;
+
+type SiteMetric = {
   id: string;
-  status: string;
-  siteId: string;
-  guestId?: string;
-  guest?: { primaryFirstName: string; primaryLastName: string } | null;
-  partySize?: number;
-  numberOfGuests?: number;
-  adults?: number;
-  children?: number;
-  arrivalDate: string;
-  departureDate: string;
-  [key: string]: unknown;
+  name: string;
+  siteClass: string;
+  bookings: number;
+  nights: number;
+  available: number;
+  revenue: number;
+  occupancy: string;
+  adr: number;
+  revpar: number;
+};
+
+type RateChange = {
+  site: string;
+  fromMonth: string;
+  toMonth: string;
+  previousRate: number;
+  newRate: number;
+  changePercent: number;
+  severity: "high" | "medium";
+};
+
+type RevenueOpportunity = {
+  type: string;
+  description: string;
+  site: string;
+  severity: "high" | "medium" | "low";
+  metric: number;
+};
+
+type PricingRecommendation = {
+  type?: string;
+  suggestion: string;
+  priority: "high" | "medium" | "low";
+  siteId: string | null;
+  site: string;
+  reason: string;
+  currentRate: number;
+  suggestedRate: number;
+  potentialIncrease: number;
+};
+
+type ExtendedStay = {
+  type: string;
+  nights: number;
+  revenue: number;
+  site: string;
+  guest: string;
+  arrival: string;
+  departure: string;
+};
+
+const reportStatusValues: ReportStatus[] = ["all", "confirmed", "checked_in", "pending", "cancelled"];
+const reportGroupByValues: ReportGroupBy[] = ["none", "site", "status", "date", "siteType"];
+const pickupIntervalValues: PickupInterval[] = ["weekly", "daily"];
+const pickupIncludeValues: PickupInclude[] = ["all", "confirmed", "paid"];
+
+const isReportStatus = (value: string): value is ReportStatus =>
+  reportStatusValues.some((status) => status === value);
+
+const isReportGroupBy = (value: string): value is ReportGroupBy =>
+  reportGroupByValues.some((groupBy) => groupBy === value);
+
+const isPickupInterval = (value: string): value is PickupInterval =>
+  pickupIntervalValues.some((interval) => interval === value);
+
+const isPickupInclude = (value: string): value is PickupInclude =>
+  pickupIncludeValues.some((include) => include === value);
+
+const isReportTab = (value: string): value is ReportTab =>
+  value === "overview" || Object.prototype.hasOwnProperty.call(subTabs, value);
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const isNumber = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value);
+
+const getSubTabs = (tab: ReportTab) => (tab === "overview" ? [] : subTabs[tab]);
+
+
+const resolveGuestName = (reservation: Reservation, fallback = "N/A"): string => {
+  const guest = reservation.guest;
+  if (!guest) return fallback;
+  const fullName = `${guest.primaryFirstName} ${guest.primaryLastName}`.trim();
+  return fullName || fallback;
+};
+
+const resolvePartySize = (reservation: Reservation): number => {
+  const total = reservation.adults + (reservation.children ?? 0);
+  return total || 2;
 };
 
 const formatCurrency = (value: number, decimals: number = 0) => {
@@ -95,9 +175,9 @@ function ReportsPageInner() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [campgroundId, setCampgroundId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<string>("overview");
+  const [activeTab, setActiveTab] = useState<ReportTab>("overview");
   const [activeSubTab, setActiveSubTab] = useState<string | null>(null);
-  const [pickupFilters, setPickupFilters] = useState({
+  const [pickupFilters, setPickupFilters] = useState<PickupFilters>({
     comparisonA: new Date().toISOString().slice(0, 10),
     comparisonB: (() => {
       const d = new Date();
@@ -105,10 +185,10 @@ function ReportsPageInner() {
       return d.toISOString().slice(0, 10);
     })(),
     occupancyStart: new Date().toISOString().slice(0, 10),
-    interval: 'weekly' as 'weekly' | 'daily',
-    include: 'all' as 'all' | 'confirmed' | 'paid',
+    interval: "weekly",
+    include: "all",
     activityOnly: true,
-    siteClassId: 'all'
+    siteClassId: "all"
   });
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>(() => {
     const end = new Date();
@@ -134,10 +214,10 @@ function ReportsPageInner() {
 
   // Report customization/filter state
   const [showFilters, setShowFilters] = useState(false);
-  const [reportFilters, setReportFilters] = useState({
-    status: 'all' as 'all' | 'confirmed' | 'checked_in' | 'pending' | 'cancelled',
-    siteType: 'all' as string,
-    groupBy: 'none' as 'none' | 'site' | 'status' | 'date' | 'siteType'
+  const [reportFilters, setReportFilters] = useState<ReportFilters>({
+    status: "all",
+    siteType: "all",
+    groupBy: "none"
   });
 
   // Save report dialog state
@@ -165,11 +245,11 @@ function ReportsPageInner() {
     const stored = localStorage.getItem("campreserv:selectedCampground");
     if (stored) setCampgroundId(stored);
 
-    const urlTab = searchParams.get("tab") as ReportTab | null;
+    const urlTab = searchParams.get("tab");
     const urlSub = searchParams.get("sub");
     const urlStart = searchParams.get("start");
     const urlEnd = searchParams.get("end");
-    if (urlTab) setActiveTab(urlTab);
+    if (urlTab && isReportTab(urlTab)) setActiveTab(urlTab);
     if (urlSub) setActiveSubTab(urlSub);
     if (urlStart || urlEnd) {
       setDateRange((prev) => ({
@@ -181,11 +261,12 @@ function ReportsPageInner() {
     const urlSiteType = searchParams.get("siteType");
     const urlGroupBy = searchParams.get("groupBy");
     if (urlStatus || urlSiteType || urlGroupBy) {
-      setReportFilters((prev) => ({
-        status: (urlStatus || prev.status) as 'all' | 'confirmed' | 'checked_in' | 'pending' | 'cancelled',
-        siteType: (urlSiteType || prev.siteType) as string,
-        groupBy: (urlGroupBy || prev.groupBy) as 'none' | 'site' | 'status' | 'date' | 'siteType'
-      }));
+      setReportFilters((prev) => {
+        const status = urlStatus && isReportStatus(urlStatus) ? urlStatus : prev.status;
+        const groupBy = urlGroupBy && isReportGroupBy(urlGroupBy) ? urlGroupBy : prev.groupBy;
+        const siteType = urlSiteType ?? prev.siteType;
+        return { status, siteType, groupBy };
+      });
       setShowFilters(true);
     }
   }, [searchParams]);
@@ -198,7 +279,7 @@ function ReportsPageInner() {
       setActiveSubTab(null);
       return;
     }
-    const subs = subTabs[activeTab as keyof typeof subTabs] || [];
+    const subs = getSubTabs(activeTab);
     if (subs.length === 0) {
       setActiveSubTab(null);
       return;
@@ -253,6 +334,37 @@ function ReportsPageInner() {
     enabled: !!campgroundId
   });
 
+  const siteClassesQuery = useQuery({
+    queryKey: ["site-classes", campgroundId],
+    queryFn: () => apiClient.getSiteClasses(campgroundId!),
+    enabled: !!campgroundId
+  });
+
+  const siteClasses = useMemo(() => {
+    return (siteClassesQuery.data ?? []).map((siteClass) => ({
+      id: siteClass.id,
+      name: siteClass.name
+    }));
+  }, [siteClassesQuery.data]);
+
+  const siteClassById = useMemo(() => {
+    const map = new Map<string, SiteClassRef>();
+    siteClasses.forEach((siteClass) => {
+      map.set(siteClass.id, siteClass);
+    });
+    return map;
+  }, [siteClasses]);
+
+  const getSiteClassId = (site: Site | null | undefined): string | null => {
+    if (!site?.siteClassId) return null;
+    return siteClassById.get(site.siteClassId)?.id ?? null;
+  };
+
+  const getSiteClassName = (site: Site | null | undefined): string => {
+    if (!site?.siteClassId) return site?.siteType ?? "Unknown";
+    return siteClassById.get(site.siteClassId)?.name ?? site?.siteType ?? "Unknown";
+  };
+
   const promotionsQuery = useQuery({
     queryKey: ["reports-promotions", campgroundId],
     queryFn: () => apiClient.getPromotions(campgroundId!),
@@ -265,7 +377,7 @@ function ReportsPageInner() {
     const end = dateRange.end ? new Date(dateRange.end) : null;
 
     const map = new Map<string, { uses: number; revenue: number }>();
-    reservationsQuery.data.forEach((res: any) => {
+    reservationsQuery.data.forEach((res) => {
       const code = res.promoCode ? String(res.promoCode).toUpperCase() : null;
       if (!code) return;
 
@@ -279,7 +391,7 @@ function ReportsPageInner() {
         if (cmpDate && cmpDate > endOfDay) return;
       }
 
-      const rev = (res.totalAmount ?? res.total ?? 0) / 100;
+      const rev = (res.totalAmount ?? 0) / 100;
       const entry = map.get(code) || { uses: 0, revenue: 0 };
       entry.uses += 1;
       entry.revenue += rev;
@@ -303,10 +415,10 @@ function ReportsPageInner() {
       return arrival >= startDate && arrival <= endDate;
     });
 
-    const byStatus = filtered.reduce((acc, r) => {
-      acc[r.status] = (acc[r.status] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+    const byStatus: Record<string, number> = {};
+    filtered.forEach((r) => {
+      byStatus[r.status] = (byStatus[r.status] || 0) + 1;
+    });
 
     const totalRevenue = filtered.reduce((sum, r) => sum + (r.totalAmount || 0), 0) / 100;
     const reservationsWithCreatedAt = filtered.filter(r => r.createdAt);
@@ -331,19 +443,15 @@ function ReportsPageInner() {
   const sitePerformance = useMemo(() => {
     if (!reservationsQuery.data || !sitesQuery.data) return null;
 
-    const siteRevenue = reservationsQuery.data.reduce((acc, r) => {
-      if (r.status !== 'cancelled') {
-        acc[r.siteId] = (acc[r.siteId] || 0) + (r.totalAmount || 0);
-      }
-      return acc;
-    }, {} as Record<string, number>);
+    const siteRevenue: Record<string, number> = {};
+    const siteBookings: Record<string, number> = {};
 
-    const siteBookings = reservationsQuery.data.reduce((acc, r) => {
-      if (r.status !== 'cancelled') {
-        acc[r.siteId] = (acc[r.siteId] || 0) + 1;
+    reservationsQuery.data.forEach((r) => {
+      if (r.status !== "cancelled") {
+        siteRevenue[r.siteId] = (siteRevenue[r.siteId] || 0) + (r.totalAmount || 0);
+        siteBookings[r.siteId] = (siteBookings[r.siteId] || 0) + 1;
       }
-      return acc;
-    }, {} as Record<string, number>);
+    });
 
     return sitesQuery.data
       .map(site => ({
@@ -402,7 +510,7 @@ function ReportsPageInner() {
   }, [reservationsQuery.data]);
 
   const currentSubMeta = () => {
-    const list = subTabs[activeTab as keyof typeof subTabs];
+    const list = getSubTabs(activeTab);
     if (!list || list.length === 0) return null;
     if (activeSubTab) {
       const match = list.find((s) => s.id === activeSubTab);
@@ -424,7 +532,8 @@ function ReportsPageInner() {
               ageDays <= 60 ? '31_60' :
                 ageDays <= 90 ? '61_90' : 'over_90';
         const balanceCents = Math.max(0, (r.balanceAmount ?? (r.totalAmount || 0) - (r.paidAmount || 0)));
-        const guest = `"${(r as ReservationWithGuest).guest?.primaryFirstName || ''} ${(r as ReservationWithGuest).guest?.primaryLastName || ''}".trim()`;
+        const guestName = resolveGuestName(r, "");
+        const guest = `"${guestName}"`;
         return {
           id: r.id,
           siteId: r.siteId,
@@ -678,8 +787,8 @@ function ReportsPageInner() {
           const endDate = new Date(dateRange.end);
           const totalDays = Math.max(1, Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
 
-          const siteMetrics = sitesQuery.data.map((site: any) => {
-            const siteReservations = reservationsQuery.data.filter((r: any) =>
+          const siteMetrics: SiteMetric[] = sitesQuery.data.map((site) => {
+            const siteReservations = reservationsQuery.data.filter((r) =>
               r.siteId === site.id &&
               r.status !== 'cancelled' &&
               new Date(r.arrivalDate) >= startDate &&
@@ -689,7 +798,7 @@ function ReportsPageInner() {
             let totalNights = 0;
             let totalRevenue = 0;
 
-            siteReservations.forEach((r: any) => {
+            siteReservations.forEach((r) => {
               const arrival = new Date(r.arrivalDate);
               const departure = new Date(r.departureDate);
               const nights = Math.max(1, Math.floor((departure.getTime() - arrival.getTime()) / (1000 * 60 * 60 * 24)));
@@ -705,7 +814,7 @@ function ReportsPageInner() {
             return {
               id: site.id,
               name: site.name,
-              siteClass: (site as SiteWithClass).siteClass?.name || 'N/A',
+              siteClass: getSiteClassName(site),
               bookings: siteReservations.length,
               nights: totalNights,
               available: availableDays,
@@ -714,13 +823,16 @@ function ReportsPageInner() {
               adr: adr,
               revpar: revpar
             };
-          }).sort((a: any, b: any) => b.revenue - a.revenue);
+          }).sort((a, b) => b.revenue - a.revenue);
 
-          const totals = siteMetrics.reduce((acc: any, s: any) => ({
-            bookings: acc.bookings + s.bookings,
-            nights: acc.nights + s.nights,
-            revenue: acc.revenue + s.revenue
-          }), { bookings: 0, nights: 0, revenue: 0 });
+          const totals = siteMetrics.reduce(
+            (acc, s) => ({
+              bookings: acc.bookings + s.bookings,
+              nights: acc.nights + s.nights,
+              revenue: acc.revenue + s.revenue
+            }),
+            { bookings: 0, nights: 0, revenue: 0 }
+          );
 
           const setPresetRange = (preset: string) => {
             setActivePreset(preset);
@@ -819,7 +931,7 @@ function ReportsPageInner() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {siteMetrics.map((site: any) => (
+                    {siteMetrics.map((site) => (
                       <tr key={site.id} className="hover:bg-muted">
                         <td className="px-3 py-2 font-medium text-foreground">{site.name}</td>
                         <td className="px-3 py-2 text-muted-foreground">{site.siteClass}</td>
@@ -1140,7 +1252,11 @@ function ReportsPageInner() {
                     <Label htmlFor="pickup-interval" className="text-xs font-medium text-muted-foreground">Interval</Label>
                     <Select
                       value={pickupFilters.interval}
-                      onValueChange={(value) => setPickupFilters((prev) => ({ ...prev, interval: value as 'weekly' | 'daily' }))}
+                      onValueChange={(value) => {
+                        if (isPickupInterval(value)) {
+                          setPickupFilters((prev) => ({ ...prev, interval: value }));
+                        }
+                      }}
                     >
                       <SelectTrigger id="pickup-interval" className="w-full h-8 text-sm">
                         <SelectValue />
@@ -1155,7 +1271,11 @@ function ReportsPageInner() {
                     <Label htmlFor="pickup-include" className="text-xs font-medium text-muted-foreground">Include reservations</Label>
                     <Select
                       value={pickupFilters.include}
-                      onValueChange={(value) => setPickupFilters((prev) => ({ ...prev, include: value as 'all' | 'confirmed' | 'paid' }))}
+                      onValueChange={(value) => {
+                        if (isPickupInclude(value)) {
+                          setPickupFilters((prev) => ({ ...prev, include: value }));
+                        }
+                      }}
                     >
                       <SelectTrigger id="pickup-include" className="w-full h-8 text-sm">
                         <SelectValue />
@@ -1178,15 +1298,9 @@ function ReportsPageInner() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All sites</SelectItem>
-                        {sitesQuery.data?.map((s) => (s as SiteWithClass)?.siteClass?.id ? (s as SiteWithClass).siteClass : null)
-                          ?.filter(Boolean)
-                          ?.reduce((acc: any[], sc: any) => {
-                            if (!acc.find((x) => x.id === sc.id)) acc.push(sc);
-                            return acc;
-                          }, [])
-                          ?.map((sc: any) => (
-                            <SelectItem key={sc.id} value={sc.id}>{sc.name}</SelectItem>
-                          ))}
+                        {siteClasses.map((sc) => (
+                          <SelectItem key={sc.id} value={sc.id}>{sc.name}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -1409,7 +1523,7 @@ function ReportsPageInner() {
     reservationsQuery.data.forEach(r => {
       if (r.status !== 'cancelled') {
         const site = siteMap.get(r.siteId);
-        const className = (site as SiteWithClass)?.siteClass?.name ?? site?.siteType ?? "Unknown";
+        const className = getSiteClassName(site);
         if (className) {
           if (!classRevenue[className]) {
             classRevenue[className] = { revenue: 0, bookings: 0, className };
@@ -1457,7 +1571,7 @@ function ReportsPageInner() {
       if (arrival < occupancyStartDate) return false;
       if (siteClassFilter !== 'all') {
         const site = sitesQuery.data?.find((s) => s.id === r.siteId);
-        const scId = (site as SiteWithClass)?.siteClass?.id;
+        const scId = getSiteClassId(site);
         if (scId !== siteClassFilter) return false;
       }
       if (pickupFilters.include === 'confirmed') {
@@ -1469,7 +1583,7 @@ function ReportsPageInner() {
       return true;
     });
     const now = new Date();
-    const isLive = (r: any) => r.status !== 'cancelled';
+    const isLive = (r: Reservation) => r.status !== 'cancelled';
 
     const sumWindow = (start: Date, end: Date) => {
       const rows = filteredReservations.filter((r) => {
@@ -1524,12 +1638,9 @@ function ReportsPageInner() {
 
     const guestBookings: Record<string, number> = {};
 
-    reservationsQuery.data.forEach(r => {
-      if (r.status !== 'cancelled' && (r as ReservationWithGuest).guest) {
-        const guestId = (r as ReservationWithGuest).guestId;
-        if (guestId) {
-          guestBookings[guestId] = (guestBookings[guestId] || 0) + 1;
-        }
+    reservationsQuery.data.forEach((r) => {
+      if (r.status !== "cancelled" && r.guest) {
+        guestBookings[r.guestId] = (guestBookings[r.guestId] || 0) + 1;
       }
     });
 
@@ -1822,12 +1933,12 @@ function ReportsPageInner() {
   const siteUtilizationStats = useMemo(() => {
     if (!reservationsQuery.data || !sitesQuery.data) return null;
 
-    const siteBookings = reservationsQuery.data.reduce((acc, r) => {
-      if (r.status !== 'cancelled') {
-        acc[r.siteId] = (acc[r.siteId] || 0) + 1;
+    const siteBookings: Record<string, number> = {};
+    reservationsQuery.data.forEach((r) => {
+      if (r.status !== "cancelled") {
+        siteBookings[r.siteId] = (siteBookings[r.siteId] || 0) + 1;
       }
-      return acc;
-    }, {} as Record<string, number>);
+    });
 
     const utilization = sitesQuery.data.map(site => ({
       name: site.name,
@@ -1853,7 +1964,7 @@ function ReportsPageInner() {
 
     // Initialize with site counts
     sitesQuery.data.forEach(site => {
-      const className = (site as SiteWithClass)?.siteClass?.name ?? site.siteType ?? "Unknown";
+      const className = getSiteClassName(site);
       if (!classData[className]) {
         classData[className] = { nights: 0, sites: 0 };
       }
@@ -1864,7 +1975,7 @@ function ReportsPageInner() {
     reservationsQuery.data.forEach(r => {
       if (r.status !== 'cancelled') {
         const site = siteMap.get(r.siteId);
-        const className = (site as SiteWithClass)?.siteClass?.name ?? site?.siteType ?? "Unknown";
+        const className = getSiteClassName(site);
         if (className) {
           const arrival = new Date(r.arrivalDate);
           const departure = new Date(r.departureDate);
@@ -1888,19 +1999,16 @@ function ReportsPageInner() {
 
     const guestRevenue: Record<string, { name: string; revenue: number; bookings: number }> = {};
 
-    reservationsQuery.data.forEach(r => {
-      if (r.status !== 'cancelled' && (r as ReservationWithGuest).guest) {
-        const guestId = (r as ReservationWithGuest).guestId;
-        const guest = (r as ReservationWithGuest).guest;
-        const name = `${guest?.primaryFirstName || ''} ${guest?.primaryLastName || ''}`.trim() || 'Unknown';
+    reservationsQuery.data.forEach((r) => {
+      if (r.status !== "cancelled" && r.guest) {
+        const guestId = r.guestId;
+        const name = resolveGuestName(r, "Unknown");
 
-        if (guestId) {
-          if (!guestRevenue[guestId]) {
-            guestRevenue[guestId] = { name, revenue: 0, bookings: 0 };
-          }
-          guestRevenue[guestId].revenue += (r.totalAmount || 0) / 100;
-          guestRevenue[guestId].bookings++;
+        if (!guestRevenue[guestId]) {
+          guestRevenue[guestId] = { name, revenue: 0, bookings: 0 };
         }
+        guestRevenue[guestId].revenue += (r.totalAmount || 0) / 100;
+        guestRevenue[guestId].bookings++;
       }
     });
 
@@ -1913,12 +2021,12 @@ function ReportsPageInner() {
   const revenueConcentrationStats = useMemo(() => {
     if (!reservationsQuery.data || !sitesQuery.data) return null;
 
-    const siteRevenue = reservationsQuery.data.reduce((acc, r) => {
-      if (r.status !== 'cancelled') {
-        acc[r.siteId] = (acc[r.siteId] || 0) + (r.totalAmount || 0);
+    const siteRevenue: Record<string, number> = {};
+    reservationsQuery.data.forEach((r) => {
+      if (r.status !== "cancelled") {
+        siteRevenue[r.siteId] = (siteRevenue[r.siteId] || 0) + (r.totalAmount || 0);
       }
-      return acc;
-    }, {} as Record<string, number>);
+    });
 
     const revenues = Object.values(siteRevenue).sort((a, b) => b - a);
     const totalRevenue = revenues.reduce((sum, r) => sum + r, 0);
@@ -1943,11 +2051,11 @@ function ReportsPageInner() {
     const map = new Map<string, { latitude: number | null; longitude: number | null }>();
     const coords: { lat: number; lng: number }[] = [];
     sitesQuery.data.forEach((s) => {
-      const latitude = (s as SiteWithClass)?.latitude !== undefined && (s as SiteWithClass)?.latitude !== null ? Number((s as SiteWithClass).latitude) : null;
-      const longitude = (s as SiteWithClass)?.longitude !== undefined && (s as SiteWithClass)?.longitude !== null ? Number((s as SiteWithClass).longitude) : null;
+      const latitude = isNumber(s.latitude) ? s.latitude : null;
+      const longitude = isNumber(s.longitude) ? s.longitude : null;
       map.set(s.id, { latitude, longitude });
-      if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
-        coords.push({ lat: latitude as number, lng: longitude as number });
+      if (latitude !== null && longitude !== null) {
+        coords.push({ lat: latitude, lng: longitude });
       }
     });
     const center = coords.length
@@ -2105,9 +2213,9 @@ function ReportsPageInner() {
     const filteredData = reservationsQuery.data.filter(r => {
       // Apply customizations
       if (reportFilters.status !== 'all' && r.status !== reportFilters.status) return false;
-      if (reportFilters.siteType !== 'all') {
+      if (reportFilters.siteType !== "all") {
         const site = siteMap.get(r.siteId);
-        if (site && (site as SiteWithClass).siteType !== reportFilters.siteType) return false;
+        if (site && site.siteType !== reportFilters.siteType) return false;
       }
       return true;
     });
@@ -2151,7 +2259,7 @@ function ReportsPageInner() {
     reservationsQuery.data.forEach(r => {
       if (r.status !== 'cancelled') {
         const site = siteMap.get(r.siteId);
-        const className = (site as SiteWithClass)?.siteClass?.name ?? site?.siteType ?? "Unknown";
+        const className = getSiteClassName(site);
         if (!classData[className]) {
           classData[className] = { revenue: 0, nights: 0 };
         }
@@ -2186,9 +2294,9 @@ function ReportsPageInner() {
     let totalGuests = 0;
     let count = 0;
 
-    reservationsQuery.data.forEach(r => {
-      if (r.status !== 'cancelled') {
-        const partySize = (r as ReservationWithGuest).partySize || (r as ReservationWithGuest).numberOfGuests || 2; // Default to 2 if not available
+    reservationsQuery.data.forEach((r) => {
+      if (r.status !== "cancelled") {
+        const partySize = resolvePartySize(r);
         totalGuests += partySize;
         count++;
 
@@ -2294,10 +2402,9 @@ function ReportsPageInner() {
 
         // Apply customizations
         if (reportFilters.status !== 'all' && r.status !== reportFilters.status) return false;
-        if (reportFilters.siteType !== 'all') {
+        if (reportFilters.siteType !== "all") {
           const site = siteMap.get(r.siteId);
-          // Safely access siteType if it exists
-          if (site && (site as SiteWithClass).siteType !== reportFilters.siteType) return false;
+          if (site && site.siteType !== reportFilters.siteType) return false;
         }
 
         return r.status !== 'cancelled'; // Always exclude cancelled unless specifically asked? Or should filter handle it?
@@ -2305,8 +2412,8 @@ function ReportsPageInner() {
       .map(r => ({
         ...r,
         siteName: siteMap.get(r.siteId)?.name || r.siteId,
-        siteType: (siteMap.get(r.siteId) as SiteWithClass | undefined)?.siteType || 'Unknown',
-        guestName: `${(r as ReservationWithGuest).guest?.primaryFirstName || ''} ${(r as ReservationWithGuest).guest?.primaryLastName || ''}`.trim() || 'N/A'
+        siteType: siteMap.get(r.siteId)?.siteType || "Unknown",
+        guestName: resolveGuestName(r)
       }))
       .sort((a, b) => {
         if (reportFilters.groupBy === 'status') return a.status.localeCompare(b.status);
@@ -2334,9 +2441,9 @@ function ReportsPageInner() {
 
         // Apply customizations
         if (reportFilters.status !== 'all' && r.status !== reportFilters.status) return false;
-        if (reportFilters.siteType !== 'all') {
+        if (reportFilters.siteType !== "all") {
           const site = siteMap.get(r.siteId);
-          if (site && (site as SiteWithClass).siteType !== reportFilters.siteType) return false;
+          if (site && site.siteType !== reportFilters.siteType) return false;
         }
 
         return r.status !== 'cancelled';
@@ -2344,8 +2451,8 @@ function ReportsPageInner() {
       .map(r => ({
         ...r,
         siteName: siteMap.get(r.siteId)?.name || r.siteId,
-        siteType: (siteMap.get(r.siteId) as SiteWithClass | undefined)?.siteType || 'Unknown',
-        guestName: `${(r as ReservationWithGuest).guest?.primaryFirstName || ''} ${(r as ReservationWithGuest).guest?.primaryLastName || ''}`.trim() || 'N/A'
+        siteType: siteMap.get(r.siteId)?.siteType || "Unknown",
+        guestName: resolveGuestName(r)
       }))
       .sort((a, b) => a.siteName.localeCompare(b.siteName));
   }, [reservationsQuery.data, sitesQuery.data, reportFilters]);
@@ -2368,7 +2475,7 @@ function ReportsPageInner() {
       .map(r => ({
         ...r,
         siteName: siteMap.get(r.siteId)?.name || r.siteId,
-        guestName: `${(r as ReservationWithGuest).guest?.primaryFirstName || ''} ${(r as ReservationWithGuest).guest?.primaryLastName || ''}`.trim() || 'N/A',
+        guestName: resolveGuestName(r),
         nightsRemaining: Math.ceil((new Date(r.departureDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
       }))
       .sort((a, b) => a.siteName.localeCompare(b.siteName));
@@ -2393,7 +2500,7 @@ function ReportsPageInner() {
       .map(r => ({
         ...r,
         siteName: siteMap.get(r.siteId)?.name || r.siteId,
-        guestName: `${(r as ReservationWithGuest).guest?.primaryFirstName || ''} ${(r as ReservationWithGuest).guest?.primaryLastName || ''}`.trim() || 'N/A'
+        guestName: resolveGuestName(r)
       }))
       .sort((a, b) => new Date(a.arrivalDate).getTime() - new Date(b.arrivalDate).getTime());
   }, [reservationsQuery.data, sitesQuery.data]);
@@ -2417,7 +2524,7 @@ function ReportsPageInner() {
       .map(r => ({
         ...r,
         siteName: siteMap.get(r.siteId)?.name || r.siteId,
-        guestName: `${(r as ReservationWithGuest).guest?.primaryFirstName || ''} ${(r as ReservationWithGuest).guest?.primaryLastName || ''}`.trim() || 'N/A'
+        guestName: resolveGuestName(r)
       }))
       .sort((a, b) => new Date(a.departureDate).getTime() - new Date(b.departureDate).getTime());
   }, [reservationsQuery.data, sitesQuery.data]);
@@ -2488,7 +2595,7 @@ function ReportsPageInner() {
       .map(r => ({
         ...r,
         siteName: siteMap.get(r.siteId)?.name || r.siteId,
-        guestName: `${(r as ReservationWithGuest).guest?.primaryFirstName || ''} ${(r as ReservationWithGuest).guest?.primaryLastName || ''}`.trim() || 'N/A',
+        guestName: resolveGuestName(r),
         balance: (r.balanceAmount || 0) / 100
       }))
       .sort((a, b) => b.balance - a.balance);
@@ -2514,7 +2621,7 @@ function ReportsPageInner() {
     return sitesQuery.data.map(site => ({
       id: site.id,
       name: site.name,
-      className: (site as SiteWithClass)?.siteClass?.name || site.siteType || 'N/A',
+      className: getSiteClassName(site),
       status: !site.isActive ? 'Inactive' : occupiedSites.has(site.id) ? 'Occupied' : 'Available',
       isActive: site.isActive
     }));
@@ -2533,9 +2640,9 @@ function ReportsPageInner() {
         if (!((r.paidAmount || 0) > 0 || (r.totalAmount || 0) > 0)) return false;
 
         // Apply customizations
-        if (reportFilters.siteType !== 'all') {
+        if (reportFilters.siteType !== "all") {
           const site = siteMap.get(r.siteId);
-          if (site && (site as SiteWithClass).siteType !== reportFilters.siteType) return false;
+          if (site && site.siteType !== reportFilters.siteType) return false;
         }
         // Optional: filter by reservation status if requested, though transactions exist independent of status
         if (reportFilters.status !== 'all' && r.status !== reportFilters.status) return false;
@@ -2545,8 +2652,8 @@ function ReportsPageInner() {
       .map(r => ({
         ...r,
         siteName: siteMap.get(r.siteId)?.name || r.siteId,
-        siteType: (siteMap.get(r.siteId) as SiteWithClass | undefined)?.siteType || 'Unknown',
-        guestName: `${(r as ReservationWithGuest).guest?.primaryFirstName || ''} ${(r as ReservationWithGuest).guest?.primaryLastName || ''}`.trim() || 'N/A',
+        siteType: siteMap.get(r.siteId)?.siteType || "Unknown",
+        guestName: resolveGuestName(r),
         total: (r.totalAmount || 0) / 100,
         paid: (r.paidAmount || 0) / 100,
         balance: (r.balanceAmount || 0) / 100,
@@ -2589,9 +2696,9 @@ function ReportsPageInner() {
 
       // Apply customizations
       if (reportFilters.status !== 'all' && r.status !== reportFilters.status) return;
-      if (reportFilters.siteType !== 'all') {
+      if (reportFilters.siteType !== "all") {
         const site = siteMap.get(r.siteId);
-        if (site && (site as SiteWithClass).siteType !== reportFilters.siteType) return;
+        if (site && site.siteType !== reportFilters.siteType) return;
       }
 
       const m = arrived.getMonth();
@@ -2683,7 +2790,7 @@ function ReportsPageInner() {
       .map(r => ({
         ...r,
         siteName: siteMap.get(r.siteId)?.name || r.siteId,
-        guestName: `${(r as ReservationWithGuest).guest?.primaryFirstName || ''} ${(r as ReservationWithGuest).guest?.primaryLastName || ''}`.trim() || 'N/A',
+        guestName: resolveGuestName(r),
         lostRevenue: (r.totalAmount || 0) / 100,
         refunded: (r.paidAmount || 0) / 100,
         cancelDate: new Date(r.updatedAt ?? r.createdAt ?? Date.now()).toISOString()
@@ -2722,7 +2829,7 @@ function ReportsPageInner() {
       .map(r => ({
         ...r,
         siteName: siteMap.get(r.siteId)?.name || r.siteId,
-        guestName: `${(r as ReservationWithGuest).guest?.primaryFirstName || ''} ${(r as ReservationWithGuest).guest?.primaryLastName || ''}`.trim() || 'N/A',
+        guestName: resolveGuestName(r),
         lostRevenue: (r.totalAmount || 0) / 100,
         paid: (r.paidAmount || 0) / 100,
         daysLate: Math.floor((today.getTime() - new Date(r.arrivalDate).getTime()) / (1000 * 60 * 60 * 24))
@@ -2782,7 +2889,7 @@ function ReportsPageInner() {
         return {
           siteId,
           siteName: site?.name || siteId,
-          siteClass: (site as SiteWithClass)?.siteClass?.name || site?.siteType || 'N/A',
+          siteClass: getSiteClassName(site),
           nights: stats.nights,
           occupancyRate,
           revenue: stats.revenue,
@@ -2826,7 +2933,7 @@ function ReportsPageInner() {
         return {
           siteId,
           siteName: site?.name || siteId,
-          siteClass: (site as SiteWithClass)?.siteClass?.name || site?.siteType || 'N/A',
+          siteClass: getSiteClassName(site),
           totalRevenue: stats.revenue,
           bookings: stats.bookings,
           nights: stats.nights,
@@ -2890,8 +2997,8 @@ function ReportsPageInner() {
     reservationsQuery.data
       .filter(r => r.status !== 'cancelled')
       .forEach(r => {
-        const guestId = (r as ReservationWithGuest).guestId || r.id;
-        const guestName = `${(r as ReservationWithGuest).guest?.primaryFirstName || ''} ${(r as ReservationWithGuest).guest?.primaryLastName || ''}`.trim() || 'N/A';
+        const guestId = r.guestId || r.id;
+        const guestName = resolveGuestName(r);
 
         if (!guestVisits.has(guestId)) {
           guestVisits.set(guestId, { name: guestName, visits: 0, totalSpent: 0, lastVisit: r.arrivalDate });
@@ -3050,7 +3157,7 @@ function ReportsPageInner() {
   const revenueOptimizationReport = useMemo(() => {
     if (!reservationsQuery.data || !sitesQuery.data) return null;
 
-    const opportunities = [];
+    const opportunities: RevenueOpportunity[] = [];
 
     // Low utilization sites
     const siteMap = new Map(sitesQuery.data.map(s => [s.id, s]));
@@ -3110,10 +3217,8 @@ function ReportsPageInner() {
       });
     }
 
-    return opportunities.sort((a, b) => {
-      const severityOrder = { high: 0, medium: 1, low: 2 };
-      return severityOrder[a.severity as keyof typeof severityOrder] - severityOrder[b.severity as keyof typeof severityOrder];
-    });
+    const severityOrder: Record<RevenueOpportunity["severity"], number> = { high: 0, medium: 1, low: 2 };
+    return opportunities.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
   }, [reservationsQuery.data, sitesQuery.data]);
 
   // Future Occupancy Forecast (next 90 days)
@@ -3176,7 +3281,7 @@ function ReportsPageInner() {
       .filter(r => r.status !== 'cancelled')
       .forEach(r => {
         const site = siteMap.get(r.siteId);
-        const className = (site as SiteWithClass)?.siteClass?.name ?? site?.siteType ?? "Unknown";
+        const className = getSiteClassName(site);
         if (!classStats.has(className)) {
           classStats.set(className, { daily: 0, weekly: 0, monthly: 0, quarterly: 0, annual: 0, bookings: 0, nights: 0 });
         }
@@ -3238,7 +3343,7 @@ function ReportsPageInner() {
     reservationsQuery.data
       .filter(r => r.status !== 'cancelled')
       .forEach(r => {
-        const guestId = (r as ReservationWithGuest).guestId || r.id;
+        const guestId = r.guestId || r.id;
         const arrival = new Date(r.arrivalDate);
 
         if (!guestFirstVisit.has(guestId) || arrival < guestFirstVisit.get(guestId)!) {
@@ -3251,7 +3356,7 @@ function ReportsPageInner() {
     reservationsQuery.data
       .filter(r => r.status !== 'cancelled')
       .forEach(r => {
-        const guestId = (r as ReservationWithGuest).guestId || r.id;
+        const guestId = r.guestId || r.id;
         const count = (guestBookingCount.get(guestId) || 0) + 1;
         guestBookingCount.set(guestId, count);
 
@@ -3312,7 +3417,7 @@ function ReportsPageInner() {
     if (!reservationsQuery.data || !sitesQuery.data) return null;
 
     const siteMap = new Map(sitesQuery.data.map(s => [s.id, s]));
-    const changes: any[] = [];
+    const changes: RateChange[] = [];
 
     // Group bookings by site and calculate avg rates over time
     const siteRatesByMonth = new Map<string, Map<string, number[]>>();
@@ -3381,7 +3486,7 @@ function ReportsPageInner() {
     const siteTurnovers = new Map<string, { turnovers: number; avgGapDays: number; totalGapDays: number }>();
 
     // Sort reservations by site and date
-    const reservationsBySite = new Map<string, any[]>();
+    const reservationsBySite = new Map<string, Reservation[]>();
     reservationsQuery.data
       .filter(r => r.status !== 'cancelled')
       .forEach(r => {
@@ -3424,7 +3529,7 @@ function ReportsPageInner() {
         const site = siteMap.get(siteId);
         return {
           site: site?.name || siteId,
-          siteClass: (site as SiteWithClass)?.siteClass?.name || site?.siteType || 'N/A',
+          siteClass: getSiteClassName(site),
           ...stats,
           efficiency: stats.avgGapDays <= 1 ? 'Excellent' : stats.avgGapDays <= 2 ? 'Good' : stats.avgGapDays <= 3 ? 'Fair' : 'Poor'
         };
@@ -3444,12 +3549,12 @@ function ReportsPageInner() {
 
     const siteMap = new Map(sitesQuery.data.map(s => [s.id, s]));
     const categories = {
-      weekly: { count: 0, revenue: 0, guests: new Set(), avgStay: 0, totalNights: 0 },
-      biweekly: { count: 0, revenue: 0, guests: new Set(), avgStay: 0, totalNights: 0 },
-      monthly: { count: 0, revenue: 0, guests: new Set(), avgStay: 0, totalNights: 0 }
+      weekly: { count: 0, revenue: 0, guests: new Set<string>(), avgStay: 0, totalNights: 0 },
+      biweekly: { count: 0, revenue: 0, guests: new Set<string>(), avgStay: 0, totalNights: 0 },
+      monthly: { count: 0, revenue: 0, guests: new Set<string>(), avgStay: 0, totalNights: 0 }
     };
 
-    const extendedStays: any[] = [];
+    const extendedStays: ExtendedStay[] = [];
 
     reservationsQuery.data
       .filter(r => r.status !== 'cancelled')
@@ -3459,8 +3564,8 @@ function ReportsPageInner() {
         const nights = Math.ceil((departure.getTime() - arrival.getTime()) / (1000 * 60 * 60 * 24));
         const revenue = (r.totalAmount || 0) / 100;
         const site = siteMap.get(r.siteId);
-        const guestId = (r as ReservationWithGuest).guestId || r.id;
-        const guestName = `${(r as ReservationWithGuest).guest?.primaryFirstName || ''} ${(r as ReservationWithGuest).guest?.primaryLastName || ''}`.trim() || 'N/A';
+        const guestId = r.guestId || r.id;
+        const guestName = resolveGuestName(r);
 
         if (nights >= 30) {
           categories.monthly.count += 1;
@@ -3503,15 +3608,15 @@ function ReportsPageInner() {
     const siteMap = new Map(sitesQuery.data.map(s => [s.id, s]));
     const groupBookings = reservationsQuery.data
       .filter(r => {
-        const partySize = ((r as ReservationWithGuest).adults || 0) + ((r as ReservationWithGuest).children || 0);
+        const partySize = r.adults + (r.children ?? 0);
         return r.status !== 'cancelled' && partySize >= 5;
       })
       .map(r => {
         const site = siteMap.get(r.siteId);
-        const partySize = ((r as ReservationWithGuest).adults || 0) + ((r as ReservationWithGuest).children || 0);
+        const partySize = r.adults + (r.children ?? 0);
         const revenue = (r.totalAmount || 0) / 100;
         return {
-          guest: `${(r as ReservationWithGuest).guest?.primaryFirstName || ''} ${(r as ReservationWithGuest).guest?.primaryLastName || ''}`.trim() || 'N/A',
+          guest: resolveGuestName(r),
           site: site?.name || r.siteId,
           arrival: r.arrivalDate,
           departure: r.departureDate,
@@ -3583,7 +3688,7 @@ function ReportsPageInner() {
   const pricingStrategyReport = useMemo(() => {
     if (!reservationsQuery.data || !sitesQuery.data) return null;
 
-    const recommendations: any[] = [];
+    const recommendations: PricingRecommendation[] = [];
     const siteMap = new Map(sitesQuery.data.map(s => [s.id, s]));
 
     // Analyze occupancy vs pricing
@@ -3665,10 +3770,8 @@ function ReportsPageInner() {
       potentialIncrease: 500 // Arbitrary est
     });
 
-    return recommendations.sort((a, b) => {
-      const priorityOrder = { high: 0, medium: 1, low: 2 };
-      return priorityOrder[a.priority as keyof typeof priorityOrder] - priorityOrder[b.priority as keyof typeof priorityOrder];
-    }).slice(0, 25);
+    const priorityOrder: Record<PricingRecommendation["priority"], number> = { high: 0, medium: 1, low: 2 };
+    return recommendations.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]).slice(0, 25);
   }, [reservationsQuery.data, sitesQuery.data]);
 
   // Weekend Premium Analysis
@@ -3868,7 +3971,8 @@ function ReportsPageInner() {
             const arrival = new Date(r.arrivalDate);
             const departure = new Date(r.departureDate);
             const nights = Math.max(1, Math.floor((departure.getTime() - arrival.getTime()) / (1000 * 60 * 60 * 24)));
-            const guest = `"${(r as ReservationWithGuest).guest?.primaryFirstName || ''} ${(r as ReservationWithGuest).guest?.primaryLastName || ''}".trim()`;
+            const guestName = resolveGuestName(r, "");
+            const guest = `"${guestName}"`;
             csv += `${r.id},${r.siteId},${guest},${r.arrivalDate},${r.departureDate},${r.status},${(r.totalAmount / 100).toFixed(2)},${((r.paidAmount || 0) / 100).toFixed(2)},${((r.balanceAmount || 0) / 100).toFixed(2)},${nights}\n`;
           });
         }
@@ -4102,7 +4206,7 @@ function ReportsPageInner() {
           </div>
 
           <ReportsNavBar
-            activeTab={activeTab as ReportTab}
+            activeTab={activeTab}
             activeSubTab={activeSubTab}
             dateRange={dateRange}
             filters={reportFilters}
@@ -4173,7 +4277,11 @@ function ReportsPageInner() {
                     <Label htmlFor="report-filter-status" className="block text-xs font-medium text-muted-foreground mb-1">Status</Label>
                     <Select
                       value={reportFilters.status}
-                      onValueChange={(value) => setReportFilters({ ...reportFilters, status: value as 'all' | 'confirmed' | 'checked_in' | 'pending' | 'cancelled' })}
+                      onValueChange={(value) => {
+                        if (isReportStatus(value)) {
+                          setReportFilters({ ...reportFilters, status: value });
+                        }
+                      }}
                     >
                       <SelectTrigger id="report-filter-status" className="w-full h-8 text-sm">
                         <SelectValue />
@@ -4213,7 +4321,11 @@ function ReportsPageInner() {
                     <Label htmlFor="report-filter-group-by" className="block text-xs font-medium text-muted-foreground mb-1">Group By</Label>
                     <Select
                       value={reportFilters.groupBy}
-                      onValueChange={(value) => setReportFilters({ ...reportFilters, groupBy: value as 'none' | 'site' | 'status' | 'date' | 'siteType' })}
+                      onValueChange={(value) => {
+                        if (isReportGroupBy(value)) {
+                          setReportFilters({ ...reportFilters, groupBy: value });
+                        }
+                      }}
                     >
                       <SelectTrigger id="report-filter-group-by" className="w-full h-8 text-sm">
                         <SelectValue />
@@ -4257,18 +4369,16 @@ function ReportsPageInner() {
 
 
           {/* DYNAMIC REPORT CONTENT - renders directly below sub-tabs */}
-          {campgroundId && activeTab !== 'overview' && (
-            <div className="rounded-xl border border-border bg-card shadow-sm p-4">
-              <ReportRenderer
-                key={`${activeTab}-${activeSubTab || 'default'}`}
-                tab={activeTab as ReportTab}
-                subTab={activeSubTab || (subTabs[activeTab as keyof typeof subTabs]?.[0]?.id)}
-                campgroundId={campgroundId}
-                dateRange={dateRange}
-                reportFilters={reportFilters}
-              />
-            </div>
-          )}
+          <div className="rounded-xl border border-border bg-card shadow-sm p-4">
+            <ReportRenderer
+              key={`${activeTab}-${activeSubTab || 'default'}`}
+              tab={activeTab}
+              subTab={activeSubTab ?? getSubTabs(activeTab)[0]?.id}
+              campgroundId={campgroundId}
+              dateRange={dateRange}
+              reportFilters={reportFilters}
+            />
+          </div>
 
           {/* Legacy renderSubReportContent() removed - now using ReportRenderer component */}
         </div>
@@ -4367,7 +4477,7 @@ function ReportsPageInner() {
 
 
           <ReportsNavBar
-            activeTab={activeTab as ReportTab}
+            activeTab={activeTab}
             activeSubTab={activeSubTab}
             dateRange={dateRange}
             filters={reportFilters}
@@ -4406,8 +4516,8 @@ function ReportsPageInner() {
                 {activeTab !== 'overview' && campgroundId && (
                   <ReportRenderer
                     key={`${activeTab}-${activeSubTab || 'default'}`}
-                    tab={activeTab as ReportTab}
-                    subTab={activeSubTab || (subTabs[activeTab as keyof typeof subTabs]?.[0]?.id)}
+                    tab={activeTab}
+                    subTab={activeSubTab ?? getSubTabs(activeTab)[0]?.id}
                     campgroundId={campgroundId}
                     dateRange={dateRange}
                     reportFilters={reportFilters}
@@ -4417,7 +4527,7 @@ function ReportsPageInner() {
 
                 {/* Site Status Report */}
                 {
-                  (activeTab as string) === 'daily' && siteStatusReport && (
+                  activeTab === 'daily' && siteStatusReport && (
                     <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-foreground">Site Status Overview</div>
@@ -4456,7 +4566,7 @@ function ReportsPageInner() {
 
                 {/* Transaction Log */}
                 {
-                  (activeTab as string) === 'daily' && transactionLog && (
+                  activeTab === 'daily' && transactionLog && (
                     <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-foreground">Transaction Log</div>
@@ -4514,7 +4624,7 @@ function ReportsPageInner() {
 
                 {/* Monthly Revenue */}
                 {
-                  (activeTab as string) === 'daily' && monthlyRevenue && (
+                  activeTab === 'daily' && monthlyRevenue && (
                     <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-foreground">Monthly Revenue Breakdown</div>
@@ -4550,7 +4660,7 @@ function ReportsPageInner() {
 
                 {/* Annual Revenue */}
                 {
-                  (activeTab as string) === 'daily' && annualRevenue && (
+                  activeTab === 'daily' && annualRevenue && (
                     <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-foreground">Annual Revenue Comparison</div>
@@ -4591,7 +4701,7 @@ function ReportsPageInner() {
 
                 {/* Daily Revenue (Last 30 Days) */}
                 {
-                  (activeTab as string) === 'daily' && dailyRevenue && (
+                  activeTab === 'daily' && dailyRevenue && (
                     <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-foreground">Daily Revenue Trend</div>
@@ -4638,7 +4748,7 @@ function ReportsPageInner() {
 
                 {/* Cancellation Report */}
                 {
-                  (activeTab as string) === 'daily' && cancellationReport && (
+                  activeTab === 'daily' && cancellationReport && (
                     <div className="rounded-xl border border-border bg-card shadow-sm p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-foreground">Cancellations</div>
@@ -4702,7 +4812,7 @@ function ReportsPageInner() {
 
                 {/* No-Show Report */}
                 {
-                  (activeTab as string) === 'daily' && noShowReport && (
+                  activeTab === 'daily' && noShowReport && (
                     <Card className="p-4 space-y-3">
                       <div>
                         <div className="text-sm font-semibold text-foreground">No-Shows</div>
@@ -5705,7 +5815,7 @@ function ReportsPageInner() {
 
                 {/* ANALYTICS TAB */}
                 {
-                  activeTab === 'analytics' && (
+                  activeTab === 'performance' && (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                       {/* Cancellation Analytics */}
                       {cancellationStats && (
@@ -6466,25 +6576,25 @@ function ReportsPageInner() {
                                     const endDate = new Date();
                                     endDate.setDate(endDate.getDate() + 30); // 30 day rule by default
 
-                                    const payload = {
+                                    const payload: CreatePricingRuleDto = {
                                       campgroundId,
                                       label: `AI: ${rec.suggestion} - ${rec.site}`,
                                       startDate: startDate.toISOString().split('T')[0],
                                       endDate: endDate.toISOString().split('T')[0],
                                       isActive: true,
-                                      ruleType: 'flat' as const,
-                                      flatAdjust: Math.round(rec.suggestedRate * 100),
+                                      ruleType: "flat",
+                                      flatAdjust: Math.round(rec.suggestedRate * 100)
                                     };
-                                    await apiClient.createPricingRule(campgroundId, payload as Parameters<typeof apiClient.createPricingRule>[1]);
+                                    await apiClient.createPricingRule(campgroundId, payload);
 
                                     toast({
                                       title: "Pricing Rule Applied",
                                       description: `Applied ${formatCurrency(rec.suggestedRate)} rate for ${rec.site} (30 days).`,
                                     });
-                                  } catch (err: any) {
+                                  } catch (err) {
                                     toast({
                                       title: "Failed to apply",
-                                      description: err.message || "Unknown error",
+                                      description: err instanceof Error ? err.message : "Unknown error",
                                       variant: "destructive"
                                     });
                                   }
@@ -6579,39 +6689,39 @@ function ReportsPageInner() {
                                     endDate.setDate(endDate.getDate() + 90); // 90 days
 
                                     // Create Friday Rule
-                                    const fridayPayload = {
+                                    const fridayPayload: CreatePricingRuleDto = {
                                       campgroundId,
                                       label: `AI: Weekend Premium (Fri)`,
                                       startDate: startDate.toISOString().split('T')[0],
                                       endDate: endDate.toISOString().split('T')[0],
                                       dayOfWeek: 5, // Friday
                                       isActive: true,
-                                      ruleType: 'dow' as const,
-                                      percentAdjust: 0.20, // +20%
+                                      ruleType: "dow",
+                                      percentAdjust: 0.20 // +20%
                                     };
-                                    await apiClient.createPricingRule(campgroundId, fridayPayload as Parameters<typeof apiClient.createPricingRule>[1]);
+                                    await apiClient.createPricingRule(campgroundId, fridayPayload);
 
                                     // Create Saturday Rule
-                                    const saturdayPayload = {
+                                    const saturdayPayload: CreatePricingRuleDto = {
                                       campgroundId,
                                       label: `AI: Weekend Premium (Sat)`,
                                       startDate: startDate.toISOString().split('T')[0],
                                       endDate: endDate.toISOString().split('T')[0],
                                       dayOfWeek: 6, // Saturday
                                       isActive: true,
-                                      ruleType: 'dow' as const,
-                                      percentAdjust: 0.20, // +20%
+                                      ruleType: "dow",
+                                      percentAdjust: 0.20 // +20%
                                     };
-                                    await apiClient.createPricingRule(campgroundId, saturdayPayload as Parameters<typeof apiClient.createPricingRule>[1]);
+                                    await apiClient.createPricingRule(campgroundId, saturdayPayload);
 
                                     toast({
                                       title: "Weekend Premium Applied",
                                       description: "Created +20% pricing rules for Fridays and Saturdays (90 days).",
                                     });
-                                  } catch (err: any) {
+                                  } catch (err) {
                                     toast({
                                       title: "Failed to apply",
-                                      description: err.message || "Unknown error",
+                                      description: err instanceof Error ? err.message : "Unknown error",
                                       variant: "destructive"
                                     });
                                   }

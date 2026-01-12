@@ -1,50 +1,88 @@
 import "reflect-metadata";
+import { Test, TestingModule } from "@nestjs/testing";
 import { SignaturesService } from "../signatures/signatures.service";
 import { SignaturesController } from "../signatures/signatures.controller";
 import { AuditService } from "../audit/audit.service";
 import { EmailService } from "../email/email.service";
 import { SmsService } from "../sms/sms.service";
 import { SignatureRequestStatus } from "@prisma/client";
+import { PrismaService } from "../prisma/prisma.service";
 
 describe("Signatures module", () => {
-  const prisma = {
-    reservation: { findUnique: jest.fn() },
-    guest: { findUnique: jest.fn() },
-    signatureRequest: {
-      create: jest.fn(),
-      findUnique: jest.fn(),
-      update: jest.fn(),
-      findMany: jest.fn()
-    },
-    signatureArtifact: {
-      findUnique: jest.fn(),
-      upsert: jest.fn()
-    },
-    coiUpload: {
-      create: jest.fn(),
-      findMany: jest.fn(),
-      update: jest.fn()
-    }
-  } as any;
-  const email = { sendEmail: jest.fn().mockResolvedValue({}) } as unknown as EmailService;
-  const sms = { sendSms: jest.fn().mockResolvedValue({}) } as unknown as SmsService;
-  const audit = { record: jest.fn().mockResolvedValue({}) } as unknown as AuditService;
-  const service = new SignaturesService(prisma, email, sms, audit);
+  type PrismaMock = {
+    reservation: { findUnique: jest.Mock };
+    guest: { findUnique: jest.Mock };
+    signatureRequest: { create: jest.Mock; findUnique: jest.Mock; update: jest.Mock; findMany: jest.Mock };
+    signatureArtifact: { findUnique: jest.Mock; upsert: jest.Mock };
+    coiUpload: { create: jest.Mock; findMany: jest.Mock; update: jest.Mock };
+  };
 
-  beforeEach(() => {
+  type EmailMock = { sendEmail: jest.Mock };
+  type SmsMock = { sendSms: jest.Mock };
+  type AuditMock = { record: jest.Mock };
+
+  let prisma: PrismaMock;
+  let email: EmailMock;
+  let sms: SmsMock;
+  let audit: AuditMock;
+  let service: SignaturesService;
+  let moduleRef: TestingModule;
+
+  beforeEach(async () => {
+    prisma = {
+      reservation: { findUnique: jest.fn() },
+      guest: { findUnique: jest.fn() },
+      signatureRequest: {
+        create: jest.fn(),
+        findUnique: jest.fn(),
+        update: jest.fn(),
+        findMany: jest.fn()
+      },
+      signatureArtifact: {
+        findUnique: jest.fn(),
+        upsert: jest.fn()
+      },
+      coiUpload: {
+        create: jest.fn(),
+        findMany: jest.fn(),
+        update: jest.fn()
+      }
+    };
+    email = { sendEmail: jest.fn().mockResolvedValue({}) };
+    sms = { sendSms: jest.fn().mockResolvedValue({}) };
+    audit = { record: jest.fn().mockResolvedValue({}) };
+
+    moduleRef = await Test.createTestingModule({
+      providers: [
+        SignaturesService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: EmailService, useValue: email },
+        { provide: SmsService, useValue: sms },
+        { provide: AuditService, useValue: audit }
+      ]
+    }).compile();
+
+    service = moduleRef.get(SignaturesService);
+  });
+
+  afterEach(async () => {
     jest.clearAllMocks();
+    await moduleRef.close();
   });
 
   it("creates and sends a signature request with email", async () => {
     prisma.reservation.findUnique.mockResolvedValue({
       id: "res1",
       campgroundId: "camp1",
-      guest: { id: "guest1", email: "guest@example.com", primaryFirstName: "Test", primaryLastName: "User" }
+      Guest: { id: "guest1", email: "guest@example.com", primaryFirstName: "Test", primaryLastName: "User" }
     });
-    prisma.signatureRequest.create.mockImplementation(({ data }: any) => ({ ...data, id: "req1" }));
+    prisma.signatureRequest.create.mockImplementation((input: { data: Record<string, unknown> }) => ({
+      ...input.data,
+      id: "req1"
+    }));
 
     const { request, signingUrl } = await service.createAndSend(
-      { reservationId: "res1", documentType: "long_term_stay", deliveryChannel: "email" } as any,
+      { reservationId: "res1", documentType: "long_term_stay", deliveryChannel: "email" },
       "user-actor"
     );
 
@@ -66,8 +104,8 @@ describe("Signatures module", () => {
       reminderCount: 0
     };
     prisma.signatureRequest.findUnique.mockImplementation(() => Promise.resolve(record));
-    prisma.signatureRequest.update.mockImplementation(({ data }: any) => {
-      record = { ...record, ...data };
+    prisma.signatureRequest.update.mockImplementation((input: { data: Record<string, unknown> }) => {
+      record = { ...record, ...input.data };
       return Promise.resolve(record);
     });
     prisma.signatureArtifact.findUnique.mockResolvedValue(null);

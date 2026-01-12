@@ -5,7 +5,7 @@
  * Run with: npx ts-node prisma/seed-seo.ts
  */
 
-import { PrismaClient } from "@prisma/client";
+import { AttractionType, PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 const adapter = new PrismaPg({
@@ -29,7 +29,19 @@ const STATES = [
 ];
 
 // Sample attractions (national parks)
-const ATTRACTIONS = [
+type AttractionSeed = {
+  name: string;
+  slug: string;
+  type: AttractionType;
+  state: string;
+  latitude: number;
+  longitude: number;
+  description: string;
+  activities: string[];
+  bestSeason: string;
+};
+
+const ATTRACTIONS: AttractionSeed[] = [
   {
     name: "Yellowstone National Park",
     slug: "yellowstone-national-park",
@@ -262,7 +274,7 @@ async function main() {
       where: { slug: attr.slug },
       update: {},
       create: {
-        type: attr.type as any,
+        type: attr.type,
         name: attr.name,
         slug: attr.slug,
         state: attr.state,

@@ -42,6 +42,21 @@ import type {
 } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000";
+const stepOrder: ImportStep[] = [1, 2, 3, 4];
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof Error) return error.message;
+  if (isRecord(error) && typeof error.message === "string") return error.message;
+  return fallback;
+};
+
+const getPreviousStep = (current: ImportStep): ImportStep => {
+  const index = stepOrder.indexOf(current);
+  return stepOrder[Math.max(0, index - 1)];
+};
 
 // ============ Main Modal ============
 
@@ -118,8 +133,8 @@ export function ReservationImportModal({
       };
       setMapping(newMapping);
       setStep(2);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (error) {
+      setError(getErrorMessage(error, "Failed to upload CSV"));
     } finally {
       setLoading(false);
     }
@@ -159,8 +174,8 @@ export function ReservationImportModal({
       }
       setRowOverrides(overrides);
       setStep(3);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (error) {
+      setError(getErrorMessage(error, "Failed to preview import"));
     } finally {
       setLoading(false);
     }
@@ -213,8 +228,8 @@ export function ReservationImportModal({
       const result = await res.json();
       setStep(4);
       onComplete(result);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (error) {
+      setError(getErrorMessage(error, "Failed to execute import"));
     } finally {
       setLoading(false);
     }
@@ -228,7 +243,8 @@ export function ReservationImportModal({
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      const content = event.target?.result as string;
+      const content = event.target?.result;
+      if (typeof content !== "string") return;
       uploadCSV(content);
     };
     reader.readAsText(file);
@@ -241,7 +257,8 @@ export function ReservationImportModal({
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      const content = event.target?.result as string;
+      const content = event.target?.result;
+      if (typeof content !== "string") return;
       uploadCSV(content);
     };
     reader.readAsText(file);
@@ -361,7 +378,7 @@ export function ReservationImportModal({
             {step > 1 && step < 4 && (
               <Button
                 variant="ghost"
-                onClick={() => setStep((s) => (s - 1) as ImportStep)}
+                onClick={() => setStep((s) => getPreviousStep(s))}
                 disabled={loading}
               >
                 <ArrowLeft className="w-4 h-4 mr-2" />
@@ -520,7 +537,8 @@ function Step2Mapping({
   mapping: ReservationImportColumnMapping;
   onMappingChange: (m: ReservationImportColumnMapping) => void;
 }) {
-  const fields = [
+  type MappingKey = keyof ReservationImportColumnMapping;
+  const fields: Array<{ key: MappingKey; label: string; required: boolean }> = [
     { key: "arrivalDate", label: "Arrival Date", required: true },
     { key: "departureDate", label: "Departure Date", required: true },
     { key: "firstName", label: "First Name", required: false },
@@ -538,7 +556,7 @@ function Step2Mapping({
     { key: "notes", label: "Notes", required: false },
   ];
 
-  const updateMapping = (key: string, value: string) => {
+  const updateMapping = (key: MappingKey, value: string) => {
     onMappingChange({ ...mapping, [key]: value || undefined });
   };
 
@@ -561,7 +579,7 @@ function Step2Mapping({
               {field.required && <span className="text-red-400 ml-1">*</span>}
             </Label>
             <Select
-              value={mapping[field.key as keyof ReservationImportColumnMapping] || ""}
+              value={mapping[field.key] || ""}
               onValueChange={(v) => updateMapping(field.key, v)}
             >
               <SelectTrigger className="bg-slate-800 border-slate-600 text-white">

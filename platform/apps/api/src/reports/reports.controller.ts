@@ -5,6 +5,7 @@ import { RolesGuard, Roles } from '../auth/guards/roles.guard';
 import { ScopeGuard } from '../auth/guards/scope.guard';
 import { UserRole } from '@prisma/client';
 import { CreateReportExportDto } from './dto/create-report-export.dto';
+import type { ReportQueryInput } from "./report.types";
 import type { Request } from "express";
 
 @Controller('campgrounds/:campgroundId/reports')
@@ -31,7 +32,7 @@ export class ReportsController {
     @HttpCode(200)
     async runReport(
         @Param('campgroundId') campgroundId: string,
-        @Body() body: any
+        @Body() body: ReportQueryInput
     ) {
         return this.reportsService.runReport(campgroundId, body);
     }

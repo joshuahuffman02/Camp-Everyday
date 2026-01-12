@@ -40,10 +40,10 @@ export default function AdminCampgroundsListPage() {
                 headers: getAuthHeaders(),
             });
             if (!res.ok) throw new Error(`Failed to load campgrounds (${res.status})`);
-            const data = await res.json();
+            const data: Campground[] = await res.json();
             setCampgrounds(Array.isArray(data) ? data : []);
-        } catch (err: any) {
-            setError(err.message || "Failed to load campgrounds");
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : "Failed to load campgrounds");
         } finally {
             setLoading(false);
         }

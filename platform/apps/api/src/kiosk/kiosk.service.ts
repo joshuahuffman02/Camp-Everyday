@@ -1,7 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException, UnauthorizedException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { PublicReservationsService } from "../public-reservations/public-reservations.service";
-import crypto from "crypto";
+import crypto, { randomUUID } from "crypto";
 
 export interface KioskReservationDto {
   siteId: string;
@@ -48,6 +48,7 @@ export class KioskService {
     // Create new code
     const pairingCode = await this.prisma.kioskPairingCode.create({
       data: {
+        id: randomUUID(),
         campgroundId,
         code,
         expiresAt,
@@ -74,7 +75,7 @@ export class KioskService {
         expiresAt: { gt: new Date() },
       },
       include: {
-        campground: {
+        Campground: {
           select: {
             id: true,
             name: true,
@@ -97,11 +98,13 @@ export class KioskService {
     // Create the kiosk device
     const device = await this.prisma.kioskDevice.create({
       data: {
+        id: randomUUID(),
         campgroundId: pairingCode.campgroundId,
         name: deviceName || `Kiosk ${new Date().toLocaleDateString()}`,
         deviceToken,
         userAgent,
         lastSeenAt: new Date(),
+        updatedAt: new Date(),
       },
     });
 
@@ -117,7 +120,7 @@ export class KioskService {
     return {
       deviceToken,
       deviceId: device.id,
-      campground: pairingCode.campground,
+      campground: pairingCode.Campground,
     };
   }
 
@@ -129,7 +132,7 @@ export class KioskService {
     const device = await this.prisma.kioskDevice.findUnique({
       where: { deviceToken },
       include: {
-        campground: {
+        Campground: {
           select: {
             id: true,
             name: true,
@@ -164,7 +167,7 @@ export class KioskService {
     return {
       deviceId: device.id,
       deviceName: device.name,
-      campground: device.campground,
+      campground: device.Campground,
       features: {
         allowWalkIns: device.allowWalkIns,
         allowCheckIn: device.allowCheckIn,
@@ -294,7 +297,7 @@ export class KioskService {
     const device = await this.prisma.kioskDevice.findUnique({
       where: { deviceToken },
       include: {
-        campground: {
+        Campground: {
           select: {
             id: true,
             slug: true,
@@ -327,7 +330,7 @@ export class KioskService {
 
     // Create reservation using public reservations service
     const reservation = await this.publicReservations.createReservation({
-      campgroundSlug: device.campground.slug,
+      campgroundSlug: device.Campground.slug,
       siteId: dto.siteId,
       arrivalDate: dto.arrivalDate,
       departureDate: dto.departureDate,

@@ -34,7 +34,8 @@ interface UsageStats {
 
 export default function AiSettingsPage() {
     const params = useParams();
-    const campgroundId = params.campgroundId as string;
+    const campgroundParam = params.campgroundId;
+    const campgroundId = typeof campgroundParam === "string" ? campgroundParam : "";
     const queryClient = useQueryClient();
 
     const { data: campground } = useQuery({
@@ -66,13 +67,18 @@ export default function AiSettingsPage() {
         },
     });
 
-    const handleToggle = (field: keyof AiSettings) => {
+    type ToggleField = {
+        [K in keyof AiSettings]: AiSettings[K] extends boolean ? K : never
+    }[keyof AiSettings];
+
+    const handleToggle = (field: ToggleField) => {
         if (!settings) return;
-        mutation.mutate({ [field]: !settings[field] } as Partial<AiSettings>);
+        const update = { [field]: !settings[field] } satisfies Partial<AiSettings>;
+        mutation.mutate(update);
     };
 
     const handleAnonymizationChange = (level: string) => {
-        mutation.mutate({ aiAnonymizationLevel: level } as Partial<AiSettings>);
+        mutation.mutate({ aiAnonymizationLevel: level });
     };
 
     if (isLoading) {
@@ -99,7 +105,7 @@ export default function AiSettingsPage() {
                                 <div>
                                     <h3 className="font-semibold text-red-900">Unable to load AI settings</h3>
                                     <p className="text-sm text-red-700 mt-1">
-                                        {(error as Error)?.message || "An error occurred. Please try again."}
+                                        {error instanceof Error ? error.message : "An error occurred. Please try again."}
                                     </p>
                                 </div>
                             </div>

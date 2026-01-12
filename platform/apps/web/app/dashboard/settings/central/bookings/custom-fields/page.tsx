@@ -87,13 +87,13 @@ const initialFields: CustomField[] = [
 ];
 
 // Suggested fields campgrounds commonly use
-const suggestedFields = [
-  { question: "Estimated arrival time", fieldType: "time" as FieldType },
-  { question: "Number of vehicles", fieldType: "number" as FieldType },
-  { question: "How did you hear about us?", fieldType: "dropdown" as FieldType },
-  { question: "Do you need a pull-through site?", fieldType: "yes_no" as FieldType },
-  { question: "Emergency contact phone", fieldType: "text" as FieldType },
-  { question: "Special requests or notes", fieldType: "text" as FieldType },
+const suggestedFields: Array<Pick<CustomField, "question" | "fieldType">> = [
+  { question: "Estimated arrival time", fieldType: "time" },
+  { question: "Number of vehicles", fieldType: "number" },
+  { question: "How did you hear about us?", fieldType: "dropdown" },
+  { question: "Do you need a pull-through site?", fieldType: "yes_no" },
+  { question: "Emergency contact phone", fieldType: "text" },
+  { question: "Special requests or notes", fieldType: "text" },
 ];
 
 const displayContextOptions: { value: DisplayContext; label: string; description: string }[] = [

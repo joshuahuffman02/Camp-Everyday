@@ -5,19 +5,19 @@
 
 import type { Metric } from "web-vitals";
 
+type MetricName = "CLS" | "FCP" | "FID" | "INP" | "LCP" | "TTFB";
+
 /**
  * Web Vitals thresholds (Good/Needs Improvement/Poor)
  */
-export const WEB_VITALS_THRESHOLDS = {
+export const WEB_VITALS_THRESHOLDS: Record<MetricName, { good: number; poor: number }> = {
   CLS: { good: 0.1, poor: 0.25 },
   FCP: { good: 1800, poor: 3000 },
   FID: { good: 100, poor: 300 },
   INP: { good: 200, poor: 500 },
   LCP: { good: 2500, poor: 4000 },
   TTFB: { good: 800, poor: 1800 },
-} as const;
-
-type MetricName = keyof typeof WEB_VITALS_THRESHOLDS;
+};
 
 /**
  * Get rating for a metric value

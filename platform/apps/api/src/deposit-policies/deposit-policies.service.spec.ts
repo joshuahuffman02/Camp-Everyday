@@ -1,49 +1,68 @@
+import { Test, TestingModule } from '@nestjs/testing';
 import { DepositPoliciesService } from './deposit-policies.service';
-import { DepositStrategy, DepositApplyTo } from '@prisma/client';
+import { DepositApplyTo, DepositDueTiming, DepositPolicy, DepositStrategy } from '@prisma/client';
 import { NotFoundException } from '@nestjs/common';
+import type { CreateDepositPolicyDto } from './dto/create-deposit-policy.dto';
+import type { UpdateDepositPolicyDto } from './dto/update-deposit-policy.dto';
+import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 
 describe('DepositPoliciesService', () => {
+  let moduleRef: TestingModule;
   let service: DepositPoliciesService;
-  let mockPrisma: any;
-  let mockAudit: any;
 
-  const createMockPolicy = (overrides: any = {}) => ({
+  const mockPrisma = {
+    depositPolicy: {
+      findMany: jest.fn(),
+      findFirst: jest.fn(),
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
+    campground: {
+      findUnique: jest.fn(),
+    },
+  };
+  const mockAudit = { record: jest.fn().mockResolvedValue(undefined) };
+
+  const createMockPolicy = (overrides: Partial<DepositPolicy> = {}): DepositPolicy => ({
     id: 'policy-1',
     campgroundId: 'cg-1',
     siteClassId: null,
     name: 'Standard Deposit',
     strategy: DepositStrategy.percent,
     value: 50,
-    applyTo: DepositApplyTo.total,
+    applyTo: DepositApplyTo.lodging_plus_fees,
+    dueTiming: DepositDueTiming.at_booking,
+    retryPlanId: null,
     active: true,
     minCap: null,
     maxCap: null,
     version: 1,
+    createdBy: null,
+    updatedBy: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
   });
 
-  beforeEach(() => {
-    mockPrisma = {
-      depositPolicy: {
-        findMany: jest.fn(),
-        findFirst: jest.fn(),
-        findUnique: jest.fn(),
-        create: jest.fn(),
-        update: jest.fn(),
-        delete: jest.fn(),
-      },
-      campground: {
-        findUnique: jest.fn(),
-      },
-    };
+  beforeEach(async () => {
+    jest.clearAllMocks();
 
-    mockAudit = {
-      record: jest.fn().mockResolvedValue(undefined),
-    };
+    moduleRef = await Test.createTestingModule({
+      providers: [
+        DepositPoliciesService,
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: AuditService, useValue: mockAudit },
+      ],
+    }).compile();
 
-    service = new DepositPoliciesService(mockPrisma, mockAudit);
+    service = moduleRef.get(DepositPoliciesService);
+  });
+
+  afterEach(async () => {
+    await moduleRef?.close();
   });
 
   describe('resolve', () => {
@@ -148,7 +167,7 @@ describe('DepositPoliciesService', () => {
         const policy = createMockPolicy({
           strategy: DepositStrategy.percent,
           value: 50,
-          applyTo: DepositApplyTo.total,
+          applyTo: DepositApplyTo.lodging_plus_fees,
         });
         jest.spyOn(service, 'resolve').mockResolvedValue(policy);
 
@@ -174,7 +193,7 @@ describe('DepositPoliciesService', () => {
         const policy = createMockPolicy({
           strategy: DepositStrategy.percent,
           value: 33,
-          applyTo: DepositApplyTo.total,
+          applyTo: DepositApplyTo.lodging_plus_fees,
         });
         jest.spyOn(service, 'resolve').mockResolvedValue(policy);
 
@@ -187,7 +206,7 @@ describe('DepositPoliciesService', () => {
         const policy = createMockPolicy({
           strategy: DepositStrategy.percent,
           value: 100,
-          applyTo: DepositApplyTo.total,
+          applyTo: DepositApplyTo.lodging_plus_fees,
         });
         jest.spyOn(service, 'resolve').mockResolvedValue(policy);
 
@@ -202,7 +221,7 @@ describe('DepositPoliciesService', () => {
         const policy = createMockPolicy({
           strategy: DepositStrategy.first_night,
           value: 0, // Not used for first_night
-          applyTo: DepositApplyTo.total,
+          applyTo: DepositApplyTo.lodging_plus_fees,
         });
         jest.spyOn(service, 'resolve').mockResolvedValue(policy);
 
@@ -228,7 +247,7 @@ describe('DepositPoliciesService', () => {
         const policy = createMockPolicy({
           strategy: DepositStrategy.first_night,
           value: 0,
-          applyTo: DepositApplyTo.total,
+          applyTo: DepositApplyTo.lodging_plus_fees,
         });
         jest.spyOn(service, 'resolve').mockResolvedValue(policy);
 
@@ -241,7 +260,7 @@ describe('DepositPoliciesService', () => {
         const policy = createMockPolicy({
           strategy: DepositStrategy.first_night,
           value: 0,
-          applyTo: DepositApplyTo.total,
+          applyTo: DepositApplyTo.lodging_plus_fees,
         });
         jest.spyOn(service, 'resolve').mockResolvedValue(policy);
 
@@ -256,7 +275,7 @@ describe('DepositPoliciesService', () => {
         const policy = createMockPolicy({
           strategy: DepositStrategy.fixed,
           value: 5000, // $50.00 fixed
-          applyTo: DepositApplyTo.total,
+          applyTo: DepositApplyTo.lodging_plus_fees,
         });
         jest.spyOn(service, 'resolve').mockResolvedValue(policy);
 
@@ -269,7 +288,7 @@ describe('DepositPoliciesService', () => {
         const policy = createMockPolicy({
           strategy: DepositStrategy.fixed,
           value: 50000, // $500 fixed (more than total)
-          applyTo: DepositApplyTo.total,
+          applyTo: DepositApplyTo.lodging_plus_fees,
         });
         jest.spyOn(service, 'resolve').mockResolvedValue(policy);
 
@@ -284,7 +303,7 @@ describe('DepositPoliciesService', () => {
         const policy = createMockPolicy({
           strategy: DepositStrategy.percent,
           value: 10,
-          applyTo: DepositApplyTo.total,
+          applyTo: DepositApplyTo.lodging_plus_fees,
           minCap: 2500, // $25 minimum
         });
         jest.spyOn(service, 'resolve').mockResolvedValue(policy);
@@ -299,7 +318,7 @@ describe('DepositPoliciesService', () => {
         const policy = createMockPolicy({
           strategy: DepositStrategy.percent,
           value: 50,
-          applyTo: DepositApplyTo.total,
+          applyTo: DepositApplyTo.lodging_plus_fees,
           maxCap: 3000, // $30 maximum
         });
         jest.spyOn(service, 'resolve').mockResolvedValue(policy);
@@ -314,7 +333,7 @@ describe('DepositPoliciesService', () => {
         const policy = createMockPolicy({
           strategy: DepositStrategy.percent,
           value: 50,
-          applyTo: DepositApplyTo.total,
+          applyTo: DepositApplyTo.lodging_plus_fees,
           minCap: 1000,
           maxCap: 3000,
         });
@@ -337,7 +356,7 @@ describe('DepositPoliciesService', () => {
         const policy = createMockPolicy({
           strategy: DepositStrategy.percent,
           value: 50,
-          applyTo: DepositApplyTo.total,
+          applyTo: DepositApplyTo.lodging_plus_fees,
           minCap: null,
           maxCap: null,
         });
@@ -354,7 +373,7 @@ describe('DepositPoliciesService', () => {
         const policy = createMockPolicy({
           strategy: DepositStrategy.percent,
           value: 10,
-          applyTo: DepositApplyTo.total,
+          applyTo: DepositApplyTo.lodging_plus_fees,
           minCap: 5000, // $50 minimum
         });
         jest.spyOn(service, 'resolve').mockResolvedValue(policy);
@@ -373,7 +392,7 @@ describe('DepositPoliciesService', () => {
           name: 'Test Policy',
           strategy: DepositStrategy.percent,
           value: 25,
-          applyTo: DepositApplyTo.total,
+          applyTo: DepositApplyTo.lodging_plus_fees,
           version: 3,
         });
         jest.spyOn(service, 'resolve').mockResolvedValue(policy);
@@ -387,7 +406,7 @@ describe('DepositPoliciesService', () => {
             name: 'Test Policy',
             strategy: DepositStrategy.percent,
             value: 25,
-            applyTo: DepositApplyTo.total,
+            applyTo: DepositApplyTo.lodging_plus_fees,
           },
           depositPolicyVersion: 'dp:test-policy:v3',
         });
@@ -407,7 +426,7 @@ describe('DepositPoliciesService', () => {
         const policy = createMockPolicy({
           strategy: DepositStrategy.first_night,
           value: 0,
-          applyTo: DepositApplyTo.total,
+          applyTo: DepositApplyTo.lodging_plus_fees,
         });
         jest.spyOn(service, 'resolve').mockResolvedValue(policy);
 
@@ -423,7 +442,7 @@ describe('DepositPoliciesService', () => {
         const policy = createMockPolicy({
           strategy: DepositStrategy.percent,
           value: 50,
-          applyTo: DepositApplyTo.total,
+          applyTo: DepositApplyTo.lodging_plus_fees,
         });
         jest.spyOn(service, 'resolve').mockResolvedValue(policy);
 
@@ -436,7 +455,7 @@ describe('DepositPoliciesService', () => {
         const policy = createMockPolicy({
           strategy: DepositStrategy.percent,
           value: 50,
-          applyTo: DepositApplyTo.total,
+          applyTo: DepositApplyTo.lodging_plus_fees,
         });
         jest.spyOn(service, 'resolve').mockResolvedValue(policy);
 
@@ -449,7 +468,7 @@ describe('DepositPoliciesService', () => {
         const policy = createMockPolicy({
           strategy: DepositStrategy.first_night,
           value: 0,
-          applyTo: DepositApplyTo.total,
+          applyTo: DepositApplyTo.lodging_plus_fees,
         });
         jest.spyOn(service, 'resolve').mockResolvedValue(policy);
 
@@ -463,17 +482,18 @@ describe('DepositPoliciesService', () => {
   describe('CRUD operations', () => {
     describe('create', () => {
       it('should create deposit policy and audit', async () => {
-        const dto = {
+        const dto: CreateDepositPolicyDto = {
           name: 'New Policy',
           strategy: DepositStrategy.percent,
           value: 25,
-          applyTo: DepositApplyTo.total,
+          applyTo: DepositApplyTo.lodging_plus_fees,
+          dueTiming: DepositDueTiming.at_booking,
           active: true,
         };
         const created = createMockPolicy({ ...dto });
         mockPrisma.depositPolicy.create.mockResolvedValue(created);
 
-        const result = await service.create('cg-1', dto as any, 'user-1');
+        const result = await service.create('cg-1', dto, 'user-1');
 
         expect(result).toBe(created);
         expect(mockAudit.record).toHaveBeenCalledWith({
@@ -488,25 +508,28 @@ describe('DepositPoliciesService', () => {
       });
 
       it('should handle optional siteClassId', async () => {
-        const dto = {
+        const dto: CreateDepositPolicyDto = {
           name: 'New Policy',
           strategy: DepositStrategy.percent,
           value: 25,
-          applyTo: DepositApplyTo.total,
+          applyTo: DepositApplyTo.lodging_plus_fees,
+          dueTiming: DepositDueTiming.at_booking,
           active: true,
           siteClassId: 'class-1',
         };
         const created = createMockPolicy({ ...dto });
         mockPrisma.depositPolicy.create.mockResolvedValue(created);
 
-        await service.create('cg-1', dto as any);
+        await service.create('cg-1', dto);
 
         expect(mockPrisma.depositPolicy.create).toHaveBeenCalledWith({
           data: {
+            id: expect.any(String),
             ...dto,
             campgroundId: 'cg-1',
             siteClassId: 'class-1',
             retryPlanId: null,
+            updatedAt: expect.any(Date),
           },
         });
       });
@@ -516,10 +539,11 @@ describe('DepositPoliciesService', () => {
       it('should update deposit policy and audit', async () => {
         const existing = createMockPolicy();
         const updated = { ...existing, value: 75 };
-        mockPrisma.depositPolicy.findUnique.mockResolvedValue(existing);
+        mockPrisma.depositPolicy.findFirst.mockResolvedValue(existing);
         mockPrisma.depositPolicy.update.mockResolvedValue(updated);
 
-        const result = await service.update('policy-1', { value: 75 } as any, 'user-1');
+        const updateDto: UpdateDepositPolicyDto = { value: 75 };
+        const result = await service.update('cg-1', 'policy-1', updateDto, 'user-1');
 
         expect(result).toBe(updated);
         expect(mockAudit.record).toHaveBeenCalledWith({
@@ -534,9 +558,9 @@ describe('DepositPoliciesService', () => {
       });
 
       it('should throw NotFoundException for non-existent policy', async () => {
-        mockPrisma.depositPolicy.findUnique.mockResolvedValue(null);
+        mockPrisma.depositPolicy.findFirst.mockResolvedValue(null);
 
-        await expect(service.update('invalid-id', {} as any))
+        await expect(service.update('cg-1', 'invalid-id', {}))
           .rejects.toThrow(NotFoundException);
       });
     });
@@ -544,10 +568,10 @@ describe('DepositPoliciesService', () => {
     describe('remove', () => {
       it('should delete deposit policy and audit', async () => {
         const existing = createMockPolicy();
-        mockPrisma.depositPolicy.findUnique.mockResolvedValue(existing);
+        mockPrisma.depositPolicy.findFirst.mockResolvedValue(existing);
         mockPrisma.depositPolicy.delete.mockResolvedValue(existing);
 
-        const result = await service.remove('policy-1', 'user-1');
+        const result = await service.remove('cg-1', 'policy-1', 'user-1');
 
         expect(result).toBe(existing);
         expect(mockAudit.record).toHaveBeenCalledWith({
@@ -562,9 +586,9 @@ describe('DepositPoliciesService', () => {
       });
 
       it('should throw NotFoundException for non-existent policy', async () => {
-        mockPrisma.depositPolicy.findUnique.mockResolvedValue(null);
+        mockPrisma.depositPolicy.findFirst.mockResolvedValue(null);
 
-        await expect(service.remove('invalid-id'))
+        await expect(service.remove('cg-1', 'invalid-id'))
           .rejects.toThrow(NotFoundException);
       });
     });

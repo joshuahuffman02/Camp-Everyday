@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../../../prisma/prisma.service";
 import { DateRange } from "../platform-analytics.service";
 
-interface ImprovementSuggestion {
+export interface ImprovementSuggestion {
   campgroundId: string;
   campgroundName: string;
   npsScore: number;
@@ -19,7 +19,7 @@ interface ImprovementSuggestion {
   topComplaints: string[];
 }
 
-interface AnomalyAlert {
+export interface AnomalyAlert {
   id: string;
   type: "nps_drop" | "cancellation_spike" | "revenue_decline" | "booking_slowdown";
   severity: "warning" | "critical";
@@ -53,7 +53,7 @@ export class AiSuggestionsService {
         comment: true,
         tags: true,
         campgroundId: true,
-        campground: { select: { name: true } },
+        Campground: { select: { name: true } },
       },
     });
 
@@ -71,7 +71,7 @@ export class AiSuggestionsService {
     for (const r of responses) {
       if (!byCampground[r.campgroundId]) {
         byCampground[r.campgroundId] = {
-          name: r.campground.name,
+          name: r.Campground.name,
           scores: [],
           comments: [],
           tags: {},
@@ -295,7 +295,7 @@ export class AiSuggestionsService {
     const [currentNps, previousNps] = await Promise.all([
       this.prisma.npsResponse.findMany({
         where: { createdAt: { gte: start, lte: end } },
-        select: { score: true, campgroundId: true, campground: { select: { name: true } } },
+        select: { score: true, campgroundId: true, Campground: { select: { name: true } } },
       }),
       this.prisma.npsResponse.findMany({
         where: { createdAt: { gte: previousStart, lte: previousEnd } },
@@ -309,7 +309,7 @@ export class AiSuggestionsService {
 
     for (const r of currentNps) {
       if (!currentByCg[r.campgroundId]) {
-        currentByCg[r.campgroundId] = { name: r.campground.name, scores: [] };
+        currentByCg[r.campgroundId] = { name: r.Campground.name, scores: [] };
       }
       currentByCg[r.campgroundId].scores.push(r.score);
     }

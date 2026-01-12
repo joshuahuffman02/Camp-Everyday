@@ -103,10 +103,10 @@ export class HealthService {
   private async safeCheck(fn: () => Promise<CheckResult>, component: string): Promise<CheckResult> {
     try {
       return await fn();
-    } catch (err: any) {
-      this.logger.warn(`Health check failed for ${component}: ${err?.message ?? err}`);
-      return { ok: false, message: err?.message ?? "check failed" };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`Health check failed for ${component}: ${message}`);
+      return { ok: false, message };
     }
   }
 }
-

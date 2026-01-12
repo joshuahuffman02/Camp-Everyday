@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import { randomBytes, createHash } from "crypto";
+import { randomBytes, createHash, randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { EmailService } from "../email/email.service";
 import { CreateReviewRequestDto } from "./dto/create-review-request.dto";
@@ -8,12 +8,42 @@ import { ModerateReviewDto } from "./dto/moderate-review.dto";
 import { VoteReviewDto } from "./dto/vote-review.dto";
 import { ReplyReviewDto } from "./dto/reply-review.dto";
 import { GamificationService } from "../gamification/gamification.service";
-import { GamificationEventCategory, ReviewStatus } from "@prisma/client";
+import { GamificationEventCategory, ReviewModerationStatus, ReviewStatus, ReviewVoteValue } from "@prisma/client";
 
 function baseAppUrl() {
   const url = process.env.PUBLIC_WEB_URL || process.env.NEXT_PUBLIC_APP_URL || "https://app.campreserv.com";
   return url.endsWith("/") ? url.slice(0, -1) : url;
 }
+
+type GuestContact = {
+  email?: string | null;
+  phone?: string | null;
+  name?: string;
+};
+
+const REVIEW_STATUS_MAP: Record<string, ReviewStatus> = {
+  approved: ReviewStatus.approved,
+  rejected: ReviewStatus.rejected,
+  pending: ReviewStatus.pending,
+  removed: ReviewStatus.removed,
+};
+
+const REVIEW_VOTE_MAP: Record<string, ReviewVoteValue> = {
+  helpful: ReviewVoteValue.helpful,
+  not_helpful: ReviewVoteValue.not_helpful,
+};
+
+const REVIEW_MODERATION_STATUS_MAP: Record<ReviewStatus, ReviewModerationStatus> = {
+  approved: ReviewModerationStatus.approved,
+  rejected: ReviewModerationStatus.rejected,
+  pending: ReviewModerationStatus.pending,
+  removed: ReviewModerationStatus.rejected,
+};
+
+const getReviewStatus = (status?: string) => {
+  if (!status) return undefined;
+  return REVIEW_STATUS_MAP[status];
+};
 
 @Injectable()
 export class ReviewsService {
@@ -32,7 +62,7 @@ export class ReviewsService {
     return createHash("sha256").update(ip).digest("hex");
   }
 
-  private async resolveGuestContact(guestId?: string, reservationId?: string, email?: string, phone?: string) {
+  private async resolveGuestContact(guestId?: string, reservationId?: string, email?: string, phone?: string): Promise<GuestContact> {
     if (guestId) {
       const guest = await this.prisma.guest.findUnique({
         where: { id: guestId },
@@ -50,11 +80,11 @@ export class ReviewsService {
       const reservation = await this.prisma.reservation.findUnique({
         where: { id: reservationId },
         select: {
-          guest: { select: { email: true, phone: true, primaryFirstName: true, primaryLastName: true } }
+          Guest: { select: { email: true, phone: true, primaryFirstName: true, primaryLastName: true } }
         }
       });
-      if (reservation?.guest) {
-        const g = reservation.guest;
+      if (reservation?.Guest) {
+        const g = reservation.Guest;
         return {
           email: email ?? g.email,
           phone: phone ?? g.phone,
@@ -62,7 +92,7 @@ export class ReviewsService {
         };
       }
     }
-    return { email, phone, name: undefined as string | undefined };
+    return { email, phone, name: undefined };
   }
 
   async createRequest(dto: CreateReviewRequestDto) {
@@ -73,6 +103,7 @@ export class ReviewsService {
 
     const request = await this.prisma.reviewRequest.create({
       data: {
+        id: randomUUID(),
         campgroundId: dto.campgroundId,
         organizationId: dto.organizationId ?? null,
         guestId: dto.guestId ?? null,
@@ -116,17 +147,18 @@ export class ReviewsService {
   async submitReview(dto: SubmitReviewDto, ip?: string) {
     const request = await this.prisma.reviewRequest.findUnique({
       where: { token: dto.token },
-      include: { review: true }
+      include: { Review: true }
     });
     if (!request) throw new NotFoundException("Review request not found");
     if (request.expiresAt && request.expiresAt < new Date()) {
       await this.prisma.reviewRequest.update({ where: { id: request.id }, data: { status: "expired" } });
       throw new BadRequestException("Review link expired");
     }
-    if (request.review) throw new BadRequestException("Review already submitted");
+    if (request.Review) throw new BadRequestException("Review already submitted");
 
     const review = await this.prisma.review.create({
       data: {
+        id: randomUUID(),
         campgroundId: request.campgroundId,
         organizationId: request.organizationId ?? null,
         guestId: request.guestId ?? null,
@@ -150,6 +182,7 @@ export class ReviewsService {
 
     await this.prisma.reviewModeration.create({
       data: {
+        id: randomUUID(),
         reviewId: review.id,
         status: "pending",
         reasons: []
@@ -158,10 +191,11 @@ export class ReviewsService {
 
     await this.prisma.reviewVote.create({
       data: {
+        id: randomUUID(),
         reviewId: review.id,
         campgroundId: review.campgroundId,
         ipHash: this.hashIp(ip),
-        value: "helpful"
+        value: ReviewVoteValue.helpful
       }
     }).catch(() => undefined);
 
@@ -203,20 +237,23 @@ export class ReviewsService {
         photos: true,
         tags: true,
         createdAt: true,
-        replies: true
+        ReviewReply: true
       }
-    });
+    }).then((reviews) =>
+      reviews.map(({ ReviewReply, ...rest }) => ({ ...rest, replies: ReviewReply }))
+    );
   }
 
   async listAdmin(campgroundId: string, status?: string) {
+    const statusFilter = getReviewStatus(status);
     return this.prisma.review.findMany({
-      where: { campgroundId, ...(status ? { status: status as ReviewStatus } : {}) },
+      where: { campgroundId, ...(statusFilter ? { status: statusFilter } : {}) },
       orderBy: { createdAt: "desc" },
       include: {
-        moderation: true,
-        guest: { select: { primaryFirstName: true, primaryLastName: true, email: true } },
-        reservation: { select: { id: true } },
-        replies: {
+        ReviewModeration: true,
+        Guest: { select: { primaryFirstName: true, primaryLastName: true, email: true } },
+        Reservation: { select: { id: true } },
+        ReviewReply: {
           orderBy: { createdAt: "asc" },
           select: {
             id: true,
@@ -227,29 +264,40 @@ export class ReviewsService {
           }
         }
       }
-    });
+    }).then((reviews) =>
+      reviews.map(({ ReviewModeration, ReviewReply, Guest, Reservation, ...rest }) => ({
+        ...rest,
+        moderation: ReviewModeration,
+        replies: ReviewReply,
+        guest: Guest,
+        reservation: Reservation,
+      }))
+    );
   }
 
   async moderate(dto: ModerateReviewDto, actorId?: string) {
     const prisma = this.prisma;
     const review = await prisma.review.findUnique({ where: { id: dto.reviewId } });
     if (!review) throw new NotFoundException("Review not found");
+    const status = REVIEW_STATUS_MAP[dto.status];
+    const moderationStatus = REVIEW_MODERATION_STATUS_MAP[status];
     await prisma.review.update({
       where: { id: dto.reviewId },
-      data: { status: dto.status, exposure: dto.status === "approved" ? "public" : review.exposure }
+      data: { status, exposure: dto.status === "approved" ? "public" : review.exposure }
     });
     await prisma.reviewModeration.upsert({
       where: { reviewId: dto.reviewId },
       create: {
+        id: randomUUID(),
         reviewId: dto.reviewId,
-        status: dto.status as any,
+        status: moderationStatus,
         reasons: dto.reasons ?? [],
         decidedBy: actorId ?? null,
         decidedAt: new Date(),
         notes: dto.notes ?? null
       },
       update: {
-        status: dto.status as any,
+        status: moderationStatus,
         reasons: dto.reasons ?? [],
         decidedBy: actorId ?? null,
         decidedAt: new Date(),
@@ -263,16 +311,18 @@ export class ReviewsService {
     const review = await this.prisma.review.findUnique({ where: { id: dto.reviewId } });
     if (!review) throw new NotFoundException("Review not found");
     const ipHash = this.hashIp(ip ?? "");
+    const value = REVIEW_VOTE_MAP[dto.value];
     if (guestId) {
       const vote = await this.prisma.reviewVote.upsert({
         where: { reviewId_guestId: { reviewId: dto.reviewId, guestId } },
-        update: { value: dto.value as any, ipHash },
+        update: { value, ipHash },
         create: {
+          id: randomUUID(),
           reviewId: dto.reviewId,
           guestId,
           ipHash,
           campgroundId: review.campgroundId,
-          value: dto.value as any
+          value
         }
       });
       return vote;
@@ -283,11 +333,18 @@ export class ReviewsService {
     if (existing) {
       return this.prisma.reviewVote.update({
         where: { id: existing.id },
-        data: { value: dto.value as any, ipHash }
+        data: { value, ipHash }
       });
     }
     return this.prisma.reviewVote.create({
-      data: { reviewId: dto.reviewId, guestId: null, ipHash, campgroundId: review.campgroundId, value: dto.value as any }
+      data: {
+        id: randomUUID(),
+        reviewId: dto.reviewId,
+        guestId: null,
+        ipHash,
+        campgroundId: review.campgroundId,
+        value
+      }
     });
   }
 
@@ -296,6 +353,7 @@ export class ReviewsService {
     if (!review) throw new NotFoundException("Review not found");
     return this.prisma.reviewReply.create({
       data: {
+        id: randomUUID(),
         reviewId: dto.reviewId,
         authorType: dto.authorType,
         authorId: dto.authorId ?? null,
@@ -304,4 +362,3 @@ export class ReviewsService {
     });
   }
 }
-

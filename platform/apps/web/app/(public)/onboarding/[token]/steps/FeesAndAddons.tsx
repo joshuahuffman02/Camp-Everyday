@@ -62,21 +62,32 @@ interface FeesAndAddonsProps {
   onBack: () => void;
 }
 
-const SPRING_CONFIG = {
-  type: "spring" as const,
+const SPRING_CONFIG: { type: "spring"; stiffness: number; damping: number } = {
+  type: "spring",
   stiffness: 300,
   damping: 25,
 };
 
 // Common add-on presets
-const ADD_ON_PRESETS = [
-  { name: "Firewood Bundle", priceCents: 800, pricingType: "flat" as const },
-  { name: "Guest Day Pass", priceCents: 1000, pricingType: "per_person" as const },
-  { name: "Golf Cart Rental", priceCents: 5000, pricingType: "per_night" as const },
-  { name: "Extra Electricity", priceCents: 1500, pricingType: "per_night" as const },
-  { name: "Kayak Rental", priceCents: 2500, pricingType: "per_night" as const },
-  { name: "Bike Rental", priceCents: 1500, pricingType: "per_night" as const },
+type AddOnPreset = Pick<AddOnItem, "name" | "priceCents" | "pricingType">;
+
+const ADD_ON_PRESETS: AddOnPreset[] = [
+  { name: "Firewood Bundle", priceCents: 800, pricingType: "flat" },
+  { name: "Guest Day Pass", priceCents: 1000, pricingType: "per_person" },
+  { name: "Golf Cart Rental", priceCents: 5000, pricingType: "per_night" },
+  { name: "Extra Electricity", priceCents: 1500, pricingType: "per_night" },
+  { name: "Kayak Rental", priceCents: 2500, pricingType: "per_night" },
+  { name: "Bike Rental", priceCents: 1500, pricingType: "per_night" },
 ];
+
+const pricingTypeValues: AddOnItem["pricingType"][] = ["flat", "per_night", "per_person"];
+const petFeeTypeValues: FeesAndAddonsData["petFeeType"][] = ["per_pet_per_night", "flat"];
+
+const isPricingType = (value: string): value is AddOnItem["pricingType"] =>
+  pricingTypeValues.some((option) => option === value);
+
+const isPetFeeType = (value: string): value is FeesAndAddonsData["petFeeType"] =>
+  petFeeTypeValues.some((option) => option === value);
 
 const PRICING_TYPE_LABELS: Record<AddOnItem["pricingType"], string> = {
   flat: "One-time",
@@ -387,10 +398,14 @@ export function FeesAndAddons({
                 animate={prefersReducedMotion ? {} : { opacity: 1, y: 0 }}
                 className="ml-11 mt-3"
               >
-                <Select
-                  value={data.petFeeType}
-                  onValueChange={(v) => updatePetFeeType(v as "per_pet_per_night" | "flat")}
-                >
+                  <Select
+                    value={data.petFeeType}
+                    onValueChange={(v) => {
+                      if (isPetFeeType(v)) {
+                        updatePetFeeType(v);
+                      }
+                    }}
+                  >
                   <SelectTrigger className="bg-slate-800/50 border-slate-700 text-white w-full">
                     <SelectValue />
                   </SelectTrigger>
@@ -558,7 +573,11 @@ export function FeesAndAddons({
                       <Label className="text-sm text-slate-300">Pricing Type</Label>
                       <Select
                         value={newItemPricingType}
-                        onValueChange={(v) => setNewItemPricingType(v as AddOnItem["pricingType"])}
+                        onValueChange={(v) => {
+                          if (isPricingType(v)) {
+                            setNewItemPricingType(v);
+                          }
+                        }}
                       >
                         <SelectTrigger className="bg-slate-800/50 border-slate-700 text-white">
                           <SelectValue />

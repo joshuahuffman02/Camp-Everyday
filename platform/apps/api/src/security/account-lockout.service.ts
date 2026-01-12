@@ -21,6 +21,16 @@ interface LockoutRecord {
     lastAttempt: number;
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null && !Array.isArray(value);
+
+const isLockoutRecord = (value: unknown): value is LockoutRecord =>
+    isRecord(value) &&
+    typeof value.attempts === "number" &&
+    typeof value.firstAttempt === "number" &&
+    typeof value.lastAttempt === "number" &&
+    (typeof value.lockedUntil === "number" || value.lockedUntil === null);
+
 @Injectable()
 export class AccountLockoutService {
     private readonly logger = new Logger(AccountLockoutService.name);
@@ -55,7 +65,8 @@ export class AccountLockoutService {
             const data = await client.get(this.redisKey(identifier));
             if (data) {
                 try {
-                    return JSON.parse(data) as LockoutRecord;
+                    const parsed: unknown = JSON.parse(data);
+                    return isLockoutRecord(parsed) ? parsed : null;
                 } catch {
                     return null;
                 }

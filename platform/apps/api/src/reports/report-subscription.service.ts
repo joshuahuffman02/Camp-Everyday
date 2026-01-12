@@ -1,11 +1,9 @@
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import type { ReportFrequency, ReportSubscription, ReportType } from "@prisma/client";
 import { EmailService } from "../email/email.service";
 import { Cron, CronExpression } from "@nestjs/schedule";
-
-type ReportType = "occupancy_summary" | "revenue_summary" | "arrivals_departures" |
-    "maintenance_summary" | "reservation_activity" | "guest_activity" | "financial_summary";
-type ReportFrequency = "daily" | "weekly" | "monthly";
+import { randomUUID } from "crypto";
 
 @Injectable()
 export class ReportSubscriptionService {
@@ -44,9 +42,11 @@ export class ReportSubscriptionService {
 
         return this.prisma.reportSubscription.create({
             data: {
+                id: randomUUID(),
                 ...data,
                 nextSendAt,
-            } as any,
+                updatedAt: new Date(),
+            },
         });
     }
 
@@ -61,7 +61,7 @@ export class ReportSubscriptionService {
         if (!subscription) throw new NotFoundException("Subscription not found");
 
         const nextSendAt = this.calculateNextSendAt(
-            (data.frequency as ReportFrequency) || (subscription.frequency as ReportFrequency),
+            data.frequency ?? subscription.frequency,
             data.dayOfWeek ?? subscription.dayOfWeek ?? undefined,
             data.dayOfMonth ?? subscription.dayOfMonth ?? undefined
         );
@@ -71,7 +71,7 @@ export class ReportSubscriptionService {
             data: {
                 ...data,
                 nextSendAt,
-            } as any,
+            },
         });
     }
 
@@ -128,7 +128,7 @@ export class ReportSubscriptionService {
 
                 // Update last sent and next send times
                 const nextSendAt = this.calculateNextSendAt(
-                    subscription.frequency as ReportFrequency,
+                    subscription.frequency,
                     subscription.dayOfWeek ?? undefined,
                     subscription.dayOfMonth ?? undefined
                 );
@@ -148,7 +148,7 @@ export class ReportSubscriptionService {
         }
     }
 
-    private async generateAndSendReport(subscription: any) {
+    private async generateAndSendReport(subscription: ReportSubscription) {
         // Get campground name if applicable
         let campgroundName: string | undefined;
         if (subscription.campgroundId) {
@@ -163,7 +163,7 @@ export class ReportSubscriptionService {
         const reportData = await this.generateReportData(
             subscription.reportType,
             subscription.campgroundId,
-            subscription.frequency as ReportFrequency
+            subscription.frequency
         );
 
         // Send the email
@@ -171,14 +171,14 @@ export class ReportSubscriptionService {
             to: subscription.userEmail,
             reportName: this.getReportDisplayName(subscription.reportType),
             campgroundName,
-            period: this.getPeriodLabel(subscription.frequency as ReportFrequency),
+            period: this.getPeriodLabel(subscription.frequency),
             summary: reportData.summary,
             metrics: reportData.metrics,
             reportUrl: reportData.reportUrl,
         });
     }
 
-    private getReportDisplayName(type: string): string {
+    private getReportDisplayName(type: ReportType): string {
         const names: Record<string, string> = {
             occupancy_summary: "Occupancy Summary",
             revenue_summary: "Revenue Summary",
@@ -207,7 +207,7 @@ export class ReportSubscriptionService {
         }
     }
 
-    private async generateReportData(type: string, campgroundId: string | null, frequency: ReportFrequency): Promise<{
+    private async generateReportData(type: ReportType, campgroundId: string | null, frequency: ReportFrequency): Promise<{
         summary: string;
         metrics?: { label: string; value: string }[];
         reportUrl?: string;
@@ -266,12 +266,12 @@ export class ReportSubscriptionService {
                 campgroundId,
                 status: { in: ["confirmed", "checked_in", "checked_out"] },
                 OR: [
-                    { startDate: { gte: startDate, lte: endDate } },
-                    { endDate: { gte: startDate, lte: endDate } },
-                    { AND: [{ startDate: { lte: startDate } }, { endDate: { gte: endDate } }] },
+                    { arrivalDate: { gte: startDate, lte: endDate } },
+                    { departureDate: { gte: startDate, lte: endDate } },
+                    { AND: [{ arrivalDate: { lte: startDate } }, { departureDate: { gte: endDate } }] },
                 ],
             },
-            select: { startDate: true, endDate: true },
+            select: { arrivalDate: true, departureDate: true },
         });
 
         // Calculate occupied nights
@@ -279,8 +279,8 @@ export class ReportSubscriptionService {
         let occupiedNights = 0;
 
         for (const res of reservations) {
-            const resStart = new Date(res.startDate).getTime();
-            const resEnd = new Date(res.endDate).getTime();
+            const resStart = new Date(res.arrivalDate).getTime();
+            const resEnd = new Date(res.departureDate).getTime();
             const periodStart = startDate.getTime();
             const periodEnd = endDate.getTime();
 
@@ -352,14 +352,14 @@ export class ReportSubscriptionService {
             this.prisma.reservation.count({
                 where: {
                     campgroundId,
-                    startDate: { gte: startDate, lte: endDate },
+                    arrivalDate: { gte: startDate, lte: endDate },
                     status: { in: ["confirmed", "checked_in", "checked_out"] },
                 },
             }),
             this.prisma.reservation.count({
                 where: {
                     campgroundId,
-                    endDate: { gte: startDate, lte: endDate },
+                    departureDate: { gte: startDate, lte: endDate },
                     status: { in: ["checked_out"] },
                 },
             }),
@@ -408,7 +408,6 @@ export class ReportSubscriptionService {
                     type: "maintenance",
                     status: "completed",
                     updatedAt: { gte: startDate, lte: endDate },
-                    createdAt: { not: null },
                 },
                 select: { createdAt: true, updatedAt: true },
             }),
@@ -480,13 +479,13 @@ export class ReportSubscriptionService {
             this.prisma.guest.count({
                 where: {
                     createdAt: { gte: startDate, lte: endDate },
-                    reservations: { some: { campgroundId } },
+                    Reservation: { some: { campgroundId } },
                 },
             }),
             this.prisma.guest.count({
                 where: {
                     createdAt: { lt: startDate },
-                    reservations: {
+                    Reservation: {
                         some: {
                             campgroundId,
                             createdAt: { gte: startDate, lte: endDate },

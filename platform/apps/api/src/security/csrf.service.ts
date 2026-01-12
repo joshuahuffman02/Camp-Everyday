@@ -140,7 +140,7 @@ export class CsrfService {
         return {
             httpOnly: false, // Must be false so JavaScript can read it
             secure: isProduction,
-            sameSite: "lax" as const,
+            sameSite: "lax",
             path: "/",
             maxAge: 24 * 60 * 60 * 1000, // 24 hours
         };

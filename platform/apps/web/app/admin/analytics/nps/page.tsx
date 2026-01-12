@@ -178,6 +178,24 @@ export default function NpsAnalyticsPage() {
     fetchData();
   }, [dateRange]);
 
+  const toNumber = (value: unknown): number | undefined =>
+    typeof value === "number" ? value : undefined;
+  const formatCount = (value: unknown): string => {
+    const numberValue = toNumber(value);
+    return numberValue !== undefined ? numberValue.toLocaleString() : "—";
+  };
+  const formatScore = (value: unknown): { display: string | number; color: string } => {
+    const score = toNumber(value);
+    if (score === undefined) {
+      return { display: "—", color: "text-muted-foreground" };
+    }
+    return { display: score, color: getNpsColor(score) };
+  };
+  const formatPercent = (value: unknown): string => {
+    const numberValue = toNumber(value);
+    return numberValue !== undefined ? `${numberValue.toFixed(0)}%` : "—";
+  };
+
   const distributionData = [
     { name: "Promoters (9-10)", value: data.overview.promoterPercentage, color: "#22c55e" },
     { name: "Passives (7-8)", value: data.overview.passivePercentage, color: "#f59e0b" },
@@ -322,26 +340,29 @@ export default function NpsAnalyticsPage() {
             {
               key: "segment",
               label: "Type",
-              format: (v) => <span className="capitalize">{v}</span>,
+              format: (v) => <span className="capitalize">{typeof v === "string" ? v : "—"}</span>,
             },
             {
               key: "score",
               label: "NPS",
               align: "right",
-              format: (v) => <span className={getNpsColor(v)}>{v}</span>,
+              format: (v) => {
+                const { display, color } = formatScore(v);
+                return <span className={color}>{display}</span>;
+              },
             },
-            { key: "responses", label: "Responses", align: "right", format: (v) => v.toLocaleString() },
+            { key: "responses", label: "Responses", align: "right", format: (v) => formatCount(v) },
             {
               key: "promoters",
               label: "Promoters",
               align: "right",
-              format: (v) => <span className="text-green-400">{v}</span>,
+              format: (v) => <span className="text-green-400">{formatCount(v)}</span>,
             },
             {
               key: "detractors",
               label: "Detractors",
               align: "right",
-              format: (v) => <span className="text-red-400">{v}</span>,
+              format: (v) => <span className="text-red-400">{formatCount(v)}</span>,
             },
           ]}
           data={data.byAccommodationType}
@@ -357,14 +378,17 @@ export default function NpsAnalyticsPage() {
               key: "score",
               label: "NPS",
               align: "right",
-              format: (v) => <span className={getNpsColor(v)}>{v}</span>,
+              format: (v) => {
+                const { display, color } = formatScore(v);
+                return <span className={color}>{display}</span>;
+              },
             },
-            { key: "responses", label: "Responses", align: "right", format: (v) => v.toLocaleString() },
+            { key: "responses", label: "Responses", align: "right", format: (v) => formatCount(v) },
             {
               key: "promoterPercentage",
               label: "Promoters",
               align: "right",
-              format: (v) => <span className="text-green-400">{v.toFixed(0)}%</span>,
+              format: (v) => <span className="text-green-400">{formatPercent(v)}</span>,
             },
           ]}
           data={data.byCampground}

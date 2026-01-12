@@ -7,6 +7,27 @@ import { apiClient } from "../../../lib/api-client";
 import { DashboardShell } from "../../../components/ui/layout/DashboardShell";
 import { Bell, CalendarRange, Target } from "lucide-react";
 
+type SocialStrategy = Awaited<ReturnType<typeof apiClient.listSocialStrategies>>[number];
+type SocialAlert = Awaited<ReturnType<typeof apiClient.listSocialAlerts>>[number];
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const getString = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+const getStringArray = (value: unknown): string[] | undefined =>
+  Array.isArray(value) && value.every((item) => typeof item === "string") ? value : undefined;
+
+const getPlanSummary = (value: unknown) => {
+  if (!isRecord(value)) return {};
+  return {
+    hero: getString(value.hero),
+    heroContent: getString(value.heroContent),
+    topIdeas: getStringArray(value.topIdeas),
+  };
+};
+
 export default function SocialPlannerStrategy() {
   const qc = useQueryClient();
   const [month, setMonth] = useState("");
@@ -21,13 +42,13 @@ export default function SocialPlannerStrategy() {
   });
   const campgroundId = campgrounds[0]?.id;
 
-  const strategiesQuery = useQuery({
+  const strategiesQuery = useQuery<SocialStrategy[]>({
     queryKey: ["social-strategies", campgroundId],
     queryFn: () => apiClient.listSocialStrategies(campgroundId!),
     enabled: !!campgroundId
   });
 
-  const alertsQuery = useQuery({
+  const alertsQuery = useQuery<SocialAlert[]>({
     queryKey: ["social-alerts", campgroundId],
     queryFn: () => apiClient.listSocialAlerts(campgroundId!),
     enabled: !!campgroundId
@@ -120,18 +141,21 @@ export default function SocialPlannerStrategy() {
             <h3 className="text-lg font-semibold text-foreground">Monthly & annual plans</h3>
           </div>
           <div className="space-y-3">
-            {strategiesQuery.data?.map((s: any) => (
-              <div key={s.id} className="p-3 rounded border border-border bg-muted">
-                <div className="text-sm font-semibold text-foreground">
-                  {new Date(s.month).toLocaleDateString(undefined, { month: "long", year: "numeric" })}
-                  {s.annual ? " (Annual)" : ""}
+            {(strategiesQuery.data ?? []).map((s) => {
+              const plan = getPlanSummary(s.plan);
+              return (
+                <div key={s.id} className="p-3 rounded border border-border bg-muted">
+                  <div className="text-sm font-semibold text-foreground">
+                    {new Date(s.month).toLocaleDateString(undefined, { month: "long", year: "numeric" })}
+                    {s.annual ? " (Annual)" : ""}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Hero: {plan.hero || plan.heroContent || "TBD"}</div>
+                  {plan.topIdeas?.length ? (
+                    <div className="text-xs text-muted-foreground mt-1">Top ideas: {plan.topIdeas.join(", ")}</div>
+                  ) : null}
                 </div>
-                <div className="text-xs text-muted-foreground">Hero: {s.plan?.hero || s.plan?.heroContent || "TBD"}</div>
-                {s.plan?.topIdeas?.length ? (
-                  <div className="text-xs text-muted-foreground mt-1">Top ideas: {s.plan.topIdeas.join(", ")}</div>
-                ) : null}
-              </div>
-            ))}
+              );
+            })}
             {!strategiesQuery.data?.length && <div className="text-sm text-muted-foreground">No strategies yet.</div>}
           </div>
         </div>
@@ -162,7 +186,7 @@ export default function SocialPlannerStrategy() {
           </button>
 
           <div className="space-y-2">
-            {alertsQuery.data?.map((alert: any) => (
+            {(alertsQuery.data ?? []).map((alert) => (
               <div key={alert.id} className="p-3 rounded border border-amber-100 bg-amber-50 flex items-center justify-between">
                 <div>
                   <div className="text-sm font-semibold text-amber-900">{alert.message}</div>
@@ -182,4 +206,3 @@ export default function SocialPlannerStrategy() {
     </DashboardShell>
   );
 }
-

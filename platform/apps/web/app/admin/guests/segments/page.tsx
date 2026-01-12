@@ -70,6 +70,21 @@ interface GuestSegment {
   status: "active" | "archived";
 }
 
+type GuestSegmentApi = {
+  id: string;
+  name: string;
+  description?: string | null;
+  scope: GuestSegment["scope"];
+  criteria?: SegmentCriteria[];
+  guestCount?: number;
+  createdAt: string;
+  updatedAt: string;
+  createdByEmail?: string | null;
+  isTemplate?: boolean;
+  status: GuestSegment["status"];
+};
+
+type NewSegmentForm = Pick<GuestSegment, "name" | "description" | "scope" | "criteria">;
 
 const criteriaTypeOptions = [
   { value: "country", label: "Country", icon: Globe },
@@ -207,11 +222,11 @@ export default function GuestSegmentsPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
   // New segment form state
-  const [newSegment, setNewSegment] = useState({
+  const [newSegment, setNewSegment] = useState<NewSegmentForm>({
     name: "",
     description: "",
-    scope: "organization" as "global" | "organization" | "campground",
-    criteria: [] as SegmentCriteria[],
+    scope: "organization",
+    criteria: [],
   });
 
   const platformRole = whoami?.user?.platformRole;
@@ -239,9 +254,9 @@ export default function GuestSegmentsPage() {
         throw new Error(`Failed to fetch segments: ${res.statusText}`);
       }
 
-      const data = await res.json();
+      const data: GuestSegmentApi[] = await res.json();
       // Map API response to our interface
-      const mappedSegments: GuestSegment[] = data.map((s: any) => ({
+      const mappedSegments: GuestSegment[] = data.map((s) => ({
         id: s.id,
         name: s.name,
         description: s.description || "",
@@ -328,7 +343,7 @@ export default function GuestSegmentsPage() {
       if (!res.ok) {
         // Fall back to local archive
         setSegments(segments.map(s =>
-          s.id === segment.id ? { ...s, status: "archived" as const } : s
+          s.id === segment.id ? { ...s, status: "archived" } : s
         ));
         return;
       }

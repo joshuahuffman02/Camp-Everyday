@@ -94,8 +94,9 @@ export function useSavedCards(): UseSavedCardsResult {
         }
 
         return result;
-      } catch (err: any) {
-        setError(err.message || "Failed to charge saved card");
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to charge saved card";
+        setError(message);
         return null;
       } finally {
         setLoading(false);
@@ -113,8 +114,9 @@ export function useSavedCards(): UseSavedCardsResult {
     try {
       const cards = await apiClient.getChargeablePaymentMethods(props.campgroundId, props.guestId);
       // Cards are updated via context, this just triggers a refresh
-    } catch (err: any) {
-      setError(err.message || "Failed to load saved cards");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to load saved cards";
+      setError(message);
     } finally {
       setLoading(false);
     }

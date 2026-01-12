@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateMessageDto } from './dto/create-message.dto';
+import { randomUUID } from "crypto";
 
 @Injectable()
 export class MessagesService {
@@ -19,7 +20,7 @@ export class MessagesService {
             take: limit,
             skip: offset,
             include: {
-                guest: {
+                Guest: {
                     select: {
                         id: true,
                         primaryFirstName: true,
@@ -39,6 +40,7 @@ export class MessagesService {
 
         return this.prisma.message.create({
             data: {
+                id: randomUUID(),
                 campgroundId: reservation.campgroundId,
                 reservationId,
                 guestId: data.guestId,
@@ -46,7 +48,7 @@ export class MessagesService {
                 content: data.content,
             },
             include: {
-                guest: {
+                Guest: {
                     select: {
                         id: true,
                         primaryFirstName: true,
@@ -119,7 +121,7 @@ export class MessagesService {
                 campgroundId: true,
                 reservationId: true,
                 guestId: true,
-                guest: {
+                Guest: {
                     select: {
                         id: true,
                         primaryFirstName: true,
@@ -145,7 +147,7 @@ export class MessagesService {
                 petCount: true,
                 totalAmount: true,
                 notes: true,
-                guest: {
+                Guest: {
                     select: {
                         id: true,
                         primaryFirstName: true,
@@ -154,7 +156,7 @@ export class MessagesService {
                         phone: true,
                     },
                 },
-                site: {
+                Site: {
                     select: {
                         id: true,
                         name: true,
@@ -194,19 +196,19 @@ export class MessagesService {
             const resId = msg.reservationId;
             if (!conversationsMap.has(resId)) {
                 const res = reservationMap.get(resId);
-                const guestName = res?.guest
-                    ? `${res.guest.primaryFirstName || ''} ${res.guest.primaryLastName || ''}`.trim() || 'Unknown Guest'
+                const guestName = res?.Guest
+                    ? `${res.Guest.primaryFirstName || ''} ${res.Guest.primaryLastName || ''}`.trim() || 'Unknown Guest'
                     : 'Unknown Guest';
-                const siteName = res?.site?.name || res?.site?.siteNumber || 'Unknown Site';
+                const siteName = res?.Site?.name || res?.Site?.siteNumber || 'Unknown Site';
 
                 conversationsMap.set(resId, {
                     reservationId: resId,
                     guestName,
-                    guestEmail: res?.guest?.email || null,
-                    guestPhone: res?.guest?.phone || null,
-                    guestId: res?.guest?.id || null,
+                    guestEmail: res?.Guest?.email || null,
+                    guestPhone: res?.Guest?.phone || null,
+                    guestId: res?.Guest?.id || null,
                     siteName,
-                    siteType: res?.site?.siteType || null,
+                    siteType: res?.Site?.siteType || null,
                     status: res?.status || 'unknown',
                     arrivalDate: res?.arrivalDate || null,
                     departureDate: res?.departureDate || null,

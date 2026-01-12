@@ -28,13 +28,59 @@ interface GuestOriginsTabProps {
     dateRange: { start: string; end: string };
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null;
+
+const isString = (value: unknown): value is string => typeof value === "string";
+
+const isNumber = (value: unknown): value is number =>
+    typeof value === "number" && Number.isFinite(value);
+
+const parseZipCode = (value: unknown): ZipCodeData | null => {
+    if (!isRecord(value)) return null;
+    if (!isString(value.zipCode) || !isNumber(value.count) || !isNumber(value.revenue)) return null;
+    return {
+        zipCode: value.zipCode,
+        city: isString(value.city) ? value.city : undefined,
+        state: isString(value.state) ? value.state : undefined,
+        count: value.count,
+        revenue: value.revenue,
+    };
+};
+
+const parseState = (value: unknown): StateData | null => {
+    if (!isRecord(value)) return null;
+    if (!isString(value.state) || !isNumber(value.count) || !isNumber(value.revenue)) return null;
+    return { state: value.state, count: value.count, revenue: value.revenue };
+};
+
+const isZipCodeData = (value: ZipCodeData | null): value is ZipCodeData => value !== null;
+
+const isStateData = (value: StateData | null): value is StateData => value !== null;
+
+const parseGuestOrigins = (value: unknown): GuestOriginsData => {
+    if (!isRecord(value)) {
+        return { byZipCode: [], byState: [] };
+    }
+    const byZipCode = Array.isArray(value.byZipCode)
+        ? value.byZipCode.map(parseZipCode).filter(isZipCodeData)
+        : [];
+    const byState = Array.isArray(value.byState)
+        ? value.byState.map(parseState).filter(isStateData)
+        : [];
+    return { byZipCode, byState };
+};
+
 export function GuestOriginsTab({ campgroundId, dateRange }: GuestOriginsTabProps) {
-    const { data, isLoading } = useQuery({
+    const { data, isLoading } = useQuery<GuestOriginsData>({
         queryKey: ["reports-guest-origins", campgroundId, dateRange],
-        queryFn: () => apiClient.getGuestOrigins(campgroundId, {
-            startDate: dateRange.start,
-            endDate: dateRange.end
-        }),
+        queryFn: async () => {
+            const result = await apiClient.getGuestOrigins(campgroundId, {
+                startDate: dateRange.start,
+                endDate: dateRange.end
+            });
+            return parseGuestOrigins(result);
+        },
         enabled: !!campgroundId
     });
 
@@ -47,8 +93,6 @@ export function GuestOriginsTab({ campgroundId, dateRange }: GuestOriginsTabProp
     }
 
     if (!data) return <div>No data available</div>;
-
-    const typedData = data as unknown as GuestOriginsData;
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -67,7 +111,7 @@ export function GuestOriginsTab({ campgroundId, dateRange }: GuestOriginsTabProp
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {typedData.byZipCode.slice(0, 10).map((item) => (
+                            {data.byZipCode.slice(0, 10).map((item) => (
                                 <TableRow key={item.zipCode}>
                                     <TableCell className="font-medium">{item.zipCode}</TableCell>
                                     <TableCell>
@@ -79,7 +123,7 @@ export function GuestOriginsTab({ campgroundId, dateRange }: GuestOriginsTabProp
                                     </TableCell>
                                 </TableRow>
                             ))}
-                            {typedData.byZipCode.length === 0 && (
+                            {data.byZipCode.length === 0 && (
                                 <TableRow>
                                     <TableCell colSpan={4} className="text-center py-6 text-muted-foreground">
                                         No location data found matching these dates.
@@ -105,7 +149,7 @@ export function GuestOriginsTab({ campgroundId, dateRange }: GuestOriginsTabProp
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {typedData.byState.slice(0, 10).map((item) => (
+                            {data.byState.slice(0, 10).map((item) => (
                                 <TableRow key={item.state}>
                                     <TableCell className="font-medium">{item.state}</TableCell>
                                     <TableCell className="text-right">{item.count}</TableCell>
@@ -114,7 +158,7 @@ export function GuestOriginsTab({ campgroundId, dateRange }: GuestOriginsTabProp
                                     </TableCell>
                                 </TableRow>
                             ))}
-                            {typedData.byState.length === 0 && (
+                            {data.byState.length === 0 && (
                                 <TableRow>
                                     <TableCell colSpan={3} className="text-center py-6 text-muted-foreground">
                                         No state data found matching these dates.

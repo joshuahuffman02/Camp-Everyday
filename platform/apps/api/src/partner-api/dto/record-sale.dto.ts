@@ -11,15 +11,15 @@ import {
 
 export class SaleItemDto {
   @IsString()
-  sku: string;
+  sku!: string;
 
   @IsInt()
   @Min(1)
-  qty: number;
+  qty!: number;
 
   @IsInt()
   @Min(0)
-  priceCents: number;
+  priceCents!: number;
 
   @IsOptional()
   @IsString()
@@ -32,12 +32,12 @@ export class SaleItemDto {
 
 export class RecordSaleDto {
   @IsString()
-  externalTransactionId: string;
+  externalTransactionId!: string;
 
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => SaleItemDto)
-  items: SaleItemDto[];
+  items!: SaleItemDto[];
 
   @IsOptional()
   @IsString()
@@ -52,35 +52,35 @@ export class RecordSaleDto {
 }
 
 export class RecordSaleResponseDto {
-  saleId: string;
-  externalTransactionId: string;
-  inventoryDeducted: boolean;
-  items: Array<{
+  saleId!: string;
+  externalTransactionId!: string;
+  inventoryDeducted!: boolean;
+  items!: Array<{
     sku: string;
     qtyDeducted: number;
     batchId: string | null;
     remainingInBatch: number | null;
   }>;
-  totalCents: number;
+  totalCents!: number;
 }
 
 export class RecordRefundDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => RefundItemDto)
-  items: RefundItemDto[];
+  items!: RefundItemDto[];
 
   @IsString()
-  reason: string;
+  reason!: string;
 }
 
 export class RefundItemDto {
   @IsString()
-  sku: string;
+  sku!: string;
 
   @IsInt()
   @Min(1)
-  qty: number;
+  qty!: number;
 
   @IsOptional()
   @IsString()
@@ -88,10 +88,10 @@ export class RefundItemDto {
 }
 
 export class RecordRefundResponseDto {
-  refundId: string;
-  originalSaleId: string;
-  inventoryRestored: boolean;
-  items: Array<{
+  refundId!: string;
+  originalSaleId!: string;
+  inventoryRestored!: boolean;
+  items!: Array<{
     sku: string;
     qtyRestored: number;
   }>;

@@ -8,7 +8,7 @@ import { Injectable, Logger } from "@nestjs/common";
 export class CampgroundAssetsService {
   private readonly logger = new Logger(CampgroundAssetsService.name);
 
-  async mirrorPhotos(urls: string[]): Promise<{ photos: string[]; meta?: any[] }> {
+  async mirrorPhotos(urls: string[]): Promise<{ photos: string[]; meta?: Array<{ url: string; mirrored: boolean; reason: string }> }> {
     if (!urls || urls.length === 0) return { photos: [], meta: [] };
 
     const bucket = process.env.PHOTO_MIRROR_S3_BUCKET;
@@ -25,4 +25,3 @@ export class CampgroundAssetsService {
     };
   }
 }
-

@@ -1,13 +1,68 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
+import { randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { AuditService } from "../audit/audit.service";
 import { GatewayConfigMapper, GatewayConfigView } from "./gateway-config.mapper";
 import { UpsertPaymentGatewayConfigDto } from "./dto/payment-gateway-config.dto";
-import { CampgroundPaymentGatewayConfig, GatewayFeePreset } from "@prisma/client";
+import { CampgroundPaymentGatewayConfig, GatewayFeePreset, Prisma } from "@prisma/client";
+import { isRecord } from "../utils/type-guards";
 
 type GatewayProvider = "stripe" | "adyen" | "authorize_net" | "other";
 type GatewayMode = "test" | "prod";
-type GatewayConfigRecord = CampgroundPaymentGatewayConfig & { feePreset?: GatewayFeePreset | null };
+type GatewayConfigRecord = CampgroundPaymentGatewayConfig & { GatewayFeePreset?: GatewayFeePreset | null };
+type GatewayConfigCandidate = {
+  gateway: GatewayProvider;
+  mode: GatewayMode;
+  feeMode: CampgroundPaymentGatewayConfig["feeMode"];
+  feePercentBasisPoints: number | null;
+  feeFlatCents: number | null;
+  feePresetId: string | null;
+  publishableKeySecretId: string | null;
+  secretKeySecretId: string | null;
+  merchantAccountIdSecretId: string | null;
+  webhookSecretId: string | null;
+  additionalConfig: Prisma.InputJsonValue | typeof Prisma.JsonNull | undefined;
+};
+
+const isJsonValue = (value: unknown): value is Prisma.InputJsonValue => {
+  if (value === null) return true;
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return true;
+  if (Array.isArray(value)) return value.every(isJsonValue);
+  if (isRecord(value)) return Object.values(value).every(isJsonValue);
+  return false;
+};
+
+const toJsonInput = (
+  value: unknown
+): Prisma.InputJsonValue | typeof Prisma.JsonNull | undefined => {
+  if (value === undefined) return undefined;
+  if (value === null) return Prisma.JsonNull;
+  if (isJsonValue(value)) return value;
+  throw new BadRequestException("additionalConfig must be valid JSON");
+};
+
+const toAuditRecord = (
+  view: GatewayConfigView | null | undefined
+): Record<string, unknown> | null | undefined => {
+  if (view === undefined) return undefined;
+  if (view === null) return null;
+  const record: Record<string, unknown> = {
+    id: view.id,
+    campgroundId: view.campgroundId,
+    gateway: view.gateway,
+    mode: view.mode,
+    feeMode: view.feeMode,
+    feePercentBasisPoints: view.feePercentBasisPoints,
+    feeFlatCents: view.feeFlatCents,
+    feePresetId: view.feePresetId,
+    feePresetLabel: view.feePresetLabel,
+    effectiveFee: view.effectiveFee,
+    credentials: view.credentials,
+    hasProductionCredentials: view.hasProductionCredentials,
+    additionalConfig: view.additionalConfig
+  };
+  return record;
+};
 
 @Injectable()
 export class GatewayConfigService {
@@ -28,13 +83,15 @@ export class GatewayConfigService {
   ): Promise<GatewayConfigView> {
     const existing: GatewayConfigRecord | null = await this.prisma.campgroundPaymentGatewayConfig.findUnique({
       where: { campgroundId },
-      include: { feePreset: true }
+      include: { GatewayFeePreset: true }
     });
 
     const preset = await this.resolvePreset(dto.gateway, dto.mode, dto.feePresetId);
     this.ensureProdGuard(dto.mode, dto, existing);
 
-    const nextData = {
+    const additionalConfig =
+      dto.additionalConfig !== undefined ? toJsonInput(dto.additionalConfig) : toJsonInput(existing?.additionalConfig);
+    const nextData: GatewayConfigCandidate = {
       gateway: dto.gateway,
       mode: dto.mode,
       feeMode: dto.feeMode,
@@ -45,7 +102,7 @@ export class GatewayConfigService {
       secretKeySecretId: dto.secretKeySecretId ?? existing?.secretKeySecretId ?? null,
       merchantAccountIdSecretId: dto.merchantAccountIdSecretId ?? existing?.merchantAccountIdSecretId ?? null,
       webhookSecretId: dto.webhookSecretId ?? existing?.webhookSecretId ?? null,
-      additionalConfig: dto.additionalConfig ?? existing?.additionalConfig ?? null
+      additionalConfig
     };
 
     if (existing && this.isSame(existing, nextData)) {
@@ -55,13 +112,14 @@ export class GatewayConfigService {
     const saved = await this.prisma.campgroundPaymentGatewayConfig.upsert({
       where: { campgroundId },
       create: {
+        id: randomUUID(),
         campgroundId,
         ...nextData
       },
       update: {
         ...nextData
       },
-      include: { feePreset: true }
+      include: { GatewayFeePreset: true }
     });
 
     await this.audit.record({
@@ -70,8 +128,8 @@ export class GatewayConfigService {
       action: "payment_gateway_config.updated",
       entity: "payment_gateway_config",
       entityId: saved.id,
-      before: GatewayConfigMapper.toView(existing) ?? undefined,
-      after: GatewayConfigMapper.toView(saved) ?? undefined,
+      before: toAuditRecord(GatewayConfigMapper.toView(existing)),
+      after: toAuditRecord(GatewayConfigMapper.toView(saved)),
       ip: actor?.ip,
       userAgent: actor?.userAgent
     });
@@ -82,24 +140,27 @@ export class GatewayConfigService {
   private async ensureConfig(campgroundId: string) {
     const existing = await this.prisma.campgroundPaymentGatewayConfig.findUnique({
       where: { campgroundId },
-      include: { feePreset: true }
+      include: { GatewayFeePreset: true }
     });
     if (existing) return existing;
 
     const preset = await this.resolvePreset("stripe", "test");
     return this.prisma.campgroundPaymentGatewayConfig.create({
       data: {
+        id: randomUUID(),
         campgroundId,
         gateway: "stripe",
         mode: "test",
         feeMode: "absorb",
         feePresetId: preset?.id ?? null
       },
-      include: { feePreset: true }
+      include: { GatewayFeePreset: true }
     });
   }
 
-  private isSame(existing: GatewayConfigRecord, candidate: Record<string, unknown>) {
+  private isSame(existing: GatewayConfigRecord, candidate: GatewayConfigCandidate) {
+    const candidateAdditional = candidate.additionalConfig === Prisma.JsonNull ? null : candidate.additionalConfig;
+    const existingAdditional = existing.additionalConfig ?? null;
     return (
       existing.gateway === candidate.gateway &&
       existing.mode === candidate.mode &&
@@ -111,7 +172,7 @@ export class GatewayConfigService {
       (existing.secretKeySecretId ?? null) === (candidate.secretKeySecretId ?? null) &&
       (existing.merchantAccountIdSecretId ?? null) === (candidate.merchantAccountIdSecretId ?? null) &&
       (existing.webhookSecretId ?? null) === (candidate.webhookSecretId ?? null) &&
-      JSON.stringify(existing.additionalConfig ?? null) === JSON.stringify(candidate.additionalConfig ?? null)
+      JSON.stringify(existingAdditional) === JSON.stringify(candidateAdditional ?? null)
     );
   }
 

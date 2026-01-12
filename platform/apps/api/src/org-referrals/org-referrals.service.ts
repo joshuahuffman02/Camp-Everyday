@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
+import { randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { OrgReferralStatus } from "@prisma/client";
 
@@ -67,7 +68,7 @@ export class OrgReferralsService {
       _count: { status: true }
     });
 
-    const counts = {
+    const counts: Record<OrgReferralStatus, number> = {
       clicked: 0,
       signed_up: 0,
       converted: 0,
@@ -75,7 +76,7 @@ export class OrgReferralsService {
     };
 
     for (const r of referrals) {
-      counts[r.status as keyof typeof counts] = r._count.status;
+      counts[r.status] = r._count.status;
     }
 
     // Calculate pending credits (converted but not yet credited)
@@ -118,7 +119,7 @@ export class OrgReferralsService {
         convertedAt: true,
         creditedAt: true,
         createdAt: true,
-        referredOrg: {
+        Organization_OrgReferral_referredOrgIdToOrganization: {
           select: { name: true }
         }
       }
@@ -127,7 +128,7 @@ export class OrgReferralsService {
     return referrals.map((r) => ({
       id: r.id,
       referredEmail: r.referredEmail,
-      referredOrgName: r.referredOrg?.name,
+      referredOrgName: r.Organization_OrgReferral_referredOrgIdToOrganization?.name,
       status: r.status,
       creditAmount: r.creditAmountCents / 100,
       createdAt: r.clickedAt.toISOString(),
@@ -159,10 +160,12 @@ export class OrgReferralsService {
     // Create click record
     const referral = await this.prisma.orgReferral.create({
       data: {
+        id: randomUUID(),
         referrerOrgId: referrerOrg.id,
         referralCode,
         status: OrgReferralStatus.clicked,
-        ...metadata
+        ...metadata,
+        updatedAt: new Date(),
       }
     });
 
@@ -194,12 +197,14 @@ export class OrgReferralsService {
 
       await this.prisma.orgReferral.create({
         data: {
+          id: randomUUID(),
           referrerOrgId: referrerOrg.id,
           referredOrgId: newOrgId,
           referredEmail: email,
           referralCode,
           status: OrgReferralStatus.signed_up,
-          signedUpAt: new Date()
+          signedUpAt: new Date(),
+          updatedAt: new Date(),
         }
       });
     } else {
@@ -210,7 +215,8 @@ export class OrgReferralsService {
           referredOrgId: newOrgId,
           referredEmail: email,
           status: OrgReferralStatus.signed_up,
-          signedUpAt: new Date()
+          signedUpAt: new Date(),
+          updatedAt: new Date(),
         }
       });
     }
@@ -238,7 +244,8 @@ export class OrgReferralsService {
       where: { id: referral.id },
       data: {
         status: OrgReferralStatus.converted,
-        convertedAt: new Date()
+        convertedAt: new Date(),
+        updatedAt: new Date(),
       }
     });
 
@@ -288,7 +295,8 @@ export class OrgReferralsService {
         where: { id: referralId },
         data: {
           status: OrgReferralStatus.credited,
-          creditedAt: new Date()
+          creditedAt: new Date(),
+          updatedAt: new Date(),
         }
       })
     ]);

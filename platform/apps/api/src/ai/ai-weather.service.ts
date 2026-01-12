@@ -1,9 +1,11 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from "@nestjs/common";
+import type { AiWeatherAlert, Prisma } from "@prisma/client";
 import { Cron } from "@nestjs/schedule";
 import { PrismaService } from "../prisma/prisma.service";
 import { AiAutopilotConfigService } from "./ai-autopilot-config.service";
 import { AiAutonomousActionService } from "./ai-autonomous-action.service";
 import { EmailService } from "../email/email.service";
+import { randomUUID } from "crypto";
 
 /**
  * AI Weather Service
@@ -15,7 +17,7 @@ import { EmailService } from "../email/email.service";
  * - Fire risk conditions
  */
 
-interface WeatherData {
+export interface WeatherData {
   temp: number;
   feelsLike: number;
   humidity: number;
@@ -26,7 +28,7 @@ interface WeatherData {
   alerts: WeatherAlert[];
 }
 
-interface WeatherAlert {
+export interface WeatherAlert {
   event: string;
   severity: string;
   headline: string;
@@ -35,7 +37,7 @@ interface WeatherAlert {
   end: Date;
 }
 
-interface WeatherTriggers {
+export interface WeatherTriggers {
   stormWindMph: number; // Alert if wind exceeds this
   extremeHeatF: number; // Alert if temp exceeds this
   extremeColdF: number; // Alert if temp below this
@@ -48,6 +50,34 @@ const DEFAULT_TRIGGERS: WeatherTriggers = {
   extremeColdF: 32,
   rainInches: 2,
 };
+
+const serializeWeather = (weather: WeatherData): Prisma.InputJsonValue => ({
+  temp: weather.temp,
+  feelsLike: weather.feelsLike,
+  humidity: weather.humidity,
+  windSpeed: weather.windSpeed,
+  windGust: weather.windGust ?? null,
+  description: weather.description,
+  icon: weather.icon,
+  alerts: weather.alerts.map((alert) => ({
+    event: alert.event,
+    severity: alert.severity,
+    headline: alert.headline,
+    description: alert.description,
+    start: alert.start.toISOString(),
+    end: alert.end.toISOString(),
+  })),
+});
+
+const serializeNotifications = (
+  notifications: WeatherNotification[]
+): Prisma.InputJsonValue =>
+  notifications.map((notification) => ({
+    guestId: notification.guestId,
+    reservationId: notification.reservationId,
+    email: notification.email,
+    sentAt: notification.sentAt.toISOString(),
+  }));
 
 @Injectable()
 export class AiWeatherService {
@@ -92,30 +122,30 @@ export class AiWeatherService {
       // Get current weather
       const currentUrl = `${this.apiBaseUrl}/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=imperial`;
       const currentResponse = await fetch(currentUrl);
-      const currentData = await currentResponse.json();
+      const currentData: OpenWeatherCurrentResponse = await currentResponse.json();
 
       // Get alerts from One Call API
       const oneCallUrl = `${this.apiBaseUrl}/onecall?lat=${lat}&lon=${lon}&appid=${apiKey}&units=imperial&exclude=minutely,hourly`;
       const oneCallResponse = await fetch(oneCallUrl);
-      const oneCallData = await oneCallResponse.json();
+      const oneCallData: OpenWeatherOneCallResponse = await oneCallResponse.json();
 
       return {
-        temp: Math.round(currentData.main?.temp || 0),
-        feelsLike: Math.round(currentData.main?.feels_like || 0),
-        humidity: currentData.main?.humidity || 0,
-        windSpeed: Math.round(currentData.wind?.speed || 0),
+        temp: Math.round(currentData.main?.temp ?? 0),
+        feelsLike: Math.round(currentData.main?.feels_like ?? 0),
+        humidity: currentData.main?.humidity ?? 0,
+        windSpeed: Math.round(currentData.wind?.speed ?? 0),
         windGust: currentData.wind?.gust
           ? Math.round(currentData.wind.gust)
           : undefined,
-        description: currentData.weather?.[0]?.description || "Unknown",
-        icon: currentData.weather?.[0]?.icon || "01d",
-        alerts: (oneCallData.alerts || []).map((a: any) => ({
-          event: a.event,
-          severity: a.tags?.[0] || "unknown",
-          headline: a.event,
-          description: a.description,
-          start: new Date(a.start * 1000),
-          end: new Date(a.end * 1000),
+        description: currentData.weather?.[0]?.description ?? "Unknown",
+        icon: currentData.weather?.[0]?.icon ?? "01d",
+        alerts: (oneCallData.alerts ?? []).map((alert) => ({
+          event: alert.event ?? "Weather Alert",
+          severity: alert.tags?.[0] ?? "unknown",
+          headline: alert.event ?? "Weather Alert",
+          description: alert.description ?? "",
+          start: new Date((alert.start ?? 0) * 1000),
+          end: new Date((alert.end ?? 0) * 1000),
         })),
       };
     } catch (error) {
@@ -127,7 +157,7 @@ export class AiWeatherService {
   /**
    * Get weather forecast for next 7 days
    */
-  async getForecast(campgroundId: string): Promise<any[]> {
+  async getForecast(campgroundId: string): Promise<ForecastDay[]> {
     const campground = await this.prisma.campground.findUnique({
       where: { id: campgroundId },
       select: { latitude: true, longitude: true },
@@ -148,17 +178,17 @@ export class AiWeatherService {
 
       const url = `${this.apiBaseUrl}/onecall?lat=${lat}&lon=${lon}&appid=${apiKey}&units=imperial&exclude=minutely,hourly,current`;
       const response = await fetch(url);
-      const data = await response.json();
+      const data: OpenWeatherOneCallResponse = await response.json();
 
-      return (data.daily || []).slice(0, 7).map((day: any) => ({
-        date: new Date(day.dt * 1000),
-        tempHigh: Math.round(day.temp.max),
-        tempLow: Math.round(day.temp.min),
-        description: day.weather?.[0]?.description || "Unknown",
-        icon: day.weather?.[0]?.icon || "01d",
-        pop: Math.round((day.pop || 0) * 100), // Probability of precipitation
-        windSpeed: Math.round(day.wind_speed || 0),
-        humidity: day.humidity || 0,
+      return (data.daily ?? []).slice(0, 7).map((day) => ({
+        date: new Date((day.dt ?? 0) * 1000),
+        tempHigh: Math.round(day.temp?.max ?? 0),
+        tempLow: Math.round(day.temp?.min ?? 0),
+        description: day.weather?.[0]?.description ?? "Unknown",
+        icon: day.weather?.[0]?.icon ?? "01d",
+        pop: Math.round((day.pop ?? 0) * 100), // Probability of precipitation
+        windSpeed: Math.round(day.wind_speed ?? 0),
+        humidity: day.humidity ?? 0,
       }));
     } catch (error) {
       this.logger.error(`Failed to fetch forecast: ${error}`);
@@ -178,7 +208,7 @@ export class AiWeatherService {
   ) {
     const { status, alertType, limit = 20 } = options;
 
-    const where: any = { campgroundId };
+    const where: Prisma.AiWeatherAlertWhereInput = { campgroundId };
     if (status) where.status = status;
     if (alertType) where.alertType = alertType;
 
@@ -212,8 +242,8 @@ export class AiWeatherService {
     const weather = await this.getCurrentWeather(campgroundId);
     if (!weather) return [];
 
-    const triggers = (config.weatherTriggers as WeatherTriggers) || DEFAULT_TRIGGERS;
-    const alerts: any[] = [];
+    const triggers = this.normalizeTriggers(config.weatherTriggers);
+    const alerts: WeatherAlertDraft[] = [];
 
     // Check for extreme conditions
     if (weather.windSpeed >= triggers.stormWindMph || weather.windGust && weather.windGust >= triggers.stormWindMph) {
@@ -256,7 +286,7 @@ export class AiWeatherService {
     }
 
     // Create alert records
-    const created: any[] = [];
+    const created: AiWeatherAlert[] = [];
     for (const alert of alerts) {
       // Check for existing active alert of same type
       const existing = await this.prisma.aiWeatherAlert.findFirst({
@@ -274,10 +304,11 @@ export class AiWeatherService {
 
       const saved = await this.prisma.aiWeatherAlert.create({
         data: {
+          id: randomUUID(),
           campgroundId,
           alertType: alert.alertType,
           severity: alert.severity,
-          weatherData: weather,
+          weatherData: serializeWeather(weather),
           title: alert.title,
           message: alert.message,
           startTime: alert.startTime || new Date(),
@@ -285,6 +316,7 @@ export class AiWeatherService {
           affectedDates: affected.dates,
           guestsAffected: affected.count,
           autoNotifyEnabled: true,
+          updatedAt: new Date(),
         },
       });
 
@@ -345,16 +377,16 @@ export class AiWeatherService {
         departureDate: { gte: alert.startTime },
       },
       include: {
-        guest: true,
-        campground: { select: { name: true, phone: true } },
+        Guest: true,
+        Campground: { select: { name: true, phone: true } },
       },
     });
 
     let sent = 0;
-    const notifications: any[] = [];
+    const notifications: WeatherNotification[] = [];
 
     for (const res of reservations) {
-      const email = res.guest?.email;
+      const email = res.Guest?.email;
       if (!email) continue;
 
       try {
@@ -384,7 +416,7 @@ export class AiWeatherService {
       where: { id: alertId },
       data: {
         guestsNotified: sent,
-        notificationsSent: notifications,
+        notificationsSent: serializeNotifications(notifications),
       },
     });
 
@@ -410,9 +442,12 @@ export class AiWeatherService {
   /**
    * Generate email HTML for weather alert
    */
-  private generateAlertEmailHtml(alert: any, reservation: any): string {
-    const campgroundName = reservation.campground?.name || "the campground";
-    const campgroundPhone = reservation.campground?.phone || "";
+  private generateAlertEmailHtml(
+    alert: AiWeatherAlert,
+    reservation: ReservationWithCampground
+  ): string {
+    const campgroundName = reservation.Campground?.name || "the campground";
+    const campgroundPhone = reservation.Campground?.phone || "";
 
     return `
 <!DOCTYPE html>
@@ -493,6 +528,34 @@ export class AiWeatherService {
 
   private formatAlertMessage(alert: WeatherAlert): string {
     return alert.description.substring(0, 500);
+  }
+
+  private normalizeTriggers(value: unknown): WeatherTriggers {
+    if (!this.isRecord(value)) {
+      return DEFAULT_TRIGGERS;
+    }
+
+    return {
+      stormWindMph: this.toNumber(value.stormWindMph) ?? DEFAULT_TRIGGERS.stormWindMph,
+      extremeHeatF: this.toNumber(value.extremeHeatF) ?? DEFAULT_TRIGGERS.extremeHeatF,
+      extremeColdF: this.toNumber(value.extremeColdF) ?? DEFAULT_TRIGGERS.extremeColdF,
+      rainInches: this.toNumber(value.rainInches) ?? DEFAULT_TRIGGERS.rainInches,
+    };
+  }
+
+  private isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null;
+  }
+
+  private toNumber(value: unknown): number | undefined {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === "string") {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : undefined;
+    }
+    return undefined;
   }
 
   // ==================== SCHEDULED JOBS ====================
@@ -577,3 +640,62 @@ export class AiWeatherService {
     };
   }
 }
+
+interface OpenWeatherCurrentResponse {
+  main?: { temp?: number; feels_like?: number; humidity?: number };
+  wind?: { speed?: number; gust?: number };
+  weather?: Array<{ description?: string; icon?: string }>;
+}
+
+interface OpenWeatherAlertPayload {
+  event?: string;
+  tags?: string[];
+  description?: string;
+  start?: number;
+  end?: number;
+}
+
+interface OpenWeatherDailyForecast {
+  dt?: number;
+  temp?: { max?: number; min?: number };
+  weather?: Array<{ description?: string; icon?: string }>;
+  pop?: number;
+  wind_speed?: number;
+  humidity?: number;
+}
+
+interface OpenWeatherOneCallResponse {
+  alerts?: OpenWeatherAlertPayload[];
+  daily?: OpenWeatherDailyForecast[];
+}
+
+type ForecastDay = {
+  date: Date;
+  tempHigh: number;
+  tempLow: number;
+  description: string;
+  icon: string;
+  pop: number;
+  windSpeed: number;
+  humidity: number;
+};
+
+type WeatherAlertDraft = {
+  alertType: string;
+  severity: string;
+  title: string;
+  message: string;
+  startTime?: Date;
+  endTime?: Date;
+};
+
+type WeatherNotification = {
+  guestId: string | null;
+  reservationId: string;
+  email: string;
+  sentAt: Date;
+};
+
+type ReservationWithCampground = Prisma.ReservationGetPayload<{
+  include: { Guest: true; Campground: { select: { name: true; phone: true } } };
+}>;

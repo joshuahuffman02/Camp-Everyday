@@ -21,6 +21,14 @@ interface AuthenticatedSocket extends Socket {
   };
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const buildPayload = (data: unknown) => ({
+  ...(isRecord(data) ? data : { payload: data }),
+  timestamp: new Date().toISOString(),
+});
+
 /**
  * WebSocket Gateway for real-time updates
  *
@@ -48,10 +56,10 @@ export class RealtimeGateway
   implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
 {
   @WebSocketServer()
-  server: Server;
+  server!: Server;
 
   private readonly logger = new Logger(RealtimeGateway.name);
-  private connectedClients = new Map<string, AuthenticatedSocket>();
+  private connectedClients = new Map<string, Socket>();
 
   constructor(
     private readonly jwtService: JwtService,
@@ -107,8 +115,7 @@ export class RealtimeGateway
       const campgroundIds = user.CampgroundMembership.map((m) => m.campgroundId);
 
       // Store user data on socket
-      const authSocket = client as AuthenticatedSocket;
-      authSocket.data = {
+      client.data = {
         userId: user.id,
         email: user.email,
         campgroundIds,
@@ -123,7 +130,7 @@ export class RealtimeGateway
       // Join personal notification room
       await client.join(`user:${user.id}`);
 
-      this.connectedClients.set(client.id, authSocket);
+      this.connectedClients.set(client.id, client);
 
       this.logger.log(
         `Client connected: ${client.id} (user: ${user.email}, campgrounds: ${campgroundIds.length})`
@@ -192,31 +199,22 @@ export class RealtimeGateway
   /**
    * Emit to all clients in a campground room
    */
-  emitToCampground(campgroundId: string, event: string, data: any) {
-    this.server.to(`campground:${campgroundId}`).emit(event, {
-      ...data,
-      timestamp: new Date().toISOString(),
-    });
+  emitToCampground(campgroundId: string, event: string, data: unknown) {
+    this.server.to(`campground:${campgroundId}`).emit(event, buildPayload(data));
   }
 
   /**
    * Emit to dashboard subscribers only
    */
-  emitToDashboard(campgroundId: string, event: string, data: any) {
-    this.server.to(`dashboard:${campgroundId}`).emit(event, {
-      ...data,
-      timestamp: new Date().toISOString(),
-    });
+  emitToDashboard(campgroundId: string, event: string, data: unknown) {
+    this.server.to(`dashboard:${campgroundId}`).emit(event, buildPayload(data));
   }
 
   /**
    * Emit to a specific user
    */
-  emitToUser(userId: string, event: string, data: any) {
-    this.server.to(`user:${userId}`).emit(event, {
-      ...data,
-      timestamp: new Date().toISOString(),
-    });
+  emitToUser(userId: string, event: string, data: unknown) {
+    this.server.to(`user:${userId}`).emit(event, buildPayload(data));
   }
 
   /**

@@ -17,7 +17,7 @@ interface ReportQueryInput {
   limit?: number;
 }
 
-interface ParsedQuery {
+export interface ParsedQuery {
   reportId: string;
   reportName: string;
   dimensions?: string[];
@@ -31,7 +31,7 @@ interface ParsedQuery {
   confidence: number;
 }
 
-interface ReportNarrative {
+export interface ReportNarrative {
   summary: string;
   keyFindings: string[];
   trends?: string[];
@@ -222,7 +222,7 @@ If asking about "today" or "now", use "today" preset.`;
     for (const metric of data.metrics) {
       const values = data.rows
         .map((r) => r[metric])
-        .filter((v) => typeof v === "number") as number[];
+        .filter((v): v is number => typeof v === "number");
 
       if (values.length > 0) {
         stats[metric] = {

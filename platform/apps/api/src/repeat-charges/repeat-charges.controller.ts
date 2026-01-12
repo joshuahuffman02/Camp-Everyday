@@ -20,15 +20,15 @@ import { UserRole } from '@prisma/client';
 export class RepeatChargesController {
     constructor(private readonly repeatChargesService: RepeatChargesService) { }
 
-    private requireCampgroundId(req: any, fallback?: string): string {
-        const campgroundId = fallback || req?.campgroundId || req?.headers?.['x-campground-id'];
+    private requireCampgroundId(req: AuthRequest, fallback?: string): string {
+        const campgroundId = fallback || req.campgroundId || getHeaderValue(req.headers, "x-campground-id");
         if (!campgroundId) {
             throw new BadRequestException('campgroundId is required');
         }
         return campgroundId;
     }
 
-    private assertCampgroundAccess(campgroundId: string, user: any): void {
+    private assertCampgroundAccess(campgroundId: string, user?: AuthUser): void {
         const isPlatformStaff = user?.platformRole === 'platform_admin' ||
                                 user?.platformRole === 'platform_superadmin' ||
                                 user?.platformRole === 'support_agent';
@@ -36,7 +36,8 @@ export class RepeatChargesController {
             return;
         }
 
-        const userCampgroundIds = user?.memberships?.map((m: any) => m.campgroundId) ?? [];
+        const userCampgroundIds = user?.memberships
+          ?.flatMap((membership) => (membership.campgroundId ? [membership.campgroundId] : [])) ?? [];
         if (!userCampgroundIds.includes(campgroundId)) {
             throw new BadRequestException('You do not have access to this campground');
         }
@@ -44,7 +45,7 @@ export class RepeatChargesController {
 
     @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
     @Get()
-    findAll(@Query('campgroundId') campgroundId: string, @Req() req: Request) {
+    findAll(@Query('campgroundId') campgroundId: string, @Req() req: AuthRequest) {
         const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
         this.assertCampgroundAccess(requiredCampgroundId, req.user);
         return this.repeatChargesService.getAllCharges(requiredCampgroundId);
@@ -55,7 +56,7 @@ export class RepeatChargesController {
     findByReservation(
         @Param('id') id: string,
         @Query('campgroundId') campgroundId: string | undefined,
-        @Req() req: Request
+        @Req() req: AuthRequest
     ) {
         const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
         this.assertCampgroundAccess(requiredCampgroundId, req.user);
@@ -67,7 +68,7 @@ export class RepeatChargesController {
     generate(
         @Param('id') id: string,
         @Query('campgroundId') campgroundId: string | undefined,
-        @Req() req: Request
+        @Req() req: AuthRequest
     ) {
         const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
         this.assertCampgroundAccess(requiredCampgroundId, req.user);
@@ -79,10 +80,28 @@ export class RepeatChargesController {
     process(
         @Param('id') id: string,
         @Query('campgroundId') campgroundId: string | undefined,
-        @Req() req: Request
+        @Req() req: AuthRequest
     ) {
         const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
         this.assertCampgroundAccess(requiredCampgroundId, req.user);
         return this.repeatChargesService.processCharge(requiredCampgroundId, id);
     }
 }
+
+type Membership = { campgroundId?: string | null };
+
+type AuthUser = {
+    platformRole?: string | null;
+    memberships?: Membership[];
+};
+
+type AuthRequest = Request & {
+    campgroundId?: string;
+    user?: AuthUser;
+};
+
+const getHeaderValue = (headers: Request["headers"], key: string): string | undefined => {
+    const value = headers[key];
+    if (Array.isArray(value)) return value[0];
+    return typeof value === "string" ? value : undefined;
+};

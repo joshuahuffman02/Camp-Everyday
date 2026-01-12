@@ -26,8 +26,8 @@ export default function JobsPage() {
     const storedValid = stored && campgrounds.some(cg => cg.id === stored);
     const currentValid = selectedCampgroundId && campgrounds.some(cg => cg.id === selectedCampgroundId);
 
-    if (!currentValid && storedValid) {
-      setSelectedCampgroundId(stored as string);
+    if (!currentValid && storedValid && stored) {
+      setSelectedCampgroundId(stored);
       return;
     }
     if (!currentValid && campgrounds.length > 0) {
@@ -123,5 +123,4 @@ export default function JobsPage() {
     </div>
   );
 }
-
 

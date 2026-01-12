@@ -17,29 +17,39 @@ import { TaxRuleType } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { ScopeGuard } from '../permissions/scope.guard';
+import type { AuthUser } from "../auth/auth.types";
+
+type CampgroundRequest = Request & { campgroundId?: string };
+
+const getHeaderValue = (value: string | string[] | undefined): string | undefined =>
+    Array.isArray(value) ? value[0] : value;
 
 @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
 @Controller('tax-rules')
 export class TaxRulesController {
     constructor(private readonly taxRulesService: TaxRulesService) { }
 
-    private requireCampgroundId(req: any, fallback?: string): string {
-        const campgroundId = fallback || req?.campgroundId || req?.headers?.["x-campground-id"];
+    private requireCampgroundId(req: CampgroundRequest, fallback?: string): string {
+        const headerCampgroundId = getHeaderValue(req.headers?.["x-campground-id"]);
+        const campgroundId = fallback ?? req.campgroundId ?? headerCampgroundId;
         if (!campgroundId) {
             throw new BadRequestException("campgroundId is required");
         }
         return campgroundId;
     }
 
-    private assertCampgroundAccess(campgroundId: string, user: any): void {
-        const isPlatformStaff = user?.platformRole === "platform_admin" ||
-                                user?.platformRole === "platform_superadmin" ||
-                                user?.platformRole === "support_agent";
+    private assertCampgroundAccess(campgroundId: string, user: AuthUser | undefined): void {
+        if (!user) {
+            throw new BadRequestException("You do not have access to this campground");
+        }
+
+        const platformRole = user.platformRole ?? "";
+        const isPlatformStaff = ["platform_admin", "platform_superadmin", "support_agent"].includes(platformRole);
         if (isPlatformStaff) {
             return;
         }
 
-        const userCampgroundIds = user?.memberships?.map((m: any) => m.campgroundId) ?? [];
+        const userCampgroundIds = user.memberships.map((membership) => membership.campgroundId);
         if (!userCampgroundIds.includes(campgroundId)) {
             throw new BadRequestException("You do not have access to this campground");
         }

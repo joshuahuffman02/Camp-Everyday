@@ -83,12 +83,12 @@ export function SiteMapPicker({
     const sites = sitesQuery.data || [];
 
     // Group sites by site class for organization
-    const sitesByClass = sites.reduce((acc, site) => {
+    const sitesByClass = sites.reduce<Record<string, typeof sites>>((acc, site) => {
         const className = site.siteClassName || "Uncategorized";
         if (!acc[className]) acc[className] = [];
         acc[className].push(site);
         return acc;
-    }, {} as Record<string, typeof sites>);
+    }, {});
 
     const statusCounts = {
         available: sites.filter((s) => s.status === "available").length,

@@ -20,14 +20,18 @@ function useDropdownMenuContext(component: string) {
   return ctx;
 }
 
+function isMutableRef<T>(ref: React.Ref<T>): ref is React.MutableRefObject<T | null> {
+  return typeof ref === "object" && ref !== null && "current" in ref;
+}
+
 function mergeRefs<T>(...refs: Array<React.Ref<T> | undefined>) {
   return (node: T | null) => {
     refs.forEach((ref) => {
       if (!ref) return;
       if (typeof ref === "function") {
         ref(node);
-      } else {
-        (ref as React.MutableRefObject<T | null>).current = node;
+      } else if (isMutableRef(ref)) {
+        ref.current = node;
       }
     });
   };
@@ -79,7 +83,8 @@ export function DropdownMenu({ children, className }: DropdownMenuProps) {
     };
 
     const handleClick = (event: MouseEvent) => {
-      const target = event.target as Node;
+      const target = event.target;
+      if (!(target instanceof Node)) return;
       if (triggerRef.current?.contains(target)) return;
       if (contentRef.current?.contains(target)) return;
       setOpen(false);
@@ -116,9 +121,10 @@ export const DropdownMenuTrigger = React.forwardRef<HTMLElement, DropdownMenuTri
     };
 
     // Extract className from children if it's a valid React element
-    const childClassName = React.isValidElement(children) && children.props && 'className' in children.props
-      ? (children.props.className as string | undefined)
-      : undefined;
+    const childClassName =
+      React.isValidElement(children) && typeof children.props?.className === "string"
+        ? children.props.className
+        : undefined;
 
     const sharedProps = {
       ...props,
@@ -126,7 +132,7 @@ export const DropdownMenuTrigger = React.forwardRef<HTMLElement, DropdownMenuTri
       "aria-expanded": open,
       "aria-haspopup": "menu",
       className: cn(className, childClassName),
-      ref: mergeRefs(ref, triggerRef as React.Ref<HTMLElement>),
+      ref: mergeRefs(ref, triggerRef),
     };
 
     if (asChild && React.isValidElement(children)) {
@@ -139,7 +145,7 @@ export const DropdownMenuTrigger = React.forwardRef<HTMLElement, DropdownMenuTri
       ...sharedProps,
       type: "button",
       "aria-haspopup": "menu",
-      ref: mergeRefs(ref as React.Ref<HTMLButtonElement>, triggerRef as React.Ref<HTMLButtonElement>),
+      ref: mergeRefs(ref, triggerRef),
     };
 
     return (
@@ -199,17 +205,17 @@ export const DropdownMenuItem = React.forwardRef<HTMLButtonElement, DropdownMenu
       className
     );
 
-    if (asChild && React.isValidElement(children)) {
-      return React.cloneElement(children as React.ReactElement<any>, {
+    if (asChild && React.isValidElement<React.HTMLAttributes<HTMLElement>>(children)) {
+      return React.cloneElement(children, {
         role: "menuitem",
-        onClick: (event: React.MouseEvent) => {
+        onClick: (event: React.MouseEvent<HTMLElement>) => {
           if (disabled) return;
-          (children as React.ReactElement<any>).props.onClick?.(event);
+          children.props.onClick?.(event);
           if (!event.defaultPrevented) {
             setOpen(false);
           }
         },
-        className: cn(itemClassName, (children as React.ReactElement<any>).props.className),
+        className: cn(itemClassName, children.props.className),
       });
     }
 

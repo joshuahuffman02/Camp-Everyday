@@ -41,6 +41,7 @@ import {
   Zap,
 } from "lucide-react";
 import Link from "next/link";
+import { z } from "zod";
 
 interface StaffMetrics {
   id: string;
@@ -60,6 +61,26 @@ interface StaffMetrics {
   paymentsProcessed: number;
   guestsCreated: number;
 }
+
+const StaffMetricsSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  userName: z.string().nullable(),
+  userEmail: z.string().nullable(),
+  date: z.string(),
+  sessionsCount: z.number(),
+  totalSessionMinutes: z.number(),
+  pageViews: z.number(),
+  actionsCount: z.number(),
+  errorsEncountered: z.number(),
+  reservationsCreated: z.number(),
+  reservationsModified: z.number(),
+  checkInsCompleted: z.number(),
+  checkOutsCompleted: z.number(),
+  paymentsProcessed: z.number(),
+  guestsCreated: z.number(),
+});
+const StaffMetricsArraySchema = z.array(StaffMetricsSchema);
 
 function formatDuration(minutes: number): string {
   if (minutes < 60) return `${Math.round(minutes)}m`;
@@ -92,6 +113,7 @@ export default function StaffEfficiencyDashboard() {
     queryFn: async () => {
       const response = await apiClient.get<StaffMetrics[]>(`/analytics/enhanced/reports/staff`, {
         params: { campgroundId, days: parseInt(days) },
+        schema: StaffMetricsArraySchema,
       });
       return response.data;
     },

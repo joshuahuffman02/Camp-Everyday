@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { randomUUID } from "crypto";
 import { Cron } from "@nestjs/schedule";
 import { PrismaService } from "../prisma/prisma.service";
 import { AnomaliesService, AnomalyAlert } from "../anomalies/anomalies.service";
@@ -6,6 +7,21 @@ import { AiProviderService } from "./ai-provider.service";
 import { AiAutopilotConfigService } from "./ai-autopilot-config.service";
 import { EmailService } from "../email/email.service";
 import { UpdateAnomalyStatusDto } from "./dto/autopilot.dto";
+import { AiAnomalyAlert, AiFeatureType, Prisma } from "@prisma/client";
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const isJsonValue = (value: unknown): value is Prisma.InputJsonValue => {
+  if (value === null) return true;
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return true;
+  if (Array.isArray(value)) return value.every(isJsonValue);
+  if (isRecord(value)) return Object.values(value).every(isJsonValue);
+  return false;
+};
+
+const toJsonInput = (value: Record<string, unknown> | undefined): Prisma.InputJsonValue | undefined =>
+  value === undefined ? undefined : isJsonValue(value) ? value : undefined;
 
 @Injectable()
 export class AiAnomalyDetectionService {
@@ -25,7 +41,7 @@ export class AiAnomalyDetectionService {
    * Get all alerts for a campground
    */
   async getAlerts(campgroundId: string, status?: string, severity?: string) {
-    const where: any = { campgroundId };
+    const where: Prisma.AiAnomalyAlertWhereInput = { campgroundId };
     if (status) where.status = status;
     if (severity) where.severity = severity;
 
@@ -51,7 +67,7 @@ export class AiAnomalyDetectionService {
   async updateAlertStatus(id: string, data: UpdateAnomalyStatusDto, userId?: string) {
     const alert = await this.getAlert(id);
 
-    const updates: any = {
+    const updates: Prisma.AiAnomalyAlertUpdateInput = {
       status: data.status,
       acknowledgedAt: data.status === "acknowledged" ? new Date() : alert.acknowledgedAt,
       resolvedAt: data.status === "resolved" ? new Date() : alert.resolvedAt,
@@ -125,6 +141,7 @@ export class AiAnomalyDetectionService {
           // Create new alert
           const newAlert = await this.prisma.aiAnomalyAlert.create({
             data: {
+              id: randomUUID(),
               campgroundId,
               type: alert.type,
               severity: alert.severity,
@@ -136,7 +153,7 @@ export class AiAnomalyDetectionService {
               currentValue: alert.currentValue,
               expectedValue: alert.expectedValue,
               deviation: alert.deviation,
-              metadata: alert.metadata,
+              metadata: toJsonInput(alert.metadata),
               status: "new",
               detectedAt: new Date(),
             },
@@ -244,15 +261,13 @@ Response in JSON:
   "suggestedAction": "..."
 }`;
 
-      const response = await this.aiProvider.complete({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
+      const response = await this.aiProvider.getCompletion({
+        campgroundId,
+        featureType: AiFeatureType.anomaly_detection,
+        systemPrompt,
+        userPrompt,
         temperature: 0.5,
         maxTokens: 200,
-        responseFormat: { type: "json_object" },
       });
 
       return JSON.parse(response.content);
@@ -267,7 +282,7 @@ Response in JSON:
   /**
    * Send a realtime alert notification
    */
-  private async sendRealtimeAlert(campgroundId: string, alert: any) {
+  private async sendRealtimeAlert(campgroundId: string, alert: AiAnomalyAlert) {
     try {
       // Get campground owner/manager emails
       const staff = await this.prisma.campgroundMembership.findMany({
@@ -275,7 +290,7 @@ Response in JSON:
           campgroundId,
           role: { in: ["owner", "manager"] },
         },
-        include: { user: { select: { email: true, firstName: true } } },
+        include: { User: { select: { email: true, firstName: true } } },
       });
 
       if (staff.length === 0) {
@@ -289,7 +304,7 @@ Response in JSON:
       });
 
       for (const member of staff) {
-        if (!member.user?.email) continue;
+        if (!member.User?.email) continue;
 
         const severityColors: Record<string, string> = {
           critical: "#dc2626",
@@ -351,7 +366,7 @@ Response in JSON:
         `;
 
         await this.emailService.sendEmail({
-          to: member.user.email,
+          to: member.User.email,
           subject: `${alert.severity.toUpperCase()}: ${alert.title} - ${campground?.name}`,
           html,
           campgroundId,
@@ -397,7 +412,7 @@ Response in JSON:
         campgroundId,
         role: { in: ["owner", "manager"] },
       },
-      include: { user: { select: { email: true, firstName: true } } },
+      include: { User: { select: { email: true, firstName: true } } },
     });
 
     if (staff.length === 0) return { sent: false };
@@ -415,7 +430,7 @@ Response in JSON:
 
     const periodLabel = period === "daily" ? "Daily" : "Weekly";
 
-    const alertRowHtml = (alert: any) => `
+    const alertRowHtml = (alert: AiAnomalyAlert) => `
       <tr>
         <td style="padding: 12px; border-bottom: 1px solid #f1f5f9;">
           <span style="display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; background: ${
@@ -469,10 +484,10 @@ Response in JSON:
 
     // Send to all recipients
     for (const member of staff) {
-      if (!member.user?.email) continue;
+      if (!member.User?.email) continue;
 
       await this.emailService.sendEmail({
-        to: member.user.email,
+        to: member.User.email,
         subject: `${periodLabel} Anomaly Report: ${alerts.length} alert${alerts.length !== 1 ? "s" : ""} - ${campground?.name}`,
         html,
         campgroundId,

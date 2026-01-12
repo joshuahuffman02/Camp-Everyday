@@ -26,7 +26,25 @@ import {
   Gift,
 } from "lucide-react";
 
-const roleOptions = [
+type RoleOptionValue = "owner" | "manager" | "front_desk" | "maintenance" | "finance" | "marketing" | "readonly";
+type CategoryValue =
+  | "task"
+  | "maintenance"
+  | "check_in"
+  | "reservation_quality"
+  | "checklist"
+  | "review_mention"
+  | "on_time_assignment"
+  | "assist"
+  | "manual"
+  | "other";
+
+type GamificationSettings = Awaited<ReturnType<typeof apiClient.getGamificationSettings>>;
+type GamificationRule = Awaited<ReturnType<typeof apiClient.getGamificationRules>>[number];
+type GamificationLeaderboard = Awaited<ReturnType<typeof apiClient.getGamificationLeaderboard>>;
+type GamificationStats = Awaited<ReturnType<typeof apiClient.getGamificationStats>>;
+
+const roleOptions: Array<{ value: RoleOptionValue; label: string }> = [
   { value: "owner", label: "Owner" },
   { value: "manager", label: "Manager" },
   { value: "front_desk", label: "Front Desk" },
@@ -34,11 +52,9 @@ const roleOptions = [
   { value: "finance", label: "Finance" },
   { value: "marketing", label: "Marketing" },
   { value: "readonly", label: "Read-only" },
-] as const;
+];
 
-type RoleOptionValue = (typeof roleOptions)[number]["value"];
-
-const categories = [
+const categories: Array<{ value: CategoryValue; label: string }> = [
   { value: "task", label: "Operational Tasks" },
   { value: "maintenance", label: "Maintenance Closure" },
   { value: "check_in", label: "Check-ins" },
@@ -49,15 +65,28 @@ const categories = [
   { value: "assist", label: "Assists" },
   { value: "manual", label: "Merit XP" },
   { value: "other", label: "Other" },
-] as const;
+];
 
-type CategoryValue = (typeof categories)[number]["value"];
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error && error.message ? error.message : "Unknown error";
+
+const isRoleOptionValue = (value: string): value is RoleOptionValue =>
+  roleOptions.some((option) => option.value === value);
+
+const isCategoryValue = (value: string): value is CategoryValue =>
+  categories.some((category) => category.value === value);
 
 export default function GamificationSettingsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { selectedCampground, isHydrated } = useCampground();
   const campgroundId = selectedCampground?.id;
+  const requireCampgroundId = () => {
+    if (!campgroundId) {
+      throw new Error("Campground is required");
+    }
+    return campgroundId;
+  };
 
   // Local state for form
   const [enabled, setEnabled] = useState(false);
@@ -73,9 +102,9 @@ export default function GamificationSettingsPage() {
   const [awardReason, setAwardReason] = useState<string>("Merit XP for outstanding work");
 
   // Fetch settings
-  const { data: settings, isLoading: settingsLoading, error: settingsError } = useQuery({
+  const { data: settings, isLoading: settingsLoading, error: settingsError } = useQuery<GamificationSettings>({
     queryKey: ["gamification-settings", campgroundId],
-    queryFn: () => apiClient.getGamificationSettings(campgroundId!),
+    queryFn: () => apiClient.getGamificationSettings(requireCampgroundId()),
     enabled: !!campgroundId,
     retry: 1,
   });
@@ -84,48 +113,52 @@ export default function GamificationSettingsPage() {
   useEffect(() => {
     if (settings) {
       setEnabled(settings.enabled);
-      setEnabledRoles((settings.enabledRoles || []) as RoleOptionValue[]);
+      setEnabledRoles((settings.enabledRoles ?? []).filter(isRoleOptionValue));
     }
   }, [settings]);
 
   // Fetch leaderboard
-  const { data: leaderboard } = useQuery({
+  const { data: leaderboard } = useQuery<GamificationLeaderboard>({
     queryKey: ["gamification-leaderboard", campgroundId],
-    queryFn: () => apiClient.getGamificationLeaderboard(campgroundId!, 7),
+    queryFn: () => apiClient.getGamificationLeaderboard(requireCampgroundId(), 7),
     enabled: !!campgroundId && enabled,
   });
 
   // Fetch stats
-  const { data: stats } = useQuery({
+  const { data: stats } = useQuery<GamificationStats>({
     queryKey: ["gamification-stats", campgroundId],
-    queryFn: () => apiClient.getGamificationStats(campgroundId!, 30),
+    queryFn: () => apiClient.getGamificationStats(requireCampgroundId(), 30),
     enabled: !!campgroundId && enabled,
   });
 
   // Fetch XP rules
-  const { data: rules } = useQuery({
+  const { data: rules } = useQuery<GamificationRule[]>({
     queryKey: ["gamification-rules", campgroundId],
-    queryFn: () => apiClient.getGamificationRules(campgroundId!),
+    queryFn: () => apiClient.getGamificationRules(requireCampgroundId()),
     enabled: !!campgroundId,
   });
 
   // Update settings mutation
   const updateSettingsMutation = useMutation({
-    mutationFn: () => apiClient.updateGamificationSettings({
-      campgroundId: campgroundId!,
-      enabled,
-      enabledRoles,
-    } as Parameters<typeof apiClient.updateGamificationSettings>[0]),
+    mutationFn: () => {
+      const payload: Parameters<typeof apiClient.updateGamificationSettings>[0] = {
+        campgroundId: requireCampgroundId(),
+        enabled,
+        enabledRoles,
+      };
+      return apiClient.updateGamificationSettings(payload);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["gamification-settings", campgroundId] });
       toast({ title: "Settings saved", description: "Gamification settings have been updated." });
       launchConfetti({ particles: 90 });
       setHasChanges(false);
     },
-    onError: (error: any) => {
+    onError: (error) => {
+      const message = getErrorMessage(error);
       toast({
         title: "Error saving settings",
-        description: error.message || "Failed to update settings",
+        description: message || "Failed to update settings",
         variant: "destructive",
       });
     },
@@ -133,13 +166,16 @@ export default function GamificationSettingsPage() {
 
   // Manual award mutation
   const awardMutation = useMutation({
-    mutationFn: () => apiClient.manualGamificationAward({
-      campgroundId: campgroundId!,
-      targetUserId: awardTarget,
-      category: awardCategory,
-      xp: parseInt(awardXp, 10),
-      reason: awardReason,
-    } as Parameters<typeof apiClient.manualGamificationAward>[0]),
+    mutationFn: () => {
+      const payload: Parameters<typeof apiClient.manualGamificationAward>[0] = {
+        campgroundId: requireCampgroundId(),
+        targetUserId: awardTarget,
+        category: awardCategory,
+        xp: parseInt(awardXp, 10),
+        reason: awardReason,
+      };
+      return apiClient.manualGamificationAward(payload);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["gamification-leaderboard", campgroundId] });
       queryClient.invalidateQueries({ queryKey: ["gamification-stats", campgroundId] });
@@ -148,10 +184,11 @@ export default function GamificationSettingsPage() {
       setAwardXp("25");
       setAwardReason("Merit XP for outstanding work");
     },
-    onError: (error: any) => {
+    onError: (error) => {
+      const message = getErrorMessage(error);
       toast({
         title: "Error awarding XP",
-        description: error.message || "Failed to award XP",
+        description: message || "Failed to award XP",
         variant: "destructive",
       });
     },
@@ -201,7 +238,7 @@ export default function GamificationSettingsPage() {
   };
 
   // Calculate totals from stats
-  const totalXp = stats?.categories?.reduce((sum: number, c: any) => sum + (c.xp || 0), 0) || 0;
+  const totalXp = stats?.categories.reduce((sum, category) => sum + category.xp, 0) ?? 0;
   const topPerformer = leaderboard?.leaderboard?.[0];
 
   // Wait for hydration before showing "no campground" state to avoid hydration mismatch
@@ -246,7 +283,7 @@ export default function GamificationSettingsPage() {
             There was an error loading gamification settings. Please try refreshing the page.
           </p>
           <p className="text-xs text-muted-foreground">
-            {(settingsError as Error)?.message || "Unknown error"}
+            {getErrorMessage(settingsError) || "Unknown error"}
           </p>
         </div>
       </div>
@@ -390,7 +427,7 @@ export default function GamificationSettingsPage() {
           </CardHeader>
           <CardContent>
             <div className="rounded border border-border divide-y">
-              {rules.map((rule: any) => (
+              {rules.map((rule) => (
                 <div
                   key={rule.id}
                   className="flex items-center justify-between px-4 py-3 hover:bg-muted/60"
@@ -439,7 +476,7 @@ export default function GamificationSettingsPage() {
                     <SelectValue placeholder="Select staff..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {(leaderboard?.leaderboard || []).map((person: any) => (
+                    {(leaderboard?.leaderboard || []).map((person) => (
                       <SelectItem key={person.userId} value={person.userId}>
                         {person.name} ({person.role || "Staff"})
                       </SelectItem>
@@ -451,7 +488,11 @@ export default function GamificationSettingsPage() {
                 <Label>Category</Label>
                 <Select
                   value={awardCategory}
-                  onValueChange={(v) => setAwardCategory(v as CategoryValue)}
+                  onValueChange={(value) => {
+                    if (isCategoryValue(value)) {
+                      setAwardCategory(value);
+                    }
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -513,7 +554,7 @@ export default function GamificationSettingsPage() {
             <CardDescription>Top performers this week</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
-            {(leaderboard?.leaderboard || []).slice(0, 5).map((row: any) => (
+            {(leaderboard?.leaderboard || []).slice(0, 5).map((row) => (
               <div
                 key={row.userId}
                 className="flex items-center justify-between rounded border border-border px-4 py-3 bg-muted/50"

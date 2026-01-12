@@ -40,6 +40,31 @@ import Confetti from "react-confetti";
 import { useWindowSize } from "@/hooks/use-window-size";
 import Link from "next/link";
 
+type CampgroundWithAda = Awaited<ReturnType<typeof apiClient.getCampground>> & {
+  adaAssessment?: AdaAssessmentData | null;
+  adaCertificationLevel?: AdaCertificationLevel | null;
+};
+
+const certificationLevels: Array<Exclude<AdaCertificationLevel, "none">> = ["friendly", "compliant", "excellence"];
+
+const createEmptyItemsByCategory = (): Record<AdaCategory, typeof ADA_CHECKLIST> => ({
+  accessible_sites: [],
+  routes_paths: [],
+  restrooms: [],
+  parking: [],
+  site_features: [],
+  communication: [],
+});
+
+const categoryList: AdaCategory[] = [
+  "accessible_sites",
+  "routes_paths",
+  "restrooms",
+  "parking",
+  "site_features",
+  "communication",
+];
+
 export default function AccessibilitySettingsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -62,7 +87,7 @@ export default function AccessibilitySettingsPage() {
   }, []);
 
   // Fetch campground data
-  const campgroundQuery = useQuery({
+  const campgroundQuery = useQuery<CampgroundWithAda>({
     queryKey: ["campground", campgroundId],
     queryFn: () => apiClient.getCampground(campgroundId!),
     enabled: !!campgroundId
@@ -86,10 +111,7 @@ export default function AccessibilitySettingsPage() {
 
   // Initialize form from campground data
   useEffect(() => {
-    const cg = campgroundQuery.data as {
-      adaAssessment?: AdaAssessmentData | null;
-      adaCertificationLevel?: string | null;
-    } | undefined;
+    const cg = campgroundQuery.data;
     if (!cg) return;
 
     const adaData = cg.adaAssessment;
@@ -149,9 +171,9 @@ export default function AccessibilitySettingsPage() {
   }, [completedItems, initialCompletedItems]);
 
   // Calculate next tier info
-  const nextTierInfo = useMemo(() => {
+  const nextTierInfo = useMemo((): { tier: AdaCertificationLevel; pointsNeeded: number; isClose: boolean } | null => {
     if (certificationLevel === "excellence") return null;
-    const nextTier = certificationLevel === "none" ? "friendly"
+    const nextTier: AdaCertificationLevel = certificationLevel === "none" ? "friendly"
       : certificationLevel === "friendly" ? "compliant"
       : "excellence";
     const threshold = CERTIFICATION_THRESHOLDS[nextTier];
@@ -227,11 +249,11 @@ export default function AccessibilitySettingsPage() {
   });
 
   // Group checklist items by category
-  const itemsByCategory = ADA_CHECKLIST.reduce((acc, item) => {
+  const itemsByCategory = ADA_CHECKLIST.reduce<Record<AdaCategory, typeof ADA_CHECKLIST>>((acc, item) => {
     if (!acc[item.category]) acc[item.category] = [];
     acc[item.category].push(item);
     return acc;
-  }, {} as Record<AdaCategory, typeof ADA_CHECKLIST>);
+  }, createEmptyItemsByCategory());
 
   if (!campgroundId) {
     return (
@@ -393,7 +415,7 @@ export default function AccessibilitySettingsPage() {
                 <Sparkles className="w-5 h-5 text-status-warning" />
               </motion.div>
               <p className="text-sm font-medium text-status-warning">
-                You&apos;re only {nextTierInfo.pointsNeeded} points away from {getAdaBadgeInfo(nextTierInfo.tier as AdaCertificationLevel)?.label}!
+                You&apos;re only {nextTierInfo.pointsNeeded} points away from {getAdaBadgeInfo(nextTierInfo.tier)?.label}!
               </p>
             </div>
           </motion.div>
@@ -850,7 +872,7 @@ export default function AccessibilitySettingsPage() {
           </CardHeader>
           <CardContent>
             <div className="grid md:grid-cols-3 gap-4">
-              {(["friendly", "compliant", "excellence"] as const).map((level) => {
+              {certificationLevels.map((level) => {
                 const info = getAdaBadgeInfo(level);
                 const threshold = CERTIFICATION_THRESHOLDS[level];
                 const isAchieved = certificationLevel === level ||
@@ -907,8 +929,9 @@ export default function AccessibilitySettingsPage() {
         </Card>
 
         {/* Checklist Categories */}
-        {Object.entries(itemsByCategory).map(([category, items]) => {
-          const catInfo = ADA_CATEGORIES[category as AdaCategory];
+        {categoryList.map((category) => {
+          const items = itemsByCategory[category];
+          const catInfo = ADA_CATEGORIES[category];
           const completedCount = items.filter(item => completedItems.has(item.id)).length;
           const isComplete = completedCount === items.length;
           const requiredInCategory = items.filter(i => i.required);

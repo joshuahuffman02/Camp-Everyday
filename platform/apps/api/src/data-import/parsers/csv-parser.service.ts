@@ -4,7 +4,7 @@ import { parse } from "csv-parse/sync";
 export interface FieldMapping {
   sourceField: string;
   targetField: string;
-  transform?: (value: string) => any;
+  transform?: (value: string) => unknown;
 }
 
 export interface ParsedRow {
@@ -30,6 +30,9 @@ export interface FieldSuggestion {
   confidence: number; // 0-1
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
 @Injectable()
 export class CsvParserService {
   private readonly logger = new Logger(CsvParserService.name);
@@ -45,12 +48,24 @@ export class CsvParserService {
 
     try {
       // Parse CSV
-      const records = parse(content, {
+      const rawRecords = parse(content, {
         columns: true,
         skip_empty_lines: true,
         trim: true,
         relaxColumnCount: true,
       });
+      const records = Array.isArray(rawRecords)
+        ? rawRecords
+            .map((record) => {
+              if (!isRecord(record)) return null;
+              const normalized: Record<string, string> = {};
+              for (const [key, value] of Object.entries(record)) {
+                normalized[key] = typeof value === "string" ? value : String(value ?? "");
+              }
+              return normalized;
+            })
+            .filter((record): record is Record<string, string> => Boolean(record))
+        : [];
 
       if (records.length === 0) {
         return {
@@ -68,7 +83,7 @@ export class CsvParserService {
       const headers = Object.keys(records[0]);
 
       // Process each row
-      const rows: ParsedRow[] = records.map((record: Record<string, string>, index: number) => {
+      const rows: ParsedRow[] = records.map((record, index) => {
         const rowErrors: string[] = [];
         const rowWarnings: string[] = [];
         let data: Record<string, unknown> = {};
@@ -115,8 +130,9 @@ export class CsvParserService {
         errorRows: rows.length - validRows,
         errors,
       };
-    } catch (err: any) {
-      this.logger.error(`CSV parse error: ${err.message}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.error(`CSV parse error: ${message}`);
       return {
         success: false,
         headers: [],
@@ -124,7 +140,7 @@ export class CsvParserService {
         totalRows: 0,
         validRows: 0,
         errorRows: 0,
-        errors: [`Failed to parse CSV: ${err.message}`],
+        errors: [`Failed to parse CSV: ${message}`],
       };
     }
   }
@@ -160,7 +176,7 @@ export class CsvParserService {
         // Check partial match
         if (!bestMatch) {
           const similarity = this.calculateSimilarity(normalized, this.normalizeFieldName(targetField.name));
-          if (similarity > 0.6 && (!bestMatch || similarity > bestMatch.confidence)) {
+          if (similarity > 0.6) {
             bestMatch = { target: targetField.name, confidence: similarity };
           }
         }

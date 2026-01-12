@@ -27,12 +27,73 @@ import { cn } from "@/lib/utils";
 type GuestData = Awaited<ReturnType<typeof apiClient.getGuestMe>>;
 type Product = Awaited<ReturnType<typeof apiClient.getProducts>>[0];
 type Reservation = GuestData["reservations"][0];
+type StoreOrder = Awaited<ReturnType<typeof apiClient.createStoreOrder>>;
+type StoreOrderPayload = Record<string, unknown>;
 
 type CartItem = {
     id: string;
     name: string;
     priceCents: number;
     qty: number;
+};
+
+type QueuedOrder = {
+    id: string;
+    payload: StoreOrderPayload;
+    campgroundId?: string;
+    attempt: number;
+    nextAttemptAt: number;
+    createdAt: string;
+    lastError: string | null;
+    idempotencyKey: string;
+    conflict: boolean;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null && !Array.isArray(value);
+
+const getErrorMessage = (error: unknown): string => {
+    if (error instanceof Error) return error.message;
+    if (isRecord(error) && typeof error.message === "string") return error.message;
+    return "";
+};
+
+const getErrorStatus = (error: unknown): number | undefined =>
+    isRecord(error) && typeof error.status === "number" ? error.status : undefined;
+
+const isCartItem = (value: unknown): value is CartItem => {
+    if (!isRecord(value)) return false;
+    return (
+        typeof value.id === "string" &&
+        typeof value.name === "string" &&
+        typeof value.priceCents === "number" &&
+        typeof value.qty === "number"
+    );
+};
+
+const parseCart = (raw: string | null): CartItem[] => {
+    if (!raw) return [];
+    try {
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed.filter(isCartItem);
+    } catch {
+        return [];
+    }
+};
+
+const isQueuedOrder = (value: unknown): value is QueuedOrder => {
+    if (!isRecord(value)) return false;
+    if (!isRecord(value.payload)) return false;
+    return (
+        typeof value.id === "string" &&
+        typeof value.attempt === "number" &&
+        typeof value.nextAttemptAt === "number" &&
+        typeof value.createdAt === "string" &&
+        (typeof value.lastError === "string" || value.lastError === null) &&
+        typeof value.idempotencyKey === "string" &&
+        typeof value.conflict === "boolean"
+    );
 };
 
 export default function PortalStorePage() {
@@ -50,7 +111,7 @@ export default function PortalStorePage() {
     const cartCacheKey = "campreserv:portalStoreCart";
     const orderQueueKey = "campreserv:portal:orderQueue";
     const [queuedOrders, setQueuedOrders] = useState(0);
-    const [conflicts, setConflicts] = useState<any[]>([]);
+    const [conflicts, setConflicts] = useState<QueuedOrder[]>([]);
     const [syncDrawerOpen, setSyncDrawerOpen] = useState(false);
     const { status: syncStatus } = useSyncStatus();
 
@@ -70,11 +131,9 @@ export default function PortalStorePage() {
         if (typeof window !== "undefined") {
             setIsOnline(navigator.onLine);
             try {
-                const raw = localStorage.getItem(orderQueueKey);
-                const parsed = raw ? JSON.parse(raw) : [];
-                const list = Array.isArray(parsed) ? parsed : [];
+                const list = loadOrderQueue();
                 setQueuedOrders(list.length);
-                setConflicts(list.filter((i) => i?.conflict));
+                setConflicts(list.filter((item) => item.conflict));
             } catch {
                 setQueuedOrders(0);
             }
@@ -94,8 +153,7 @@ export default function PortalStorePage() {
     useEffect(() => {
         if (typeof window === "undefined") return;
         try {
-            const raw = localStorage.getItem(cartCacheKey);
-            if (raw) setCart(JSON.parse(raw));
+            setCart(parseCart(localStorage.getItem(cartCacheKey)));
         } catch {
             // ignore
         }
@@ -112,15 +170,15 @@ export default function PortalStorePage() {
         }
     }, [cart]);
 
-    const loadOrderQueue = () => loadQueueGeneric<any>(orderQueueKey);
-    const saveOrderQueue = (items: any[]) => {
+    const loadOrderQueue = () => loadQueueGeneric<QueuedOrder>(orderQueueKey).filter(isQueuedOrder);
+    const saveOrderQueue = (items: QueuedOrder[]) => {
         saveQueueGeneric(orderQueueKey, items);
         setQueuedOrders(items.length);
-        setConflicts(items.filter((i) => i?.conflict));
+        setConflicts(items.filter((item) => item.conflict));
     };
 
-    const queueOrder = (payload: any, campgroundId?: string) => {
-        const item = {
+    const queueOrder = (payload: StoreOrderPayload, campgroundId?: string) => {
+        const item: QueuedOrder = {
             id: randomId(),
             payload,
             campgroundId,
@@ -141,26 +199,39 @@ export default function PortalStorePage() {
         const now = Date.now();
         const items = loadOrderQueue();
         if (!items.length) return;
-        const remaining: any[] = [];
+        const remaining: QueuedOrder[] = [];
         for (const item of items) {
             if (item.nextAttemptAt && item.nextAttemptAt > now) {
                 remaining.push(item);
                 continue;
             }
+            if (!item.campgroundId) {
+                remaining.push({ ...item, lastError: "Missing campground ID", conflict: true });
+                recordTelemetry({
+                    source: "portal-store",
+                    type: "error",
+                    status: "failed",
+                    message: "Queued order missing campground ID",
+                    meta: { id: item.id },
+                });
+                continue;
+            }
             try {
                 await apiClient.createStoreOrder(item.campgroundId, item.payload);
                 recordTelemetry({ source: "portal-store", type: "sync", status: "success", message: "Queued order flushed", meta: { paymentMethod: item.payload?.paymentMethod } });
-            } catch (err: any) {
+            } catch (err) {
+                const errorMessage = getErrorMessage(err);
+                const errorStatus = getErrorStatus(err);
                 const attempt = (item.attempt ?? 0) + 1;
                 const delay = Math.min(300000, 1000 * 2 ** attempt) + Math.floor(Math.random() * 500);
-                const isConflict = err?.status === 409 || err?.status === 412 || /conflict/i.test(err?.message ?? "");
-                remaining.push({ ...item, attempt, nextAttemptAt: Date.now() + delay, lastError: err?.message, conflict: isConflict });
+                const isConflict = errorStatus === 409 || errorStatus === 412 || /conflict/i.test(errorMessage);
+                remaining.push({ ...item, attempt, nextAttemptAt: Date.now() + delay, lastError: errorMessage || null, conflict: isConflict });
                 recordTelemetry({
                     source: "portal-store",
                     type: isConflict ? "conflict" : "error",
                     status: isConflict ? "conflict" : "failed",
                     message: isConflict ? "Order conflict, needs review" : "Flush failed, retry scheduled",
-                    meta: { error: err?.message },
+                    meta: { error: errorMessage },
                 });
             }
         }
@@ -307,7 +378,7 @@ export default function PortalStorePage() {
         ? products
         : products.filter((p) => p.afterHoursAllowed);
 
-    const handleCheckoutSuccess = (order: any) => {
+    const handleCheckoutSuccess = (order: StoreOrder) => {
         setIsCheckoutOpen(false);
         setIsCartOpen(false);
         clearCart();

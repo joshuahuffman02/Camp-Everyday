@@ -41,7 +41,7 @@ export default function ProfilePage() {
     }
 
     apiClient.getCampground(id)
-      .then((data: any) => {
+      .then((data) => {
         setProfile({
           id: data.id,
           name: data.name || "",
@@ -54,7 +54,7 @@ export default function ProfilePage() {
           address2: data.address2 || null,
           city: data.city || null,
           state: data.state || null,
-          zip: data.zip || null,
+          zip: data.postalCode || null,
           country: data.country || "United States",
         });
         setLoading(false);

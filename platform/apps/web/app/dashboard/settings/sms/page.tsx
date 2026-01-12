@@ -24,6 +24,15 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object";
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (typeof error === "string") return error;
+  if (isRecord(error) && typeof error.message === "string") return error.message;
+  return fallback;
+};
+
 export default function SmsSettingsPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -89,10 +98,10 @@ export default function SmsSettingsPage() {
         setAuthTokenSet(true);
       }
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       toast({
         title: "Save failed",
-        description: err?.message || "Please try again.",
+        description: getErrorMessage(err, "Please try again."),
         variant: "destructive"
       });
     }

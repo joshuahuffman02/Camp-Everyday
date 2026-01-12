@@ -15,7 +15,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import {
     Calendar, Clock, Repeat, CalendarDays, CalendarRange,
-    Loader2, CheckCircle2, Sparkles, ChevronRight, AlertCircle
+    Loader2, CheckCircle2, Sparkles, ChevronRight, AlertCircle, type LucideIcon
 } from "lucide-react";
 import { format, addDays, addWeeks } from "date-fns";
 
@@ -33,10 +33,10 @@ type Props = {
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const FULL_DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-const PATTERN_OPTIONS = [
-    { value: 'daily' as PatternType, label: 'Daily', icon: CalendarDays, description: 'Every day at the same time' },
-    { value: 'weekly' as PatternType, label: 'Weekly', icon: Repeat, description: 'Same days each week' },
-    { value: 'biweekly' as PatternType, label: 'Bi-weekly', icon: CalendarRange, description: 'Every other week' },
+const PATTERN_OPTIONS: Array<{ value: PatternType; label: string; icon: LucideIcon; description: string }> = [
+    { value: 'daily', label: 'Daily', icon: CalendarDays, description: 'Every day at the same time' },
+    { value: 'weekly', label: 'Weekly', icon: Repeat, description: 'Same days each week' },
+    { value: 'biweekly', label: 'Bi-weekly', icon: CalendarRange, description: 'Every other week' },
 ];
 
 const QUICK_DURATIONS = [

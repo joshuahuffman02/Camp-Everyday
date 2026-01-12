@@ -13,7 +13,10 @@ import {
   StoredValueDirection,
   StoredValueStatus,
   StoredValueType,
+  type IdempotencyRecord,
+  type Prisma,
 } from "@prisma/client";
+import { randomUUID } from "crypto";
 import {
   AddWalletCreditDto,
   DebitWalletDto,
@@ -23,6 +26,59 @@ import {
   WalletDebitResult,
   WalletTransaction,
 } from "./guest-wallet.dto";
+
+type WalletScopeType = "campground" | "organization" | "global";
+
+type NormalizedScope = {
+  scopeType: WalletScopeType;
+  scopeId: string | null;
+};
+
+type WalletScopeCarrier = {
+  scopeType?: string | null;
+  scopeId?: string | null;
+  campgroundId?: string | null;
+};
+
+type WalletCandidate = {
+  id: string;
+  guestId: string | null;
+  campgroundId: string;
+  scopeType: string | null;
+  scopeId: string | null;
+  currency: string;
+  status: StoredValueStatus;
+};
+
+type WalletCandidateWithScope = WalletCandidate & NormalizedScope;
+
+type WalletActor = {
+  id?: string | null;
+  role?: string | null;
+};
+
+type IdempotencyScope = {
+  campgroundId?: string | null;
+};
+
+type PrismaClientLike = PrismaService | Prisma.TransactionClient;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const isWalletCreditResult = (value: unknown): value is WalletCreditResult => {
+  if (!isRecord(value)) {
+    return false;
+  }
+  const walletId = value["walletId"];
+  const balanceCents = value["balanceCents"];
+  const transactionId = value["transactionId"];
+  return (
+    typeof walletId === "string" &&
+    typeof balanceCents === "number" &&
+    typeof transactionId === "string"
+  );
+};
 
 @Injectable()
 export class GuestWalletService {
@@ -60,6 +116,7 @@ export class GuestWalletService {
     // Create new wallet
     const wallet = await this.prisma.storedValueAccount.create({
       data: {
+        id: randomUUID(),
         campgroundId,
         guestId,
         scopeType: scope.scopeType,
@@ -70,6 +127,7 @@ export class GuestWalletService {
         issuedAt: new Date(),
         createdVia: "guest_wallet",
         metadata: { isGuestWallet: true },
+        updatedAt: new Date(),
       },
     });
 
@@ -82,7 +140,7 @@ export class GuestWalletService {
   async findWallet(
     campgroundId: string,
     guestId: string
-  ): Promise<{ id: string; currency: string; scopeType: string; scopeId: string | null } | null> {
+  ): Promise<{ id: string; currency: string; scopeType: WalletScopeType; scopeId: string | null } | null> {
     const organizationId = await this.getOrganizationIdForCampground(campgroundId);
     const wallets = await this.fetchWalletCandidates(this.prisma, campgroundId, guestId, organizationId);
     const preferred = this.selectPreferredWallet(wallets, campgroundId, organizationId);
@@ -164,7 +222,7 @@ export class GuestWalletService {
     campgroundId: string,
     dto: AddWalletCreditDto,
     idempotencyKey?: string,
-    actor?: any
+    actor?: WalletActor
   ): Promise<WalletCreditResult> {
     const scope = { campgroundId };
     const key = idempotencyKey ?? `wallet-credit-${dto.guestId}-${Date.now()}`;
@@ -172,7 +230,10 @@ export class GuestWalletService {
     // Check idempotency
     const existing = await this.guardIdempotency(key, dto, scope, "guest-wallet/credit");
     if (existing?.status === IdempotencyStatus.succeeded && existing.responseJson) {
-      return existing.responseJson as WalletCreditResult;
+      const cached = isWalletCreditResult(existing.responseJson) ? existing.responseJson : null;
+      if (cached) {
+        return cached;
+      }
     }
     if (
       existing?.status === IdempotencyStatus.inflight &&
@@ -200,6 +261,7 @@ export class GuestWalletService {
         if (!wallet) {
           wallet = await tx.storedValueAccount.create({
             data: {
+              id: randomUUID(),
               campgroundId,
               guestId: dto.guestId,
               scopeType: walletScope.scopeType,
@@ -211,6 +273,7 @@ export class GuestWalletService {
               createdBy: actor?.id,
               createdVia: "guest_wallet",
               metadata: { isGuestWallet: true },
+              updatedAt: new Date(),
             },
           });
         } else if (wallet.currency !== currency) {
@@ -224,6 +287,7 @@ export class GuestWalletService {
         // Create ledger entry
         const ledgerEntry = await tx.storedValueLedger.create({
           data: {
+            id: randomUUID(),
             campgroundId,
             issuerCampgroundId: wallet.campgroundId,
             scopeType: wallet.scopeType ?? walletScope.scopeType,
@@ -252,11 +316,11 @@ export class GuestWalletService {
       });
 
       // Mark idempotency as succeeded
-      await this.completeIdempotency(key, scope, result);
+      await this.completeIdempotency(key, result);
 
       return result;
     } catch (error) {
-      await this.failIdempotency(key, scope, error);
+      await this.failIdempotency(key, error);
       throw error;
     }
   }
@@ -271,7 +335,7 @@ export class GuestWalletService {
     amountCents: number,
     reason: string,
     idempotencyKey?: string,
-    actor?: any
+    actor?: WalletActor
   ): Promise<WalletCreditResult> {
     const key = idempotencyKey ?? `wallet-refund-${reservationId}-${Date.now()}`;
     const walletScope = await this.resolveWalletScope(campgroundId, "campground");
@@ -290,6 +354,7 @@ export class GuestWalletService {
       if (!wallet) {
         wallet = await tx.storedValueAccount.create({
           data: {
+            id: randomUUID(),
             campgroundId,
             guestId,
             scopeType: walletScope.scopeType,
@@ -300,6 +365,7 @@ export class GuestWalletService {
             issuedAt: new Date(),
             createdVia: "refund_to_wallet",
             metadata: { isGuestWallet: true },
+            updatedAt: new Date(),
           },
         });
       }
@@ -309,6 +375,7 @@ export class GuestWalletService {
 
       const ledgerEntry = await tx.storedValueLedger.create({
         data: {
+          id: randomUUID(),
           campgroundId,
           issuerCampgroundId: wallet.campgroundId,
           scopeType: wallet.scopeType ?? walletScope.scopeType,
@@ -344,7 +411,7 @@ export class GuestWalletService {
     campgroundId: string,
     dto: DebitWalletDto,
     idempotencyKey?: string,
-    actor?: any
+    actor?: WalletActor
   ): Promise<WalletDebitResult> {
     const key = idempotencyKey ?? `wallet-debit-${dto.referenceId}-${Date.now()}`;
 
@@ -385,6 +452,7 @@ export class GuestWalletService {
 
       const ledgerEntry = await tx.storedValueLedger.create({
         data: {
+          id: randomUUID(),
           campgroundId,
           issuerCampgroundId: wallet.campgroundId,
           scopeType: wallet.scopeType ?? "campground",
@@ -459,7 +527,7 @@ export class GuestWalletService {
         OR: this.buildScopeFilters(campgroundId, organizationId),
       },
       include: {
-        campground: { select: { name: true, slug: true } },
+        Campground: { select: { name: true, slug: true } },
       },
     });
 
@@ -478,8 +546,8 @@ export class GuestWalletService {
           balanceCents,
           availableCents,
           currency: wallet.currency,
-          campgroundName: wallet.campground?.name,
-          campgroundSlug: wallet.campground?.slug,
+          campgroundName: wallet.Campground?.name,
+          campgroundSlug: wallet.Campground?.slug,
         };
       })
     );
@@ -504,7 +572,7 @@ export class GuestWalletService {
         status: StoredValueStatus.active,
       },
       include: {
-        campground: { select: { name: true, slug: true } },
+        Campground: { select: { name: true, slug: true } },
       },
     });
 
@@ -521,8 +589,8 @@ export class GuestWalletService {
           balanceCents,
           availableCents,
           currency: wallet.currency,
-          campgroundName: wallet.campground?.name,
-          campgroundSlug: wallet.campground?.slug,
+          campgroundName: wallet.Campground?.name,
+          campgroundSlug: wallet.Campground?.slug,
         };
       })
     );
@@ -559,7 +627,7 @@ export class GuestWalletService {
   }
 
   private async computeBalanceInTx(
-    tx: any,
+    tx: Prisma.TransactionClient,
     accountId: string
   ): Promise<{ balanceCents: number; availableCents: number }> {
     const ledger = await tx.storedValueLedger.findMany({
@@ -568,8 +636,7 @@ export class GuestWalletService {
     });
 
     const balanceCents = ledger.reduce(
-      (sum: number, row: any) =>
-        sum + this.directionToSigned(row.direction, row.amountCents),
+      (sum, row) => sum + this.directionToSigned(row.direction, row.amountCents),
       0
     );
 
@@ -586,31 +653,32 @@ export class GuestWalletService {
   private directionToSigned(direction: StoredValueDirection, amount: number): number {
     // Positive directions (add to balance)
     if (
-      [
-        StoredValueDirection.issue,
-        StoredValueDirection.refund,
-        StoredValueDirection.adjust,
-      ].includes(direction)
+      direction === StoredValueDirection.issue ||
+      direction === StoredValueDirection.refund ||
+      direction === StoredValueDirection.adjust
     ) {
       return amount;
     }
     // Negative directions (subtract from balance)
     if (
-      [
-        StoredValueDirection.redeem,
-        StoredValueDirection.expire,
-        StoredValueDirection.hold_capture,
-      ].includes(direction)
+      direction === StoredValueDirection.redeem ||
+      direction === StoredValueDirection.expire ||
+      direction === StoredValueDirection.hold_capture
     ) {
       return -Math.abs(amount);
     }
     return 0;
   }
 
-  private normalizeScope(wallet: { scopeType?: string | null; scopeId?: string | null; campgroundId?: string | null }) {
-    const scopeType = wallet?.scopeType ?? "campground";
+  private normalizeScope(wallet: WalletScopeCarrier): NormalizedScope {
+    const scopeType: WalletScopeType =
+      wallet?.scopeType === "global" ||
+      wallet?.scopeType === "organization" ||
+      wallet?.scopeType === "campground"
+        ? wallet.scopeType
+        : "campground";
     if (scopeType === "global") {
-      return { scopeType: "global", scopeId: null as string | null };
+      return { scopeType: "global", scopeId: null };
     }
     if (scopeType === "organization") {
       return { scopeType: "organization", scopeId: wallet?.scopeId ?? null };
@@ -623,10 +691,10 @@ export class GuestWalletService {
     campgroundId: string,
     scopeType?: "campground" | "organization" | "global",
     scopeId?: string
-  ) {
+  ): Promise<NormalizedScope> {
     const normalized = scopeType ?? "campground";
     if (normalized === "global") {
-      return { scopeType: "global", scopeId: null as string | null };
+      return { scopeType: "global", scopeId: null };
     }
     if (normalized === "organization") {
       const organizationId = scopeId ?? (await this.getOrganizationIdForCampground(campgroundId));
@@ -639,7 +707,7 @@ export class GuestWalletService {
   }
 
   private buildScopeFilters(campgroundId: string, organizationId?: string | null) {
-    const filters: Array<{ scopeType: string; scopeId: string | null }> = [
+    const filters: NormalizedScope[] = [
       { scopeType: "campground", scopeId: campgroundId },
     ];
     if (organizationId) {
@@ -650,11 +718,11 @@ export class GuestWalletService {
   }
 
   private async fetchWalletCandidates(
-    tx: any,
+    tx: PrismaClientLike,
     campgroundId: string,
     guestId: string,
     organizationId?: string | null
-  ) {
+  ): Promise<WalletCandidate[]> {
     return tx.storedValueAccount.findMany({
       where: {
         guestId,
@@ -673,8 +741,12 @@ export class GuestWalletService {
     });
   }
 
-  private selectPreferredWallet(wallets: any[], campgroundId: string, organizationId?: string | null) {
-    const normalized = wallets.map((wallet) => ({
+  private selectPreferredWallet(
+    wallets: WalletCandidate[],
+    campgroundId: string,
+    organizationId?: string | null
+  ): WalletCandidateWithScope | null {
+    const normalized: WalletCandidateWithScope[] = wallets.map((wallet) => ({
       ...wallet,
       ...this.normalizeScope(wallet),
     }));
@@ -691,7 +763,7 @@ export class GuestWalletService {
     return normalized.find((wallet) => wallet.scopeType === "global") ?? null;
   }
 
-  private assertWalletRedeemable(wallet: any, campgroundId: string, organizationId?: string | null) {
+  private assertWalletRedeemable(wallet: WalletScopeCarrier, campgroundId: string, organizationId?: string | null) {
     const scope = this.normalizeScope(wallet);
     if (scope.scopeType === "campground" && scope.scopeId !== campgroundId) {
       throw new ForbiddenException("Wallet not valid for this campground");
@@ -703,7 +775,7 @@ export class GuestWalletService {
     }
   }
 
-  private async getOrganizationIdForCampground(campgroundId: string, tx?: any) {
+  private async getOrganizationIdForCampground(campgroundId: string, tx?: PrismaClientLike) {
     const store = tx ?? this.prisma;
     const campground = await store.campground.findUnique({
       where: { id: campgroundId },
@@ -714,29 +786,32 @@ export class GuestWalletService {
 
   private async guardIdempotency(
     key: string | undefined,
-    payload: any,
-    scope: any,
+    payload: unknown,
+    scope: IdempotencyScope,
     operation: string
-  ) {
+  ): Promise<IdempotencyRecord | null> {
     if (!key) return null;
     try {
-      return await this.idempotency.getOrCreate(key, payload, scope, operation);
+      return await this.idempotency.start(key, payload, scope.campgroundId ?? null, {
+        endpoint: operation,
+        campgroundId: scope.campgroundId ?? null,
+      });
     } catch {
       return null;
     }
   }
 
-  private async completeIdempotency(key: string, scope: any, result: any) {
+  private async completeIdempotency(key: string, result: WalletCreditResult) {
     try {
-      await this.idempotency.complete(key, scope, result);
+      await this.idempotency.complete(key, result);
     } catch {
       // Ignore errors
     }
   }
 
-  private async failIdempotency(key: string, scope: any, error: any) {
+  private async failIdempotency(key: string, _error: unknown) {
     try {
-      await this.idempotency.fail(key, scope, error?.message ?? "Unknown error");
+      await this.idempotency.fail(key);
     } catch {
       // Ignore errors
     }

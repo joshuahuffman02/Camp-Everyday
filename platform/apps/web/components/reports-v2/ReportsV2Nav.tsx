@@ -27,6 +27,9 @@ type SearchItem = {
   description?: string;
 };
 
+const isSubTabCategory = (value: string): value is keyof typeof subTabsV2 =>
+  Object.prototype.hasOwnProperty.call(subTabsV2, value);
+
 export function ReportsV2Nav({
   activeTab,
   activeSubTab,
@@ -50,7 +53,7 @@ export function ReportsV2Nav({
         });
         return;
       }
-      const reports = subTabsV2[category.id as keyof typeof subTabsV2] || category.subReports;
+      const reports = isSubTabCategory(category.id) ? subTabsV2[category.id] : category.subReports;
       reports.forEach((sub) => {
         items.push({
           tab: category.id,

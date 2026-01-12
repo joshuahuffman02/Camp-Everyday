@@ -1,6 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { Prisma } from "@prisma/client";
+import { randomUUID } from "crypto";
 
 /**
  * Geo-association service for linking campgrounds to SEO locations and attractions.
@@ -57,7 +58,7 @@ export class GeoAssociationService {
       return;
     }
 
-    const associations: Prisma.CampgroundLocationCreateManyInput[] = [];
+    const associations: Array<Omit<Prisma.CampgroundLocationCreateManyInput, "id">> = [];
 
     // Find or create state location
     if (campground.state) {
@@ -101,7 +102,10 @@ export class GeoAssociationService {
           },
         },
         update: {},
-        create: assoc,
+        create: {
+          id: randomUUID(),
+          ...assoc,
+        },
       });
     }
   }
@@ -170,6 +174,7 @@ export class GeoAssociationService {
       where: { slug },
       update: {},
       create: {
+        id: randomUUID(),
         type: "state",
         name: stateName,
         slug,
@@ -177,6 +182,7 @@ export class GeoAssociationService {
         country: "USA",
         metaTitle: `Camping in ${stateName} - Find the Best Campgrounds`,
         metaDescription: `Discover the best campgrounds and RV parks in ${stateName}. Find campsites near national parks, lakes, and outdoor adventures.`,
+        updatedAt: new Date(),
       },
     });
   }
@@ -206,16 +212,18 @@ export class GeoAssociationService {
       where: { slug },
       update: {},
       create: {
+        id: randomUUID(),
         type: "city",
         name: cityName,
         slug,
         state: stateCode,
         country: "USA",
-        parentId: stateLocation?.id,
+        ...(stateLocation ? { SeoLocation: { connect: { id: stateLocation.id } } } : {}),
         latitude: latitude ? new Prisma.Decimal(latitude) : undefined,
         longitude: longitude ? new Prisma.Decimal(longitude) : undefined,
         metaTitle: `Camping near ${cityName}, ${stateCode} - Best Campgrounds & RV Parks`,
         metaDescription: `Find the best campgrounds and RV parks near ${cityName}, ${stateCode}. Book your perfect campsite today.`,
+        updatedAt: new Date(),
       },
     });
   }
@@ -344,6 +352,7 @@ export class GeoAssociationService {
             isNearby: distance <= 50,
           },
           create: {
+            id: randomUUID(),
             campgroundId,
             attractionId: attraction.id,
             distanceMiles: distance,

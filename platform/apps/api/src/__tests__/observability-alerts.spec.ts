@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { ObservabilityService } from "../observability/observability.service";
 
 describe("Observability alerts", () => {
@@ -17,7 +16,7 @@ describe("Observability alerts", () => {
     obs.recordOtaStatus(false, 1200, { provider: "Hipcamp" });
 
     // DLQ depth breach
-    obs.setQueueState("jobs-dlq", 0, 5, 10000);
+    obs.setQueueState("jobs-dlq", 0, 250, 10000);
 
     const alerts = obs.alerts();
 

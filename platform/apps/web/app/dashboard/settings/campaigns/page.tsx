@@ -29,6 +29,55 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { cn } from "@/lib/utils";
 
 const EMPTY_SELECT_VALUE = "__empty";
+const CHANNELS: Array<"email" | "sms" | "both"> = ["email", "sms", "both"];
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) return error.message;
+  if (isRecord(error) && typeof error.message === "string") return error.message;
+  return "Unknown error";
+};
+
+type AudiencePreview = Awaited<ReturnType<typeof apiClient.previewCampaignAudience>>;
+
+const initialFilters = {
+  siteType: "",
+  notStayedThisYear: true,
+  lastStayBefore: "",
+  state: "",
+  promoUsed: false,
+  vip: false,
+  loyaltyTier: "",
+  stayFrom: "",
+  stayTo: ""
+};
+
+type AudienceFilters = typeof initialFilters;
+
+type CampaignSuggestion = {
+  reason: string;
+  filters: Partial<AudienceFilters>;
+};
+
+const isHtmlMode = (value: string): value is "visual" | "html" =>
+  value === "visual" || value === "html";
+
+const toFilterPatch = (value: unknown): Partial<AudienceFilters> => {
+  if (!isRecord(value)) return {};
+  return {
+    siteType: typeof value.siteType === "string" ? value.siteType : undefined,
+    notStayedThisYear: typeof value.notStayedThisYear === "boolean" ? value.notStayedThisYear : undefined,
+    lastStayBefore: typeof value.lastStayBefore === "string" ? value.lastStayBefore : undefined,
+    state: typeof value.state === "string" ? value.state : undefined,
+    promoUsed: typeof value.promoUsed === "boolean" ? value.promoUsed : undefined,
+    vip: typeof value.vip === "boolean" ? value.vip : undefined,
+    loyaltyTier: typeof value.loyaltyTier === "string" ? value.loyaltyTier : undefined,
+    stayFrom: typeof value.stayFrom === "string" ? value.stayFrom : undefined,
+    stayTo: typeof value.stayTo === "string" ? value.stayTo : undefined
+  };
+};
 
 export default function CampaignsPage() {
   const { toast } = useToast();
@@ -44,19 +93,9 @@ export default function CampaignsPage() {
   const [channel, setChannel] = useState<"email" | "sms" | "both">("email");
   const [templateId, setTemplateId] = useState<string>("");
   const [templateCategory, setTemplateCategory] = useState<string>("general");
-  const [filters, setFilters] = useState({
-    siteType: "",
-    notStayedThisYear: true,
-    lastStayBefore: "",
-    state: "",
-    promoUsed: false,
-    vip: false,
-    loyaltyTier: "",
-    stayFrom: "",
-    stayTo: ""
-  });
-  const [audiencePreview, setAudiencePreview] = useState<{ count: number; sample: any[] } | null>(null);
-  const [suggestions, setSuggestions] = useState<{ reason: string; filters: any }[]>([]);
+  const [filters, setFilters] = useState<AudienceFilters>(initialFilters);
+  const [audiencePreview, setAudiencePreview] = useState<AudiencePreview | null>(null);
+  const [suggestions, setSuggestions] = useState<CampaignSuggestion[]>([]);
   const [sendAt, setSendAt] = useState("");
   const [batchPerMinute, setBatchPerMinute] = useState("");
   const [confirmSend, setConfirmSend] = useState<null | { id: string; name: string; status: string }>(null);
@@ -151,8 +190,8 @@ export default function CampaignsPage() {
     try {
       const data = await apiClient.previewCampaignAudience({ campgroundId, ...filters });
       setAudiencePreview(data);
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } catch (err) {
+      toast({ title: "Error", description: getErrorMessage(err), variant: "destructive" });
     }
   };
 
@@ -160,8 +199,7 @@ export default function CampaignsPage() {
     if (!campgroundId) return;
     try {
       const data = await apiClient.getCampaignSuggestions(campgroundId);
-      // ensure filters field exists to satisfy state type
-      setSuggestions((data || []).map((s: any) => ({ reason: s.reason, filters: s.filters || {} })));
+      setSuggestions((data || []).map((suggestion) => ({ reason: suggestion.reason, filters: toFilterPatch(suggestion.filters) })));
     } catch {
       setSuggestions([]);
     }
@@ -188,7 +226,7 @@ export default function CampaignsPage() {
           className="border rounded-md p-3 min-h-[200px] bg-card"
           contentEditable
           suppressContentEditableWarning
-          onInput={(e) => setHtml((e.target as HTMLDivElement).innerHTML)}
+          onInput={(event) => setHtml(event.currentTarget.innerHTML)}
           dangerouslySetInnerHTML={{ __html: DOMPurify?.sanitize(html) || html }}
         />
       );
@@ -232,7 +270,7 @@ export default function CampaignsPage() {
               <div className="space-y-1">
                 <Label>Channel</Label>
                 <div className="flex gap-3">
-                  {(["email", "sms", "both"] as const).map((ch) => (
+                  {CHANNELS.map((ch) => (
                     <Button
                       key={ch}
                       type="button"
@@ -258,7 +296,12 @@ export default function CampaignsPage() {
                 <div className="flex items-center justify-between">
                   <Label>HTML body</Label>
                   <div className="text-xs text-muted-foreground flex items-center gap-2">
-                    <Tabs value={htmlMode} onValueChange={(v) => setHtmlMode(v as "visual" | "html")}>
+                    <Tabs
+                      value={htmlMode}
+                      onValueChange={(value) => {
+                        if (isHtmlMode(value)) setHtmlMode(value);
+                      }}
+                    >
                       <TabsList className="h-7">
                         <TabsTrigger value="visual" className="text-xs h-7 px-2">Visual</TabsTrigger>
                         <TabsTrigger value="html" className="text-xs h-7 px-2">HTML</TabsTrigger>
@@ -329,8 +372,8 @@ export default function CampaignsPage() {
                         });
                         queryClient.invalidateQueries({ queryKey: ["campaign-templates", campgroundId] });
                         toast({ title: "Template saved" });
-                      } catch (err: any) {
-                        toast({ title: "Error", description: err.message, variant: "destructive" });
+                      } catch (err) {
+                        toast({ title: "Error", description: getErrorMessage(err), variant: "destructive" });
                       }
                     }}
                   >
@@ -497,8 +540,8 @@ export default function CampaignsPage() {
                             try {
                               await apiClient.testCampaign(c.id, { email, phone });
                               toast({ title: "Test sent" });
-                            } catch (err: any) {
-                              toast({ title: "Error", description: err.message, variant: "destructive" });
+                            } catch (err) {
+                              toast({ title: "Error", description: getErrorMessage(err), variant: "destructive" });
                             }
                           }}
                         >

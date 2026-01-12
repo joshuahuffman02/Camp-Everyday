@@ -1,4 +1,5 @@
 import { Injectable, ForbiddenException } from '@nestjs/common';
+import { randomUUID } from "crypto";
 import { PrismaService } from '../prisma/prisma.service';
 import { AiFeatureType, AiConsentType } from '@prisma/client';
 
@@ -130,6 +131,7 @@ export class AiFeatureGateService {
             // Create new record
             await this.prisma.aiConsentRecord.create({
                 data: {
+                    id: randomUUID(),
                     campgroundId: data.campgroundId,
                     consentType: data.consentType,
                     guestId: data.guestId,

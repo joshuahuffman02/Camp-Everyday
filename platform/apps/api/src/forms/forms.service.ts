@@ -2,7 +2,24 @@ import { Injectable, NotFoundException, BadRequestException } from "@nestjs/comm
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateFormSubmissionDto, CreateFormTemplateDto, UpdateFormSubmissionDto, UpdateFormTemplateDto } from "./dto/form-template.dto";
-import { createHmac, timingSafeEqual } from "crypto";
+import { createHmac, timingSafeEqual, randomUUID } from "crypto";
+
+const toJsonValue = (
+  value: unknown
+): Prisma.InputJsonValue | Prisma.NullTypes.DbNull | undefined => {
+  if (value === undefined) return undefined;
+  if (value === null) return Prisma.DbNull;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
+};
+
+const mapSubmissionTemplate = <T extends { FormTemplate?: unknown }>(submission: T) => {
+  const { FormTemplate, ...rest } = submission;
+  return { ...rest, formTemplate: FormTemplate };
+};
 
 @Injectable()
 export class FormsService {
@@ -42,7 +59,7 @@ export class FormsService {
   private async assertTemplateAccess(id: string, campgroundId: string) {
     const template = await this.prisma.formTemplate.findUnique({
       where: { id },
-      select: { id: true, campgroundId: true }
+      select: { id: true, campgroundId: true, version: true }
     });
     if (!template || template.campgroundId !== campgroundId) {
       throw new NotFoundException("Form template not found");
@@ -53,9 +70,9 @@ export class FormsService {
   private async assertSubmissionAccess(id: string, campgroundId: string) {
     const submission = await this.prisma.formSubmission.findUnique({
       where: { id },
-      select: { id: true, formTemplate: { select: { campgroundId: true } } }
+      select: { id: true, FormTemplate: { select: { campgroundId: true } } }
     });
-    if (!submission || submission.formTemplate?.campgroundId !== campgroundId) {
+    if (!submission || submission.FormTemplate?.campgroundId !== campgroundId) {
       throw new NotFoundException("Form submission not found");
     }
     return submission;
@@ -75,11 +92,12 @@ export class FormsService {
     }
     return this.prisma.formTemplate.create({
       data: {
+        id: randomUUID(),
         campgroundId: data.campgroundId,
         title: data.title,
         type: data.type,
         description: data.description ?? null,
-        fields: data.fields ?? Prisma.DbNull,
+        fields: toJsonValue(data.fields) ?? Prisma.DbNull,
         isActive: data.isActive ?? true
       }
     });
@@ -94,7 +112,7 @@ export class FormsService {
         title: data.title ?? undefined,
         type: data.type ?? undefined,
         description: data.description ?? undefined,
-        fields: data.fields ?? undefined,
+        fields: data.fields !== undefined ? toJsonValue(data.fields) : undefined,
         isActive: data.isActive ?? undefined,
         version: existing.version + 1
       }
@@ -132,15 +150,15 @@ export class FormsService {
           where: {
             reservationId: filters.reservationId,
             guestId: filters.guestId,
-            formTemplate: { campgroundId }
+            FormTemplate: { campgroundId }
           },
           include: {
-            formTemplate: { select: { id: true, title: true, type: true } }
+            FormTemplate: { select: { id: true, title: true, type: true } }
           },
           orderBy: { createdAt: "desc" },
           take: limit,
           skip: offset
-        });
+        }).then((submissions) => submissions.map(mapSubmissionTemplate));
       });
     }
 
@@ -148,15 +166,15 @@ export class FormsService {
       where: {
         reservationId: filters.reservationId,
         guestId: filters.guestId,
-        ...(campgroundId ? { formTemplate: { campgroundId } } : {})
+        ...(campgroundId ? { FormTemplate: { campgroundId } } : {})
       },
       include: {
-        formTemplate: { select: { id: true, title: true, type: true } }
+        FormTemplate: { select: { id: true, title: true, type: true } }
       },
       orderBy: { createdAt: "desc" },
       take: limit,
       skip: offset
-    });
+    }).then((submissions) => submissions.map(mapSubmissionTemplate));
   }
 
   async createSubmission(data: CreateFormSubmissionDto, campgroundId: string) {
@@ -177,29 +195,34 @@ export class FormsService {
         throw new NotFoundException("Reservation not found");
       }
     }
-    return this.prisma.formSubmission.create({
+    const submission = await this.prisma.formSubmission.create({
       data: {
+        id: randomUUID(),
         formTemplateId: data.formTemplateId,
         reservationId: data.reservationId ?? null,
         guestId: data.guestId ?? null,
-        responses: data.responses ?? Prisma.DbNull
+        responses: toJsonValue(data.responses) ?? Prisma.DbNull
       },
       include: { FormTemplate: { select: { id: true, title: true, type: true } } }
     });
+
+    return mapSubmissionTemplate(submission);
   }
 
   async updateSubmission(id: string, data: UpdateFormSubmissionDto, campgroundId: string) {
     const requiredCampgroundId = this.requireCampgroundId(campgroundId);
     await this.assertSubmissionAccess(id, requiredCampgroundId);
-    return this.prisma.formSubmission.update({
+    const submission = await this.prisma.formSubmission.update({
       where: { id },
       data: {
         status: data.status ?? undefined,
-        responses: data.responses ?? undefined,
+        responses: data.responses !== undefined ? toJsonValue(data.responses) : undefined,
         signedAt: data.status === "completed" ? new Date() : undefined
       },
       include: { FormTemplate: { select: { id: true, title: true, type: true } } }
     });
+
+    return mapSubmissionTemplate(submission);
   }
 
   async deleteSubmission(id: string, campgroundId: string) {
@@ -231,14 +254,13 @@ export class FormsService {
         displayConditions: true,
         conditionLogic: true
       },
-      orderBy: { sortOrder: "asc" }
+      orderBy: { createdAt: "asc" }
     });
 
     // Filter by showAt if provided
     if (showAt) {
       return forms.filter(f => {
-        const showAtArray = f.showAt as string[] | null;
-        return showAtArray?.includes(showAt);
+        return f.showAt.some(value => value === showAt);
       });
     }
 
@@ -334,17 +356,20 @@ export class FormsService {
       }
     }
 
-    return this.prisma.formSubmission.create({
+    const submission = await this.prisma.formSubmission.create({
       data: {
+        id: randomUUID(),
         formTemplateId: data.formTemplateId,
         reservationId: data.reservationId ?? null,
         guestId: null, // Public submissions don't have guest accounts
-        responses: data.responses ?? Prisma.DbNull,
+        responses: toJsonValue(data.responses) ?? Prisma.DbNull,
         status: "completed",
         signedAt: new Date()
       },
       include: { FormTemplate: { select: { id: true, title: true, type: true } } }
     });
+
+    return mapSubmissionTemplate(submission);
   }
 
   /**
@@ -355,14 +380,14 @@ export class FormsService {
       throw new NotFoundException("Reservation not found");
     }
 
-    return this.prisma.formSubmission.findMany({
+    const submissions = await this.prisma.formSubmission.findMany({
       where: { reservationId },
       select: {
         id: true,
         formTemplateId: true,
         status: true,
         signedAt: true,
-        formTemplate: {
+        FormTemplate: {
           select: {
             id: true,
             title: true,
@@ -372,5 +397,7 @@ export class FormsService {
       },
       orderBy: { signedAt: "desc" }
     });
+
+    return submissions.map(mapSubmissionTemplate);
   }
 }

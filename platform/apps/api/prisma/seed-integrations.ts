@@ -7,8 +7,9 @@
  * Note: These are also auto-seeded on app start via IntegrationRegistryService.onModuleInit()
  */
 
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { randomUUID } from "crypto";
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL || process.env.PLATFORM_DATABASE_URL,
@@ -16,7 +17,9 @@ const adapter = new PrismaPg({
 // @ts-ignore Prisma 7 adapter signature
 const prisma = new PrismaClient({ adapter });
 
-const integrationDefinitions = [
+type IntegrationDefinitionSeed = Omit<Prisma.IntegrationDefinitionCreateInput, "id">;
+
+const integrationDefinitions: IntegrationDefinitionSeed[] = [
   // Accounting
   {
     slug: "quickbooks",
@@ -310,7 +313,10 @@ async function seedIntegrations() {
     try {
       const result = await prisma.integrationDefinition.upsert({
         where: { slug: def.slug },
-        create: def as any,
+        create: {
+          id: randomUUID(),
+          ...def,
+        },
         update: {
           name: def.name,
           description: def.description,
@@ -320,7 +326,7 @@ async function seedIntegrations() {
           authType: def.authType,
           syncTypes: def.syncTypes,
           webhookTypes: def.webhookTypes,
-          features: def.features as any,
+          features: def.features,
           isActive: def.isActive,
           isBeta: def.isBeta,
           isPremium: def.isPremium,
@@ -329,7 +335,8 @@ async function seedIntegrations() {
       });
       console.log(`  [${def.category}] ${def.name} (${def.slug})`);
     } catch (error) {
-      console.error(`  Failed to seed ${def.slug}: ${(error as Error).message}`);
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`  Failed to seed ${def.slug}: ${message}`);
     }
   }
 

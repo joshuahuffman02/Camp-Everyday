@@ -1,7 +1,9 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import type { Prisma } from '@prisma/client';
 import { TasksService } from '../tasks/tasks.service';
 import { HousekeepingService } from './housekeeping.service';
+import { randomUUID } from "crypto";
 
 @Injectable()
 export class InspectionService {
@@ -42,6 +44,7 @@ export class InspectionService {
     // Create inspection result
     const inspectionResult = await this.prisma.inspectionResult.create({
       data: {
+        id: randomUUID(),
         taskId: data.taskId,
         inspectorId: data.inspectorId,
         responses: data.responses,
@@ -74,7 +77,7 @@ export class InspectionService {
     return this.prisma.inspectionResult.findMany({
       where: { taskId },
       include: {
-        inspector: {
+        User: {
           select: { id: true, firstName: true, lastName: true },
         },
       },
@@ -86,8 +89,8 @@ export class InspectionService {
     const inspection = await this.prisma.inspectionResult.findUnique({
       where: { id },
       include: {
-        task: true,
-        inspector: {
+        Task: true,
+        User: {
           select: { id: true, firstName: true, lastName: true },
         },
       },
@@ -97,8 +100,8 @@ export class InspectionService {
   }
 
   async getInspectionStats(campgroundId: string, dateRange?: { start: Date; end: Date }) {
-    const where: any = {
-      task: { tenantId: campgroundId },
+    const where: Prisma.InspectionResultWhereInput = {
+      Task: { tenantId: campgroundId },
     };
 
     if (dateRange) {
@@ -145,7 +148,7 @@ export class InspectionService {
       throw new BadRequestException('This inspection does not require a reclean');
     }
 
-    const task = inspection.task;
+    const task = inspection.Task;
 
     // Create a new cleaning task based on the failed inspection
     const newTask = await this.tasksService.create({

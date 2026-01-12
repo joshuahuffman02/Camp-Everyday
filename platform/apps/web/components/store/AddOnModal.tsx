@@ -3,22 +3,37 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
-import { AddOn } from "@keepr/shared";
+import type { AddOn, CreateAddOnDto } from "@keepr/shared";
 
 interface AddOnModalProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     addOn?: AddOn | null;
-    onSave: (data: any) => Promise<void>;
+    onSave: (data: AddOnPayload) => Promise<void>;
 }
+
+type AddOnPayload = Omit<CreateAddOnDto, "campgroundId">;
+type AddOnPricingType = NonNullable<AddOnPayload["pricingType"]>;
+type AddOnFormData = {
+    name: string;
+    description: string;
+    priceCents: number;
+    pricingType: AddOnPricingType;
+    sortOrder: number;
+    glCode: string;
+    isActive: boolean;
+};
+
+const pricingTypeOptions: AddOnPricingType[] = ["flat", "per_night", "per_person"];
+const defaultPricingType: AddOnPricingType = "flat";
 
 export function AddOnModal({ open, onOpenChange, addOn, onSave }: AddOnModalProps) {
     const [loading, setLoading] = useState(false);
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState<AddOnFormData>({
         name: "",
         description: "",
         priceCents: 0,
-        pricingType: "flat",
+        pricingType: defaultPricingType,
         sortOrder: 0,
         glCode: "",
         isActive: true
@@ -31,7 +46,7 @@ export function AddOnModal({ open, onOpenChange, addOn, onSave }: AddOnModalProp
                     name: addOn.name,
                     description: addOn.description || "",
                     priceCents: addOn.priceCents,
-                    pricingType: addOn.pricingType || "flat",
+                    pricingType: addOn.pricingType || defaultPricingType,
                     sortOrder: addOn.sortOrder || 0,
                     glCode: addOn.glCode || "",
                     isActive: addOn.isActive ?? true
@@ -41,7 +56,7 @@ export function AddOnModal({ open, onOpenChange, addOn, onSave }: AddOnModalProp
                     name: "",
                     description: "",
                     priceCents: 0,
-                    pricingType: "flat",
+                    pricingType: defaultPricingType,
                     sortOrder: 0,
                     glCode: "",
                     isActive: true
@@ -57,7 +72,9 @@ export function AddOnModal({ open, onOpenChange, addOn, onSave }: AddOnModalProp
             await onSave({
                 ...formData,
                 priceCents: Number(formData.priceCents),
-                sortOrder: Number(formData.sortOrder)
+                sortOrder: Number(formData.sortOrder),
+                description: formData.description.trim() || null,
+                glCode: formData.glCode.trim() || null,
             });
             onOpenChange(false);
         } catch (error) {
@@ -112,7 +129,11 @@ export function AddOnModal({ open, onOpenChange, addOn, onSave }: AddOnModalProp
                                 id="pricingType"
                                 className="flex h-10 w-full rounded-md border border-border bg-card px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                 value={formData.pricingType}
-                                onChange={(e) => setFormData({ ...formData, pricingType: e.target.value })}
+                                onChange={(e) => {
+                                    const nextValue =
+                                        pricingTypeOptions.find((option) => option === e.target.value) ?? defaultPricingType;
+                                    setFormData({ ...formData, pricingType: nextValue });
+                                }}
                             >
                                 <option value="flat">Flat Fee</option>
                                 <option value="per_night">Per Night</option>

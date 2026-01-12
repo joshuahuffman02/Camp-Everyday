@@ -146,12 +146,12 @@ function processSankeyData(
     targetOffsets[n.id] = 0;
   });
 
-  const processedLinks: ProcessedLink[] = links.map(link => {
+  const processedLinks = links.map((link): ProcessedLink | null => {
     const source = nodeMap[link.source];
     const target = nodeMap[link.target];
 
     if (!source || !target) {
-      return null as any;
+      return null;
     }
 
     const sourceHeight = source.totalOut > 0 ? (link.value / source.totalOut) * source.height : source.height;
@@ -172,7 +172,7 @@ function processSankeyData(
       targetY,
       height: linkHeight,
     };
-  }).filter(Boolean);
+  }).filter((link): link is ProcessedLink => link !== null);
 
   return { nodes: processedNodes, links: processedLinks };
 }

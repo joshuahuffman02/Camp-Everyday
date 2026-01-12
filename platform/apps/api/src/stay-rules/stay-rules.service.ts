@@ -1,5 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import type { Prisma } from "@prisma/client";
+import { randomUUID } from "crypto";
 
 interface DateRange {
     start: string;
@@ -17,6 +19,26 @@ type StayRuleUpdate = Partial<{
     isActive: boolean;
 }>;
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null;
+
+const normalizeDateRanges = (value: unknown): DateRange[] => {
+    if (!Array.isArray(value)) return [];
+    return value.filter((entry): entry is DateRange => {
+        if (!isRecord(entry)) return false;
+        return typeof entry.start === "string" && typeof entry.end === "string";
+    });
+};
+
+const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined => {
+    if (value === undefined || value === null) return undefined;
+    try {
+        return JSON.parse(JSON.stringify(value));
+    } catch {
+        return undefined;
+    }
+};
+
 @Injectable()
 export class StayRulesService {
     constructor(private readonly prisma: PrismaService) { }
@@ -32,13 +54,15 @@ export class StayRulesService {
     }) {
         return this.prisma.stayRule.create({
             data: {
+                id: randomUUID(),
                 campgroundId: data.campgroundId,
                 name: data.name,
                 minNights: data.minNights ?? 1,
                 maxNights: data.maxNights ?? 28,
                 siteClasses: data.siteClasses ?? [],
-                dateRanges: data.dateRanges ?? [],
+                dateRanges: toJsonValue(data.dateRanges ?? []),
                 ignoreDaysBefore: data.ignoreDaysBefore ?? 0,
+                updatedAt: new Date(),
             },
         });
     }
@@ -60,10 +84,14 @@ export class StayRulesService {
 
     async update(campgroundId: string, id: string, data: StayRuleUpdate) {
         await this.findOne(campgroundId, id);
-        const { campgroundId: _campgroundId, ...rest } = data;
+        const { campgroundId: _campgroundId, dateRanges, ...rest } = data;
+        const updateData: Prisma.StayRuleUpdateInput = {
+            ...rest,
+            ...(dateRanges !== undefined ? { dateRanges: toJsonValue(dateRanges) } : {})
+        };
         return this.prisma.stayRule.update({
             where: { id },
-            data: rest,
+            data: updateData,
         });
     }
 
@@ -76,14 +104,16 @@ export class StayRulesService {
         const existing = await this.findOne(campgroundId, id);
         return this.prisma.stayRule.create({
             data: {
+                id: randomUUID(),
                 campgroundId: existing.campgroundId,
                 name: `${existing.name} (Copy)`,
                 minNights: existing.minNights,
                 maxNights: existing.maxNights,
                 siteClasses: existing.siteClasses,
-                dateRanges: existing.dateRanges as DateRange[],
+                dateRanges: toJsonValue(normalizeDateRanges(existing.dateRanges)),
                 ignoreDaysBefore: existing.ignoreDaysBefore,
                 isActive: false, // Start as inactive
+                updatedAt: new Date(),
             },
         });
     }
@@ -108,7 +138,7 @@ export class StayRulesService {
             }
 
             // Check if date ranges apply
-            const dateRanges = rule.dateRanges as DateRange[];
+            const dateRanges = normalizeDateRanges(rule.dateRanges);
             if (dateRanges.length > 0) {
                 const arrivalStr = arrivalDate.toISOString().split('T')[0];
                 const inRange = dateRanges.some(range =>

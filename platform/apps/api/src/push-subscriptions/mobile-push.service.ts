@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { randomUUID } from "crypto";
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDeviceDto } from './dto/register-device.dto';
@@ -77,6 +78,7 @@ export class MobilePushService {
         lastUsedAt: new Date()
       },
       create: {
+        id: randomUUID(),
         userId,
         deviceToken: dto.deviceToken,
         platform: dto.platform,
@@ -85,7 +87,8 @@ export class MobilePushService {
         appBundle: dto.appBundle || null,
         appVersion: dto.appVersion || null,
         environment: dto.environment || 'production',
-        isActive: true
+        isActive: true,
+        updatedAt: new Date()
       }
     });
 

@@ -42,8 +42,8 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-const SPRING_CONFIG = {
-    type: "spring" as const,
+const SPRING_CONFIG: { type: "spring"; stiffness: number; damping: number } = {
+    type: "spring",
     stiffness: 200,
     damping: 20,
 };
@@ -60,7 +60,8 @@ type KioskDevice = {
 
 export default function KioskDevicesPage() {
     const params = useParams();
-    const campgroundId = params?.campgroundId as string;
+    const campgroundParam = params?.campgroundId;
+    const campgroundId = typeof campgroundParam === "string" ? campgroundParam : "";
     const queryClient = useQueryClient();
 
     const [pairingCode, setPairingCode] = useState<{ code: string; expiresAt: string } | null>(null);
@@ -90,8 +91,9 @@ export default function KioskDevicesPage() {
             setPairingCode(data);
             setMessage({ type: "info", text: "Enter this code on your kiosk device" });
         },
-        onError: (err: any) => {
-            setMessage({ type: "error", text: err?.message || "Failed to generate pairing code" });
+        onError: (err: unknown) => {
+            const messageText = err instanceof Error ? err.message : "Failed to generate pairing code";
+            setMessage({ type: "error", text: messageText });
         }
     });
 
@@ -102,8 +104,9 @@ export default function KioskDevicesPage() {
             queryClient.invalidateQueries({ queryKey: ["kiosk-devices", campgroundId] });
             setMessage({ type: "success", text: "Device paused successfully. Guests cannot check in until re-enabled." });
         },
-        onError: (err: any) => {
-            setMessage({ type: "error", text: err?.message || "Failed to revoke device" });
+        onError: (err: unknown) => {
+            const messageText = err instanceof Error ? err.message : "Failed to revoke device";
+            setMessage({ type: "error", text: messageText });
         }
     });
 
@@ -114,8 +117,9 @@ export default function KioskDevicesPage() {
             queryClient.invalidateQueries({ queryKey: ["kiosk-devices", campgroundId] });
             setMessage({ type: "success", text: "Device is back online and ready for guests!" });
         },
-        onError: (err: any) => {
-            setMessage({ type: "error", text: err?.message || "Failed to enable device" });
+        onError: (err: unknown) => {
+            const messageText = err instanceof Error ? err.message : "Failed to enable device";
+            setMessage({ type: "error", text: messageText });
         }
     });
 
@@ -126,8 +130,9 @@ export default function KioskDevicesPage() {
             queryClient.invalidateQueries({ queryKey: ["kiosk-devices", campgroundId] });
             setMessage({ type: "success", text: "Device removed permanently" });
         },
-        onError: (err: any) => {
-            setMessage({ type: "error", text: err?.message || "Failed to delete device" });
+        onError: (err: unknown) => {
+            const messageText = err instanceof Error ? err.message : "Failed to delete device";
+            setMessage({ type: "error", text: messageText });
         }
     });
 

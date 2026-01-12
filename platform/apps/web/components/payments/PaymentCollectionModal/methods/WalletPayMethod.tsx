@@ -120,9 +120,10 @@ function WalletPaymentButton({
         });
 
         onSuccess?.(paymentIntent?.id || "");
-      } catch (err: any) {
-        setError(err.message || "Payment failed");
-        onError?.(err.message || "Payment failed");
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Payment failed";
+        setError(message);
+        onError?.(message);
       } finally {
         setProcessing(false);
       }

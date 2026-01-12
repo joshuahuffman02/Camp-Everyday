@@ -61,10 +61,13 @@ export function MaintenanceDailyReport({ campgroundId, dateRange }: MaintenanceD
         };
     }, [tickets, dateRange]);
 
-    const getSiteName = (siteId: string | null) => {
+    const getSiteName = (siteId: string | null | undefined) => {
         if (!siteId) return "General / Building";
         return sites?.find((s) => s.id === siteId)?.name ?? "Unknown Site";
     };
+
+    const formatDateValue = (value: string | null | undefined) =>
+        format(new Date(value ?? Date.now()), "MMM d");
 
     if (isLoading) {
         return <div className="text-sm text-muted-foreground">Loading maintenance requests...</div>;
@@ -108,7 +111,7 @@ export function MaintenanceDailyReport({ campgroundId, dateRange }: MaintenanceD
                                         </td>
                                     </tr>
                                 ) : (
-                                    reportData.active.map((t: any) => (
+                                    reportData.active.map((t) => (
                                         <tr key={t.id} className="hover:bg-muted group transition-colors">
                                             <td className="px-4 py-3 font-medium text-foreground">
                                                 <div className="flex items-center gap-2">
@@ -123,9 +126,9 @@ export function MaintenanceDailyReport({ campgroundId, dateRange }: MaintenanceD
                                                 </Badge>
                                             </td>
                                             <td className="px-4 py-3 text-muted-foreground">
-                                                {t.assignee?.name || <span className="text-muted-foreground italic">Unassigned</span>}
+                                                {t.assignedTo || <span className="text-muted-foreground italic">Unassigned</span>}
                                             </td>
-                                            <td className="px-4 py-3 text-muted-foreground">{format(new Date(t.createdAt), "MMM d")}</td>
+                                            <td className="px-4 py-3 text-muted-foreground">{formatDateValue(t.createdAt)}</td>
                                             <td className="px-4 py-3 text-right">
                                                 <Link href={`/admin/maintenance/${t.id}`} className="text-emerald-600 hover:text-emerald-700 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-end gap-1">
                                                     View <ExternalLink className="w-3 h-3" />
@@ -170,16 +173,16 @@ export function MaintenanceDailyReport({ campgroundId, dateRange }: MaintenanceD
                                         </td>
                                     </tr>
                                 ) : (
-                                    reportData.completed.map((t: any) => (
+                                    reportData.completed.map((t) => (
                                         <tr key={t.id} className="hover:bg-muted">
                                             <td className="px-4 py-3 font-medium text-foreground line-through decoration-slate-400">
                                                 {t.title}
                                             </td>
                                             <td className="px-4 py-3 text-muted-foreground font-mono text-xs">{getSiteName(t.siteId)}</td>
                                             <td className="px-4 py-3 text-muted-foreground">
-                                                {t.assignee?.name || "—"}
+                                                {t.assignedTo || "—"}
                                             </td>
-                                            <td className="px-4 py-3 text-muted-foreground">{format(new Date(t.resolvedAt || t.updatedAt), "MMM d")}</td>
+                                            <td className="px-4 py-3 text-muted-foreground">{formatDateValue(t.resolvedAt || t.updatedAt)}</td>
                                         </tr>
                                     ))
                                 )}

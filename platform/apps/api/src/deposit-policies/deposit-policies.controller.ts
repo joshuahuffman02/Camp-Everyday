@@ -19,29 +19,36 @@ import { JwtAuthGuard } from "../auth/guards";
 import { RolesGuard, Roles } from "../auth/guards/roles.guard";
 import { UserRole } from "@prisma/client";
 import { ScopeGuard } from "../permissions/scope.guard";
+import type { AuthUser } from "../auth/auth.types";
+
+type DepositPoliciesRequest = Request & {
+  user?: AuthUser;
+  campgroundId?: string | null;
+};
 
 @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
 @Controller()
 export class DepositPoliciesController {
   constructor(private readonly depositPolicies: DepositPoliciesService) {}
 
-  private requireCampgroundId(req: any, fallback?: string): string {
-    const campgroundId = fallback || req?.campgroundId || req?.headers?.["x-campground-id"];
+  private requireCampgroundId(req: DepositPoliciesRequest, fallback?: string): string {
+    const headerValue = req?.headers?.["x-campground-id"];
+    const headerCampgroundId = Array.isArray(headerValue) ? headerValue[0] : headerValue;
+    const campgroundId = fallback || req?.campgroundId || headerCampgroundId;
     if (!campgroundId) {
       throw new BadRequestException("campgroundId is required");
     }
     return campgroundId;
   }
 
-  private assertCampgroundAccess(campgroundId: string, user: any): void {
+  private assertCampgroundAccess(campgroundId: string, user?: AuthUser): void {
     const isPlatformStaff = user?.platformRole === "platform_admin" ||
-                            user?.platformRole === "platform_superadmin" ||
                             user?.platformRole === "support_agent";
     if (isPlatformStaff) {
       return;
     }
 
-    const userCampgroundIds = user?.memberships?.map((m: any) => m.campgroundId) ?? [];
+    const userCampgroundIds = user?.memberships?.map((m) => m.campgroundId) ?? [];
     if (!userCampgroundIds.includes(campgroundId)) {
       throw new BadRequestException("You do not have access to this campground");
     }
@@ -49,7 +56,7 @@ export class DepositPoliciesController {
 
   @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
   @Get("campgrounds/:campgroundId/deposit-policies")
-  list(@Param("campgroundId") campgroundId: string, @Req() req: Request) {
+  list(@Param("campgroundId") campgroundId: string, @Req() req: DepositPoliciesRequest) {
     this.assertCampgroundAccess(campgroundId, req.user);
     return this.depositPolicies.list(campgroundId);
   }
@@ -59,7 +66,7 @@ export class DepositPoliciesController {
   create(
     @Param("campgroundId") campgroundId: string,
     @Body() dto: CreateDepositPolicyDto,
-    @Req() req: Request
+    @Req() req: DepositPoliciesRequest
   ) {
     this.assertCampgroundAccess(campgroundId, req.user);
     return this.depositPolicies.create(campgroundId, dto);
@@ -71,7 +78,7 @@ export class DepositPoliciesController {
     @Param("id") id: string,
     @Body() dto: UpdateDepositPolicyDto,
     @Query("campgroundId") campgroundId: string | undefined,
-    @Req() req: Request
+    @Req() req: DepositPoliciesRequest
   ) {
     const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
     this.assertCampgroundAccess(requiredCampgroundId, req.user);
@@ -83,7 +90,7 @@ export class DepositPoliciesController {
   remove(
     @Param("id") id: string,
     @Query("campgroundId") campgroundId: string | undefined,
-    @Req() req: Request
+    @Req() req: DepositPoliciesRequest
   ) {
     const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
     this.assertCampgroundAccess(requiredCampgroundId, req.user);

@@ -107,7 +107,7 @@ describe('Payment Validation Schemas', () => {
         reservationId: 'res_456',
         currency: 'usd',
         guestEmail: 'guest@example.com',
-        captureMethod: 'automatic' as const,
+        captureMethod: 'automatic',
       };
 
       const result = CreatePublicPaymentIntentSchema.parse(validData);
@@ -126,7 +126,7 @@ describe('Payment Validation Schemas', () => {
     it('should accept manual capture method', () => {
       const data = {
         reservationId: 'res_456',
-        captureMethod: 'manual' as const,
+        captureMethod: 'manual',
       };
 
       const result = CreatePublicPaymentIntentSchema.parse(data);
@@ -171,7 +171,7 @@ describe('Payment Validation Schemas', () => {
     it('should validate valid refund', () => {
       const validData = {
         amountCents: 3000,
-        reason: 'requested_by_customer' as const,
+        reason: 'requested_by_customer',
       };
 
       const result = RefundPaymentIntentSchema.parse(validData);
@@ -202,7 +202,7 @@ describe('Payment Validation Schemas', () => {
 
     it('should allow refund without specifying amount (full refund)', () => {
       const data = {
-        reason: 'requested_by_customer' as const,
+        reason: 'requested_by_customer',
       };
 
       const result = RefundPaymentIntentSchema.parse(data);
@@ -214,10 +214,10 @@ describe('Payment Validation Schemas', () => {
     it('should validate valid payment settings', () => {
       const validData = {
         applicationFeeFlatCents: 200, // $2.00
-        billingPlan: 'standard' as const,
+        billingPlan: 'standard',
         perBookingFeeCents: 150,
         monthlyFeeCents: 5000,
-        feeMode: 'absorb' as const,
+        feeMode: 'absorb',
       };
 
       const result = UpdatePaymentSettingsSchema.parse(validData);

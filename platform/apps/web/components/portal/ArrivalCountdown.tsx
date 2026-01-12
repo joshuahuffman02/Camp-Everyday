@@ -15,6 +15,8 @@ interface ArrivalCountdownProps {
   campgroundName: string;
 }
 
+type CountdownUrgency = "low" | "medium" | "high";
+
 export function ArrivalCountdown({
   arrivalDate,
   checkInTime,
@@ -43,13 +45,18 @@ export function ArrivalCountdown({
   if (daysUntil < 0) return null;
 
   // Different messaging based on time until arrival
-  const getCountdownContent = () => {
+  const getCountdownContent = (): {
+    number: number;
+    label: string;
+    message: string;
+    urgency: CountdownUrgency;
+  } => {
     if (daysUntil === 0) {
       return {
         number: hoursUntil > 0 ? hoursUntil : 0,
         label: hoursUntil === 1 ? "hour" : "hours",
         message: "Your adventure begins today!",
-        urgency: "high" as const,
+        urgency: "high",
       };
     }
     if (daysUntil === 1) {
@@ -57,7 +64,7 @@ export function ArrivalCountdown({
         number: 1,
         label: "day",
         message: "Almost there! See you tomorrow",
-        urgency: "medium" as const,
+        urgency: "medium",
       };
     }
     if (daysUntil <= 7) {
@@ -65,14 +72,14 @@ export function ArrivalCountdown({
         number: daysUntil,
         label: "days",
         message: "Your trip is coming up soon!",
-        urgency: "medium" as const,
+        urgency: "medium",
       };
     }
     return {
       number: daysUntil,
       label: "days",
       message: "Your adventure starts in",
-      urgency: "low" as const,
+      urgency: "low",
     };
   };
 

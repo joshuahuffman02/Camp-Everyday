@@ -1,15 +1,16 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma, ReservationStatus } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import { randomUUID } from "crypto";
 import { CheckAssignmentDto } from "./dto/check-assignment.dto";
 import { PreviewAssignmentsDto } from "./dto/preview-assignments.dto";
 import { UpsertMapDto } from "./dto/upsert-map.dto";
 import { UpsertMapAssignmentsDto } from "./dto/upsert-map-assignments.dto";
 import { UpsertMapShapesDto } from "./dto/upsert-map-shapes.dto";
 
-type ConflictType = "reservation" | "hold" | "maintenance" | "blackout";
+export type ConflictType = "reservation" | "hold" | "maintenance" | "blackout";
 
-interface Conflict {
+export interface Conflict {
   type: ConflictType;
   id: string;
   start?: Date;
@@ -27,6 +28,34 @@ type AssignmentReason =
   | "party_too_large"
   | "status_blocked";
 
+type SiteFit = {
+  rigMaxLength?: number | null;
+  rigMaxWidth?: number | null;
+  rigMaxHeight?: number | null;
+  accessible?: boolean | null;
+  maxOccupancy?: number | null;
+  amenityTags?: string[] | null;
+  tags?: string[] | null;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined => {
+  if (value === undefined || value === null) return undefined;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
+};
+
+const toJsonInput = (value: unknown): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined => {
+  if (value === undefined) return undefined;
+  if (value === null) return Prisma.JsonNull;
+  return toJsonValue(value) ?? Prisma.JsonNull;
+};
+
 @Injectable()
 export class SiteMapService {
   constructor(private readonly prisma: PrismaService) {}
@@ -37,7 +66,7 @@ export class SiteMapService {
     const [assignments, shapes, config] = await this.prisma.$transaction([
       this.prisma.siteMapAssignment.findMany({
         where: { campgroundId },
-        include: { Site: true, shape: true }
+        include: { Site: true, SiteMapShape: true }
       }),
       this.prisma.siteMapShape.findMany({ where: { campgroundId } }),
       this.prisma.campgroundMapConfig.findUnique({ where: { campgroundId } })
@@ -56,27 +85,27 @@ export class SiteMapService {
       sites: assignments.map(assignment => ({
         siteId: assignment.siteId,
         shapeId: assignment.shapeId,
-        name: assignment.site.name,
-        siteNumber: assignment.site.siteNumber,
-        geometry: assignment.shape.geometry,
-        centroid: assignment.shape.centroid,
-        label: assignment.label ?? assignment.site.mapLabel ?? assignment.site.name,
+        name: assignment.Site.name,
+        siteNumber: assignment.Site.siteNumber,
+        geometry: assignment.SiteMapShape.geometry,
+        centroid: assignment.SiteMapShape.centroid,
+        label: assignment.label ?? assignment.Site.mapLabel ?? assignment.Site.name,
         rotation: assignment.rotation,
-        ada: assignment.site.accessible,
-        amenityTags: (assignment.site.amenityTags?.length ? assignment.site.amenityTags : assignment.site.tags) ?? [],
+        ada: assignment.Site.accessible,
+        amenityTags: (assignment.Site.amenityTags?.length ? assignment.Site.amenityTags : assignment.Site.tags) ?? [],
         rigConstraints: {
-          length: assignment.site.rigMaxLength ?? null,
-          width: assignment.site.rigMaxWidth ?? null,
-          height: assignment.site.rigMaxHeight ?? null,
-          pullThrough: assignment.site.pullThrough ?? false
+          length: assignment.Site.rigMaxLength ?? null,
+          width: assignment.Site.rigMaxWidth ?? null,
+          height: assignment.Site.rigMaxHeight ?? null,
+          pullThrough: assignment.Site.pullThrough ?? false
         },
         hookups: {
-          power: assignment.site.hookupsPower,
-          powerAmps: assignment.site.powerAmps,
-          water: assignment.site.hookupsWater,
-          sewer: assignment.site.hookupsSewer
+          power: assignment.Site.hookupsPower,
+          powerAmps: assignment.Site.powerAmps,
+          water: assignment.Site.hookupsWater,
+          sewer: assignment.Site.hookupsSewer
         },
-        status: assignment.site.status ?? null,
+        status: assignment.Site.status ?? null,
         conflicts: conflictsBySite[assignment.siteId] ?? []
       })),
       shapes: shapes.map(shape => ({
@@ -108,19 +137,21 @@ export class SiteMapService {
         await tx.campgroundMapConfig.upsert({
           where: { campgroundId },
           update: {
-            bounds: dto.config.bounds ?? null,
-            defaultCenter: dto.config.defaultCenter ?? null,
+            bounds: toJsonInput(dto.config.bounds),
+            defaultCenter: toJsonInput(dto.config.defaultCenter),
             defaultZoom: dto.config.defaultZoom ?? null,
-            layers: dto.config.layers ?? null,
-            legend: dto.config.legend ?? null
+            layers: toJsonInput(dto.config.layers),
+            legend: toJsonInput(dto.config.legend),
+            updatedAt: new Date()
           },
           create: {
             campgroundId,
-            bounds: dto.config.bounds ?? null,
-            defaultCenter: dto.config.defaultCenter ?? null,
+            bounds: toJsonInput(dto.config.bounds),
+            defaultCenter: toJsonInput(dto.config.defaultCenter),
             defaultZoom: dto.config.defaultZoom ?? null,
-            layers: dto.config.layers ?? null,
-            legend: dto.config.legend ?? null
+            layers: toJsonInput(dto.config.layers),
+            legend: toJsonInput(dto.config.legend),
+            updatedAt: new Date()
           }
         });
       }
@@ -137,37 +168,42 @@ export class SiteMapService {
             await tx.siteMapShape.update({
               where: { id: assignment.shapeId },
               data: {
-                geometry: site.geometry,
-                centroid: site.centroid ?? null
+                geometry: toJsonValue(site.geometry) ?? {},
+                centroid: toJsonInput(site.centroid),
+                updatedAt: new Date()
               }
             });
             const assignmentUpdate: Prisma.SiteMapAssignmentUpdateInput = {};
             if (site.label !== undefined) assignmentUpdate.label = site.label ?? null;
             if (site.rotation !== undefined) assignmentUpdate.rotation = site.rotation ?? null;
-            if (site.metadata !== undefined) assignmentUpdate.metadata = site.metadata ?? null;
+            if (site.metadata !== undefined) assignmentUpdate.metadata = toJsonInput(site.metadata);
             if (Object.keys(assignmentUpdate).length) {
               await tx.siteMapAssignment.update({
                 where: { id: assignment.id },
-                data: assignmentUpdate
+                data: { ...assignmentUpdate, updatedAt: new Date() }
               });
             }
           } else {
             const shape = await tx.siteMapShape.create({
               data: {
+                id: randomUUID(),
                 campgroundId,
                 name: site.label ?? null,
-                geometry: site.geometry,
-                centroid: site.centroid ?? null
+                geometry: toJsonValue(site.geometry) ?? {},
+                centroid: toJsonInput(site.centroid),
+                updatedAt: new Date()
               }
             });
             await tx.siteMapAssignment.create({
               data: {
+                id: randomUUID(),
                 campgroundId,
                 siteId: site.siteId,
                 shapeId: shape.id,
                 label: site.label ?? null,
                 rotation: site.rotation ?? null,
-                metadata: site.metadata ?? null
+                metadata: toJsonInput(site.metadata),
+                updatedAt: new Date()
               }
             });
           }
@@ -180,7 +216,9 @@ export class SiteMapService {
 
   async upsertShapes(campgroundId: string, dto: UpsertMapShapesDto) {
     if (!dto.shapes?.length) return this.getMap(campgroundId);
-    const ids = dto.shapes.map(shape => shape.id).filter(Boolean) as string[];
+    const ids = dto.shapes
+      .map((shape) => shape.id)
+      .filter((id): id is string => typeof id === "string" && id.length > 0);
     if (ids.length) {
       const count = await this.prisma.siteMapShape.count({ where: { id: { in: ids }, campgroundId } });
       if (count !== ids.length) {
@@ -195,19 +233,22 @@ export class SiteMapService {
             where: { id: shape.id },
             data: {
               name: shape.name ?? null,
-              geometry: shape.geometry,
-              centroid: shape.centroid ?? null,
-              metadata: shape.metadata ?? null
+              geometry: toJsonValue(shape.geometry) ?? {},
+              centroid: toJsonInput(shape.centroid),
+              metadata: toJsonInput(shape.metadata),
+              updatedAt: new Date()
             }
           });
         } else {
           await tx.siteMapShape.create({
             data: {
+              id: randomUUID(),
               campgroundId,
               name: shape.name ?? null,
-              geometry: shape.geometry,
-              centroid: shape.centroid ?? null,
-              metadata: shape.metadata ?? null
+              geometry: toJsonValue(shape.geometry) ?? {},
+              centroid: toJsonInput(shape.centroid),
+              metadata: toJsonInput(shape.metadata),
+              updatedAt: new Date()
             }
           });
         }
@@ -253,12 +294,14 @@ export class SiteMapService {
 
       await tx.siteMapAssignment.createMany({
         data: dto.assignments.map((assignment) => ({
+          id: randomUUID(),
           campgroundId,
           siteId: assignment.siteId,
           shapeId: assignment.shapeId,
           label: assignment.label ?? null,
           rotation: assignment.rotation ?? null,
-          metadata: assignment.metadata ?? null
+          metadata: toJsonInput(assignment.metadata),
+          updatedAt: new Date()
         }))
       });
     });
@@ -305,8 +348,9 @@ export class SiteMapService {
     }
 
     const conflictsMap = await this.buildConflictsMap(campgroundId, sites.map(s => s.id), start, end);
-    const eligible: any[] = [];
-    const ineligible: any[] = [];
+    type PreviewResult = { siteId: string; reasons: AssignmentReason[]; conflicts: Conflict[] };
+    const eligible: PreviewResult[] = [];
+    const ineligible: PreviewResult[] = [];
 
     for (const site of sites) {
       const reasons = this.evaluateSiteFit(site, dto);
@@ -331,13 +375,13 @@ export class SiteMapService {
 
   async setBaseImage(campgroundId: string, url: string) {
     const existing = await this.prisma.campgroundMapConfig.findUnique({ where: { campgroundId } });
-    const existingLayers = existing?.layers && typeof existing.layers === "object" ? existing.layers : {};
-    const layers = { ...(existingLayers as Record<string, unknown>), baseImageUrl: url };
+    const existingLayers = isRecord(existing?.layers) ? existing?.layers : {};
+    const layers = toJsonInput({ ...existingLayers, baseImageUrl: url });
 
     await this.prisma.campgroundMapConfig.upsert({
       where: { campgroundId },
-      update: { layers },
-      create: { campgroundId, layers }
+      update: { layers, updatedAt: new Date() },
+      create: { campgroundId, layers, updatedAt: new Date() }
     });
 
     return { url };
@@ -362,29 +406,33 @@ export class SiteMapService {
       for (const layout of layouts) {
         const shape = await tx.siteMapShape.create({
           data: {
+            id: randomUUID(),
             campgroundId,
-            name: layout.label ?? layout.site.mapLabel ?? layout.site.name ?? null,
-            geometry: layout.geometry,
-            centroid: layout.centroid ?? null,
-            metadata: layout.metadata ?? null
+            name: layout.label ?? layout.Site.mapLabel ?? layout.Site.name ?? null,
+            geometry: toJsonValue(layout.geometry) ?? {},
+            centroid: toJsonInput(layout.centroid),
+            metadata: toJsonInput(layout.metadata),
+            updatedAt: new Date()
           }
         });
 
         await tx.siteMapAssignment.create({
           data: {
+            id: randomUUID(),
             campgroundId,
             siteId: layout.siteId,
             shapeId: shape.id,
             label: layout.label ?? null,
             rotation: layout.rotation ?? null,
-            metadata: layout.metadata ?? null
+            metadata: toJsonInput(layout.metadata),
+            updatedAt: new Date()
           }
         });
       }
     });
   }
 
-  private evaluateSiteFit(site: any, dto: CheckAssignmentDto | PreviewAssignmentsDto): AssignmentReason[] {
+  private evaluateSiteFit(site: SiteFit, dto: CheckAssignmentDto | PreviewAssignmentsDto): AssignmentReason[] {
     const reasons: AssignmentReason[] = [];
     const rig = dto.rig ?? {};
 
@@ -397,7 +445,8 @@ export class SiteMapService {
 
     const requiredAmenities = dto.requiredAmenities ?? [];
     if (requiredAmenities.length) {
-      const available = ((site.amenityTags?.length ? site.amenityTags : site.tags) ?? []).map((a: string) => a.toLowerCase());
+      const baseTags = site.amenityTags?.length ? site.amenityTags : site.tags;
+      const available = (baseTags ?? []).map((tag) => tag.toLowerCase());
       const missing = requiredAmenities.filter(a => !available.includes(a.toLowerCase()));
       if (missing.length) reasons.push("missing_amenities");
     }

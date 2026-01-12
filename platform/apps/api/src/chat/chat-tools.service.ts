@@ -1,6 +1,7 @@
 import { Injectable, Logger, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { ChatParticipantType } from '@prisma/client';
+import { ChatParticipantType, MaintenancePriority, ReservationStatus, SiteType } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
 import type { Request } from "express";
@@ -19,6 +20,46 @@ function getTodayInTimezone(tz: string): { todayStart: Date; todayEnd: Date } {
   const todayEndForQuery = new Date(todayStartForQuery.getTime() + 24 * 60 * 60 * 1000);
   return { todayStart: todayStartForQuery, todayEnd: todayEndForQuery };
 }
+
+const getString = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+const getNumber = (value: unknown): number | undefined =>
+  typeof value === "number" && Number.isFinite(value) ? value : undefined;
+
+const getBoolean = (value: unknown): boolean | undefined =>
+  typeof value === "boolean" ? value : undefined;
+
+const isSiteType = (value: unknown): value is SiteType =>
+  typeof value === "string" && value in SiteType;
+
+const parseSiteType = (value: unknown): SiteType | undefined =>
+  isSiteType(value) ? value : undefined;
+
+const parseReservationStatus = (value: unknown): ReservationStatus | undefined => {
+  switch (value) {
+    case ReservationStatus.pending:
+    case ReservationStatus.confirmed:
+    case ReservationStatus.checked_in:
+    case ReservationStatus.checked_out:
+    case ReservationStatus.cancelled:
+      return value;
+    default:
+      return undefined;
+  }
+};
+
+const normalizeMaintenancePriority = (value: unknown): MaintenancePriority => {
+  switch (value) {
+    case MaintenancePriority.low:
+    case MaintenancePriority.medium:
+    case MaintenancePriority.high:
+    case MaintenancePriority.critical:
+      return value;
+    default:
+      return MaintenancePriority.medium;
+  }
+};
 
 // Tool argument schemas
 const toolArgSchemas: Record<string, z.ZodSchema> = {
@@ -108,7 +149,7 @@ interface ChatContext {
 interface PreValidateResult {
   valid: boolean;
   message?: string; // Error message if invalid
-  [key: string]: any; // Additional data to pass to execute
+  [key: string]: unknown; // Additional data to pass to execute
 }
 
 interface ToolDefinition {
@@ -122,7 +163,7 @@ interface ToolDefinition {
   confirmationDescription?: string;
   // Pre-validate before showing confirmation dialog - can fail early with helpful message
   preValidate?: (args: Record<string, unknown>, context: ChatContext, prisma: PrismaService) => Promise<PreValidateResult>;
-  execute: (args: Record<string, unknown>, context: ChatContext, prisma: PrismaService) => Promise<any>;
+  execute: (args: Record<string, unknown>, context: ChatContext, prisma: PrismaService) => Promise<unknown>;
 }
 
 @Injectable()
@@ -156,17 +197,24 @@ export class ChatToolsService {
       },
       guestAllowed: true,
       execute: async (args, context, prisma) => {
-        const { arrivalDate, departureDate, guests, siteType } = args;
+        const arrivalDate = getString(args.arrivalDate);
+        const departureDate = getString(args.departureDate);
+        const guests = getNumber(args.guests);
+        const siteType = parseSiteType(args.siteType);
+
+        if (!arrivalDate || !departureDate) {
+          throw new BadRequestException('Arrival and departure dates are required');
+        }
 
         // Get all sites for this campground
         const sites = await prisma.site.findMany({
           where: {
             campgroundId: context.campgroundId,
             status: 'active',
-            ...(siteType && { siteClass: { type: siteType as any } }),
+            ...(siteType && { siteType }),
           },
           include: {
-            siteClass: true,
+            SiteClass: true,
           },
         });
 
@@ -197,16 +245,20 @@ export class ChatToolsService {
 
         return {
           success: true,
-          availableSites: availableSites.slice(0, 10).map(s => ({
-            id: s.id,
-            name: s.name,
-            type: s.siteClass?.type,
-            className: s.siteClass?.name,
-            maxGuests: s.maxOccupancy,
-            pricePerNight: s.siteClass?.baseRateCents ? `$${(s.siteClass.baseRateCents / 100).toFixed(2)}` : 'Contact for pricing',
-            totalEstimate: s.siteClass?.baseRateCents ? `$${((s.siteClass.baseRateCents * nights) / 100).toFixed(2)}` : null,
-            amenities: s.amenities || [],
-          })),
+          availableSites: availableSites.slice(0, 10).map(s => {
+            const baseRateCents = s.SiteClass?.defaultRate;
+            const hasRate = typeof baseRateCents === "number" && baseRateCents > 0;
+            return {
+              id: s.id,
+              name: s.name,
+              type: s.siteType,
+              className: s.SiteClass?.name,
+              maxGuests: s.maxOccupancy,
+              pricePerNight: hasRate ? `$${(baseRateCents / 100).toFixed(2)}` : 'Contact for pricing',
+              totalEstimate: hasRate ? `$${((baseRateCents * nights) / 100).toFixed(2)}` : null,
+              amenities: s.amenityTags || [],
+            };
+          }),
           totalAvailable: availableSites.length,
           nights,
           message: availableSites.length > 0
@@ -233,7 +285,10 @@ export class ChatToolsService {
       guestAllowed: true,
       // Pre-validate site exists and resolve name to ID
       preValidate: async (args, context, prisma) => {
-        const { siteId } = args;
+        const siteId = getString(args.siteId);
+        if (!siteId) {
+          return { valid: false, message: 'Site ID is required.' };
+        }
 
         // Try to find the site by ID first
         let site = await prisma.site.findFirst({
@@ -274,14 +329,19 @@ export class ChatToolsService {
 
         // Update args with resolved site ID
         args.siteId = site.id;
-        args._resolvedSite = site; // Pass the full site object to avoid re-querying
         return { valid: true, siteName: site.name };
       },
       execute: async (args, context, prisma) => {
-        const { siteId, arrivalDate, departureDate, guests = 2, _resolvedSite } = args;
+        const siteId = getString(args.siteId);
+        const arrivalDate = getString(args.arrivalDate);
+        const departureDate = getString(args.departureDate);
+        const guests = getNumber(args.guests) ?? 2;
 
-        // Use pre-resolved site if available, otherwise query
-        const site = _resolvedSite || await prisma.site.findFirst({
+        if (!siteId || !arrivalDate || !departureDate) {
+          throw new BadRequestException('Site ID, arrival date, and departure date are required');
+        }
+
+        const site = await prisma.site.findFirst({
           where: { id: siteId, campgroundId: context.campgroundId },
           include: { SiteClass: true },
         });
@@ -294,7 +354,7 @@ export class ChatToolsService {
         const departure = new Date(departureDate);
         const nights = Math.ceil((departure.getTime() - arrival.getTime()) / (1000 * 60 * 60 * 24));
 
-        const baseRateCents = site.siteClass?.baseRateCents || 0;
+        const baseRateCents = site.SiteClass?.defaultRate ?? 0;
         const subtotalCents = baseRateCents * nights;
 
         // Get campground tax rates
@@ -312,16 +372,16 @@ export class ChatToolsService {
         const totalCents = subtotalCents + taxCents;
 
         // Get site lock fee from site class (if campground charges one)
-        const siteLockFeeCents = site.siteClass?.siteLockFeeCents || 0;
+        const siteLockFeeCents = site.SiteClass?.siteLockFeeCents ?? 0;
 
         // Build response - only mention site lock fee if campground actually charges one
         const isGuest = context.participantType === ChatParticipantType.guest;
         let siteNote = '';
         let canGuaranteeSite = true;
 
-        if (isGuest && site.siteClass && siteLockFeeCents > 0) {
+        if (isGuest && site.SiteClass && siteLockFeeCents > 0) {
           // Campground charges a site lock fee - let guest know
-          siteNote = `\n\nNote: Bookings guarantee the site class (${site.siteClass.name}) but not a specific site. To guarantee ${site.name}, add the site lock fee of $${(siteLockFeeCents / 100).toFixed(2)}.`;
+          siteNote = `\n\nNote: Bookings guarantee the site class (${site.SiteClass.name}) but not a specific site. To guarantee ${site.name}, add the site lock fee of $${(siteLockFeeCents / 100).toFixed(2)}.`;
           canGuaranteeSite = false;
         }
         // If no site lock fee, guest can book the specific site directly - no note needed
@@ -330,7 +390,7 @@ export class ChatToolsService {
           success: true,
           quote: {
             site: site.name,
-            siteClass: site.siteClass?.name,
+            siteClass: site.SiteClass?.name,
             arrivalDate,
             departureDate,
             nights,
@@ -346,7 +406,7 @@ export class ChatToolsService {
             siteLockFee: siteLockFeeCents > 0 ? `$${(siteLockFeeCents / 100).toFixed(2)}` : null,
             canGuaranteeSpecificSite: canGuaranteeSite,
             siteClassGuaranteeNote: (isGuest && siteLockFeeCents > 0)
-              ? `Bookings guarantee the ${site.siteClass?.name} class, not a specific site. Add $${(siteLockFeeCents / 100).toFixed(2)} site lock fee to guarantee ${site.name}.`
+              ? `Bookings guarantee the ${site.SiteClass?.name} class, not a specific site. Add $${(siteLockFeeCents / 100).toFixed(2)} site lock fee to guarantee ${site.name}.`
               : null,
           },
           message: `Quote for ${site.name}: ${nights} night${nights > 1 ? 's' : ''} = $${(totalCents / 100).toFixed(2)} total${siteNote}`,
@@ -370,13 +430,16 @@ export class ChatToolsService {
       },
       guestAllowed: false, // Guests use get_my_reservations instead
       execute: async (args, context, prisma) => {
-        const { query, startDate, endDate, status } = args;
+        const query = getString(args.query);
+        const startDate = getString(args.startDate);
+        const endDate = getString(args.endDate);
+        const status = parseReservationStatus(args.status);
 
-        const where: any = { campgroundId: context.campgroundId };
+        const where: Prisma.ReservationWhereInput = { campgroundId: context.campgroundId };
 
         if (query) {
           where.OR = [
-            { confirmationCode: { contains: query, mode: 'insensitive' } },
+            { id: { contains: query, mode: 'insensitive' } },
             { Guest: { primaryFirstName: { contains: query, mode: 'insensitive' } } },
             { Guest: { primaryLastName: { contains: query, mode: 'insensitive' } } },
             { Guest: { email: { contains: query, mode: 'insensitive' } } },
@@ -407,14 +470,14 @@ export class ChatToolsService {
           success: true,
           reservations: reservations.map(r => ({
             id: r.id,
-            confirmationCode: r.confirmationCode,
+            confirmationCode: r.id,
             guestName: r.Guest ? `${r.Guest.primaryFirstName} ${r.Guest.primaryLastName}` : 'Unknown',
             guestEmail: r.Guest?.email,
             site: r.Site?.name,
             arrival: r.arrivalDate.toISOString().split('T')[0],
             departure: r.departureDate.toISOString().split('T')[0],
             status: r.status,
-            balance: `$${(r.balanceDueCents / 100).toFixed(2)}`,
+            balance: `$${(r.balanceAmount / 100).toFixed(2)}`,
           })),
           count: reservations.length,
           message: `Found ${reservations.length} reservation${reservations.length !== 1 ? 's' : ''}`,
@@ -435,14 +498,14 @@ export class ChatToolsService {
       },
       guestAllowed: true, // But scoped to their own reservations
       execute: async (args, context, prisma) => {
-        const { reservationId } = args;
+        const reservationId = getString(args.reservationId);
+        if (!reservationId) {
+          throw new BadRequestException('Reservation ID is required');
+        }
 
-        const where: any = {
+        const where: Prisma.ReservationWhereInput = {
           campgroundId: context.campgroundId,
-          OR: [
-            { id: reservationId },
-            { confirmationCode: reservationId },
-          ],
+          OR: [{ id: reservationId }],
         };
 
         // Guests can only see their own reservations
@@ -454,7 +517,7 @@ export class ChatToolsService {
           where,
           include: {
             Guest: { select: { primaryFirstName: true, primaryLastName: true, email: true, phone: true } },
-            Site: { select: { name: true, siteClass: { select: { name: true } } } },
+            Site: { select: { name: true, SiteClass: { select: { name: true } } } },
             Payment: { orderBy: { createdAt: 'desc' }, take: 5 },
           },
         });
@@ -467,7 +530,7 @@ export class ChatToolsService {
           success: true,
           reservation: {
             id: reservation.id,
-            confirmationCode: reservation.confirmationCode,
+            confirmationCode: reservation.id,
             status: reservation.status,
             guest: reservation.Guest ? {
               name: `${reservation.Guest.primaryFirstName} ${reservation.Guest.primaryLastName}`,
@@ -475,23 +538,23 @@ export class ChatToolsService {
               phone: reservation.Guest.phone,
             } : null,
             site: reservation.Site?.name,
-            siteClass: reservation.Site?.siteClass?.name,
+            siteClass: reservation.Site?.SiteClass?.name,
             arrival: reservation.arrivalDate.toISOString().split('T')[0],
             departure: reservation.departureDate.toISOString().split('T')[0],
             nights: Math.ceil((reservation.departureDate.getTime() - reservation.arrivalDate.getTime()) / (1000 * 60 * 60 * 24)),
-            guests: reservation.numGuests,
+            guests: reservation.adults + reservation.children,
             totals: {
-              subtotal: `$${(reservation.subtotalCents / 100).toFixed(2)}`,
-              tax: `$${(reservation.taxCents / 100).toFixed(2)}`,
-              fees: `$${(reservation.feesCents / 100).toFixed(2)}`,
-              total: `$${(reservation.totalCents / 100).toFixed(2)}`,
-              paid: `$${((reservation.totalCents - reservation.balanceDueCents) / 100).toFixed(2)}`,
-              balance: `$${(reservation.balanceDueCents / 100).toFixed(2)}`,
+              subtotal: `$${(reservation.baseSubtotal / 100).toFixed(2)}`,
+              tax: `$${(reservation.taxesAmount / 100).toFixed(2)}`,
+              fees: `$${(reservation.feesAmount / 100).toFixed(2)}`,
+              total: `$${(reservation.totalAmount / 100).toFixed(2)}`,
+              paid: `$${(reservation.paidAmount / 100).toFixed(2)}`,
+              balance: `$${(reservation.balanceAmount / 100).toFixed(2)}`,
             },
             recentPayments: reservation.Payment.map(p => ({
               amount: `$${(p.amountCents / 100).toFixed(2)}`,
               method: p.method,
-              status: p.status,
+              status: p.direction,
               date: p.createdAt.toISOString().split('T')[0],
             })),
           },
@@ -517,9 +580,9 @@ export class ChatToolsService {
           return { success: false, message: 'This tool is for guests only' };
         }
 
-        const { includeHistory = false } = args;
+        const includeHistory = getBoolean(args.includeHistory) ?? false;
 
-        const where: any = {
+        const where: Prisma.ReservationWhereInput = {
           campgroundId: context.campgroundId,
           guestId: context.participantId,
         };
@@ -531,7 +594,7 @@ export class ChatToolsService {
         const reservations = await prisma.reservation.findMany({
           where,
           include: {
-            site: { select: { name: true } },
+            Site: { select: { name: true } },
           },
           orderBy: { arrivalDate: 'desc' },
           take: 10,
@@ -541,12 +604,12 @@ export class ChatToolsService {
           success: true,
           reservations: reservations.map(r => ({
             id: r.id,
-            confirmationCode: r.confirmationCode,
-            site: r.site?.name,
+            confirmationCode: r.id,
+            site: r.Site?.name,
             arrival: r.arrivalDate.toISOString().split('T')[0],
             departure: r.departureDate.toISOString().split('T')[0],
             status: r.status,
-            balance: `$${(r.balanceDueCents / 100).toFixed(2)}`,
+            balance: `$${(r.balanceAmount / 100).toFixed(2)}`,
           })),
           message: `You have ${reservations.length} reservation${reservations.length !== 1 ? 's' : ''}`,
         };
@@ -651,11 +714,11 @@ export class ChatToolsService {
           success: true,
           arrivals: arrivals.map(r => ({
             id: r.id,
-            confirmationCode: r.confirmationCode,
+            confirmationCode: r.id,
             guestName: r.Guest ? `${r.Guest.primaryFirstName} ${r.Guest.primaryLastName}` : 'Unknown',
             phone: r.Guest?.phone,
             site: r.Site?.name,
-            balance: `$${(r.balanceDueCents / 100).toFixed(2)}`,
+            balance: `$${(r.balanceAmount / 100).toFixed(2)}`,
             status: r.status,
           })),
           count: arrivals.length,
@@ -700,10 +763,10 @@ export class ChatToolsService {
           success: true,
           departures: departures.map(r => ({
             id: r.id,
-            confirmationCode: r.confirmationCode,
+            confirmationCode: r.id,
             guestName: r.Guest ? `${r.Guest.primaryFirstName} ${r.Guest.primaryLastName}` : 'Unknown',
             site: r.Site?.name,
-            balance: `$${(r.balanceDueCents / 100).toFixed(2)}`,
+            balance: `$${(r.balanceAmount / 100).toFixed(2)}`,
           })),
           count: departures.length,
           message: `${departures.length} departure${departures.length !== 1 ? 's' : ''} today`,
@@ -728,12 +791,15 @@ export class ChatToolsService {
       requiresConfirmation: true,
       confirmationTitle: 'Confirm Check-In',
       execute: async (args, context, prisma) => {
-        const { reservationId } = args;
+        const reservationId = getString(args.reservationId);
+        if (!reservationId) {
+          throw new BadRequestException('Reservation ID is required');
+        }
 
         const reservation = await prisma.reservation.findFirst({
           where: {
             campgroundId: context.campgroundId,
-            OR: [{ id: reservationId }, { confirmationCode: reservationId }],
+            OR: [{ id: reservationId }],
           },
           include: {
             Guest: { select: { primaryFirstName: true, primaryLastName: true } },
@@ -751,7 +817,7 @@ export class ChatToolsService {
 
         const updated = await prisma.reservation.update({
           where: { id: reservation.id },
-          data: { status: 'checked_in', checkedInAt: new Date() },
+          data: { status: 'checked_in', checkInAt: new Date() },
         });
 
         return {
@@ -759,7 +825,7 @@ export class ChatToolsService {
           message: `Checked in ${reservation.Guest?.primaryFirstName} ${reservation.Guest?.primaryLastName} to ${reservation.Site?.name}`,
           reservation: {
             id: updated.id,
-            confirmationCode: updated.confirmationCode,
+            confirmationCode: updated.id,
             status: updated.status,
           },
         };
@@ -783,12 +849,15 @@ export class ChatToolsService {
       requiresConfirmation: true,
       confirmationTitle: 'Confirm Check-Out',
       execute: async (args, context, prisma) => {
-        const { reservationId } = args;
+        const reservationId = getString(args.reservationId);
+        if (!reservationId) {
+          throw new BadRequestException('Reservation ID is required');
+        }
 
         const reservation = await prisma.reservation.findFirst({
           where: {
             campgroundId: context.campgroundId,
-            OR: [{ id: reservationId }, { confirmationCode: reservationId }],
+            OR: [{ id: reservationId }],
           },
           include: {
             Guest: { select: { primaryFirstName: true, primaryLastName: true } },
@@ -805,17 +874,17 @@ export class ChatToolsService {
         }
 
         // Check for outstanding balance
-        if (reservation.balanceDueCents > 0) {
+        if (reservation.balanceAmount > 0) {
           return {
             success: false,
-            message: `Outstanding balance of $${(reservation.balanceDueCents / 100).toFixed(2)}. Collect payment before checkout.`,
-            balance: reservation.balanceDueCents,
+            message: `Outstanding balance of $${(reservation.balanceAmount / 100).toFixed(2)}. Collect payment before checkout.`,
+            balance: reservation.balanceAmount,
           };
         }
 
         const updated = await prisma.reservation.update({
           where: { id: reservation.id },
-          data: { status: 'checked_out', checkedOutAt: new Date() },
+          data: { status: 'checked_out', checkOutAt: new Date() },
         });
 
         return {
@@ -823,7 +892,7 @@ export class ChatToolsService {
           message: `Checked out ${reservation.Guest?.primaryFirstName} ${reservation.Guest?.primaryLastName} from ${reservation.Site?.name}`,
           reservation: {
             id: updated.id,
-            confirmationCode: updated.confirmationCode,
+            confirmationCode: updated.id,
             status: updated.status,
           },
         };
@@ -843,11 +912,14 @@ export class ChatToolsService {
       },
       guestAllowed: true, // But scoped
       execute: async (args, context, prisma) => {
-        const { reservationId } = args;
+        const reservationId = getString(args.reservationId);
+        if (!reservationId) {
+          throw new BadRequestException('Reservation ID is required');
+        }
 
-        const where: any = {
+        const where: Prisma.ReservationWhereInput = {
           campgroundId: context.campgroundId,
-          OR: [{ id: reservationId }, { confirmationCode: reservationId }],
+          OR: [{ id: reservationId }],
         };
 
         if (context.participantType === ChatParticipantType.guest) {
@@ -857,9 +929,10 @@ export class ChatToolsService {
         const reservation = await prisma.reservation.findFirst({
           where,
           select: {
-            confirmationCode: true,
-            totalCents: true,
-            balanceDueCents: true,
+            id: true,
+            totalAmount: true,
+            balanceAmount: true,
+            paidAmount: true,
             Guest: { select: { primaryFirstName: true, primaryLastName: true } },
           },
         });
@@ -868,17 +941,17 @@ export class ChatToolsService {
           return { success: false, message: 'Reservation not found' };
         }
 
-        const paid = reservation.totalCents - reservation.balanceDueCents;
+        const paid = reservation.paidAmount;
 
         return {
           success: true,
           balance: {
-            total: `$${(reservation.totalCents / 100).toFixed(2)}`,
+            total: `$${(reservation.totalAmount / 100).toFixed(2)}`,
             paid: `$${(paid / 100).toFixed(2)}`,
-            due: `$${(reservation.balanceDueCents / 100).toFixed(2)}`,
+            due: `$${(reservation.balanceAmount / 100).toFixed(2)}`,
           },
-          message: reservation.balanceDueCents > 0
-            ? `Balance due: $${(reservation.balanceDueCents / 100).toFixed(2)}`
+          message: reservation.balanceAmount > 0
+            ? `Balance due: $${(reservation.balanceAmount / 100).toFixed(2)}`
             : 'Reservation is fully paid',
         };
       },
@@ -904,11 +977,12 @@ export class ChatToolsService {
         let startDate: Date;
         let endDate: Date;
 
-        if (args.reservationId) {
+        const reservationId = getString(args.reservationId);
+        if (reservationId) {
           const reservation = await prisma.reservation.findFirst({
             where: {
               campgroundId: context.campgroundId,
-              OR: [{ id: args.reservationId }, { confirmationCode: args.reservationId }],
+              OR: [{ id: reservationId }],
             },
           });
           if (!reservation) {
@@ -917,8 +991,10 @@ export class ChatToolsService {
           startDate = reservation.arrivalDate;
           endDate = reservation.departureDate;
         } else {
-          startDate = args.startDate ? new Date(args.startDate) : new Date();
-          endDate = args.endDate ? new Date(args.endDate) : new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+          const startDateInput = getString(args.startDate);
+          const endDateInput = getString(args.endDate);
+          startDate = startDateInput ? new Date(startDateInput) : new Date();
+          endDate = endDateInput ? new Date(endDateInput) : new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000);
         }
 
         const events = await prisma.event.findMany({
@@ -926,7 +1002,8 @@ export class ChatToolsService {
             campgroundId: context.campgroundId,
             startDate: { lte: endDate },
             endDate: { gte: startDate },
-            status: 'published',
+            isPublished: true,
+            isCancelled: false,
           },
           orderBy: { startDate: 'asc' },
           take: 20,
@@ -941,7 +1018,7 @@ export class ChatToolsService {
             startDate: e.startDate.toISOString().split('T')[0],
             endDate: e.endDate?.toISOString().split('T')[0],
             location: e.location,
-            category: e.category,
+            category: e.eventType,
           })),
           count: events.length,
           message: events.length > 0
@@ -966,11 +1043,16 @@ export class ChatToolsService {
       },
       guestAllowed: true,
       execute: async (args, context, prisma) => {
-        const { reservationId, requestedTime, notes } = args;
+        const reservationId = getString(args.reservationId);
+        const requestedTime = getString(args.requestedTime);
+        const notes = getString(args.notes);
+        if (!reservationId) {
+          throw new BadRequestException('Reservation ID is required');
+        }
 
-        const where: any = {
+        const where: Prisma.ReservationWhereInput = {
           campgroundId: context.campgroundId,
-          OR: [{ id: reservationId }, { confirmationCode: reservationId }],
+          OR: [{ id: reservationId }],
         };
 
         if (context.participantType === ChatParticipantType.guest) {
@@ -989,6 +1071,7 @@ export class ChatToolsService {
         // Create a message to staff
         await prisma.message.create({
           data: {
+            id: randomUUID(),
             campgroundId: context.campgroundId,
             reservationId: reservation.id,
             guestId: reservation.guestId,
@@ -1024,11 +1107,16 @@ export class ChatToolsService {
       },
       guestAllowed: true,
       execute: async (args, context, prisma) => {
-        const { reservationId, requestedTime, notes } = args;
+        const reservationId = getString(args.reservationId);
+        const requestedTime = getString(args.requestedTime);
+        const notes = getString(args.notes);
+        if (!reservationId) {
+          throw new BadRequestException('Reservation ID is required');
+        }
 
-        const where: any = {
+        const where: Prisma.ReservationWhereInput = {
           campgroundId: context.campgroundId,
-          OR: [{ id: reservationId }, { confirmationCode: reservationId }],
+          OR: [{ id: reservationId }],
         };
 
         if (context.participantType === ChatParticipantType.guest) {
@@ -1047,6 +1135,7 @@ export class ChatToolsService {
         // Create a message to staff
         await prisma.message.create({
           data: {
+            id: randomUUID(),
             campgroundId: context.campgroundId,
             reservationId: reservation.id,
             guestId: reservation.guestId,
@@ -1082,24 +1171,39 @@ export class ChatToolsService {
       },
       guestAllowed: true,
       execute: async (args, context, prisma) => {
-        const { message, reservationId, urgent } = args;
+        if (context.participantType !== ChatParticipantType.guest) {
+          return { success: false, message: 'This tool is for guests only' };
+        }
 
-        let reservation = null;
-        if (reservationId) {
-          reservation = await prisma.reservation.findFirst({
-            where: {
-              campgroundId: context.campgroundId,
-              OR: [{ id: reservationId }, { confirmationCode: reservationId }],
-              ...(context.participantType === ChatParticipantType.guest && { guestId: context.participantId }),
-            },
-          });
+        const message = getString(args.message);
+        const reservationId = getString(args.reservationId) ?? context.currentReservationId;
+        const urgent = getBoolean(args.urgent) ?? false;
+
+        if (!message) {
+          throw new BadRequestException('Message is required');
+        }
+        if (!reservationId) {
+          throw new BadRequestException('Reservation ID is required');
+        }
+
+        const reservation = await prisma.reservation.findFirst({
+          where: {
+            campgroundId: context.campgroundId,
+            OR: [{ id: reservationId }],
+            guestId: context.participantId,
+          },
+        });
+
+        if (!reservation) {
+          return { success: false, message: 'Reservation not found' };
         }
 
         const created = await prisma.message.create({
           data: {
+            id: randomUUID(),
             campgroundId: context.campgroundId,
-            reservationId: reservation?.id,
-            guestId: context.participantType === ChatParticipantType.guest ? context.participantId : null,
+            reservationId: reservation.id,
+            guestId: context.participantId,
             senderType: 'guest',
             content: urgent ? `[URGENT] ${message}` : message,
           },
@@ -1130,9 +1234,13 @@ export class ChatToolsService {
       guestAllowed: false,
       staffRoles: ['owner', 'manager'],
       execute: async (args, context, prisma) => {
-        const { startDate, endDate } = args;
-        const start = new Date(startDate);
-        const end = new Date(endDate);
+        const startDateInput = getString(args.startDate);
+        const endDateInput = getString(args.endDate);
+        if (!startDateInput || !endDateInput) {
+          throw new BadRequestException('Start and end dates are required');
+        }
+        const start = new Date(startDateInput);
+        const end = new Date(endDateInput);
 
         // Get total sites
         const totalSites = await prisma.site.count({
@@ -1177,7 +1285,7 @@ export class ChatToolsService {
           success: true,
           occupancy: {
             totalSites,
-            dateRange: { start: startDate, end: endDate },
+            dateRange: { start: startDateInput, end: endDateInput },
             averageOccupancy: `${avgOccupancy}%`,
             dailyBreakdown: days.slice(0, 14), // Limit to 14 days
           },
@@ -1201,22 +1309,28 @@ export class ChatToolsService {
       guestAllowed: false,
       staffRoles: ['owner', 'manager', 'finance'],
       execute: async (args, context, prisma) => {
-        const { startDate, endDate } = args;
+        const startDateInput = getString(args.startDate);
+        const endDateInput = getString(args.endDate);
+        if (!startDateInput || !endDateInput) {
+          throw new BadRequestException('Start and end dates are required');
+        }
+        const start = new Date(startDateInput);
+        const end = new Date(endDateInput);
 
         const payments = await prisma.payment.findMany({
           where: {
             campgroundId: context.campgroundId,
-            status: 'completed',
-            createdAt: { gte: new Date(startDate), lte: new Date(endDate) },
+            direction: 'charge',
+            createdAt: { gte: start, lte: end },
           },
         });
 
         const totalRevenue = payments.reduce((sum, p) => sum + p.amountCents, 0);
-        const paymentsByMethod = payments.reduce((acc, p) => {
+        const paymentsByMethod = payments.reduce<Record<string, number>>((acc, p) => {
           const method = p.method || 'other';
           acc[method] = (acc[method] || 0) + p.amountCents;
           return acc;
-        }, {} as Record<string, number>);
+        }, {});
 
         return {
           success: true,
@@ -1226,7 +1340,7 @@ export class ChatToolsService {
             byMethod: Object.fromEntries(
               Object.entries(paymentsByMethod).map(([k, v]) => [k, `$${(v / 100).toFixed(2)}`])
             ),
-            dateRange: { start: startDate, end: endDate },
+            dateRange: { start: startDateInput, end: endDateInput },
           },
           message: `Total revenue: $${(totalRevenue / 100).toFixed(2)} from ${payments.length} transactions`,
         };
@@ -1253,7 +1367,10 @@ export class ChatToolsService {
       confirmationTitle: 'Confirm Site Block',
       // Pre-validate before showing confirmation - check site exists and suggest alternatives
       preValidate: async (args, context, prisma) => {
-        const { siteId } = args;
+        const siteId = getString(args.siteId);
+        if (!siteId) {
+          return { valid: false, message: 'Site ID is required.' };
+        }
 
         // Try to find the site by ID first
         let site = await prisma.site.findFirst({
@@ -1296,7 +1413,13 @@ export class ChatToolsService {
         return { valid: true, siteName: site.name };
       },
       execute: async (args, context, prisma) => {
-        const { siteId, reason, startDate, endDate, _siteName } = args;
+        const siteId = getString(args.siteId);
+        const reason = getString(args.reason);
+        const startDateInput = getString(args.startDate);
+        const endDateInput = getString(args.endDate);
+        if (!siteId || !reason) {
+          throw new BadRequestException('Site ID and reason are required');
+        }
 
         this.logger.log(`block_site: Starting execution for site ${siteId}, campground ${context.campgroundId}`);
 
@@ -1314,8 +1437,8 @@ export class ChatToolsService {
         try {
           // Create a blackout/block
           const blockId = randomUUID();
-          const blockStartDate = startDate ? new Date(startDate) : new Date();
-          const blockEndDate = endDate ? new Date(endDate) : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+          const blockStartDate = startDateInput ? new Date(startDateInput) : new Date();
+          const blockEndDate = endDateInput ? new Date(endDateInput) : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
 
           // Check for overlapping blackouts on this site
           const existingOverlap = await prisma.blackoutDate.findFirst({
@@ -1383,9 +1506,13 @@ export class ChatToolsService {
       guestAllowed: false,
       staffRoles: ['owner', 'manager'],
       execute: async (args, context, prisma) => {
-        const { siteId, blockId } = args;
+        const siteId = getString(args.siteId);
+        const blockId = getString(args.blockId);
+        if (!siteId) {
+          throw new BadRequestException('Site ID is required');
+        }
 
-        const where: any = {
+        const where: Prisma.BlackoutDateWhereInput = {
           campgroundId: context.campgroundId,
           siteId: siteId,
         };
@@ -1420,17 +1547,23 @@ export class ChatToolsService {
       },
       guestAllowed: false,
       execute: async (args, context, prisma) => {
-        const { title, description, siteId, priority = 'medium' } = args;
+        const title = getString(args.title);
+        const description = getString(args.description);
+        const siteId = getString(args.siteId);
+        const priority = normalizeMaintenancePriority(args.priority);
+        if (!title || !description) {
+          throw new BadRequestException('Title and description are required');
+        }
 
         const ticket = await prisma.maintenanceTicket.create({
           data: {
+            id: randomUUID(),
             campgroundId: context.campgroundId,
             siteId: siteId || null,
             title,
             description,
-            priority: priority as any,
+            priority,
             status: 'open',
-            reportedBy: context.participantId,
           },
         });
 
@@ -1461,11 +1594,14 @@ export class ChatToolsService {
       guestAllowed: false,
       staffRoles: ['owner', 'manager', 'front_desk'],
       execute: async (args, context, prisma) => {
-        const { query } = args;
+        const query = getString(args.query);
+        if (!query) {
+          throw new BadRequestException('Query is required');
+        }
 
         const guests = await prisma.guest.findMany({
           where: {
-            campgroundId: context.campgroundId,
+            Reservation: { some: { campgroundId: context.campgroundId } },
             OR: [
               { primaryFirstName: { contains: query, mode: 'insensitive' } },
               { primaryLastName: { contains: query, mode: 'insensitive' } },
@@ -1479,7 +1615,6 @@ export class ChatToolsService {
               take: 3,
               select: {
                 id: true,
-                confirmationCode: true,
                 arrivalDate: true,
                 departureDate: true,
                 status: true,
@@ -1498,7 +1633,7 @@ export class ChatToolsService {
             phone: g.phone,
             recentReservations: g.Reservation.map(r => ({
               id: r.id,
-              code: r.confirmationCode,
+              code: r.id,
               dates: `${r.arrivalDate.toISOString().split('T')[0]} - ${r.departureDate.toISOString().split('T')[0]}`,
               status: r.status,
             })),
@@ -1525,23 +1660,44 @@ export class ChatToolsService {
       guestAllowed: false,
       staffRoles: ['owner', 'manager', 'front_desk'],
       execute: async (args, context, prisma) => {
-        const { guestId, reservationId, message } = args;
+        const guestId = getString(args.guestId);
+        const reservationId = getString(args.reservationId);
+        const message = getString(args.message);
+        if (!guestId || !message) {
+          throw new BadRequestException('Guest ID and message are required');
+        }
 
         const guest = await prisma.guest.findFirst({
-          where: { id: guestId, campgroundId: context.campgroundId },
+          where: {
+            id: guestId,
+            Reservation: { some: { campgroundId: context.campgroundId } }
+          },
         });
 
         if (!guest) {
           return { success: false, message: 'Guest not found' };
         }
 
+        const reservation = reservationId
+          ? await prisma.reservation.findFirst({
+            where: { id: reservationId, campgroundId: context.campgroundId, guestId: guest.id },
+          })
+          : await prisma.reservation.findFirst({
+            where: { campgroundId: context.campgroundId, guestId: guest.id },
+            orderBy: { arrivalDate: 'desc' },
+          });
+
+        if (!reservation) {
+          return { success: false, message: 'Reservation not found for guest' };
+        }
+
         const created = await prisma.message.create({
           data: {
+            id: randomUUID(),
             campgroundId: context.campgroundId,
-            guestId: guestId,
-            reservationId: reservationId || null,
+            guestId: guest.id,
+            reservationId: reservation.id,
             senderType: 'staff',
-            senderId: context.participantId,
             content: message,
           },
         });
@@ -1573,7 +1729,13 @@ export class ChatToolsService {
       requiresConfirmation: true,
       confirmationTitle: 'Confirm Discount',
       execute: async (args, context, prisma) => {
-        const { reservationId, discountCents, discountPercent, reason } = args;
+        const reservationId = getString(args.reservationId);
+        const discountCents = getNumber(args.discountCents);
+        const discountPercent = getNumber(args.discountPercent);
+        const reason = getString(args.reason);
+        if (!reservationId || !reason) {
+          throw new BadRequestException('Reservation ID and reason are required');
+        }
 
         const reservation = await prisma.reservation.findFirst({
           where: { id: reservationId, campgroundId: context.campgroundId },
@@ -1583,34 +1745,35 @@ export class ChatToolsService {
           return { success: false, message: 'Reservation not found' };
         }
 
-        let discount = discountCents || 0;
+        let discount = discountCents ?? 0;
         if (discountPercent && !discountCents) {
-          discount = Math.round(reservation.subtotalCents * (discountPercent / 100));
+          discount = Math.round(reservation.baseSubtotal * (discountPercent / 100));
         }
 
-        const newTotal = reservation.totalCents - discount;
-        const newBalance = Math.max(0, reservation.balanceDueCents - discount);
+        const newTotal = reservation.totalAmount - discount;
+        const newBalance = Math.max(0, reservation.balanceAmount - discount);
 
         // Use transaction to ensure atomicity
         await prisma.$transaction(async (tx) => {
           await tx.reservation.update({
             where: { id: reservationId },
             data: {
-              totalCents: newTotal,
-              balanceDueCents: newBalance,
-              discountCents: (reservation.discountCents || 0) + discount,
+              totalAmount: newTotal,
+              balanceAmount: newBalance,
+              discountsAmount: reservation.discountsAmount + discount,
             },
           });
 
           // Create ledger entry
           await tx.ledgerEntry.create({
             data: {
+              id: randomUUID(),
               campgroundId: context.campgroundId,
               reservationId: reservationId,
-              type: 'discount',
               amountCents: -discount,
               description: `Discount: ${reason}`,
-              createdBy: context.participantId,
+              occurredAt: new Date(),
+              sourceType: 'discount',
             },
           });
         });
@@ -1646,7 +1809,12 @@ export class ChatToolsService {
       requiresConfirmation: true,
       confirmationTitle: 'Confirm Charge',
       execute: async (args, context, prisma) => {
-        const { reservationId, amountCents, description } = args;
+        const reservationId = getString(args.reservationId);
+        const amountCents = getNumber(args.amountCents);
+        const description = getString(args.description);
+        if (!reservationId || amountCents === undefined || !description) {
+          throw new BadRequestException('Reservation ID, amount, and description are required');
+        }
 
         const reservation = await prisma.reservation.findFirst({
           where: { id: reservationId, campgroundId: context.campgroundId },
@@ -1656,28 +1824,29 @@ export class ChatToolsService {
           return { success: false, message: 'Reservation not found' };
         }
 
-        const newTotal = reservation.totalCents + amountCents;
-        const newBalance = reservation.balanceDueCents + amountCents;
+        const newTotal = reservation.totalAmount + amountCents;
+        const newBalance = reservation.balanceAmount + amountCents;
 
         // Use transaction to ensure atomicity
         await prisma.$transaction(async (tx) => {
           await tx.reservation.update({
             where: { id: reservationId },
             data: {
-              totalCents: newTotal,
-              balanceDueCents: newBalance,
+              totalAmount: newTotal,
+              balanceAmount: newBalance,
             },
           });
 
           // Create ledger entry
           await tx.ledgerEntry.create({
             data: {
+              id: randomUUID(),
               campgroundId: context.campgroundId,
               reservationId: reservationId,
-              type: 'charge',
               amountCents: amountCents,
               description: description,
-              createdBy: context.participantId,
+              occurredAt: new Date(),
+              sourceType: 'charge',
             },
           });
         });
@@ -1713,7 +1882,12 @@ export class ChatToolsService {
       requiresConfirmation: true,
       confirmationTitle: 'Confirm Site Move',
       execute: async (args, context, prisma) => {
-        const { reservationId, newSiteId, reason } = args;
+        const reservationId = getString(args.reservationId);
+        const newSiteId = getString(args.newSiteId);
+        const reason = getString(args.reason);
+        if (!reservationId || !newSiteId) {
+          throw new BadRequestException('Reservation ID and new site ID are required');
+        }
 
         const reservation = await prisma.reservation.findFirst({
           where: { id: reservationId, campgroundId: context.campgroundId },
@@ -1784,7 +1958,12 @@ export class ChatToolsService {
       requiresConfirmation: true,
       confirmationTitle: 'Confirm Stay Extension',
       execute: async (args, context, prisma) => {
-        const { reservationId, additionalNights, newDepartureDate } = args;
+        const reservationId = getString(args.reservationId);
+        const additionalNights = getNumber(args.additionalNights);
+        const newDepartureDate = getString(args.newDepartureDate);
+        if (!reservationId) {
+          throw new BadRequestException('Reservation ID is required');
+        }
 
         const reservation = await prisma.reservation.findFirst({
           where: { id: reservationId, campgroundId: context.campgroundId },
@@ -1822,15 +2001,15 @@ export class ChatToolsService {
 
         // Calculate additional cost
         const extraNights = Math.ceil((newDeparture.getTime() - reservation.departureDate.getTime()) / (1000 * 60 * 60 * 24));
-        const nightlyRate = reservation.Site?.siteClass?.baseRateCents || 0;
+        const nightlyRate = reservation.Site?.SiteClass?.defaultRate ?? 0;
         const additionalCost = nightlyRate * extraNights;
 
         await prisma.reservation.update({
           where: { id: reservationId },
           data: {
             departureDate: newDeparture,
-            totalCents: reservation.totalCents + additionalCost,
-            balanceDueCents: reservation.balanceDueCents + additionalCost,
+            totalAmount: reservation.totalAmount + additionalCost,
+            balanceAmount: reservation.balanceAmount + additionalCost,
           },
         });
 
@@ -1885,7 +2064,7 @@ export class ChatToolsService {
     name: string,
     args: Record<string, unknown>,
     context: ChatContext,
-  ): Promise<any> {
+  ): Promise<unknown> {
     const tool = this.tools.get(name);
     if (!tool) {
       throw new Error(`Tool "${name}" not found`);
@@ -1956,7 +2135,7 @@ export class ChatToolsService {
       case 'check_out_guest':
         return `Check out reservation ${args.reservationId}?`;
       case 'process_refund':
-        return `Process refund of $${((args.amountCents || 0) / 100).toFixed(2)}?`;
+        return `Process refund of $${((getNumber(args.amountCents) ?? 0) / 100).toFixed(2)}?`;
       case 'cancel_reservation':
         return `Cancel reservation ${args.reservationId}? This action cannot be undone.`;
       case 'block_site': {

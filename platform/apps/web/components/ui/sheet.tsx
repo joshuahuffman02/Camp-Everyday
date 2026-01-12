@@ -213,10 +213,10 @@ interface SheetTriggerProps {
 }
 
 export function SheetTrigger({ asChild, className, children, onClick }: SheetTriggerProps) {
-  if (asChild && React.isValidElement(children)) {
-    return React.cloneElement(children as React.ReactElement<any>, {
+  if (asChild && React.isValidElement<{ onClick?: React.MouseEventHandler }>(children)) {
+    return React.cloneElement(children, {
       onClick: (e: React.MouseEvent) => {
-        (children as React.ReactElement<any>).props.onClick?.(e);
+        children.props.onClick?.(e);
         onClick?.();
       },
     });
@@ -251,10 +251,10 @@ interface SheetCloseProps {
 export function SheetClose({ asChild, className, children }: SheetCloseProps) {
   const { onClose } = useSheet();
 
-  if (asChild && React.isValidElement(children)) {
-    return React.cloneElement(children as React.ReactElement<any>, {
+  if (asChild && React.isValidElement<{ onClick?: React.MouseEventHandler }>(children)) {
+    return React.cloneElement(children, {
       onClick: (e: React.MouseEvent) => {
-        (children as React.ReactElement<any>).props.onClick?.(e);
+        children.props.onClick?.(e);
         onClose();
       },
     });

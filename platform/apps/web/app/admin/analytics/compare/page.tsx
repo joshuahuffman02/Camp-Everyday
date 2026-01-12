@@ -220,13 +220,13 @@ export default function ComparisonPage() {
     }, 500);
   }, [period1, period2]);
 
-  const groupedData = data.reduce((acc, metric) => {
+  const groupedData = data.reduce<Record<string, ComparisonMetric[]>>((acc, metric) => {
     if (!acc[metric.category]) {
       acc[metric.category] = [];
     }
     acc[metric.category].push(metric);
     return acc;
-  }, {} as Record<string, ComparisonMetric[]>);
+  }, {});
 
   const period1Label = periodOptions.find((p) => p.value === period1)?.label || period1;
   const period2Label = periodOptions.find((p) => p.value === period2)?.label || period2;

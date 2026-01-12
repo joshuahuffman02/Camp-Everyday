@@ -1,5 +1,5 @@
 import { IsArray, IsDateString, IsEnum, IsOptional, IsString } from "class-validator";
-import { IncidentStatus, IncidentType, Severity } from "@prisma/client";
+import { IncidentStatus, IncidentType, Severity, type Prisma } from "@prisma/client";
 
 export class UpdateIncidentDto {
   @IsOptional()
@@ -24,7 +24,7 @@ export class UpdateIncidentDto {
   photos?: string[];
 
   @IsOptional()
-  witnesses?: any;
+  witnesses?: Prisma.InputJsonValue;
 
   @IsOptional()
   @IsDateString()

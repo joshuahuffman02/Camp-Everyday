@@ -8,63 +8,89 @@ import { AlertTriangle, CheckCircle2, RefreshCw, PlusCircle } from "lucide-react
 import { useToast } from "../../../hooks/use-toast";
 import { useState } from "react";
 
+type Campground = Awaited<ReturnType<typeof apiClient.getCampgrounds>>[number];
+type SocialSuggestion = Awaited<ReturnType<typeof apiClient.listSocialSuggestions>>[number];
+type SocialSuggestionRow = SocialSuggestion & { createdAt?: string | null };
+type StatusFilter = "" | "new" | "accepted" | "dismissed";
+
+const STATUS_FILTERS: StatusFilter[] = ["new", "accepted", "dismissed", ""];
+
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : "Please try again.";
+
+const isStatusFilter = (value: string): value is StatusFilter =>
+  STATUS_FILTERS.some((filter) => filter === value);
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
 export default function SocialPlannerSuggestions() {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [statusFilter, setStatusFilter] = useState("new");
-  const { data: campgrounds = [] } = useQuery({
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("new");
+  const { data: campgrounds = [] } = useQuery<Campground[]>({
     queryKey: ["campgrounds"],
     queryFn: () => apiClient.getCampgrounds()
   });
   const campgroundId = campgrounds[0]?.id;
 
-  const suggestionsQuery = useQuery({
+  const suggestionsQuery = useQuery<SocialSuggestionRow[]>({
     queryKey: ["social-suggestions", campgroundId, statusFilter],
-    queryFn: () => apiClient.listSocialSuggestions(campgroundId!, statusFilter),
+    queryFn: async () => {
+      if (!campgroundId) {
+        throw new Error("Campground is required");
+      }
+      return apiClient.listSocialSuggestions(campgroundId, statusFilter);
+    },
     enabled: !!campgroundId
   });
 
   const refresh = useMutation({
-    mutationFn: () => apiClient.refreshSocialSuggestions(campgroundId!),
-    onSuccess: (_data, suggestion) => {
+    mutationFn: async () => {
+      if (!campgroundId) {
+        throw new Error("Campground is required");
+      }
+      return apiClient.refreshSocialSuggestions(campgroundId);
+    },
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["social-suggestions", campgroundId] });
       toast({ title: "Suggestions refreshed", description: "New ideas fetched without duplicates." });
     },
-    onError: (err: any) => {
-      toast({ variant: "destructive", title: "Refresh failed", description: err?.message || "Please try again." });
+    onError: (error) => {
+      toast({ variant: "destructive", title: "Refresh failed", description: getErrorMessage(error) });
     }
   });
 
   const accept = useMutation({
     mutationFn: (id: string) => apiClient.updateSocialSuggestionStatus(id, { status: "accepted" }),
     onSuccess: (_data, id) => {
-      qc.setQueryData(["social-suggestions", campgroundId], (prev: any) => {
-        if (!Array.isArray(prev)) return prev;
-        return prev.filter((s: any) => s.id !== id);
+      qc.setQueryData<SocialSuggestion[]>(["social-suggestions", campgroundId], (prev) => {
+        if (!prev) return prev;
+        return prev.filter((suggestion) => suggestion.id !== id);
       });
       toast({ title: "Accepted", description: "Suggestion accepted." });
     },
-    onError: (err: any) => {
-      toast({ variant: "destructive", title: "Accept failed", description: err?.message || "Please try again." });
+    onError: (error) => {
+      toast({ variant: "destructive", title: "Accept failed", description: getErrorMessage(error) });
     }
   });
 
   const dismiss = useMutation({
     mutationFn: (id: string) => apiClient.updateSocialSuggestionStatus(id, { status: "dismissed" }),
     onSuccess: (_data, id) => {
-      qc.setQueryData(["social-suggestions", campgroundId], (prev: any) => {
-        if (!Array.isArray(prev)) return prev;
-        return prev.filter((s: any) => s.id !== id);
+      qc.setQueryData<SocialSuggestion[]>(["social-suggestions", campgroundId], (prev) => {
+        if (!prev) return prev;
+        return prev.filter((suggestion) => suggestion.id !== id);
       });
       toast({ title: "Dismissed", description: "Suggestion dismissed." });
     },
-    onError: (err: any) => {
-      toast({ variant: "destructive", title: "Dismiss failed", description: err?.message || "Please try again." });
+    onError: (error) => {
+      toast({ variant: "destructive", title: "Dismiss failed", description: getErrorMessage(error) });
     }
   });
 
   const addToCalendar = useMutation({
-    mutationFn: (suggestion: any) => {
+    mutationFn: (suggestion: SocialSuggestionRow) => {
       const cgId = suggestion.campgroundId || campgroundId;
       if (!cgId) throw new Error("No campground available for this suggestion");
       return apiClient.createSocialPost({
@@ -79,16 +105,16 @@ export default function SocialPlannerSuggestions() {
         ideaParkingLot: false
       });
     },
-    onSuccess: (_data, suggestion: any) => {
+    onSuccess: (_data, suggestion) => {
       qc.invalidateQueries({ queryKey: ["social-posts", campgroundId] });
-      qc.setQueryData(["social-suggestions", campgroundId], (prev: any) => {
-        if (!Array.isArray(prev)) return prev;
-        return prev.filter((s: any) => s.id !== suggestion.id);
+      qc.setQueryData<SocialSuggestion[]>(["social-suggestions", campgroundId], (prev) => {
+        if (!prev) return prev;
+        return prev.filter((item) => item.id !== suggestion.id);
       });
       toast({ title: "Added to calendar", description: "Scheduled post created; suggestion marked scheduled." });
     },
-    onError: (err: any) => {
-      toast({ variant: "destructive", title: "Add to calendar failed", description: err?.message || "Please try again." });
+    onError: (error) => {
+      toast({ variant: "destructive", title: "Add to calendar failed", description: getErrorMessage(error) });
     }
   });
 
@@ -120,7 +146,10 @@ export default function SocialPlannerSuggestions() {
           <select
             className="input"
             value={statusFilter}
-            onChange={e => setStatusFilter(e.target.value)}
+            onChange={(event) => {
+              const next = event.target.value;
+              setStatusFilter(isStatusFilter(next) ? next : "new");
+            }}
           >
             <option value="new">New</option>
             <option value="accepted">Accepted</option>
@@ -138,49 +167,54 @@ export default function SocialPlannerSuggestions() {
       </div>
 
           <div className="grid gap-3">
-        {suggestionsQuery.data?.map((s: any) => (
-          <div key={s.id} className="card p-4">
+        {suggestionsQuery.data?.map((suggestion) => {
+          const reasonEntries = isRecord(suggestion.reason)
+            ? Object.entries(suggestion.reason)
+            : [];
+
+          return (
+          <div key={suggestion.id} className="card p-4">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-xs uppercase text-muted-foreground">{s.type}</p>
-                <h3 className="text-lg font-semibold text-foreground">{s.message}</h3>
-                    <div className="text-xs text-muted-foreground mt-1">Generated: {new Date(s.createdAt || Date.now()).toLocaleString()}</div>
+                <p className="text-xs uppercase text-muted-foreground">{suggestion.type}</p>
+                <h3 className="text-lg font-semibold text-foreground">{suggestion.message}</h3>
+                    <div className="text-xs text-muted-foreground mt-1">Generated: {new Date(suggestion.createdAt || Date.now()).toLocaleString()}</div>
                 <div className="text-xs text-muted-foreground flex gap-2 mt-2">
-                  {s.category && <span className="badge">{s.category}</span>}
-                  {s.platform && <span className="badge bg-status-success/15 text-status-success">{s.platform}</span>}
-                  {s.proposedDate && <span className="badge bg-status-info/15 text-status-info">Target {new Date(s.proposedDate).toLocaleDateString()}</span>}
+                  {suggestion.category && <span className="badge">{suggestion.category}</span>}
+                  {suggestion.platform && <span className="badge bg-status-success/15 text-status-success">{suggestion.platform}</span>}
+                  {suggestion.proposedDate && <span className="badge bg-status-info/15 text-status-info">Target {new Date(suggestion.proposedDate).toLocaleDateString()}</span>}
                 </div>
               </div>
                   <div className="flex items-center gap-2">
                     <button
                       className="btn-secondary flex items-center text-emerald-700"
-                      onClick={() => accept.mutate(s.id)}
-                      disabled={accept.isPending || s.status !== "new"}
+                      onClick={() => accept.mutate(suggestion.id)}
+                      disabled={accept.isPending || suggestion.status !== "new"}
                     >
                       <CheckCircle2 className="h-4 w-4 mr-1" /> Accept
                     </button>
                     <button
                       className="btn-secondary flex items-center text-amber-700"
-                      onClick={() => dismiss.mutate(s.id)}
-                      disabled={dismiss.isPending || s.status !== "new"}
+                      onClick={() => dismiss.mutate(suggestion.id)}
+                      disabled={dismiss.isPending || suggestion.status !== "new"}
                     >
                       <AlertTriangle className="h-4 w-4 mr-1" /> Dismiss
                     </button>
-                    {s.status && s.status !== "new" && (
-                      <span className="text-xs text-muted-foreground">Status: {s.status}</span>
+                    {suggestion.status && suggestion.status !== "new" && (
+                      <span className="text-xs text-muted-foreground">Status: {suggestion.status}</span>
                     )}
                   </div>
             </div>
-            {s.reason && (
+            {reasonEntries.length > 0 && (
               <div className="mt-2 text-xs text-muted-foreground bg-muted p-2 rounded border border-border flex flex-wrap gap-2">
-                {Object.entries(s.reason).map(([key, val]) => {
-                  const label = key.replace(/([A-Z])/g, ' $1').toLowerCase();
+                {reasonEntries.map(([key, val]) => {
+                  const label = key.replace(/([A-Z])/g, " $1").toLowerCase();
                   const display =
                     key.toLowerCase().includes("ratio") && typeof val === "number"
                       ? `${Math.round(val * 100)}%`
                       : String(val);
                   return (
-                    <span key={`${s.id}-${key}`} className="badge bg-card text-foreground border border-border">
+                    <span key={`${suggestion.id}-${key}`} className="badge bg-card text-foreground border border-border">
                       {label}: {display}
                     </span>
                   );
@@ -190,14 +224,14 @@ export default function SocialPlannerSuggestions() {
               <div className="flex gap-2 mt-3">
                 <button
                   className="btn-primary flex items-center text-white"
-                  onClick={() => addToCalendar.mutate(s)}
-                  disabled={!(campgroundId || s.campgroundId) || addToCalendar.isPending}
+                  onClick={() => addToCalendar.mutate(suggestion)}
+                  disabled={!(campgroundId || suggestion.campgroundId) || addToCalendar.isPending}
                 >
                   <PlusCircle className="h-4 w-4 mr-1" /> Add to calendar
                 </button>
               </div>
           </div>
-        ))}
+        )})}
         {!suggestionsQuery.data?.length && (
           <div className="text-sm text-muted-foreground">No suggestions yet. Refresh to generate ideas from your data.</div>
         )}
@@ -205,4 +239,3 @@ export default function SocialPlannerSuggestions() {
     </DashboardShell>
   );
 }
-

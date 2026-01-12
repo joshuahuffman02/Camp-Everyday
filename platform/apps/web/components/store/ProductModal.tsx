@@ -4,19 +4,33 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { HelpTooltip } from "../ui/help-tooltip";
-import { Product, ProductCategory } from "@keepr/shared";
+import type { CreateProductDto, Product, ProductCategory } from "@keepr/shared";
 
 interface ProductModalProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     product?: Product | null;
     categories: ProductCategory[];
-    onSave: (data: any) => Promise<void>;
+    onSave: (data: ProductPayload) => Promise<void>;
 }
+
+type ProductPayload = Omit<CreateProductDto, "campgroundId">;
+type ProductFormData = {
+    name: string;
+    description: string;
+    categoryId: string;
+    priceCents: number;
+    stockQty: number;
+    imageUrl: string;
+    sku: string;
+    glCode: string;
+    isActive: boolean;
+    channelInventoryMode: ProductPayload["channelInventoryMode"];
+};
 
 export function ProductModal({ open, onOpenChange, product, categories, onSave }: ProductModalProps) {
     const [loading, setLoading] = useState(false);
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState<ProductFormData>({
         name: "",
         description: "",
         categoryId: "",
@@ -25,7 +39,8 @@ export function ProductModal({ open, onOpenChange, product, categories, onSave }
         imageUrl: "",
         sku: "",
         glCode: "",
-        isActive: true
+        isActive: true,
+        channelInventoryMode: "shared"
     });
 
     useEffect(() => {
@@ -40,7 +55,8 @@ export function ProductModal({ open, onOpenChange, product, categories, onSave }
                     imageUrl: product.imageUrl || "",
                     sku: product.sku || "",
                     glCode: product.glCode || "",
-                    isActive: product.isActive ?? true
+                    isActive: product.isActive ?? true,
+                    channelInventoryMode: product.channelInventoryMode ?? "shared"
                 });
             } else {
                 setFormData({
@@ -52,7 +68,8 @@ export function ProductModal({ open, onOpenChange, product, categories, onSave }
                     imageUrl: "",
                     sku: "",
                     glCode: "",
-                    isActive: true
+                    isActive: true,
+                    channelInventoryMode: "shared"
                 });
             }
         }
@@ -71,7 +88,8 @@ export function ProductModal({ open, onOpenChange, product, categories, onSave }
                 description: formData.description.trim() || null,
                 sku: formData.sku.trim() || null,
                 glCode: formData.glCode.trim() || null,
-                categoryId: formData.categoryId || null
+                categoryId: formData.categoryId || null,
+                channelInventoryMode: formData.channelInventoryMode
             });
             onOpenChange(false);
         } catch (error) {

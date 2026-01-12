@@ -9,12 +9,16 @@ import { UpdateOtaChannelDto } from "./dto/update-ota-channel.dto";
 import { UpsertOtaMappingDto } from "./dto/upsert-mapping.dto";
 import { SaveOtaConfigDto } from "./dto/save-ota-config.dto";
 
+type CampgroundRequest = Request & { campgroundId?: string };
+
 @Controller("ota")
 export class OtaController {
   constructor(private readonly ota: OtaService) {}
 
-  private requireCampgroundId(req: any, fallback?: string): string {
-    const campgroundId = fallback || req?.campgroundId || req?.headers?.["x-campground-id"];
+  private requireCampgroundId(req: CampgroundRequest, fallback?: string): string {
+    const headerValue = req.headers?.["x-campground-id"];
+    const headerCampgroundId = Array.isArray(headerValue) ? headerValue[0] : headerValue;
+    const campgroundId = fallback ?? req.campgroundId ?? headerCampgroundId;
     if (!campgroundId) {
       throw new BadRequestException("campgroundId is required");
     }
@@ -152,7 +156,7 @@ export class OtaController {
     @Req() req: Request
   ) {
     const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
-    return (this.ota as any).listSyncLogs?.(id, requiredCampgroundId) ?? [];
+    return this.ota.listSyncLogs(id, requiredCampgroundId);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
@@ -176,14 +180,14 @@ export class OtaController {
     @Req() req: Request
   ) {
     const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
-    return (this.ota as any).listImports?.(id, requiredCampgroundId) ?? [];
+    return this.ota.listImports(id, requiredCampgroundId);
   }
 
   // Webhook endpoint - no auth (called by external OTA providers)
   @Post("webhooks/:provider")
   webhook(
     @Param("provider") provider: string,
-    @Body() body: any,
+    @Body() body: unknown,
     @Req() req: RawBodyRequest<Request>,
     @Headers("x-ota-signature") signature?: string,
     @Headers("x-ota-timestamp") timestamp?: string,

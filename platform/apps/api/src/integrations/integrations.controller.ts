@@ -8,8 +8,7 @@ import { ListLogsDto } from "./dto/list-logs.dto";
 import { SyncRequestDto } from "./dto/sync-request.dto";
 import { CreateExportJobDto } from "./dto/create-export-job.dto";
 import { RawBodyRequest } from "@nestjs/common";
-import { Request, Response } from "express";
-import type { Request } from "express";
+import type { Request, Response } from "express";
 
 @Controller("integrations")
 export class IntegrationsController {
@@ -119,15 +118,16 @@ export class IntegrationsController {
   @Post("webhooks/:provider")
   webhook(
     @Param("provider") provider: string,
-    @Body() body: any,
+    @Body() body: unknown,
     @Req() req: RawBodyRequest<Request>,
     @Headers("x-signature") signature?: string,
     @Headers("x-hmac-signature") altSignature?: string,
     @Headers("x-campground-id") campgroundId?: string
   ) {
     const raw = req.rawBody ? req.rawBody.toString() : JSON.stringify(body);
-    const providedSignature = signature || altSignature || (req.headers["x-hub-signature"] as string | undefined);
-    return this.integrations.handleWebhook(provider, body, raw, providedSignature, campgroundId as any);
+    const hubSignature = req.headers["x-hub-signature"];
+    const hubSignatureValue = Array.isArray(hubSignature) ? hubSignature[0] : hubSignature;
+    const providedSignature = signature || altSignature || hubSignatureValue;
+    return this.integrations.handleWebhook(provider, body, raw, providedSignature, campgroundId);
   }
 }
-

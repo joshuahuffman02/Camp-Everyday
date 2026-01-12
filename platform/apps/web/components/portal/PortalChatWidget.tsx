@@ -18,6 +18,26 @@ interface GuestData {
   reservations: GuestReservation[];
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const isGuestReservation = (value: unknown): value is GuestReservation => {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.id === "string" &&
+    typeof value.campgroundId === "string" &&
+    typeof value.arrivalDate === "string" &&
+    typeof value.departureDate === "string" &&
+    typeof value.status === "string"
+  );
+};
+
+const isGuestData = (value: unknown): value is GuestData => {
+  if (!isRecord(value)) return false;
+  if (typeof value.id !== "string" || !Array.isArray(value.reservations)) return false;
+  return value.reservations.every(isGuestReservation);
+};
+
 /**
  * Portal-specific chat widget wrapper that handles:
  * - Getting guest auth token from localStorage
@@ -45,7 +65,10 @@ export function PortalChatWidget() {
     // Fetch guest data to get campgroundId
     const fetchGuestData = async () => {
       try {
-        const data = await apiClient.getGuestMe(storedToken) as GuestData;
+        const data = await apiClient.getGuestMe(storedToken);
+        if (!isGuestData(data)) {
+          return;
+        }
         setGuestId(data.id);
 
         // Find the most relevant reservation (current or upcoming)

@@ -4,19 +4,19 @@ import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 
 type MapConfig = {
-  bounds?: any;
-  defaultCenter?: any;
+  bounds?: unknown;
+  defaultCenter?: unknown;
   defaultZoom?: number | null;
-  layers?: any;
-  legend?: any;
+  layers?: unknown;
+  legend?: unknown;
 };
 
 type MapSite = {
   siteId: string;
   name?: string | null;
   siteNumber?: string | null;
-  geometry?: any;
-  centroid?: any;
+  geometry?: unknown;
+  centroid?: unknown;
   label?: string | null;
   rotation?: number | null;
   status?: string | null;
@@ -52,20 +52,23 @@ const STATUS_THEME: Record<string, { fill: string; stroke: string; text: string 
   default: { fill: "#f1f5f9", stroke: "#94a3b8", text: "#475569" }
 };
 
-const asNumber = (value: any) => {
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const asNumber = (value: unknown) => {
   if (typeof value === "number") return value;
   if (typeof value === "string" && value.trim() !== "") return Number(value);
   return Number.NaN;
 };
 
-const isNumber = (value: any) => Number.isFinite(asNumber(value));
+const isNumber = (value: unknown) => Number.isFinite(asNumber(value));
 
-const normalizePoint = (value: any): Point | null => {
+const normalizePoint = (value: unknown): Point | null => {
   if (!value) return null;
   if (Array.isArray(value) && value.length >= 2 && isNumber(value[0]) && isNumber(value[1])) {
     return { x: Number(value[0]), y: Number(value[1]) };
   }
-  if (typeof value === "object") {
+  if (isRecord(value)) {
     const x = value.x ?? value.lng ?? value.longitude;
     const y = value.y ?? value.lat ?? value.latitude;
     if (isNumber(x) && isNumber(y)) {
@@ -75,31 +78,37 @@ const normalizePoint = (value: any): Point | null => {
   return null;
 };
 
-const extractPoints = (geometry: any): Point[] => {
+const isPoint = (value: Point | null): value is Point => value !== null;
+
+const extractPoints = (geometry: unknown): Point[] => {
   if (!geometry) return [];
   if (Array.isArray(geometry)) {
-    return geometry.map(normalizePoint).filter(Boolean) as Point[];
+    return geometry.map(normalizePoint).filter(isPoint);
   }
-  if (geometry.type === "Polygon" && Array.isArray(geometry.coordinates?.[0])) {
-    return geometry.coordinates[0].map(normalizePoint).filter(Boolean) as Point[];
-  }
-  if (geometry.type === "MultiPolygon" && Array.isArray(geometry.coordinates?.[0]?.[0])) {
-    return geometry.coordinates[0][0].map(normalizePoint).filter(Boolean) as Point[];
-  }
-  if (geometry.type === "LineString" && Array.isArray(geometry.coordinates)) {
-    return geometry.coordinates.map(normalizePoint).filter(Boolean) as Point[];
-  }
-  if (Array.isArray(geometry.points)) {
-    return geometry.points.map(normalizePoint).filter(Boolean) as Point[];
-  }
-  if (Array.isArray(geometry.coords)) {
-    return geometry.coords.map(normalizePoint).filter(Boolean) as Point[];
+  if (isRecord(geometry)) {
+    const type = geometry.type;
+    const coords = geometry.coordinates;
+    if (type === "Polygon" && Array.isArray(coords) && Array.isArray(coords[0])) {
+      return coords[0].map(normalizePoint).filter(isPoint);
+    }
+    if (type === "MultiPolygon" && Array.isArray(coords) && Array.isArray(coords[0]) && Array.isArray(coords[0][0])) {
+      return coords[0][0].map(normalizePoint).filter(isPoint);
+    }
+    if (type === "LineString" && Array.isArray(coords)) {
+      return coords.map(normalizePoint).filter(isPoint);
+    }
+    if (Array.isArray(geometry.points)) {
+      return geometry.points.map(normalizePoint).filter(isPoint);
+    }
+    if (Array.isArray(geometry.coords)) {
+      return geometry.coords.map(normalizePoint).filter(isPoint);
+    }
   }
   return [];
 };
 
-const extractRect = (geometry: any): Rect | null => {
-  if (!geometry || typeof geometry !== "object") return null;
+const extractRect = (geometry: unknown): Rect | null => {
+  if (!isRecord(geometry)) return null;
   const x = geometry.x ?? geometry.left ?? geometry.minX;
   const y = geometry.y ?? geometry.top ?? geometry.minY;
   const width = geometry.width ?? (isNumber(geometry.right) && isNumber(x) ? Number(geometry.right) - Number(x) : null);
@@ -110,7 +119,7 @@ const extractRect = (geometry: any): Rect | null => {
   return null;
 };
 
-const extractCentroid = (centroid: any, fallback?: Shape): Point | null => {
+const extractCentroid = (centroid: unknown, fallback?: Shape): Point | null => {
   const direct = normalizePoint(centroid);
   if (direct) return direct;
   if (!fallback) return null;
@@ -128,11 +137,12 @@ const extractCentroid = (centroid: any, fallback?: Shape): Point | null => {
 const shapeToPath = (points: Point[]) =>
   points.map((p, idx) => `${idx === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ") + " Z";
 
-const getBoundsFromConfig = (bounds: any): { minX: number; minY: number; maxX: number; maxY: number } | null => {
+const getBoundsFromConfig = (bounds: unknown): { minX: number; minY: number; maxX: number; maxY: number } | null => {
   if (!bounds) return null;
   if (Array.isArray(bounds) && bounds.length >= 4 && bounds.every(isNumber)) {
     return { minX: Number(bounds[0]), minY: Number(bounds[1]), maxX: Number(bounds[2]), maxY: Number(bounds[3]) };
   }
+  if (!isRecord(bounds)) return null;
   const minX = bounds.minX ?? bounds.left ?? bounds.x;
   const minY = bounds.minY ?? bounds.top ?? bounds.y;
   const maxX = bounds.maxX ?? bounds.right ?? (isNumber(bounds.width) && isNumber(bounds.x) ? Number(bounds.x) + Number(bounds.width) : null);
@@ -143,11 +153,11 @@ const getBoundsFromConfig = (bounds: any): { minX: number; minY: number; maxX: n
   return null;
 };
 
-const getBaseImageUrl = (layers: any) => {
-  if (!layers || typeof layers !== "object") return null;
+const getBaseImageUrl = (layers: unknown) => {
+  if (!isRecord(layers)) return null;
   if (typeof layers.baseImageUrl === "string") return layers.baseImageUrl;
-  if (typeof layers.baseImage?.url === "string") return layers.baseImage.url;
-  if (typeof layers.background?.url === "string") return layers.background.url;
+  if (isRecord(layers.baseImage) && typeof layers.baseImage.url === "string") return layers.baseImage.url;
+  if (isRecord(layers.background) && typeof layers.background.url === "string") return layers.background.url;
   if (typeof layers.image === "string") return layers.image;
   return null;
 };

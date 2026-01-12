@@ -1,8 +1,14 @@
 "use client";
 
-import { motion, Variants, TargetAndTransition } from "framer-motion";
+import { motion, Variants, TargetAndTransition, type HTMLMotionProps } from "framer-motion";
 import { ReactNode, Children } from "react";
 import { cn } from "@/lib/utils";
+
+type StaggerVariant = "fadeUp" | "fadeIn" | "slideLeft" | "slideRight" | "scale";
+type StaggerVariantConfig = {
+  hidden: TargetAndTransition;
+  visible: TargetAndTransition;
+};
 
 interface StaggeredListProps {
   children: ReactNode;
@@ -11,7 +17,7 @@ interface StaggeredListProps {
   /** Initial delay before first item animates (default: 0) */
   initialDelay?: number;
   /** Animation variant (default: "fadeUp") */
-  variant?: "fadeUp" | "fadeIn" | "slideLeft" | "slideRight" | "scale";
+  variant?: StaggerVariant;
   /** Custom class for the container */
   className?: string;
   /** Whether to animate (respects prefers-reduced-motion by default) */
@@ -28,7 +34,7 @@ const containerVariants: Variants = {
   },
 };
 
-const itemVariants: Record<string, Variants> = {
+const itemVariants: Record<StaggerVariant, StaggerVariantConfig> = {
   fadeUp: {
     hidden: { opacity: 0, y: 20 },
     visible: {
@@ -148,7 +154,7 @@ interface StaggeredItemProps {
   /** Delay for this specific item (overrides parent stagger) */
   delay?: number;
   /** Animation variant (default uses parent) */
-  variant?: "fadeUp" | "fadeIn" | "slideLeft" | "slideRight" | "scale";
+  variant?: StaggerVariant;
 }
 
 /**
@@ -169,8 +175,8 @@ export function StaggeredItem({
   variant = "fadeUp",
 }: StaggeredItemProps) {
   const variantConfig = itemVariants[variant];
-  const hiddenState = variantConfig.hidden as TargetAndTransition;
-  const visibleState = variantConfig.visible as TargetAndTransition;
+  const hiddenState = variantConfig.hidden;
+  const visibleState = variantConfig.visible;
   const visibleTransition = visibleState.transition || {};
 
   return (
@@ -192,19 +198,18 @@ export function StaggeredItem({
  * Table row with stagger animation support.
  * For use in tables where we can't wrap in div.
  */
+type StaggeredTableRowProps = HTMLMotionProps<"tr"> & {
+  index?: number;
+  staggerDelay?: number;
+};
+
 export function StaggeredTableRow({
   children,
   index = 0,
   staggerDelay = 0.03,
   className,
   ...props
-}: {
-  children: ReactNode;
-  index?: number;
-  staggerDelay?: number;
-  className?: string;
-  [key: string]: any;
-}) {
+}: StaggeredTableRowProps) {
   return (
     <motion.tr
       className={cn("motion-safe:animate-in", className)}

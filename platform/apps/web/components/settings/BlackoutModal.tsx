@@ -9,12 +9,19 @@ interface BlackoutModalProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     sites: Site[];
-    onSave: (data: any) => Promise<void>;
+    onSave: (data: BlackoutFormData) => Promise<void>;
 }
+
+export type BlackoutFormData = {
+    siteId: string | null;
+    startDate: string;
+    endDate: string;
+    reason: string;
+};
 
 export function BlackoutModal({ open, onOpenChange, sites, onSave }: BlackoutModalProps) {
     const [loading, setLoading] = useState(false);
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState<BlackoutFormData>({
         siteId: "",
         startDate: "",
         endDate: "",
@@ -60,7 +67,7 @@ export function BlackoutModal({ open, onOpenChange, sites, onSave }: BlackoutMod
                         <select
                             id="site"
                             className="flex h-10 w-full rounded-md border border-border bg-card px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                            value={formData.siteId}
+                            value={formData.siteId ?? ""}
                             onChange={(e) => setFormData({ ...formData, siteId: e.target.value })}
                         >
                             <option value="">Entire Campground</option>

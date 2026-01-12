@@ -7,6 +7,8 @@ import { apiClient } from "../../../lib/api-client";
 import { DashboardShell } from "../../../components/ui/layout/DashboardShell";
 import { FileText, PlusCircle, Rocket } from "lucide-react";
 
+type SocialTemplate = Awaited<ReturnType<typeof apiClient.listSocialTemplates>>[number];
+
 export default function SocialPlannerTemplates() {
   const qc = useQueryClient();
   const [name, setName] = useState("");
@@ -21,14 +23,14 @@ export default function SocialPlannerTemplates() {
   });
   const campgroundId = campgrounds[0]?.id;
 
-  const templatesQuery = useQuery({
+  const templatesQuery = useQuery<SocialTemplate[]>({
     queryKey: ["social-templates", campgroundId],
     queryFn: () => apiClient.listSocialTemplates(campgroundId!),
     enabled: !!campgroundId
   });
 
   const quickUse = useMutation({
-    mutationFn: (tpl: any) =>
+    mutationFn: (tpl: SocialTemplate) =>
       apiClient.createSocialPost({
         campgroundId,
         title: tpl.name,
@@ -122,7 +124,7 @@ export default function SocialPlannerTemplates() {
       </div>
 
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
-        {templatesQuery.data?.map((tpl: any) => (
+        {(templatesQuery.data ?? []).map((tpl) => (
           <div key={tpl.id} className="card p-4">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
@@ -152,4 +154,3 @@ export default function SocialPlannerTemplates() {
     </DashboardShell>
   );
 }
-

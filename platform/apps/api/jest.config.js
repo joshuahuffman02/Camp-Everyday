@@ -26,7 +26,9 @@ module.exports = {
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/src/$1",
     "^@/prisma$": "<rootDir>/prisma",
-    "^@/shared$": "<rootDir>/../../../packages/shared/src"
+    "^@/shared$": "<rootDir>/../../../packages/shared/src",
+    "^@keepr/sdk$": "<rootDir>/../../packages/sdk/src",
+    "^@keepr/sdk/(.*)$": "<rootDir>/../../packages/sdk/src/$1"
   },
   globals: {
     "ts-jest": {

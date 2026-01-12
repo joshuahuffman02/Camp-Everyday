@@ -40,6 +40,18 @@ interface Discount {
   isActive: boolean;
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const getString = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+const getNumber = (value: unknown): number | undefined =>
+  typeof value === "number" ? value : undefined;
+
+const getBoolean = (value: unknown): boolean | undefined =>
+  typeof value === "boolean" ? value : undefined;
+
 async function fetchDiscounts(campgroundId: string): Promise<Discount[]> {
   const response = await fetch(`${API_BASE}/promotions/campgrounds/${campgroundId}`, {
     credentials: "include",
@@ -49,17 +61,33 @@ async function fetchDiscounts(campgroundId: string): Promise<Discount[]> {
   }
   // Transform promotions to discount format
   const data = await response.json();
-  return data.map((promo: any) => ({
-    id: promo.id,
-    name: promo.name,
-    code: promo.code || promo.name.toUpperCase().replace(/\s+/g, ""),
-    type: promo.discountType === "percentage" ? "percent" : "fixed",
-    value: promo.discountValue || promo.amount || 0,
-    appliesTo: promo.appliesTo || "All Items",
-    validUntil: promo.endDate || null,
-    usageCount: promo.usageCount || 0,
-    isActive: promo.isActive !== false,
-  }));
+  if (!Array.isArray(data)) return [];
+  return data
+    .map((promo: unknown): Discount | null => {
+      if (!isRecord(promo)) return null;
+      const id = getString(promo.id);
+      const name = getString(promo.name);
+      if (!id || !name) return null;
+      const code = getString(promo.code) || name.toUpperCase().replace(/\s+/g, "");
+      const discountType = getString(promo.discountType);
+      const type: Discount["type"] = discountType === "percentage" ? "percent" : "fixed";
+      const value =
+        getNumber(promo.discountValue) ??
+        getNumber(promo.amount) ??
+        0;
+      return {
+        id,
+        name,
+        code,
+        type,
+        value,
+        appliesTo: getString(promo.appliesTo) || "All Items",
+        validUntil: getString(promo.endDate) ?? null,
+        usageCount: getNumber(promo.usageCount) ?? 0,
+        isActive: getBoolean(promo.isActive) ?? true,
+      };
+    })
+    .filter((discount): discount is Discount => Boolean(discount));
 }
 
 async function deleteDiscount(discountId: string): Promise<void> {

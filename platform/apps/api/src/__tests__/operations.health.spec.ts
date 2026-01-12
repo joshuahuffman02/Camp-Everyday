@@ -1,21 +1,15 @@
-// @ts-nocheck
-import * as request from 'supertest';
-import { Test } from '@nestjs/testing';
-import { ValidationPipe } from '@nestjs/common';
-import { OperationsController } from '../operations/operations.controller';
+import { Test, type TestingModule } from '@nestjs/testing';
 import { OperationsService } from '../operations/operations.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { JwtAuthGuard } from '../auth/guards';
 import { GamificationService } from '../gamification/gamification.service';
-import { PermissionsService } from '../permissions/permissions.service';
-import { ScopeGuard } from '../permissions/scope.guard';
+import { EmailService } from '../email/email.service';
 
 describe('Operations health smoke', () => {
-  let app: any;
+  let moduleRef: TestingModule;
+  let service: OperationsService;
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({
-      controllers: [OperationsController],
+    moduleRef = await Test.createTestingModule({
       providers: [
         OperationsService,
         {
@@ -27,38 +21,24 @@ describe('Operations health smoke', () => {
           useValue: { recordEvent: jest.fn() },
         },
         {
-          provide: PermissionsService,
-          useValue: { checkAccess: async () => ({ allowed: true }), isPlatformStaff: () => true },
+          provide: EmailService,
+          useValue: { sendEmail: jest.fn() },
         },
       ],
-    })
-      .overrideGuard(JwtAuthGuard)
-      .useValue({ canActivate: () => true })
-      .overrideGuard(ScopeGuard)
-      .useValue({ canActivate: () => true })
-      .compile();
-
-    app = moduleRef.createNestApplication();
-    app.setGlobalPrefix('api');
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await app.init();
+    }).compile();
+    service = moduleRef.get(OperationsService);
   });
 
   afterAll(async () => {
-    await app.close();
+    await moduleRef.close();
   });
 
   it('returns ops health shape', async () => {
-    const api = request(app.getHttpServer());
-    const res = await api
-      .get('/api/operations/ops-health?campgroundId=camp-ops-health')
-      .expect(200);
+    const res = await service.getOpsHealth('camp-ops-health');
 
-    expect(res.body.campgroundId).toBe('camp-ops-health');
-    expect(res.body.autoTasking).toBeDefined();
-    expect(Array.isArray(res.body.autoTasking.recentRuns)).toBe(true);
-    expect(res.body.reorders).toBeDefined();
+    expect(res.campgroundId).toBe('camp-ops-health');
+    expect(res.autoTasking).toBeDefined();
+    expect(Array.isArray(res.autoTasking.recentRuns)).toBe(true);
+    expect(res.reorders).toBeDefined();
   });
 });
-
-

@@ -336,17 +336,19 @@ function ensureBadgeForUser(userId: string, badgeId?: string, badgeNameHint?: st
   const staff = state.staff.find((s) => s.id === userId);
   if (!staff) return false;
   const library = listBadgeLibrary();
-  const badge =
+  let badge: GamificationBadge | undefined =
     (badgeId && library.find((b) => b.id === badgeId)) ||
-    (badgeNameHint && library.find((b) => b.name === badgeNameHint)) || (badgeNameHint
-      ? {
-        id: `earned-${Math.random().toString(36).slice(2, 8)}`,
-        name: badgeNameHint,
-        description: "Challenge completed",
-        tier: "silver" as const,
-        earnedAt: new Date().toISOString(),
-      }
-      : undefined);
+    (badgeNameHint && library.find((b) => b.name === badgeNameHint)) ||
+    undefined;
+  if (!badge && badgeNameHint) {
+    badge = {
+      id: `earned-${Math.random().toString(36).slice(2, 8)}`,
+      name: badgeNameHint,
+      description: "Challenge completed",
+      tier: "silver",
+      earnedAt: new Date().toISOString(),
+    };
+  }
   if (!badge) return false;
   const already = staff.badges.some((b) => b.name === badge.name || b.id === badge.id);
   if (already) return false;
@@ -446,9 +448,10 @@ function getCategoryStats(userId: string) {
   state.events.filter((e) => e.userId === userId).forEach((evt) => {
     byCategory[evt.category] = (byCategory[evt.category] || 0) + evt.xp;
   });
-  return Object.entries(byCategory)
-    .filter(([, xp]) => xp !== 0)
-    .map(([category, xp]) => ({ category: category as GamificationCategory, xp }));
+  const categories = Object.keys(byCategory).filter((category): category is GamificationCategory => category in byCategory);
+  return categories
+    .map((category) => ({ category, xp: byCategory[category] }))
+    .filter(({ xp }) => xp !== 0);
 }
 
 export async function fetchStaffDashboard(userId: string, campgroundId?: string) {
@@ -482,15 +485,15 @@ export async function fetchStaffDashboard(userId: string, campgroundId?: string)
 
 export async function fetchLeaderboard(window: "weekly" | "seasonal" | "all", viewerId?: string) {
   await delay();
-  const key = window === "weekly" ? "weeklyXp" : window === "seasonal" ? "seasonalXp" : "totalXp";
   type XpKey = "weeklyXp" | "seasonalXp" | "totalXp";
+  const key: XpKey = window === "weekly" ? "weeklyXp" : window === "seasonal" ? "seasonalXp" : "totalXp";
   const ranked = [...state.staff]
-    .sort((a, b) => b[key as XpKey] - a[key as XpKey])
+    .sort((a, b) => b[key] - a[key])
     .map((s, idx) => ({
       userId: s.id,
       name: s.name,
       role: s.role,
-      xp: s[key as XpKey],
+      xp: s[key],
       rank: idx + 1,
     }));
   const viewer = viewerId ? ranked.find((r) => r.userId === viewerId) || null : null;
@@ -594,15 +597,19 @@ export function listHistoryEntries(limit = 12): GamificationHistoryEntry[] {
   );
   const overrideEntries: GamificationHistoryEntry[] = state.notifications
     .filter((n) => n.type === "override")
-    .map((n) => ({
-      id: n.id,
-      type: "override" as const,
-      userId: n.userId,
-      userName: staffMap.get(n.userId || "")?.name,
-      role: staffMap.get(n.userId || "")?.role,
-      xp: (n.meta?.nextTotalXp as number | undefined),
-      createdAt: n.createdAt,
-    }));
+    .map((n) => {
+      const nextTotalXp = n.meta?.nextTotalXp;
+      const xp = typeof nextTotalXp === "number" ? nextTotalXp : undefined;
+      return {
+        id: n.id,
+        type: "override",
+        userId: n.userId,
+        userName: staffMap.get(n.userId || "")?.name,
+        role: staffMap.get(n.userId || "")?.role,
+        xp,
+        createdAt: n.createdAt,
+      };
+    });
 
   return structuredClone(
     [...awardEntries, ...badgeEntries, ...overrideEntries]
@@ -610,5 +617,3 @@ export function listHistoryEntries(limit = 12): GamificationHistoryEntry[] {
       .slice(0, limit)
   );
 }
-
-

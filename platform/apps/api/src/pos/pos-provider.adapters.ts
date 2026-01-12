@@ -1,5 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
-import crypto from "crypto";
+import { createHmac } from "crypto";
+import { PosProviderType, PosSyncStatus, PosSyncTarget } from "@prisma/client";
 import {
   IntegrationRecord,
   PosProviderAdapter,
@@ -17,29 +18,38 @@ import {
   ExternalSyncResult,
 } from "./pos-provider.types";
 
-const PosProviderType = {
-  clover: "clover",
-  square: "square",
-  toast: "toast",
-  lightspeed: "lightspeed",
-  shopify: "shopify",
-  vend: "vend",
-} as const;
-type PosProviderType = (typeof PosProviderType)[keyof typeof PosProviderType];
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
 
-const PosSyncStatus = {
-  running: "running",
-  completed: "completed",
-  failed: "failed"
-} as const;
-type PosSyncStatus = (typeof PosSyncStatus)[keyof typeof PosSyncStatus];
+const toStringValue = (value: unknown): string | undefined => {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return undefined;
+};
 
-const PosSyncTarget = {
-  catalog: "catalog",
-  tenders: "tenders",
-  orders: "orders"
-} as const;
-type PosSyncTarget = (typeof PosSyncTarget)[keyof typeof PosSyncTarget];
+const toNumberValue = (value: unknown): number | undefined => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return undefined;
+};
+
+const toRecordArray = (value: unknown): Record<string, unknown>[] => {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is Record<string, unknown> => isRecord(item));
+  }
+  if (isRecord(value)) {
+    return [value];
+  }
+  return [];
+};
+
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) return error.message;
+  return "Unknown error";
+};
 
 @Injectable()
 abstract class BasePosProviderAdapter implements PosProviderAdapter {
@@ -95,11 +105,11 @@ abstract class BasePosProviderAdapter implements PosProviderAdapter {
 
   verifyWebhookSignature(input: ProviderWebhookVerification): boolean {
     if (!input.secret) return true;
-    const digest = crypto.createHmac("sha256", input.secret).update(input.rawBody).digest("hex");
+    const digest = createHmac("sha256", input.secret).update(input.rawBody).digest("hex");
     return digest === input.signature;
   }
 
-  async handlePaymentWebhook(input: { integration: IntegrationRecord; body: any; headers?: Record<string, unknown> }): Promise<ProviderWebhookResult> {
+  async handlePaymentWebhook(input: { integration: IntegrationRecord; body: unknown; headers?: Record<string, unknown> }): Promise<ProviderWebhookResult> {
     this.logger.debug(`Webhook received for ${input.integration.provider}`);
     return { acknowledged: true, message: "stubbed_webhook_handler" };
   }
@@ -137,7 +147,8 @@ export class LightspeedAdapter extends BasePosProviderAdapter {
   }
 
   async validateCredentials(config: IntegrationRecord): Promise<ProviderValidationResult> {
-    const { accessToken, accountId } = config.credentials || {};
+    const accessToken = toStringValue(config.credentials.accessToken);
+    const accountId = toStringValue(config.credentials.accountId);
     if (!accessToken || !accountId) {
       return { ok: false, message: "Missing accessToken or accountId" };
     }
@@ -155,22 +166,25 @@ export class LightspeedAdapter extends BasePosProviderAdapter {
       );
 
       if (response.ok) {
-        const data = await response.json();
+        const data: unknown = await response.json();
+        const dataRecord = isRecord(data) ? data : {};
+        const accountRecord = isRecord(dataRecord.Account) ? dataRecord.Account : {};
         return {
           ok: true,
           message: "Credentials validated",
-          details: { accountName: data.Account?.name },
+          details: { accountName: toStringValue(accountRecord.name) },
         };
       }
 
       return { ok: false, message: `API returned ${response.status}` };
-    } catch (error: any) {
-      return { ok: false, message: error.message || "Failed to validate credentials" };
+    } catch (error) {
+      return { ok: false, message: getErrorMessage(error) || "Failed to validate credentials" };
     }
   }
 
   async fetchProducts(config: IntegrationRecord): Promise<ExternalProduct[]> {
-    const { accessToken, accountId } = config.credentials || {};
+    const accessToken = toStringValue(config.credentials.accessToken);
+    const accountId = toStringValue(config.credentials.accountId);
     if (!accessToken || !accountId) return [];
 
     try {
@@ -189,21 +203,35 @@ export class LightspeedAdapter extends BasePosProviderAdapter {
         return [];
       }
 
-      const data = await response.json();
-      const items = Array.isArray(data.Item) ? data.Item : [data.Item].filter(Boolean);
+      const data: unknown = await response.json();
+      const dataRecord = isRecord(data) ? data : {};
+      const items = toRecordArray(dataRecord.Item);
 
-      return items.map((item: any) => ({
-        externalId: item.itemID,
-        externalSku: item.customSku || item.systemSku || null,
-        name: item.description,
-        priceCents: Math.round(parseFloat(item.Prices?.ItemPrice?.[0]?.amount || "0") * 100),
-        category: item.Category?.name || null,
-        barcode: item.upc || null,
-        metadata: {
-          itemType: item.itemType,
-          categoryId: item.categoryID,
-        },
-      }));
+      return items.flatMap((item) => {
+        const externalId = toStringValue(item.itemID);
+        const name = toStringValue(item.description);
+        if (!externalId || !name) return [];
+
+        const pricesRecord = isRecord(item.Prices) ? item.Prices : {};
+        const priceEntry = toRecordArray(pricesRecord.ItemPrice)[0];
+        const priceAmount = priceEntry ? toNumberValue(priceEntry.amount) : undefined;
+        const categoryRecord = isRecord(item.Category) ? item.Category : {};
+
+        return [
+          {
+            externalId,
+            externalSku: toStringValue(item.customSku) ?? toStringValue(item.systemSku) ?? null,
+            name,
+            priceCents: Math.round((priceAmount ?? 0) * 100),
+            category: toStringValue(categoryRecord.name) ?? null,
+            barcode: toStringValue(item.upc) ?? null,
+            metadata: {
+              itemType: toStringValue(item.itemType),
+              categoryId: toStringValue(item.categoryID),
+            },
+          },
+        ];
+      });
     } catch (error) {
       this.apiLogger.error("Failed to fetch Lightspeed products", error);
       return [];
@@ -211,7 +239,8 @@ export class LightspeedAdapter extends BasePosProviderAdapter {
   }
 
   async fetchSales(config: IntegrationRecord, since: Date): Promise<ExternalSale[]> {
-    const { accessToken, accountId } = config.credentials || {};
+    const accessToken = toStringValue(config.credentials.accessToken);
+    const accountId = toStringValue(config.credentials.accountId);
     if (!accessToken || !accountId) return [];
 
     try {
@@ -231,28 +260,46 @@ export class LightspeedAdapter extends BasePosProviderAdapter {
         return [];
       }
 
-      const data = await response.json();
-      const sales = Array.isArray(data.Sale) ? data.Sale : [data.Sale].filter(Boolean);
+      const data: unknown = await response.json();
+      const dataRecord = isRecord(data) ? data : {};
+      const sales = toRecordArray(dataRecord.Sale);
 
-      return sales.map((sale: any) => {
-        const lines = Array.isArray(sale.SaleLines?.SaleLine)
-          ? sale.SaleLines.SaleLine
-          : [sale.SaleLines?.SaleLine].filter(Boolean);
+      return sales.flatMap((sale) => {
+        const saleId = toStringValue(sale.saleID);
+        const completedAt = toStringValue(sale.completeTime);
+        if (!saleId || !completedAt) return [];
 
-        return {
-          externalTransactionId: sale.saleID,
-          saleDate: new Date(sale.completeTime),
-          items: lines.map((line: any) => ({
-            externalProductId: line.itemID,
-            externalSku: line.customSku || null,
-            qty: parseInt(line.unitQuantity, 10) || 1,
-            priceCents: Math.round(parseFloat(line.calcTotal || "0") * 100),
-            discountCents: Math.round(parseFloat(line.discountAmount || "0") * 100),
-          })),
-          totalCents: Math.round(parseFloat(sale.calcTotal || "0") * 100),
-          paymentMethod: sale.SalePayments?.SalePayment?.[0]?.PaymentType?.name || null,
-          metadata: { saleType: sale.SaleType?.name },
-        };
+        const saleLinesRecord = isRecord(sale.SaleLines) ? sale.SaleLines : {};
+        const lines = toRecordArray(saleLinesRecord.SaleLine);
+        const paymentRecord = isRecord(sale.SalePayments) ? sale.SalePayments : {};
+        const payment = toRecordArray(paymentRecord.SalePayment)[0];
+        const paymentTypeRecord = payment && isRecord(payment.PaymentType) ? payment.PaymentType : {};
+        const saleTypeRecord = isRecord(sale.SaleType) ? sale.SaleType : {};
+        const totalCents = Math.round((toNumberValue(sale.calcTotal) ?? 0) * 100);
+
+        return [
+          {
+            externalTransactionId: saleId,
+            saleDate: new Date(completedAt),
+            items: lines.flatMap((line) => {
+              const externalProductId = toStringValue(line.itemID);
+              if (!externalProductId) return [];
+              const qty = toNumberValue(line.unitQuantity) ?? 1;
+              return [
+                {
+                  externalProductId,
+                  externalSku: toStringValue(line.customSku) ?? null,
+                  qty,
+                  priceCents: Math.round((toNumberValue(line.calcTotal) ?? 0) * 100),
+                  discountCents: Math.round((toNumberValue(line.discountAmount) ?? 0) * 100),
+                },
+              ];
+            }),
+            totalCents,
+            paymentMethod: toStringValue(paymentTypeRecord.name) ?? null,
+            metadata: { saleType: toStringValue(saleTypeRecord.name) },
+          },
+        ];
       });
     } catch (error) {
       this.apiLogger.error("Failed to fetch Lightspeed sales", error);
@@ -264,7 +311,8 @@ export class LightspeedAdapter extends BasePosProviderAdapter {
     config: IntegrationRecord,
     update: ExternalInventoryUpdate
   ): Promise<ExternalSyncResult> {
-    const { accessToken, accountId } = config.credentials || {};
+    const accessToken = toStringValue(config.credentials.accessToken);
+    const accountId = toStringValue(config.credentials.accountId);
     if (!accessToken || !accountId) {
       return { success: false, error: "Missing credentials" };
     }
@@ -285,8 +333,12 @@ export class LightspeedAdapter extends BasePosProviderAdapter {
         return { success: false, error: `Item fetch failed: ${itemResponse.status}` };
       }
 
-      const itemData = await itemResponse.json();
-      const shopId = update.externalLocationId || itemData.Item?.ItemShops?.ItemShop?.[0]?.shopID;
+      const itemData: unknown = await itemResponse.json();
+      const itemRecord = isRecord(itemData) ? itemData : {};
+      const itemInfo = isRecord(itemRecord.Item) ? itemRecord.Item : {};
+      const itemShops = isRecord(itemInfo.ItemShops) ? itemInfo.ItemShops : {};
+      const shopEntry = toRecordArray(itemShops.ItemShop)[0];
+      const shopId = update.externalLocationId || (shopEntry ? toStringValue(shopEntry.shopID) : undefined);
 
       if (!shopId) {
         return { success: false, error: "Could not determine shop location" };
@@ -319,8 +371,8 @@ export class LightspeedAdapter extends BasePosProviderAdapter {
 
       const errorText = await updateResponse.text();
       return { success: false, error: `Update failed: ${errorText}` };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error) };
     }
   }
 
@@ -328,7 +380,8 @@ export class LightspeedAdapter extends BasePosProviderAdapter {
     config: IntegrationRecord,
     update: ExternalPriceUpdate
   ): Promise<ExternalSyncResult> {
-    const { accessToken, accountId } = config.credentials || {};
+    const accessToken = toStringValue(config.credentials.accessToken);
+    const accountId = toStringValue(config.credentials.accountId);
     if (!accessToken || !accountId) {
       return { success: false, error: "Missing credentials" };
     }
@@ -360,8 +413,8 @@ export class LightspeedAdapter extends BasePosProviderAdapter {
 
       const errorText = await response.text();
       return { success: false, error: `Price update failed: ${errorText}` };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error) };
     }
   }
 
@@ -369,7 +422,8 @@ export class LightspeedAdapter extends BasePosProviderAdapter {
     config: IntegrationRecord,
     product: ExternalProductPush
   ): Promise<ExternalSyncResult> {
-    const { accessToken, accountId } = config.credentials || {};
+    const accessToken = toStringValue(config.credentials.accessToken);
+    const accountId = toStringValue(config.credentials.accountId);
     if (!accessToken || !accountId) {
       return { success: false, error: "Missing credentials" };
     }
@@ -411,8 +465,8 @@ export class LightspeedAdapter extends BasePosProviderAdapter {
 
       const errorText = await response.text();
       return { success: false, error: errorText };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error) };
     }
   }
 }
@@ -432,7 +486,8 @@ export class ShopifyPosAdapter extends BasePosProviderAdapter {
   }
 
   async validateCredentials(config: IntegrationRecord): Promise<ProviderValidationResult> {
-    const { accessToken, shopDomain } = config.credentials || {};
+    const accessToken = toStringValue(config.credentials.accessToken);
+    const shopDomain = toStringValue(config.credentials.shopDomain);
     if (!accessToken || !shopDomain) {
       return { ok: false, message: "Missing accessToken or shopDomain" };
     }
@@ -446,22 +501,25 @@ export class ShopifyPosAdapter extends BasePosProviderAdapter {
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const data: unknown = await response.json();
+        const dataRecord = isRecord(data) ? data : {};
+        const shopRecord = isRecord(dataRecord.shop) ? dataRecord.shop : {};
         return {
           ok: true,
           message: "Credentials validated",
-          details: { shopName: data.shop?.name },
+          details: { shopName: toStringValue(shopRecord.name) },
         };
       }
 
       return { ok: false, message: `API returned ${response.status}` };
-    } catch (error: any) {
-      return { ok: false, message: error.message };
+    } catch (error) {
+      return { ok: false, message: getErrorMessage(error) };
     }
   }
 
   async fetchProducts(config: IntegrationRecord): Promise<ExternalProduct[]> {
-    const { accessToken, shopDomain } = config.credentials || {};
+    const accessToken = toStringValue(config.credentials.accessToken);
+    const shopDomain = toStringValue(config.credentials.shopDomain);
     if (!accessToken || !shopDomain) return [];
 
     try {
@@ -480,24 +538,35 @@ export class ShopifyPosAdapter extends BasePosProviderAdapter {
         return [];
       }
 
-      const data = await response.json();
+      const data: unknown = await response.json();
+      const dataRecord = isRecord(data) ? data : {};
       const products: ExternalProduct[] = [];
+      const productRecords = toRecordArray(dataRecord.products);
 
-      for (const product of data.products || []) {
-        // Each variant becomes a product
-        for (const variant of product.variants || []) {
+      for (const product of productRecords) {
+        const variants = toRecordArray(product.variants);
+        const productTitle = toStringValue(product.title) ?? toStringValue(product.id) ?? "Untitled product";
+        const productType = toStringValue(product.product_type) ?? null;
+
+        for (const variant of variants) {
+          const variantId = toStringValue(variant.id);
+          if (!variantId) continue;
+          const variantTitle = toStringValue(variant.title);
+          const name = variants.length > 1 && variantTitle
+            ? `${productTitle} - ${variantTitle}`
+            : productTitle;
+          const priceCents = Math.round((toNumberValue(variant.price) ?? 0) * 100);
+
           products.push({
-            externalId: variant.id.toString(),
-            externalSku: variant.sku || null,
-            name: product.variants.length > 1
-              ? `${product.title} - ${variant.title}`
-              : product.title,
-            priceCents: Math.round(parseFloat(variant.price || "0") * 100),
-            category: product.product_type || null,
-            barcode: variant.barcode || null,
+            externalId: variantId,
+            externalSku: toStringValue(variant.sku) ?? null,
+            name,
+            priceCents,
+            category: productType,
+            barcode: toStringValue(variant.barcode) ?? null,
             metadata: {
-              productId: product.id,
-              inventoryItemId: variant.inventory_item_id,
+              productId: toStringValue(product.id),
+              inventoryItemId: toStringValue(variant.inventory_item_id),
             },
           });
         }
@@ -511,7 +580,8 @@ export class ShopifyPosAdapter extends BasePosProviderAdapter {
   }
 
   async fetchSales(config: IntegrationRecord, since: Date): Promise<ExternalSale[]> {
-    const { accessToken, shopDomain } = config.credentials || {};
+    const accessToken = toStringValue(config.credentials.accessToken);
+    const shopDomain = toStringValue(config.credentials.shopDomain);
     if (!accessToken || !shopDomain) return [];
 
     try {
@@ -531,29 +601,51 @@ export class ShopifyPosAdapter extends BasePosProviderAdapter {
         return [];
       }
 
-      const data = await response.json();
+      const data: unknown = await response.json();
+      const dataRecord = isRecord(data) ? data : {};
+      const orders = toRecordArray(dataRecord.orders);
 
-      return (data.orders || [])
-        .filter((order: any) => order.source_name === "pos")
-        .map((order: any) => ({
-          externalTransactionId: order.id.toString(),
-          saleDate: new Date(order.created_at),
-          items: (order.line_items || []).map((item: any) => ({
-            externalProductId: item.variant_id?.toString() || item.product_id?.toString(),
-            externalSku: item.sku || null,
-            qty: item.quantity,
-            priceCents: Math.round(parseFloat(item.price || "0") * 100),
-            discountCents: Math.round(
-              (item.discount_allocations || []).reduce(
-                (sum: number, d: any) => sum + parseFloat(d.amount || "0"),
-                0
-              ) * 100
-            ),
-          })),
-          totalCents: Math.round(parseFloat(order.total_price || "0") * 100),
-          paymentMethod: order.payment_gateway_names?.[0] || null,
-          metadata: { orderNumber: order.order_number },
-        }));
+      return orders
+        .filter((order) => toStringValue(order.source_name) === "pos")
+        .flatMap((order) => {
+          const orderId = toStringValue(order.id);
+          const createdAt = toStringValue(order.created_at);
+          if (!orderId || !createdAt) return [];
+
+          const lineItems = toRecordArray(order.line_items);
+          const paymentGateways = Array.isArray(order.payment_gateway_names) ? order.payment_gateway_names : [];
+          const paymentMethod = toStringValue(paymentGateways[0]) ?? null;
+
+          return [
+            {
+              externalTransactionId: orderId,
+              saleDate: new Date(createdAt),
+              items: lineItems.flatMap((item) => {
+                const variantId = toStringValue(item.variant_id);
+                const productId = toStringValue(item.product_id);
+                const externalProductId = variantId ?? productId;
+                if (!externalProductId) return [];
+                const discountAllocations = toRecordArray(item.discount_allocations);
+                const discountTotal = discountAllocations.reduce(
+                  (sum, allocation) => sum + (toNumberValue(allocation.amount) ?? 0),
+                  0
+                );
+                return [
+                  {
+                    externalProductId,
+                    externalSku: toStringValue(item.sku) ?? null,
+                    qty: toNumberValue(item.quantity) ?? 0,
+                    priceCents: Math.round((toNumberValue(item.price) ?? 0) * 100),
+                    discountCents: Math.round(discountTotal * 100),
+                  },
+                ];
+              }),
+              totalCents: Math.round((toNumberValue(order.total_price) ?? 0) * 100),
+              paymentMethod,
+              metadata: { orderNumber: toStringValue(order.order_number) },
+            },
+          ];
+        });
     } catch (error) {
       this.apiLogger.error("Failed to fetch Shopify sales", error);
       return [];
@@ -564,7 +656,9 @@ export class ShopifyPosAdapter extends BasePosProviderAdapter {
     config: IntegrationRecord,
     update: ExternalInventoryUpdate
   ): Promise<ExternalSyncResult> {
-    const { accessToken, shopDomain, locationId } = config.credentials || {};
+    const accessToken = toStringValue(config.credentials.accessToken);
+    const shopDomain = toStringValue(config.credentials.shopDomain);
+    const locationId = toStringValue(config.credentials.locationId);
     if (!accessToken || !shopDomain) {
       return { success: false, error: "Missing credentials" };
     }
@@ -585,8 +679,10 @@ export class ShopifyPosAdapter extends BasePosProviderAdapter {
         return { success: false, error: `Variant fetch failed: ${variantResponse.status}` };
       }
 
-      const variantData = await variantResponse.json();
-      const inventoryItemId = variantData.variant?.inventory_item_id;
+      const variantData: unknown = await variantResponse.json();
+      const variantRecord = isRecord(variantData) ? variantData : {};
+      const variantDetails = isRecord(variantRecord.variant) ? variantRecord.variant : {};
+      const inventoryItemId = toStringValue(variantDetails.inventory_item_id);
 
       if (!inventoryItemId) {
         return { success: false, error: "No inventory_item_id found" };
@@ -621,8 +717,8 @@ export class ShopifyPosAdapter extends BasePosProviderAdapter {
 
       const errorText = await response.text();
       return { success: false, error: errorText };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error) };
     }
   }
 
@@ -630,13 +726,14 @@ export class ShopifyPosAdapter extends BasePosProviderAdapter {
     config: IntegrationRecord,
     update: ExternalPriceUpdate
   ): Promise<ExternalSyncResult> {
-    const { accessToken, shopDomain } = config.credentials || {};
+    const accessToken = toStringValue(config.credentials.accessToken);
+    const shopDomain = toStringValue(config.credentials.shopDomain);
     if (!accessToken || !shopDomain) {
       return { success: false, error: "Missing credentials" };
     }
 
     try {
-      const body: any = {
+      const body: { variant: { id: string; price: string; compare_at_price?: string } } = {
         variant: {
           id: update.externalId,
           price: (update.priceCents / 100).toFixed(2),
@@ -667,8 +764,8 @@ export class ShopifyPosAdapter extends BasePosProviderAdapter {
 
       const errorText = await response.text();
       return { success: false, error: errorText };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error) };
     }
   }
 
@@ -676,7 +773,8 @@ export class ShopifyPosAdapter extends BasePosProviderAdapter {
     config: IntegrationRecord,
     product: ExternalProductPush
   ): Promise<ExternalSyncResult> {
-    const { accessToken, shopDomain } = config.credentials || {};
+    const accessToken = toStringValue(config.credentials.accessToken);
+    const shopDomain = toStringValue(config.credentials.shopDomain);
     if (!accessToken || !shopDomain) {
       return { success: false, error: "Missing credentials" };
     }
@@ -736,20 +834,23 @@ export class ShopifyPosAdapter extends BasePosProviderAdapter {
         }
       );
 
-      if (response.ok) {
-        const data = await response.json();
-        const variantId = data.product?.variants?.[0]?.id;
-        return {
-          success: true,
-          externalId: variantId?.toString() || null,
-          message: "Product created",
-        };
-      }
+        if (response.ok) {
+          const data: unknown = await response.json();
+          const dataRecord = isRecord(data) ? data : {};
+          const productRecord = isRecord(dataRecord.product) ? dataRecord.product : {};
+          const variants = toRecordArray(productRecord.variants);
+          const variantId = variants[0] ? toStringValue(variants[0].id) : undefined;
+          return {
+            success: true,
+            externalId: variantId?.toString() || null,
+            message: "Product created",
+          };
+        }
 
       const errorText = await response.text();
       return { success: false, error: errorText };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error) };
     }
   }
 }
@@ -768,7 +869,8 @@ export class VendAdapter extends BasePosProviderAdapter {
   }
 
   async validateCredentials(config: IntegrationRecord): Promise<ProviderValidationResult> {
-    const { accessToken, domainPrefix } = config.credentials || {};
+    const accessToken = toStringValue(config.credentials.accessToken);
+    const domainPrefix = toStringValue(config.credentials.domainPrefix);
     if (!accessToken || !domainPrefix) {
       return { ok: false, message: "Missing accessToken or domainPrefix" };
     }
@@ -782,22 +884,25 @@ export class VendAdapter extends BasePosProviderAdapter {
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const data: unknown = await response.json();
+        const dataRecord = isRecord(data) ? data : {};
+        const dataDetails = isRecord(dataRecord.data) ? dataRecord.data : {};
         return {
           ok: true,
           message: "Credentials validated",
-          details: { retailerName: data.data?.name },
+          details: { retailerName: toStringValue(dataDetails.name) },
         };
       }
 
       return { ok: false, message: `API returned ${response.status}` };
-    } catch (error: any) {
-      return { ok: false, message: error.message };
+    } catch (error) {
+      return { ok: false, message: getErrorMessage(error) };
     }
   }
 
   async fetchProducts(config: IntegrationRecord): Promise<ExternalProduct[]> {
-    const { accessToken, domainPrefix } = config.credentials || {};
+    const accessToken = toStringValue(config.credentials.accessToken);
+    const domainPrefix = toStringValue(config.credentials.domainPrefix);
     if (!accessToken || !domainPrefix) return [];
 
     try {
@@ -818,28 +923,37 @@ export class VendAdapter extends BasePosProviderAdapter {
 
         if (!response.ok) break;
 
-        const data = await response.json();
-        const items = data.data || [];
+        const data: unknown = await response.json();
+        const dataRecord = isRecord(data) ? data : {};
+        const items = toRecordArray(dataRecord.data);
 
         if (items.length === 0) break;
 
         for (const item of items) {
+          const externalId = toStringValue(item.id);
+          const name = toStringValue(item.name);
+          if (!externalId || !name) {
+            continue;
+          }
+          const productType = isRecord(item.product_type) ? item.product_type : {};
           products.push({
-            externalId: item.id,
-            externalSku: item.sku || null,
-            name: item.name,
-            priceCents: Math.round((item.price_including_tax || 0) * 100),
-            category: item.product_type?.name || null,
-            barcode: item.supplier_code || null,
+            externalId,
+            externalSku: toStringValue(item.sku) ?? null,
+            name,
+            priceCents: Math.round((toNumberValue(item.price_including_tax) ?? 0) * 100),
+            category: toStringValue(productType.name) ?? null,
+            barcode: toStringValue(item.supplier_code) ?? null,
             metadata: {
-              variantParentId: item.variant_parent_id,
-              supplierId: item.supplier_id,
+              variantParentId: toStringValue(item.variant_parent_id),
+              supplierId: toStringValue(item.supplier_id),
             },
           });
         }
 
-        version = data.version?.max || 0;
-        if (!data.version?.max) break;
+        const versionRecord = isRecord(dataRecord.version) ? dataRecord.version : {};
+        const maxVersion = toNumberValue(versionRecord.max) ?? 0;
+        version = maxVersion;
+        if (!maxVersion) break;
       }
 
       return products;
@@ -850,7 +964,8 @@ export class VendAdapter extends BasePosProviderAdapter {
   }
 
   async fetchSales(config: IntegrationRecord, since: Date): Promise<ExternalSale[]> {
-    const { accessToken, domainPrefix } = config.credentials || {};
+    const accessToken = toStringValue(config.credentials.accessToken);
+    const domainPrefix = toStringValue(config.credentials.domainPrefix);
     if (!accessToken || !domainPrefix) return [];
 
     try {
@@ -870,22 +985,41 @@ export class VendAdapter extends BasePosProviderAdapter {
         return [];
       }
 
-      const data = await response.json();
+      const data: unknown = await response.json();
+      const dataRecord = isRecord(data) ? data : {};
+      const sales = toRecordArray(dataRecord.data);
 
-      return (data.data || []).map((sale: any) => ({
-        externalTransactionId: sale.id,
-        saleDate: new Date(sale.sale_date),
-        items: (sale.line_items || []).map((item: any) => ({
-          externalProductId: item.product_id,
-          externalSku: item.sku || null,
-          qty: item.quantity,
-          priceCents: Math.round((item.price_total || 0) * 100),
-          discountCents: Math.round((item.discount_total || 0) * 100),
-        })),
-        totalCents: Math.round((sale.total_price || 0) * 100),
-        paymentMethod: sale.payments?.[0]?.payment_type_id || null,
-        metadata: { invoiceNumber: sale.invoice_number },
-      }));
+      return sales.flatMap((sale) => {
+        const saleId = toStringValue(sale.id);
+        const saleDate = toStringValue(sale.sale_date);
+        if (!saleId || !saleDate) return [];
+        const lineItems = toRecordArray(sale.line_items);
+        const payments = toRecordArray(sale.payments);
+        const paymentMethod = payments[0] ? toStringValue(payments[0].payment_type_id) : null;
+
+        return [
+          {
+            externalTransactionId: saleId,
+            saleDate: new Date(saleDate),
+            items: lineItems.flatMap((item) => {
+              const productId = toStringValue(item.product_id);
+              if (!productId) return [];
+              return [
+                {
+                  externalProductId: productId,
+                  externalSku: toStringValue(item.sku) ?? null,
+                  qty: toNumberValue(item.quantity) ?? 0,
+                  priceCents: Math.round((toNumberValue(item.price_total) ?? 0) * 100),
+                  discountCents: Math.round((toNumberValue(item.discount_total) ?? 0) * 100),
+                },
+              ];
+            }),
+            totalCents: Math.round((toNumberValue(sale.total_price) ?? 0) * 100),
+            paymentMethod,
+            metadata: { invoiceNumber: toStringValue(sale.invoice_number) },
+          },
+        ];
+      });
     } catch (error) {
       this.apiLogger.error("Failed to fetch Vend sales", error);
       return [];
@@ -896,14 +1030,15 @@ export class VendAdapter extends BasePosProviderAdapter {
     config: IntegrationRecord,
     update: ExternalInventoryUpdate
   ): Promise<ExternalSyncResult> {
-    const { accessToken, domainPrefix } = config.credentials || {};
+    const accessToken = toStringValue(config.credentials.accessToken);
+    const domainPrefix = toStringValue(config.credentials.domainPrefix);
     if (!accessToken || !domainPrefix) {
       return { success: false, error: "Missing credentials" };
     }
 
     try {
       // Vend requires knowing the outlet_id
-      const outletId = update.externalLocationId || config.credentials.defaultOutletId;
+      const outletId = update.externalLocationId || toStringValue(config.credentials.defaultOutletId);
       if (!outletId) {
         return { success: false, error: "No outlet ID specified" };
       }
@@ -937,8 +1072,8 @@ export class VendAdapter extends BasePosProviderAdapter {
 
       const errorText = await response.text();
       return { success: false, error: errorText };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error) };
     }
   }
 
@@ -946,7 +1081,8 @@ export class VendAdapter extends BasePosProviderAdapter {
     config: IntegrationRecord,
     update: ExternalPriceUpdate
   ): Promise<ExternalSyncResult> {
-    const { accessToken, domainPrefix } = config.credentials || {};
+    const accessToken = toStringValue(config.credentials.accessToken);
+    const domainPrefix = toStringValue(config.credentials.domainPrefix);
     if (!accessToken || !domainPrefix) {
       return { success: false, error: "Missing credentials" };
     }
@@ -973,8 +1109,8 @@ export class VendAdapter extends BasePosProviderAdapter {
 
       const errorText = await response.text();
       return { success: false, error: errorText };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error) };
     }
   }
 
@@ -982,7 +1118,8 @@ export class VendAdapter extends BasePosProviderAdapter {
     config: IntegrationRecord,
     product: ExternalProductPush
   ): Promise<ExternalSyncResult> {
-    const { accessToken, domainPrefix } = config.credentials || {};
+    const accessToken = toStringValue(config.credentials.accessToken);
+    const domainPrefix = toStringValue(config.credentials.domainPrefix);
     if (!accessToken || !domainPrefix) {
       return { success: false, error: "Missing credentials" };
     }
@@ -1009,18 +1146,20 @@ export class VendAdapter extends BasePosProviderAdapter {
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const data: unknown = await response.json();
+        const dataRecord = isRecord(data) ? data : {};
+        const dataDetails = isRecord(dataRecord.data) ? dataRecord.data : {};
         return {
           success: true,
-          externalId: data.data?.id || product.externalId,
+          externalId: toStringValue(dataDetails.id) ?? product.externalId,
           message: product.externalId ? "Product updated" : "Product created",
         };
       }
 
       const errorText = await response.text();
       return { success: false, error: errorText };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error) {
+      return { success: false, error: getErrorMessage(error) };
     }
   }
 }

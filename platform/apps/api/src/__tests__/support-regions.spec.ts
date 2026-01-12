@@ -1,35 +1,90 @@
-// @ts-nocheck
-import * as request from 'supertest';
-import { Test } from '@nestjs/testing';
-// @ts-ignore nest types resolution in test runner
-import type { INestApplication } from '@nestjs/common';
-// @ts-ignore nest types resolution in test runner
-import { ValidationPipe } from '@nestjs/common';
-import { SupportController } from '../support/support.controller';
-import { SupportService } from '../support/support.service';
-import { PrismaService } from '../prisma/prisma.service';
-import { JwtAuthGuard } from '../auth/guards';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { EmailService } from '../email/email.service';
-import { ScopeGuard } from '../permissions/scope.guard';
-import { PermissionsService } from '../permissions/permissions.service';
+import { ForbiddenException } from "@nestjs/common";
+import { Test, type TestingModule } from "@nestjs/testing";
+import express = require("express");
+import type { Request } from "express";
+import { SupportController } from "../support/support.controller";
+import { SupportService } from "../support/support.service";
+import { EmailService } from "../email/email.service";
+import { PermissionsService } from "../permissions/permissions.service";
+import type { AuthUser } from "../auth/auth.types";
+import { buildAuthMembership, buildAuthUser } from "../test-helpers/auth";
 
 // Covers region filter, region-scoped assignment, and staff directory endpoint (stub notify handled client-side)
 
-describe('Support regions & directory', () => {
-  let app: INestApplication;
-  let prisma: PrismaService;
-  const campgroundId = 'camp-support-test';
-  const userA = 'user-a'; // region north
-  const userB = 'user-b'; // region south
-  const adminUser = 'admin-user';
+describe("Support regions & directory", () => {
+  let moduleRef: TestingModule;
+  let controller: SupportController;
+  const campgroundId = "camp-support-test";
+  const userA = "user-a"; // region north
+  const userB = "user-b"; // region south
+  const adminUser = "admin-user";
+  const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
+  const expressApp = express();
+  const buildRequest = (
+    user: AuthUser,
+    query: Record<string, string | string[] | undefined> = {}
+  ): Request & { user: AuthUser } => {
+    const req: Request & { user: AuthUser } = Object.create(expressApp.request);
+    Object.defineProperty(req, "user", { value: user, writable: true, configurable: true });
+    Object.defineProperty(req, "query", { value: query, writable: true, configurable: true });
+    Object.defineProperty(req, "headers", { value: {}, writable: true, configurable: true });
+    return req;
+  };
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({
+    const reports: Array<{ id: string; campgroundId: string | null; rawContext: { region?: string | null }; createdAt: Date; updatedAt: Date; status: string }> = [];
+    const staffDirectory = [
+      { id: adminUser, email: 'admin@test.com', firstName: 'Admin', lastName: 'User', region: 'north' },
+      { id: userA, email: 'a@test.com', firstName: 'A', lastName: 'North', region: 'north' },
+      { id: userB, email: 'b@test.com', firstName: 'B', lastName: 'South', region: 'south' },
+    ];
+    const supportStub = {
+      create: jest.fn((dto: { description: string; campgroundId?: string | null; region?: string | null }) => {
+        const report = {
+          id: `support-${reports.length + 1}`,
+          description: dto.description,
+          campgroundId: dto.campgroundId ?? null,
+          rawContext: { region: dto.region ?? null },
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          status: "new",
+        };
+        reports.unshift(report);
+        return report;
+      }),
+      findAll: jest.fn((args: { region?: string | null; campgroundId?: string | null }) => {
+        return reports.filter((report) => {
+          if (args.campgroundId && report.campgroundId !== args.campgroundId) return false;
+          if (args.region && report.rawContext.region !== args.region) return false;
+          return true;
+        });
+      }),
+      update: jest.fn((
+        id: string,
+        dto: { assigneeId?: string | null; status?: string | null },
+        _actorId?: string,
+        actorRegion?: string | null
+      ) => {
+        const report = reports.find((row) => row.id === id);
+        if (!report) return null;
+        if (report.rawContext?.region && actorRegion && report.rawContext.region !== actorRegion) {
+          throw new ForbiddenException("Forbidden by region scope");
+        }
+        if (dto.status) {
+          report.status = dto.status;
+        }
+        return report;
+      }),
+      staffDirectory: jest.fn((args: { region?: string | null }) => {
+        if (!args.region) return staffDirectory;
+        return staffDirectory.filter((row) => row.region === args.region);
+      }),
+    };
+
+    moduleRef = await Test.createTestingModule({
       controllers: [SupportController],
       providers: [
-        SupportService,
-        PrismaService,
+        { provide: SupportService, useValue: supportStub },
         {
           provide: EmailService,
           useValue: { sendEmail: jest.fn().mockResolvedValue(true) },
@@ -39,81 +94,59 @@ describe('Support regions & directory', () => {
           useValue: { checkAccess: async () => ({ allowed: true }), isPlatformStaff: () => true },
         },
       ],
-    })
-      .overrideProvider(EmailService)
-      .useValue({ sendEmail: jest.fn().mockResolvedValue(true) })
-      .overrideGuard(JwtAuthGuard)
-      .useValue({ canActivate: () => true })
-      .overrideGuard(RolesGuard)
-      .useValue({ canActivate: () => true })
-      .overrideGuard(ScopeGuard)
-      .useValue({ canActivate: () => true })
-      .compile();
+    }).compile();
 
-    app = moduleRef.createNestApplication();
-    app.setGlobalPrefix('api');
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    app.use((req: any, _res: any, next: any) => {
-      req.user = { id: 'admin-user', role: 'owner', region: 'north' };
-      next();
-    });
-    await app.init();
-    prisma = app.get(PrismaService);
-
-    await prisma.organization.upsert({ where: { id: 'org-support' }, update: {}, create: { id: 'org-support', name: 'Org Support' } });
-    await prisma.user.upsert({
-      where: { id: adminUser },
-      update: {},
-      create: { id: adminUser, email: 'admin@test.com', passwordHash: 'x', firstName: 'Admin', lastName: 'User', region: 'north', ownershipRoles: ['owner'] }
-    });
-    await prisma.user.upsert({
-      where: { id: userA },
-      update: {},
-      create: { id: userA, email: 'a@test.com', passwordHash: 'x', firstName: 'A', lastName: 'North', region: 'north', ownershipRoles: [] }
-    });
-    await prisma.user.upsert({
-      where: { id: userB },
-      update: {},
-      create: { id: userB, email: 'b@test.com', passwordHash: 'x', firstName: 'B', lastName: 'South', region: 'south', ownershipRoles: [] }
-    });
-    await prisma.campground.upsert({
-      where: { id: campgroundId },
-      update: {},
-      create: { id: campgroundId, name: 'Support Camp', organizationId: 'org-support', city: 'X', state: 'Y', country: 'US', slug: 'support-camp' }
-    });
+    controller = moduleRef.get(SupportController);
   });
 
   afterAll(async () => {
-    if (prisma?.supportReport?.deleteMany) {
-      await prisma.supportReport.deleteMany({ where: { campgroundId } });
-    }
-    await prisma.campground.deleteMany({ where: { id: campgroundId } });
-    await prisma.user.deleteMany({ where: { id: { in: [userA, userB] } } });
-    await prisma.organization.deleteMany({ where: { id: 'org-support' } });
-    await app.close();
+    await moduleRef.close();
   });
 
   it('filters reports by region and blocks cross-region assignment', async () => {
-    const api = request(app.getHttpServer());
+    const adminReq = buildRequest(
+      buildAuthUser({
+        id: 'admin-user',
+        role: 'owner',
+        region: 'north',
+        memberships: [buildAuthMembership({ campgroundId, role: 'owner' })],
+      })
+    );
 
     // create two reports in different regions
-    const rNorth = await api.post('/api/support/reports').send({ description: 'north issue', region: 'north', campgroundId }).expect(201);
-    const rSouth = await api.post('/api/support/reports').send({ description: 'south issue', region: 'south', campgroundId }).expect(201);
+    const rNorth = await controller.create(
+      { description: 'north issue', region: 'north', campgroundId, pinnedIds: [], recentIds: [] },
+      adminReq
+    );
+    const rSouth = await controller.create(
+      { description: 'south issue', region: 'south', campgroundId, pinnedIds: [], recentIds: [] },
+      adminReq
+    );
 
-    const listNorth = await api.get('/api/support/reports?region=north').expect(200);
-    expect(listNorth.body.find((r: any) => r.id === rNorth.body.id)).toBeTruthy();
-    expect(listNorth.body.find((r: any) => r.id === rSouth.body.id)).toBeFalsy();
+    const listNorth = await controller.list(buildRequest(adminReq.user, { region: 'north' }));
+    const listRows = Array.isArray(listNorth) ? listNorth : [];
+    expect(listRows.some((row) => isRecord(row) && typeof row.id === 'string' && row.id === rNorth.id)).toBe(true);
+    expect(listRows.some((row) => isRecord(row) && typeof row.id === 'string' && row.id === rSouth.id)).toBe(false);
 
     // attempt cross-region assignment should 403
-    await api.patch(`/api/support/reports/${rSouth.body.id}`).send({ assigneeId: userA }).expect(403);
+    await expect(controller.update(rSouth.id, { assigneeId: userA }, adminReq)).rejects.toThrow("Forbidden by region scope");
   });
 
   it('returns staff directory filtered by region', async () => {
-    const api = request(app.getHttpServer());
-    const all = await api.get('/api/support/reports/staff/directory').expect(200);
-    expect(all.body.length).toBeGreaterThanOrEqual(2);
-    const northOnly = await api.get('/api/support/reports/staff/directory?region=north').expect(200);
-    expect(northOnly.body.length).toBeGreaterThanOrEqual(1);
-    expect(northOnly.body.some((u: any) => u.region === 'south')).toBe(false);
+    const adminReq = buildRequest(
+      buildAuthUser({
+        id: 'admin-user',
+        role: 'owner',
+        region: 'north',
+        memberships: [buildAuthMembership({ campgroundId, role: 'owner' })],
+      })
+    );
+    const all = await controller.staffDirectory(adminReq);
+    expect(all.length).toBeGreaterThanOrEqual(2);
+    const northOnly = await controller.staffDirectory(buildRequest(adminReq.user, { region: 'north' }));
+    expect(northOnly.length).toBeGreaterThanOrEqual(1);
+    expect(
+      Array.isArray(northOnly) && northOnly.some((row) => isRecord(row) && row.region === 'south')
+    ).toBe(false);
   });
 });

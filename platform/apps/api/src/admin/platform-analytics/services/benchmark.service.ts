@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../../prisma/prisma.service";
 import { DateRange } from "../platform-analytics.service";
 
-interface PlatformBenchmarks {
+export interface PlatformBenchmarks {
   revenue: {
     averagePerCampground: number;
     medianPerCampground: number;
@@ -27,7 +27,7 @@ interface PlatformBenchmarks {
   };
 }
 
-interface CampgroundComparison {
+export interface CampgroundComparison {
   campground: {
     id: string;
     name: string;
@@ -78,7 +78,7 @@ export class BenchmarkService {
         arrivalDate: true,
         departureDate: true,
         leadTimeDays: true,
-        site: { select: { siteType: true } },
+        Site: { select: { siteType: true } },
       },
     });
 
@@ -89,7 +89,7 @@ export class BenchmarkService {
         (new Date(res.departureDate).getTime() - new Date(res.arrivalDate).getTime()) /
         (1000 * 60 * 60 * 24)
       );
-      losData.push({ los, type: res.site?.siteType || "unknown" });
+      losData.push({ los, type: res.Site?.siteType || "unknown" });
     }
 
     const avgLos = losData.length > 0
@@ -117,7 +117,7 @@ export class BenchmarkService {
       if (nights > 0) {
         adrData.push({
           rate: (res.totalAmount || 0) / nights,
-          type: res.site?.siteType || "unknown",
+          type: res.Site?.siteType || "unknown",
         });
       }
     }

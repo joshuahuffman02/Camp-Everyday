@@ -27,7 +27,11 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { CelebrationAnimation } from "./CelebrationAnimation";
 
-const SPRING_CONFIG = { type: "spring" as const, stiffness: 200, damping: 15 };
+const SPRING_CONFIG: { type: "spring"; stiffness: number; damping: number } = {
+  type: "spring",
+  stiffness: 200,
+  damping: 15,
+};
 
 export interface BookingReceiptData {
   reservationId: string;

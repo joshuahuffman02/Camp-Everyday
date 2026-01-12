@@ -1,16 +1,98 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { EmailService } from "../email/email.service";
-import { CreateTicketDto, UpdateTicketDto } from "./dto";
+import { CreateTicketDto, UpdateTicketDto, TicketCategoryType, TicketStateType } from "./dto";
+import { TicketCategory, TicketState } from "@prisma/client";
+import type { Prisma, Ticket } from "@prisma/client";
+import { randomUUID } from "crypto";
 
-type TicketData = CreateTicketDto & {
+type TicketSubmitter = {
+    id?: string | null;
+    name?: string | null;
+    email?: string | null;
+};
+
+type TicketUpvoter = TicketSubmitter;
+
+export type TicketData = CreateTicketDto & {
     id?: string;
     createdAt?: string;
     completedAt?: string;
-    status?: string;
+    status?: TicketStateType | "completed";
     agentNotes?: string;
     votes?: number;
-    upvoters?: any[];
+    upvoters?: TicketUpvoter[];
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null;
+
+const getString = (value: unknown): string | undefined =>
+    typeof value === "string" ? value : undefined;
+
+const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined => {
+    if (value === undefined || value === null) return undefined;
+    try {
+        return JSON.parse(JSON.stringify(value));
+    } catch {
+        return undefined;
+    }
+};
+
+const normalizeTicketCategory = (value?: TicketCategoryType): TicketCategory => {
+    switch (value) {
+        case "question":
+            return TicketCategory.question;
+        case "feature":
+            return TicketCategory.feature;
+        case "other":
+            return TicketCategory.other;
+        case "issue":
+        default:
+            return TicketCategory.issue;
+    }
+};
+
+const normalizeTicketState = (value?: TicketStateType): TicketState | undefined => {
+    switch (value) {
+        case "open":
+            return TicketState.open;
+        case "in_progress":
+            return TicketState.in_progress;
+        case "blocked":
+            return TicketState.blocked;
+        case "resolved":
+            return TicketState.resolved;
+        case "reopened":
+            return TicketState.reopened;
+        case "closed":
+            return TicketState.closed;
+        default:
+            return undefined;
+    }
+};
+
+const normalizeUpvoters = (value: unknown): TicketUpvoter[] => {
+    if (!Array.isArray(value)) return [];
+    const upvoters: TicketUpvoter[] = [];
+    for (const entry of value) {
+        if (!isRecord(entry)) continue;
+        upvoters.push({
+            id: getString(entry.id) ?? null,
+            name: getString(entry.name) ?? null,
+            email: getString(entry.email) ?? null,
+        });
+    }
+    return upvoters;
+};
+
+const normalizeSubmitter = (value: unknown): TicketSubmitter | null => {
+    if (!isRecord(value)) return null;
+    return {
+        id: getString(value.id) ?? null,
+        name: getString(value.name) ?? null,
+        email: getString(value.email) ?? null,
+    };
 };
 
 @Injectable()
@@ -31,17 +113,18 @@ export class TicketsService {
     async create(dto: CreateTicketDto) {
         const ticket = await this.prisma.ticket.create({
             data: {
+                id: randomUUID(),
                 title: dto.title?.trim() || "Untitled ticket",
                 notes: dto.notes?.trim() || null,
-                category: (dto.category as any) || "issue",
+                category: normalizeTicketCategory(dto.category),
                 area: dto.area || null,
                 url: dto.url || null,
                 path: dto.path || null,
                 pageTitle: dto.pageTitle || null,
                 selection: dto.selection || null,
-                submitter: dto.submitter || null,
-                client: dto.client || null,
-                extra: dto.extra || null,
+                submitter: toJsonValue(dto.submitter) ?? undefined,
+                client: toJsonValue(dto.client) ?? undefined,
+                extra: toJsonValue(dto.extra) ?? undefined,
                 status: "open",
                 votes: 0,
                 upvoters: [],
@@ -60,7 +143,7 @@ export class TicketsService {
         // Handle upvote action
         if (dto.action === "upvote") {
             const actorKey = dto.actor?.id || dto.actor?.email;
-            const existingUpvoters = (ticket.upvoters as any[]) || [];
+            const existingUpvoters = normalizeUpvoters(ticket.upvoters);
             const alreadyUpvoted = actorKey
                 ? existingUpvoters.some(
                     (u) =>
@@ -88,13 +171,16 @@ export class TicketsService {
         }
 
         // Handle status/notes update
-        const updateData: any = {};
+        const updateData: Prisma.TicketUpdateInput = {};
         const wasResolved = ticket.status === "resolved" || ticket.status === "closed";
 
         if (dto.status) {
-            updateData.status = dto.status;
-            if (dto.status === "resolved" || dto.status === "closed") {
-                updateData.completedAt = new Date();
+            const normalizedStatus = normalizeTicketState(dto.status);
+            if (normalizedStatus) {
+                updateData.status = normalizedStatus;
+                if (normalizedStatus === TicketState.resolved || normalizedStatus === TicketState.closed) {
+                    updateData.completedAt = new Date();
+                }
             }
         }
 
@@ -110,7 +196,7 @@ export class TicketsService {
         // Send email notification when ticket is resolved/closed
         const isNowResolved = updated.status === "resolved" || updated.status === "closed";
         if (isNowResolved && !wasResolved) {
-            const submitter = ticket.submitter as any;
+            const submitter = normalizeSubmitter(ticket.submitter);
             const submitterEmail = submitter?.email;
 
             if (submitterEmail) {
@@ -138,29 +224,28 @@ export class TicketsService {
         for (const ticket of tickets) {
             try {
                 // Map old status values to new TicketState enum
-                let mappedStatus = ticket.status || "open";
-                if (mappedStatus === "completed") {
-                    mappedStatus = "resolved"; // Map old 'completed' to new 'resolved'
-                }
+                const mappedStatus = ticket.status === "completed"
+                    ? TicketState.resolved
+                    : normalizeTicketState(ticket.status) ?? TicketState.open;
 
                 const created = await this.prisma.ticket.create({
                     data: {
-                        id: ticket.id || undefined,
+                        id: ticket.id ?? randomUUID(),
                         title: ticket.title?.trim() || "Untitled ticket",
                         notes: ticket.notes?.trim() || null,
-                        category: (ticket.category as any) || "issue",
+                        category: normalizeTicketCategory(ticket.category),
                         area: ticket.area || null,
                         url: ticket.url || null,
                         path: ticket.path || null,
                         pageTitle: ticket.pageTitle || null,
                         selection: ticket.selection || null,
-                        submitter: ticket.submitter || null,
-                        client: ticket.client || null,
-                        extra: ticket.extra || null,
-                        status: mappedStatus as any,
+                        submitter: toJsonValue(ticket.submitter) ?? undefined,
+                        client: toJsonValue(ticket.client) ?? undefined,
+                        extra: toJsonValue(ticket.extra) ?? undefined,
+                        status: mappedStatus,
                         agentNotes: ticket.agentNotes?.trim() || null,
                         votes: ticket.votes || 0,
-                        upvoters: ticket.upvoters || [],
+                        upvoters: toJsonValue(ticket.upvoters) ?? [],
                         createdAt: ticket.createdAt ? new Date(ticket.createdAt) : undefined,
                         completedAt: ticket.completedAt ? new Date(ticket.completedAt) : null,
                     },
@@ -174,7 +259,7 @@ export class TicketsService {
         return results;
     }
 
-    private async notifyTicketCreated(ticket: any) {
+    private async notifyTicketCreated(ticket: Ticket) {
         const recipients = (process.env.SUPPORT_TICKETS_EMAILS || "tickets@keeprstay.com")
             .split(",")
             .map((email) => email.trim())
@@ -182,7 +267,7 @@ export class TicketsService {
 
         if (recipients.length === 0) return;
 
-        const submitter = ticket.submitter as any;
+        const submitter = normalizeSubmitter(ticket.submitter);
         const submitterLine = submitter?.email
             ? `${submitter.name ? `${submitter.name} · ` : ""}${submitter.email}`
             : (submitter?.name || "");

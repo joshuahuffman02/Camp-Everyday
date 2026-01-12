@@ -33,17 +33,25 @@ export function ReviewsSection({
   totalCount,
   className,
 }: ReviewsSectionProps) {
+  const filterOptions: Array<"all" | "recent" | "highest" | "photos"> = [
+    "all",
+    "recent",
+    "highest",
+    "photos",
+  ];
   const prefersReducedMotion = useReducedMotion();
   const [showAll, setShowAll] = useState(false);
   const [filter, setFilter] = useState<"all" | "recent" | "highest" | "photos">("all");
 
   // Calculate rating distribution
   const distribution = useMemo(() => {
-    const dist = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+    const dist: Record<1 | 2 | 3 | 4 | 5, number> = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+    const isRatingKey = (value: number): value is 1 | 2 | 3 | 4 | 5 =>
+      value >= 1 && value <= 5;
     reviews.forEach((r) => {
       const rounded = Math.round(r.rating);
-      if (rounded >= 1 && rounded <= 5) {
-        dist[rounded as keyof typeof dist]++;
+      if (isRatingKey(rounded)) {
+        dist[rounded] += 1;
       }
     });
     const total = reviews.length || 1;
@@ -126,7 +134,7 @@ export function ReviewsSection({
 
         {/* Filter tabs */}
         <div className="flex gap-2 flex-wrap">
-          {(["all", "recent", "highest", "photos"] as const).map((f) => (
+          {filterOptions.map((f) => (
             <Button
               key={f}
               variant={filter === f ? "default" : "outline"}

@@ -24,7 +24,8 @@ type AdminTopBarProps = {
 function useClickOutside(ref: React.RefObject<HTMLElement | null>, handler: () => void) {
     useEffect(() => {
         const listener = (event: MouseEvent | TouchEvent) => {
-            if (!ref.current || ref.current.contains(event.target as Node)) {
+            const target = event.target;
+            if (!ref.current || !(target instanceof Node) || ref.current.contains(target)) {
                 return;
             }
             handler();
@@ -46,22 +47,7 @@ type CommandItem = {
 };
 
 // Types
-type Notification = {
-    id: string;
-    type: string;
-    title: string;
-    body?: string;
-    readAt?: string | null;
-    createdAt: string;
-};
-
-type WindowWithKeyboardShortcuts = Window & {
-    __keyboardShortcuts?: {
-        onSearch: (callback: () => void) => void;
-        onHelp: (callback: () => void) => void;
-        onCloseModal: (callback: () => void) => void;
-    };
-};
+type Notification = Awaited<ReturnType<typeof apiClient.getNotifications>>[number];
 
 // Notification type configuration
 const notificationConfig: Record<string, { icon: string; color: string; href: string }> = {
@@ -101,21 +87,19 @@ export function AdminTopBar({
 
     // Register callbacks with keyboard shortcuts system
     useEffect(() => {
-        if (typeof window !== "undefined") {
-            const windowWithShortcuts = window as WindowWithKeyboardShortcuts;
-            if (windowWithShortcuts.__keyboardShortcuts) {
-                windowWithShortcuts.__keyboardShortcuts.onSearch(() => setIsSearchOpen(true));
-                windowWithShortcuts.__keyboardShortcuts.onHelp(() => {
-                    setIsHelpPanelOpen(true);
-                    setIsNotificationsOpen(false);
-                });
-                windowWithShortcuts.__keyboardShortcuts.onCloseModal(() => {
-                    setIsSearchOpen(false);
-                    setIsNotificationsOpen(false);
-                    setIsHelpPanelOpen(false);
-                });
-            }
-        }
+        if (typeof window === "undefined") return;
+        const shortcuts = window.__keyboardShortcuts;
+        if (!shortcuts) return;
+        shortcuts.onSearch(() => setIsSearchOpen(true));
+        shortcuts.onHelp(() => {
+            setIsHelpPanelOpen(true);
+            setIsNotificationsOpen(false);
+        });
+        shortcuts.onCloseModal(() => {
+            setIsSearchOpen(false);
+            setIsNotificationsOpen(false);
+            setIsHelpPanelOpen(false);
+        });
     }, []);
 
     // Focus search input when opened
@@ -270,7 +254,7 @@ export function AdminTopBar({
         refetchInterval: 30000, // Refresh every 30 seconds
     });
 
-    const notifications = (notificationsData || []) as Notification[];
+    const notifications = notificationsData ?? [];
     const unreadCount = notifications.filter((n) => !n.readAt).length;
 
     // Mark notification as read mutation

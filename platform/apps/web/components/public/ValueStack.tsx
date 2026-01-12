@@ -45,6 +45,7 @@ export function ValueStack({ className }: ValueStackProps) {
   const ref = useRef<HTMLElement>(null);
   const isInView = useInView(ref, { once: true, margin: "-50px" });
   const prefersReducedMotion = useReducedMotionSafe();
+  const easeOut: "easeOut" = "easeOut";
 
   const containerVariants = {
     hidden: { opacity: prefersReducedMotion ? 1 : 0 },
@@ -59,7 +60,7 @@ export function ValueStack({ className }: ValueStackProps) {
     visible: {
       opacity: 1,
       y: 0,
-      transition: prefersReducedMotion ? undefined : { duration: 0.5, ease: "easeOut" as const },
+      transition: prefersReducedMotion ? undefined : { duration: 0.5, ease: easeOut },
     },
   };
 

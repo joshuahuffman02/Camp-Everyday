@@ -2,6 +2,9 @@ import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from "@
 import { Reflector } from "@nestjs/core";
 import { API_SCOPES_KEY } from "../decorators/api-scopes.decorator";
 import { ApiPrincipal } from "../types";
+import type { Request } from "express";
+
+type ApiScopeRequest = Request & { apiPrincipal?: ApiPrincipal };
 
 @Injectable()
 export class ApiScopeGuard implements CanActivate {
@@ -15,7 +18,7 @@ export class ApiScopeGuard implements CanActivate {
 
     if (!required.length) return true;
 
-    const request = context.switchToHttp().getRequest() as any;
+    const request = context.switchToHttp().getRequest<ApiScopeRequest>();
     const principal: ApiPrincipal | undefined = request.apiPrincipal;
     if (!principal) throw new ForbiddenException("Missing token context");
 
@@ -24,4 +27,3 @@ export class ApiScopeGuard implements CanActivate {
     return true;
   }
 }
-

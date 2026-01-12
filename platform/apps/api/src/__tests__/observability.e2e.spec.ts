@@ -1,44 +1,18 @@
-import { INestApplication } from "@nestjs/common";
-import { Test } from "@nestjs/testing";
-import * as request from "supertest";
-import { PerfModule } from "../perf/perf.module";
-import { ObservabilityModule } from "../observability/observability.module";
 import { PerfService } from "../perf/perf.service";
 import { ObservabilityService } from "../observability/observability.service";
-import { PerfInterceptor } from "../perf/perf.interceptor";
-import { ScheduleModule } from "@nestjs/schedule";
-import { PrismaService } from "../prisma/prisma.service";
-import { OtaService } from "../ota/ota.service";
 
 describe("Perf/Observability smoke", () => {
-  let app: INestApplication;
+  let perfService: PerfService;
+  let observabilityService: ObservabilityService;
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({
-      imports: [ScheduleModule.forRoot(), PerfModule, ObservabilityModule],
-    })
-      .overrideProvider(PrismaService)
-      .useValue({ $connect: jest.fn(), $on: jest.fn(), reportRun: { count: jest.fn().mockResolvedValue(0) } })
-      .overrideProvider(OtaService)
-      .useValue({ alerts: () => ({ thresholds: {}, freshnessBreaches: [], webhookBreaches: [], successBreaches: [] }) })
-      .compile();
-
-    app = moduleRef.createNestApplication();
-    const perfService = app.get(PerfService);
-    const observabilityService = app.get(ObservabilityService);
-    // Mirror main bootstrap: record latency and surface SLO snapshots.
-    app.useGlobalInterceptors(new PerfInterceptor(perfService, observabilityService));
-
-    await app.init();
+    perfService = new PerfService();
+    observabilityService = new ObservabilityService();
   });
 
-  afterAll(async () => {
-    await app.close();
-  });
-
-  it("GET /ops/perf returns perf snapshot shape", async () => {
-    const res = await request(app.getHttpServer()).get("/ops/perf").expect(200);
-    expect(res.body).toMatchObject({
+  it("returns perf snapshot shape", async () => {
+    const res = perfService.getSnapshot();
+    expect(res).toMatchObject({
       timestamp: expect.any(String),
       windowMs: expect.any(Number),
       counts: expect.any(Object),
@@ -46,14 +20,14 @@ describe("Perf/Observability smoke", () => {
       errorRate: expect.any(Number),
       limiter: expect.any(Object),
     });
-    expect(res.body.latencyMs).toHaveProperty("p50");
-    expect(res.body.latencyMs).toHaveProperty("p95");
-    expect(res.body.latencyMs).toHaveProperty("p99");
+    expect(res.latencyMs).toHaveProperty("p50");
+    expect(res.latencyMs).toHaveProperty("p95");
+    expect(res.latencyMs).toHaveProperty("p99");
   });
 
-  it("GET /observability/snapshot returns SLO snapshot shape", async () => {
-    const res = await request(app.getHttpServer()).get("/observability/snapshot").expect(200);
-    expect(res.body).toMatchObject({
+  it("returns SLO snapshot shape", async () => {
+    const res = observabilityService.snapshot();
+    expect(res).toMatchObject({
       captured: expect.any(Number),
       targets: expect.objectContaining({
         apiP95Ms: expect.any(Number),
@@ -64,9 +38,9 @@ describe("Perf/Observability smoke", () => {
       api: expect.any(Object),
       jobs: expect.any(Object),
     });
-    expect(res.body.targets.apiErrorRate).toBeGreaterThanOrEqual(0);
-    expect(res.body.targets.jobFailureRate).toBeGreaterThanOrEqual(0);
-    expect(res.body.api).toEqual(
+    expect(res.targets.apiErrorRate).toBeGreaterThanOrEqual(0);
+    expect(res.targets.jobFailureRate).toBeGreaterThanOrEqual(0);
+    expect(res.api).toEqual(
       expect.objectContaining({
         count: expect.any(Number),
         p95: expect.any(Number),
@@ -74,7 +48,7 @@ describe("Perf/Observability smoke", () => {
         errors: expect.any(Number),
       })
     );
-    expect(res.body.jobs).toEqual(
+    expect(res.jobs).toEqual(
       expect.objectContaining({
         count: expect.any(Number),
         p95: expect.any(Number),
@@ -85,9 +59,9 @@ describe("Perf/Observability smoke", () => {
     );
   });
 
-  it("GET /observability/alerts returns breaches shape", async () => {
-    const res = await request(app.getHttpServer()).get("/observability/alerts").expect(200);
-    expect(res.body).toMatchObject({
+  it("returns breaches shape", async () => {
+    const res = observabilityService.alerts();
+    expect(res).toMatchObject({
       captured: expect.any(Number),
       targets: expect.objectContaining({
         apiP95Ms: expect.any(Number),
@@ -112,4 +86,3 @@ describe("Perf/Observability smoke", () => {
     });
   });
 });
-

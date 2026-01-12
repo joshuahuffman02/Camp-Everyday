@@ -1,4 +1,5 @@
 import { BadGatewayException, Injectable, Logger } from "@nestjs/common";
+import { AiFeatureType, type Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { AiProviderService } from "./ai-provider.service";
 import { AiFeatureGateService } from "./ai-feature-gate.service";
@@ -24,6 +25,26 @@ interface AnalysisResult {
 @Injectable()
 export class AiSentimentService {
   private readonly logger = new Logger(AiSentimentService.name);
+  private readonly sentimentValues: SentimentAnalysis["sentiment"][] = [
+    "positive",
+    "neutral",
+    "negative",
+  ];
+  private readonly urgencyValues: SentimentAnalysis["urgencyLevel"][] = [
+    "low",
+    "normal",
+    "high",
+    "critical",
+  ];
+  private readonly intentValues: SentimentAnalysis["detectedIntent"][] = [
+    "booking",
+    "complaint",
+    "question",
+    "praise",
+    "cancellation",
+    "payment",
+    "other",
+  ];
 
   constructor(
     private readonly prisma: PrismaService,
@@ -47,16 +68,16 @@ export class AiSentimentService {
     // Check if AI is enabled for this campground
     const isEnabled = await this.featureGate.isFeatureEnabled(
       campgroundId,
-      "sentiment_analysis"
+      AiFeatureType.analytics
     );
 
-    if (!isEnabled) {
+    if (!isEnabled.allowed) {
       this.logger.debug(`Sentiment analysis disabled for campground ${campgroundId}`);
       return this.fallbackAnalysis(content);
     }
 
     try {
-      const result = await this.aiAnalyze(content, context);
+      const result = await this.aiAnalyze(campgroundId, content, context);
       return result;
     } catch (error) {
       this.logger.error("AI sentiment analysis failed, using fallback", error);
@@ -70,7 +91,7 @@ export class AiSentimentService {
   async analyzeCommunication(communicationId: string): Promise<SentimentAnalysis | null> {
     const communication = await this.prisma.communication.findUnique({
       where: { id: communicationId },
-      include: { Guest: true, reservation: true },
+      include: { Guest: true, Reservation: true },
     });
 
     if (!communication) {
@@ -90,11 +111,11 @@ export class AiSentimentService {
 
     const analysis = await this.analyzeMessage(communication.campgroundId, content, {
       subject: communication.subject || undefined,
-      guestName: communication.guest
-        ? `${communication.guest.primaryFirstName || ""} ${communication.guest.primaryLastName || ""}`.trim()
+      guestName: communication.Guest
+        ? `${communication.Guest.primaryFirstName || ""} ${communication.Guest.primaryLastName || ""}`.trim()
         : undefined,
-      reservationStatus: communication.reservation?.status || undefined,
-      type: communication.type as "email" | "sms",
+      reservationStatus: communication.Reservation?.status || undefined,
+      type: this.normalizeMessageType(communication.type),
     });
 
     // Update the communication record
@@ -118,7 +139,7 @@ export class AiSentimentService {
   async analyzeGuestMessage(messageId: string): Promise<SentimentAnalysis | null> {
     const message = await this.prisma.message.findUnique({
       where: { id: messageId },
-      include: { Guest: true, reservation: true },
+      include: { Guest: true, Reservation: true },
     });
 
     if (!message) {
@@ -132,10 +153,10 @@ export class AiSentimentService {
     }
 
     const analysis = await this.analyzeMessage(message.campgroundId, message.content, {
-      guestName: message.guest
-        ? `${message.guest.primaryFirstName || ""} ${message.guest.primaryLastName || ""}`.trim()
+      guestName: message.Guest
+        ? `${message.Guest.primaryFirstName || ""} ${message.Guest.primaryLastName || ""}`.trim()
         : undefined,
-      reservationStatus: message.reservation?.status || undefined,
+      reservationStatus: message.Reservation?.status || undefined,
       type: "message",
     });
 
@@ -160,7 +181,7 @@ export class AiSentimentService {
     campgroundId: string,
     options?: { startDate?: Date; endDate?: Date }
   ) {
-    const where: any = {
+    const where: Prisma.CommunicationWhereInput = {
       campgroundId,
       direction: "inbound",
       sentiment: { not: null },
@@ -199,7 +220,7 @@ export class AiSentimentService {
         urgencyLevel: true,
         detectedIntent: true,
         createdAt: true,
-        guest: {
+        Guest: {
           select: {
             primaryFirstName: true,
             primaryLastName: true,
@@ -232,6 +253,7 @@ export class AiSentimentService {
    * AI-powered sentiment analysis
    */
   private async aiAnalyze(
+    campgroundId: string,
     content: string,
     context?: {
       subject?: string;
@@ -275,15 +297,19 @@ Guidelines:
 - Sentiment score: -1.0 (very negative) to 1.0 (very positive), 0 is neutral
 - confidence: How confident you are in this analysis (0.0 to 1.0)`;
 
-    const response = await this.aiProvider.generateText({
-      prompt,
+    const response = await this.aiProvider.getCompletion({
+      campgroundId,
+      featureType: AiFeatureType.analytics,
+      systemPrompt:
+        "You analyze campground guest messages and respond with JSON only.",
+      userPrompt: prompt,
       maxTokens: 500,
       temperature: 0.3,
     });
 
     try {
       // Extract JSON from response
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      const jsonMatch = response.content.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
         throw new BadGatewayException("No JSON found in response");
       }
@@ -383,25 +409,36 @@ Guidelines:
   }
 
   private validateSentiment(s: string): "positive" | "neutral" | "negative" {
-    if (["positive", "neutral", "negative"].includes(s)) {
-      return s as "positive" | "neutral" | "negative";
-    }
-    return "neutral";
+    return this.isSentiment(s) ? s : "neutral";
   }
 
   private validateUrgency(u: string): "low" | "normal" | "high" | "critical" {
-    if (["low", "normal", "high", "critical"].includes(u)) {
-      return u as "low" | "normal" | "high" | "critical";
-    }
-    return "normal";
+    return this.isUrgency(u) ? u : "normal";
   }
 
   private validateIntent(i: string): SentimentAnalysis["detectedIntent"] {
-    const valid = ["booking", "complaint", "question", "praise", "cancellation", "payment", "other"];
-    if (valid.includes(i)) {
-      return i as SentimentAnalysis["detectedIntent"];
+    return this.isIntent(i) ? i : "other";
+  }
+
+  private normalizeMessageType(
+    type?: string | null
+  ): "email" | "sms" | "message" | undefined {
+    if (type === "email" || type === "sms" || type === "message") {
+      return type;
     }
-    return "other";
+    return undefined;
+  }
+
+  private isSentiment(value: string): value is SentimentAnalysis["sentiment"] {
+    return this.sentimentValues.some((entry) => entry === value);
+  }
+
+  private isUrgency(value: string): value is SentimentAnalysis["urgencyLevel"] {
+    return this.urgencyValues.some((entry) => entry === value);
+  }
+
+  private isIntent(value: string): value is SentimentAnalysis["detectedIntent"] {
+    return this.intentValues.some((entry) => entry === value);
   }
 
   private clamp(value: number, min: number, max: number): number {

@@ -1,13 +1,41 @@
 export const dynamic = "force-dynamic";
 
-const SLA_SETS = [
+type SlaSet = {
+  region: string;
+  campgroundId: string;
+  campgroundName: string;
+  onTime: number;
+  overdue: number;
+  slaTargetHours: number;
+};
+
+type CategoryCount = {
+  region: string;
+  category: string;
+  count: number;
+};
+
+type NeedsAttentionItem = {
+  id: string;
+  title: string;
+  region: string;
+  campgroundId: string;
+  campgroundName: string;
+  status: string;
+  category: string;
+  reportedAt: string;
+  slaBreachedMinutes: number;
+  assignee: string | null;
+};
+
+const SLA_SETS: SlaSet[] = [
   { region: "north", campgroundId: "cg-north", campgroundName: "North Pines", onTime: 42, overdue: 3, slaTargetHours: 24 },
   { region: "south", campgroundId: "cg-south", campgroundName: "Sunset Dunes", onTime: 35, overdue: 6, slaTargetHours: 24 },
   { region: "east", campgroundId: "cg-east", campgroundName: "River Bend", onTime: 28, overdue: 2, slaTargetHours: 24 },
   { region: "west", campgroundId: "cg-west", campgroundName: "Canyon Base", onTime: 22, overdue: 4, slaTargetHours: 24 },
-] as const;
+];
 
-const CATEGORY_COUNTS = [
+const CATEGORY_COUNTS: CategoryCount[] = [
   { region: "north", category: "Bugs / Errors", count: 12 },
   { region: "north", category: "Billing / Refunds", count: 8 },
   { region: "north", category: "Access / Login", count: 6 },
@@ -19,9 +47,9 @@ const CATEGORY_COUNTS = [
   { region: "west", category: "Access / Login", count: 6 },
   { region: "west", category: "Bugs / Errors", count: 5 },
   { region: "west", category: "Feature Requests", count: 4 },
-] as const;
+];
 
-const NEEDS_ATTENTION = [
+const NEEDS_ATTENTION: NeedsAttentionItem[] = [
   {
     id: "sup-201",
     title: "Check-in kiosk throws 500 during card swipe",
@@ -70,7 +98,7 @@ const NEEDS_ATTENTION = [
     slaBreachedMinutes: 0,
     assignee: null,
   },
-] as const;
+];
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -103,4 +131,3 @@ export async function GET(req: Request) {
     needsAttention,
   });
 }
-

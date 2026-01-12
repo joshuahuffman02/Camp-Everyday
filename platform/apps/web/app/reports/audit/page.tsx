@@ -13,6 +13,9 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { ReportsNavBar } from "@/components/reports/ReportsNavBar";
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object";
+
 export default function AuditLogPage() {
   const pathname = usePathname();
   const [campgroundId, setCampgroundId] = useState<string | null>(null);
@@ -64,15 +67,17 @@ export default function AuditLogPage() {
     { label: "Devices", href: "/reports/devices", active: pathname.startsWith("/reports/devices") }
   ];
 
-  const formatDiff = (before: any, after: any) => {
-    if (!before && !after) return null;
-    const keys = Array.from(new Set([...(before ? Object.keys(before) : []), ...(after ? Object.keys(after) : [])]));
+  const formatDiff = (before: unknown, after: unknown) => {
+    const beforeRecord = isRecord(before) ? before : null;
+    const afterRecord = isRecord(after) ? after : null;
+    if (!beforeRecord && !afterRecord) return null;
+    const keys = Array.from(new Set([...(beforeRecord ? Object.keys(beforeRecord) : []), ...(afterRecord ? Object.keys(afterRecord) : [])]));
     if (keys.length === 0) return null;
     return (
       <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
         {keys.map((key) => {
-          const prev = before ? before[key] : undefined;
-          const next = after ? after[key] : undefined;
+          const prev = beforeRecord ? beforeRecord[key] : undefined;
+          const next = afterRecord ? afterRecord[key] : undefined;
           if (prev === next) return null;
           return (
             <span key={key} className="rounded bg-muted px-2 py-1 border border-border">

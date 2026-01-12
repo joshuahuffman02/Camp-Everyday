@@ -1,4 +1,5 @@
 import React from "react";
+import type { AssignmentFilter } from "./types";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
@@ -10,14 +11,14 @@ interface CalendarFiltersProps {
         statusFilter: string;
         siteTypeFilter: string;
         channelFilter: string;
-        assignmentFilter: string;
+        assignmentFilter: AssignmentFilter;
         guestSearch: string;
     };
     actions: {
         setStatusFilter: (v: string) => void;
         setSiteTypeFilter: (v: string) => void;
         setChannelFilter: (v: string) => void;
-        setAssignmentFilter: (v: any) => void;
+        setAssignmentFilter: (v: AssignmentFilter) => void;
         setGuestSearch: (v: string) => void;
     };
 }

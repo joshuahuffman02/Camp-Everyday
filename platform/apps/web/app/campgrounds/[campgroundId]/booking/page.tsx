@@ -7,7 +7,8 @@ export default function CampgroundBookingRedirect() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const campgroundId = params?.campgroundId as string | undefined;
+  const campgroundParam = params?.campgroundId;
+  const campgroundId = typeof campgroundParam === "string" ? campgroundParam : undefined;
 
   useEffect(() => {
     if (!campgroundId) {

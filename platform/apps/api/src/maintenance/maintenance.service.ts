@@ -1,9 +1,16 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { GamificationEventCategory, MaintenancePriority, MaintenanceStatus } from '@prisma/client';
+import { GamificationEventCategory, MaintenancePriority, MaintenanceStatus, type Prisma } from '@prisma/client';
 import { GamificationService } from '../gamification/gamification.service';
 import { EmailService } from '../email/email.service';
 import { randomUUID } from 'crypto';
+
+type MaintenanceTicketWithRelations = Prisma.MaintenanceTicketGetPayload<{
+  include: {
+    Site: true;
+    User: true;
+  };
+}>;
 
 @Injectable()
 export class MaintenanceService {
@@ -27,8 +34,8 @@ export class MaintenanceService {
     outOfOrder?: boolean;
     outOfOrderReason?: string;
     outOfOrderUntil?: string;
-    checklist?: any;
-    photos?: any;
+    checklist?: Prisma.InputJsonValue;
+    photos?: Prisma.InputJsonValue;
     notes?: string;
     lockId?: string;
   }) {
@@ -36,6 +43,7 @@ export class MaintenanceService {
 
     return this.prisma.maintenanceTicket.create({
       data: {
+        id: randomUUID(),
         campgroundId: data.campgroundId,
         siteId: data.siteId,
         title: data.title,
@@ -53,8 +61,8 @@ export class MaintenanceService {
         lockId,
       },
       include: {
-        site: true,
-        assignee: true,
+        Site: true,
+        User: true,
       },
     });
   }
@@ -68,8 +76,8 @@ export class MaintenanceService {
         outOfOrder: outOfOrder !== undefined ? outOfOrder : undefined,
       },
       include: {
-        site: true,
-        assignee: true,
+        Site: true,
+        User: true,
       },
       orderBy: {
         createdAt: 'desc',
@@ -81,8 +89,8 @@ export class MaintenanceService {
     return this.prisma.maintenanceTicket.findUnique({
       where: { id },
       include: {
-        site: true,
-        assignee: true,
+        Site: true,
+        User: true,
       },
     });
   }
@@ -100,8 +108,8 @@ export class MaintenanceService {
     outOfOrder?: boolean;
     outOfOrderReason?: string;
     outOfOrderUntil?: string;
-    checklist?: any;
-    photos?: any;
+    checklist?: Prisma.InputJsonValue;
+    photos?: Prisma.InputJsonValue;
     notes?: string;
   }) {
     const existing = await this.prisma.maintenanceTicket.findUnique({
@@ -152,8 +160,8 @@ export class MaintenanceService {
       where: { id },
       data: updatePayload,
       include: {
-        site: true,
-        assignee: true,
+        Site: true,
+        User: true,
       },
     });
 
@@ -185,7 +193,7 @@ export class MaintenanceService {
   /**
    * Notify staff when a site's out-of-order status changes
    */
-  private async notifyOutOfOrderChange(ticket: any, wasOutOfOrder: boolean) {
+  private async notifyOutOfOrderChange(ticket: MaintenanceTicketWithRelations, wasOutOfOrder: boolean) {
     try {
       const campground = await this.prisma.campground.findUnique({
         where: { id: ticket.campgroundId },
@@ -197,7 +205,7 @@ export class MaintenanceService {
         return;
       }
 
-      const siteName = ticket.site?.siteNumber || ticket.site?.name || "Unknown site";
+      const siteName = ticket.Site?.siteNumber || ticket.Site?.name || "Unknown site";
       const isNowOutOfOrder = ticket.outOfOrder;
       const status = isNowOutOfOrder ? "OUT OF ORDER" : "BACK IN SERVICE";
       const statusColor = isNowOutOfOrder ? "#dc2626" : "#16a34a";
@@ -219,8 +227,9 @@ export class MaintenanceService {
       });
 
       this.logger.log(`Sent out-of-order notification for site ${siteName} (${status})`);
-    } catch (error: any) {
-      this.logger.error(`Failed to send maintenance notification: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to send maintenance notification: ${message}`);
     }
   }
 

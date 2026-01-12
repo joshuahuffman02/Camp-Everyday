@@ -13,8 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { apiClient } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 
-const SPRING_CONFIG = {
-  type: "spring" as const,
+const SPRING_CONFIG: { type: "spring"; stiffness: number; damping: number } = {
+  type: "spring",
   stiffness: 300,
   damping: 25,
 };
@@ -32,6 +32,68 @@ type QuickAction = {
   icon: React.ReactNode;
   prompt: string;
   description: string;
+};
+
+type CopilotMetrics = {
+  messagesHandled?: number;
+  noShowsPrevented?: number;
+  estimatedRevenueSavedCents?: number;
+  roiPercent?: number;
+};
+
+type CopilotQuickStats = {
+  pendingReplies?: number;
+  activeAnomalies?: number;
+  pendingPricing?: number;
+  activeMaintenanceAlerts?: number;
+  activeWeatherAlerts?: number;
+};
+
+type CopilotRecommendation = {
+  adjustmentPercent: number;
+  siteClassName?: string;
+  recommendationType?: string;
+};
+
+type CopilotInsight = {
+  title: string;
+  impactCents?: number;
+};
+
+type CopilotWeather = {
+  temp: number;
+  feelsLike: number;
+  description: string;
+  windSpeed: number;
+  humidity: number;
+};
+
+type CopilotAlert = {
+  title: string;
+  severity: string;
+};
+
+type CopilotAction = {
+  action: string;
+  description: string;
+};
+
+type CopilotSummary = {
+  activeAlerts?: number;
+};
+
+type CopilotResponse = {
+  error?: string;
+  message?: string;
+  preview?: string;
+  metrics?: CopilotMetrics;
+  quickStats?: CopilotQuickStats;
+  recommendations?: CopilotRecommendation[];
+  insights?: CopilotInsight[];
+  weather?: CopilotWeather;
+  alerts?: CopilotAlert[];
+  summary?: CopilotSummary;
+  availableActions?: CopilotAction[];
 };
 
 export default function AiChatPage() {
@@ -111,17 +173,142 @@ Type \`help\` to see all available commands, or just ask me anything!`,
     return actionPatterns.some((pattern) => pattern.test(cleanMessage));
   };
 
+  const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null;
+  const getString = (value: unknown): string | undefined =>
+    typeof value === "string" ? value : undefined;
+  const getNumber = (value: unknown): number | undefined =>
+    typeof value === "number" ? value : undefined;
+
+  const parseMetrics = (value: unknown): CopilotMetrics | undefined => {
+    if (!isRecord(value)) return undefined;
+    return {
+      messagesHandled: getNumber(value.messagesHandled),
+      noShowsPrevented: getNumber(value.noShowsPrevented),
+      estimatedRevenueSavedCents: getNumber(value.estimatedRevenueSavedCents),
+      roiPercent: getNumber(value.roiPercent),
+    };
+  };
+
+  const parseQuickStats = (value: unknown): CopilotQuickStats | undefined => {
+    if (!isRecord(value)) return undefined;
+    return {
+      pendingReplies: getNumber(value.pendingReplies),
+      activeAnomalies: getNumber(value.activeAnomalies),
+      pendingPricing: getNumber(value.pendingPricing),
+      activeMaintenanceAlerts: getNumber(value.activeMaintenanceAlerts),
+      activeWeatherAlerts: getNumber(value.activeWeatherAlerts),
+    };
+  };
+
+  const parseRecommendations = (value: unknown): CopilotRecommendation[] => {
+    if (!Array.isArray(value)) return [];
+    return value.reduce<CopilotRecommendation[]>((acc, item) => {
+      if (!isRecord(item)) return acc;
+      const adjustmentPercent = getNumber(item.adjustmentPercent);
+      if (adjustmentPercent === undefined) return acc;
+      acc.push({
+        adjustmentPercent,
+        siteClassName: getString(item.siteClassName),
+        recommendationType: getString(item.recommendationType),
+      });
+      return acc;
+    }, []);
+  };
+
+  const parseInsights = (value: unknown): CopilotInsight[] => {
+    if (!Array.isArray(value)) return [];
+    return value.reduce<CopilotInsight[]>((acc, item) => {
+      if (!isRecord(item)) return acc;
+      const title = getString(item.title);
+      if (!title) return acc;
+      acc.push({
+        title,
+        impactCents: getNumber(item.impactCents),
+      });
+      return acc;
+    }, []);
+  };
+
+  const parseWeather = (value: unknown): CopilotWeather | undefined => {
+    if (!isRecord(value)) return undefined;
+    const temp = getNumber(value.temp);
+    const feelsLike = getNumber(value.feelsLike);
+    const description = getString(value.description);
+    const windSpeed = getNumber(value.windSpeed);
+    const humidity = getNumber(value.humidity);
+    if (
+      temp === undefined ||
+      feelsLike === undefined ||
+      !description ||
+      windSpeed === undefined ||
+      humidity === undefined
+    ) {
+      return undefined;
+    }
+    return { temp, feelsLike, description, windSpeed, humidity };
+  };
+
+  const parseAlerts = (value: unknown): CopilotAlert[] => {
+    if (!Array.isArray(value)) return [];
+    return value.reduce<CopilotAlert[]>((acc, item) => {
+      if (!isRecord(item)) return acc;
+      const title = getString(item.title);
+      const severity = getString(item.severity);
+      if (!title || !severity) return acc;
+      acc.push({ title, severity });
+      return acc;
+    }, []);
+  };
+
+  const parseSummary = (value: unknown): CopilotSummary | undefined => {
+    if (!isRecord(value)) return undefined;
+    return {
+      activeAlerts: getNumber(value.activeAlerts),
+    };
+  };
+
+  const parseActions = (value: unknown): CopilotAction[] => {
+    if (!Array.isArray(value)) return [];
+    return value.reduce<CopilotAction[]>((acc, item) => {
+      if (!isRecord(item)) return acc;
+      const action = getString(item.action);
+      const description = getString(item.description);
+      if (!action || !description) return acc;
+      acc.push({ action, description });
+      return acc;
+    }, []);
+  };
+
+  const parseCopilotResponse = (value: unknown): CopilotResponse => {
+    if (!isRecord(value)) return {};
+    return {
+      error: getString(value.error),
+      message: getString(value.message),
+      preview: getString(value.preview),
+      metrics: parseMetrics(value.metrics),
+      quickStats: parseQuickStats(value.quickStats),
+      recommendations: parseRecommendations(value.recommendations),
+      insights: parseInsights(value.insights),
+      weather: parseWeather(value.weather),
+      alerts: parseAlerts(value.alerts),
+      summary: parseSummary(value.summary),
+      availableActions: parseActions(value.availableActions),
+    };
+  };
+
   // Format copilot response for display
-  const formatCopilotResponse = (data: any): string => {
-    if (data?.error) {
-      return `Error: ${data.error}`;
+  const formatCopilotResponse = (data: unknown): string => {
+    const parsed = parseCopilotResponse(data);
+    if (parsed.error) {
+      return `Error: ${parsed.error}`;
     }
 
-    let response = data?.message || data?.preview || "";
+    let response = parsed.message || parsed.preview || "";
 
     // Add metrics summary if present
-    if (data?.metrics) {
-      const m = data.metrics;
+    if (parsed.metrics) {
+      const m = parsed.metrics;
       response += `\n\n**AI Performance (Last 30 Days)**\n`;
       response += `- Messages Handled: ${m.messagesHandled || 0}\n`;
       response += `- No-Shows Prevented: ${m.noShowsPrevented || 0}\n`;
@@ -130,37 +317,50 @@ Type \`help\` to see all available commands, or just ask me anything!`,
     }
 
     // Add quick stats if present
-    if (data?.quickStats) {
-      const q = data.quickStats;
-      response += `\n\n**Needs Attention**\n`;
-      if (q.pendingReplies > 0) response += `- ${q.pendingReplies} pending replies\n`;
-      if (q.activeAnomalies > 0) response += `- ${q.activeAnomalies} anomalies\n`;
-      if (q.pendingPricing > 0) response += `- ${q.pendingPricing} pricing recommendations\n`;
-      if (q.activeMaintenanceAlerts > 0) response += `- ${q.activeMaintenanceAlerts} maintenance alerts\n`;
-      if (q.activeWeatherAlerts > 0) response += `- ${q.activeWeatherAlerts} weather alerts`;
+    if (parsed.quickStats) {
+      const q = parsed.quickStats;
+      const pendingReplies = q.pendingReplies ?? 0;
+      const activeAnomalies = q.activeAnomalies ?? 0;
+      const pendingPricing = q.pendingPricing ?? 0;
+      const activeMaintenanceAlerts = q.activeMaintenanceAlerts ?? 0;
+      const activeWeatherAlerts = q.activeWeatherAlerts ?? 0;
+      if (
+        pendingReplies > 0 ||
+        activeAnomalies > 0 ||
+        pendingPricing > 0 ||
+        activeMaintenanceAlerts > 0 ||
+        activeWeatherAlerts > 0
+      ) {
+        response += `\n\n**Needs Attention**\n`;
+        if (pendingReplies > 0) response += `- ${pendingReplies} pending replies\n`;
+        if (activeAnomalies > 0) response += `- ${activeAnomalies} anomalies\n`;
+        if (pendingPricing > 0) response += `- ${pendingPricing} pricing recommendations\n`;
+        if (activeMaintenanceAlerts > 0) response += `- ${activeMaintenanceAlerts} maintenance alerts\n`;
+        if (activeWeatherAlerts > 0) response += `- ${activeWeatherAlerts} weather alerts`;
+      }
     }
 
     // Add recommendations summary if present
-    if (data?.recommendations?.length > 0) {
-      response += `\n\n**Recommendations (${data.recommendations.length})**\n`;
-      data.recommendations.slice(0, 3).forEach((r: any, i: number) => {
+    if (parsed.recommendations && parsed.recommendations.length > 0) {
+      response += `\n\n**Recommendations (${parsed.recommendations.length})**\n`;
+      parsed.recommendations.slice(0, 3).forEach((r, i) => {
         const change = r.adjustmentPercent > 0 ? `+${r.adjustmentPercent}%` : `${r.adjustmentPercent}%`;
         response += `${i + 1}. ${r.siteClassName || "Sites"}: ${change} (${r.recommendationType})\n`;
       });
     }
 
     // Add insights summary if present
-    if (data?.insights?.length > 0) {
-      response += `\n\n**Revenue Insights (${data.insights.length})**\n`;
-      data.insights.slice(0, 3).forEach((i: any, idx: number) => {
-        const impact = i.impactCents ? `$${(i.impactCents / 100).toLocaleString()}` : "TBD";
-        response += `${idx + 1}. ${i.title} (${impact})\n`;
+    if (parsed.insights && parsed.insights.length > 0) {
+      response += `\n\n**Revenue Insights (${parsed.insights.length})**\n`;
+      parsed.insights.slice(0, 3).forEach((insight, idx) => {
+        const impact = insight.impactCents ? `$${(insight.impactCents / 100).toLocaleString()}` : "TBD";
+        response += `${idx + 1}. ${insight.title} (${impact})\n`;
       });
     }
 
     // Add weather if present
-    if (data?.weather) {
-      const w = data.weather;
+    if (parsed.weather) {
+      const w = parsed.weather;
       response += `\n\n**Current Weather**\n`;
       response += `- Temperature: ${w.temp}°F (feels like ${w.feelsLike}°F)\n`;
       response += `- Conditions: ${w.description}\n`;
@@ -169,18 +369,18 @@ Type \`help\` to see all available commands, or just ask me anything!`,
     }
 
     // Add maintenance alerts if present
-    if (data?.alerts?.length > 0 && data?.summary?.activeAlerts !== undefined) {
-      response += `\n\n**Maintenance Alerts (${data.alerts.length})**\n`;
-      data.alerts.slice(0, 3).forEach((a: any, i: number) => {
-        response += `${i + 1}. ${a.title} (${a.severity})\n`;
+    if (parsed.alerts && parsed.alerts.length > 0 && parsed.summary?.activeAlerts !== undefined) {
+      response += `\n\n**Maintenance Alerts (${parsed.alerts.length})**\n`;
+      parsed.alerts.slice(0, 3).forEach((alert, i) => {
+        response += `${i + 1}. ${alert.title} (${alert.severity})\n`;
       });
     }
 
     // Add available actions if help
-    if (data?.availableActions) {
+    if (parsed.availableActions && parsed.availableActions.length > 0) {
       response += `\n\n**Available Actions**\n`;
-      data.availableActions.forEach((a: any) => {
-        response += `- \`${a.action}\`: ${a.description}\n`;
+      parsed.availableActions.forEach((action) => {
+        response += `- \`${action.action}\`: ${action.description}\n`;
       });
     }
 

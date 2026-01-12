@@ -44,7 +44,12 @@ const DEFAULT_SETTINGS: CalendarSettings = {
   groupBySiteClass: false,
 };
 
-const COLOR_SCHEMES = [
+type StartOfWeek = CalendarSettings["startOfWeek"];
+
+const isStartOfWeek = (value: string): value is StartOfWeek =>
+  value === "sunday" || value === "monday";
+
+const COLOR_SCHEMES: Array<{ value: CalendarSettings["colorScheme"]; label: string; desc: string }> = [
   { value: "status", label: "By Status", desc: "Color by reservation status (confirmed, checked-in, etc.)" },
   { value: "source", label: "By Source", desc: "Color by booking channel (online, phone, OTA)" },
   { value: "siteType", label: "By Site Type", desc: "Color by site category (RV, tent, cabin)" },
@@ -164,9 +169,10 @@ export default function CalendarSettingsPage() {
                   <Select
                     value={settings.startOfWeek}
                     onValueChange={(value) =>
+                      isStartOfWeek(value) &&
                       setSettings({
                         ...settings,
-                        startOfWeek: value as "sunday" | "monday",
+                        startOfWeek: value,
                       })
                     }
                   >
@@ -229,7 +235,7 @@ export default function CalendarSettingsPage() {
                 <button
                   key={scheme.value}
                   onClick={() =>
-                    setSettings({ ...settings, colorScheme: scheme.value as CalendarSettings["colorScheme"] })
+                    setSettings({ ...settings, colorScheme: scheme.value })
                   }
                   className={`p-4 rounded-xl border text-left transition-all ${settings.colorScheme === scheme.value
                     ? "border-status-success bg-status-success/15 ring-2 ring-status-success/30"

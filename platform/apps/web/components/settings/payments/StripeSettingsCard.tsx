@@ -11,6 +11,8 @@ import { cn } from "@/lib/utils";
 
 type GatewayMode = "test" | "prod";
 type FeeMode = "absorb" | "pass_through";
+const feeModes: FeeMode[] = ["absorb", "pass_through"];
+const isFeeMode = (value: string): value is FeeMode => feeModes.some((mode) => mode === value);
 
 interface StripeSettingsCardProps {
   initialMode?: GatewayMode;
@@ -157,7 +159,14 @@ export function StripeSettingsCard({
         {/* Fee mode */}
         <div className="space-y-2">
           <Label htmlFor="stripe-fee-mode">Who pays processing fees?</Label>
-          <Select value={feeMode} onValueChange={(v) => setFeeMode(v as FeeMode)}>
+          <Select
+            value={feeMode}
+            onValueChange={(v) => {
+              if (isFeeMode(v)) {
+                setFeeMode(v);
+              }
+            }}
+          >
             <SelectTrigger id="stripe-fee-mode">
               <SelectValue placeholder="Select fee mode" />
             </SelectTrigger>

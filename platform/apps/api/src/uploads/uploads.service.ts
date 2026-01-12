@@ -1,5 +1,6 @@
 import { Injectable, ServiceUnavailableException } from "@nestjs/common";
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import type { ObjectCannedACL } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { randomUUID } from "crypto";
 import { promises as fs } from "fs";
@@ -40,10 +41,23 @@ export class UploadsService {
    *
    * Cloudflare R2 does not support ACLs, so we return undefined for R2 endpoints.
    */
-  private getAcl() {
+  private getAcl(): ObjectCannedACL | undefined {
     const explicit = process.env.UPLOADS_S3_ACL?.trim();
     if (explicit === "none" || explicit === "disabled") return undefined;
-    if (explicit) return explicit;
+    if (explicit) {
+      switch (explicit) {
+        case "private":
+        case "public-read":
+        case "public-read-write":
+        case "authenticated-read":
+        case "aws-exec-read":
+        case "bucket-owner-read":
+        case "bucket-owner-full-control":
+          return explicit;
+        default:
+          return undefined;
+      }
+    }
     const endpoint = process.env.UPLOADS_S3_ENDPOINT?.toLowerCase() || "";
     if (endpoint.includes("r2.cloudflarestorage.com") || endpoint.includes("cloudflarestorage.com")) {
       return undefined;

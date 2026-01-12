@@ -1,6 +1,20 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import type { BillingCycle, Reservation, Prisma } from "@prisma/client";
 import { postBalancedLedgerEntries } from "../ledger/ledger-posting.util";
+import { randomUUID } from "crypto";
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined => {
+  if (value === undefined || value === null) return undefined;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
+};
 
 type UtilityCharge = {
   type: string;
@@ -12,6 +26,22 @@ type UtilityCharge = {
   description: string;
   meta?: Record<string, unknown>;
 };
+
+type InvoiceLineDraft = {
+  type: string;
+  description: string;
+  quantity: number;
+  unitCents: number;
+  amountCents: number;
+  meta?: Record<string, unknown>;
+};
+
+type ReservationForBilling = Pick<
+  Reservation,
+  "campgroundId" | "siteId" | "arrivalDate" | "departureDate" | "baseSubtotal" | "totalAmount"
+>;
+
+type BillingCycleWindow = Pick<BillingCycle, "periodStart" | "periodEnd">;
 
 @Injectable()
 export class BillingService {
@@ -43,6 +73,7 @@ export class BillingService {
 
     return this.prisma.utilityMeter.create({
       data: {
+        id: randomUUID(),
         campgroundId,
         siteId,
         type,
@@ -59,7 +90,7 @@ export class BillingService {
   async listMeters(campgroundId: string) {
     return this.prisma.utilityMeter.findMany({
       where: { campgroundId },
-      include: { ratePlan: true }
+      include: { UtilityRatePlan: true }
     });
   }
 
@@ -87,6 +118,7 @@ export class BillingService {
 
     return this.prisma.utilityMeterRead.create({
       data: {
+        id: randomUUID(),
         meterId,
         readingValue,
         readAt,
@@ -109,6 +141,7 @@ export class BillingService {
       validReads.map((r) =>
         this.prisma.utilityMeterRead.create({
           data: {
+            id: randomUUID(),
             meterId: r.meterId,
             readingValue: r.readingValue,
             readAt: r.readAt,
@@ -190,8 +223,8 @@ export class BillingService {
     const meter = await this.prisma.utilityMeter.findFirst({
       where: { id: meterId, campgroundId },
       include: {
-        reads: { orderBy: { readAt: "asc" } },
-        ratePlan: true
+        UtilityMeterRead: { orderBy: { readAt: "asc" } },
+        UtilityRatePlan: true
       }
     });
     if (!meter) throw new NotFoundException("Meter not found");
@@ -206,7 +239,7 @@ export class BillingService {
     });
     if (!reservation) throw new NotFoundException("No active reservation on this site");
 
-    const reads = meter.reads;
+    const reads = meter.UtilityMeterRead;
     if (!reads || reads.length < 2) throw new BadRequestException("Need at least two reads to bill");
 
     const lastBilledAt = meter.lastBilledReadAt ? new Date(meter.lastBilledReadAt) : null;
@@ -216,15 +249,16 @@ export class BillingService {
     const startRead = prevReadCandidates.length > 0 ? prevReadCandidates[prevReadCandidates.length - 1] : reads[0];
 
     const usage = Math.max(0, Number(endRead.readingValue) - Number(startRead.readingValue));
-    const multiplier = Number((meter as any).multiplier ?? 1);
+    const multiplier = Number(meter.multiplier ?? 1);
     const billedUsage = usage * (Number.isFinite(multiplier) ? multiplier : 1);
-    const rate = meter.ratePlan?.baseRateCents ?? 0;
+    const rate = meter.UtilityRatePlan?.baseRateCents ?? 0;
     const amountCents = Math.round(billedUsage * rate);
     if (amountCents <= 0) throw new BadRequestException("No billable usage");
 
     const cadence = meter.billingMode || "per_reading";
     const cycle = await this.prisma.billingCycle.create({
       data: {
+        id: randomUUID(),
         reservationId: reservation.id,
         campgroundId: meter.campgroundId,
         cadence,
@@ -238,6 +272,7 @@ export class BillingService {
 
     const invoice = await this.prisma.invoice.create({
       data: {
+        id: randomUUID(),
         billingCycleId: cycle.id,
         campgroundId: reservation.campgroundId,
         reservationId: reservation.id,
@@ -246,30 +281,31 @@ export class BillingService {
         subtotalCents: amountCents,
         totalCents: amountCents,
         balanceCents: amountCents,
-        lines: {
+        InvoiceLine: {
           create: [
             {
+              id: randomUUID(),
               type: "utility",
               description: `${meter.type} usage ${billedUsage.toFixed(2)} @ ${rate}c`,
               quantity: billedUsage,
               unitCents: rate,
               amountCents,
-              meta: {
+              meta: toJsonValue({
                 meterId: meter.id,
                 usage: billedUsage,
                 utilityType: meter.type,
                 ratePlanId: meter.ratePlanId ?? undefined,
                 readStartAt: startRead.readAt,
                 readEndAt: endRead.readAt
-              }
+              })
             }
           ]
         }
       },
-      include: { lines: true }
+      include: { InvoiceLine: true }
     });
 
-    const line = invoice.lines[0];
+    const line = invoice.InvoiceLine[0];
     await this.createLedgerPair({
       campgroundId: reservation.campgroundId,
       reservationId: reservation.id,
@@ -291,14 +327,14 @@ export class BillingService {
   async seedMetersForSiteClass(campgroundId: string, siteClassId: string) {
     const siteClass = await this.prisma.siteClass.findFirst({
       where: { id: siteClassId, campgroundId },
-      include: { sites: true }
+      include: { Site: true }
     });
     if (!siteClass) throw new NotFoundException("Site class not found");
     if (!siteClass.meteredEnabled || !siteClass.meteredType) {
       throw new BadRequestException("Site class is not marked as metered");
     }
     const type = siteClass.meteredType;
-    const sites = siteClass.sites;
+    const sites = siteClass.Site;
     if (!sites || sites.length === 0) return { created: 0 };
 
     const existing = await this.prisma.utilityMeter.findMany({
@@ -311,13 +347,14 @@ export class BillingService {
       if (existingBySite.has(site.id)) continue;
       await this.prisma.utilityMeter.create({
         data: {
+          id: randomUUID(),
           campgroundId: site.campgroundId,
           siteId: site.id,
           type,
           ratePlanId: siteClass.meteredRatePlanId || null,
           billingMode: siteClass.meteredBillingMode || "cycle",
           billTo: siteClass.meteredBillTo || "reservation",
-          multiplier: (siteClass as any).meteredMultiplier ?? 1.0,
+          multiplier: siteClass.meteredMultiplier ?? 1.0,
           autoEmail: siteClass.meteredAutoEmail ?? false
         }
       });
@@ -339,6 +376,7 @@ export class BillingService {
     if (!reservation) throw new NotFoundException("Reservation not found");
     return this.prisma.billingCycle.create({
       data: {
+        id: randomUUID(),
         reservationId,
         campgroundId: reservation.campgroundId,
         cadence,
@@ -376,8 +414,8 @@ export class BillingService {
   }
 
   private async calcUtilityCharges(
-    reservation: any,
-    cycle: any
+    reservation: ReservationForBilling,
+    cycle: BillingCycleWindow
   ): Promise<UtilityCharge[]> {
     const meters = await this.prisma.utilityMeter.findMany({
       where: {
@@ -386,7 +424,7 @@ export class BillingService {
         active: true
       },
       include: {
-        reads: {
+        UtilityMeterRead: {
           where: {
             readAt: {
               lte: cycle.periodEnd
@@ -394,23 +432,23 @@ export class BillingService {
           },
           orderBy: { readAt: "asc" }
         },
-        ratePlan: true
+        UtilityRatePlan: true
       }
     });
 
     const charges: UtilityCharge[] = [];
     for (const meter of meters) {
       if (meter.billingMode && meter.billingMode !== "cycle") continue;
-      const reads = meter.reads;
+      const reads = meter.UtilityMeterRead;
       if (!reads || reads.length === 0) continue;
 
       const startRead = [...reads].filter((r) => r.readAt <= cycle.periodStart).pop() || reads[0];
       const endRead = [...reads].filter((r) => r.readAt <= cycle.periodEnd).pop() || reads[reads.length - 1];
       const usage = Math.max(0, Number(endRead.readingValue) - Number(startRead.readingValue));
-      const multiplier = Number((meter as any).multiplier ?? 1);
+      const multiplier = Number(meter.multiplier ?? 1);
       const billedUsage = usage * (Number.isFinite(multiplier) ? multiplier : 1);
 
-      const plan = meter.ratePlan;
+      const plan = meter.UtilityRatePlan;
       const rate = plan?.baseRateCents ?? 0;
       const amountCents = Math.round(billedUsage * rate);
 
@@ -429,7 +467,7 @@ export class BillingService {
     return charges;
   }
 
-  private estimateRentPerCycle(reservation: any, cadence: string) {
+  private estimateRentPerCycle(reservation: ReservationForBilling, cadence: string) {
     const start = reservation.arrivalDate instanceof Date ? reservation.arrivalDate : new Date(reservation.arrivalDate);
     const end = reservation.departureDate instanceof Date ? reservation.departureDate : new Date(reservation.departureDate);
     const stayDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (24 * 3600 * 1000)));
@@ -479,10 +517,11 @@ export class BillingService {
       { requireGlCode: true }
     );
 
-    const debit = entries.find((e: any) => e.direction === "debit");
+    const debit = entries.find((entry) => entry.direction === "debit");
     if (debit) {
       await this.prisma.arLedgerEntry.create({
         data: {
+          id: randomUUID(),
           ledgerEntryId: debit.id,
           invoiceId: opts.invoiceId,
           invoiceLineId: opts.invoiceLineId || null,
@@ -495,19 +534,19 @@ export class BillingService {
   async generateInvoiceForCycle(campgroundId: string, cycleId: string) {
     const cycle = await this.prisma.billingCycle.findFirst({
       where: { id: cycleId, campgroundId },
-      include: { reservation: true }
+      include: { Reservation: true }
     });
     if (!cycle) throw new NotFoundException("Cycle not found");
 
     const existing = await this.prisma.invoice.findFirst({ where: { billingCycleId: cycleId } });
     if (existing) return existing;
 
-    const reservation = cycle.reservation;
+    const reservation = cycle.Reservation;
     const cadence = cycle.cadence || reservation.billingCadence || "monthly";
     const rentCents = this.estimateRentPerCycle(reservation, cadence);
     const utilityCharges = await this.calcUtilityCharges(reservation, cycle);
 
-    const lines = [];
+    const lines: InvoiceLineDraft[] = [];
     if (rentCents > 0) {
       lines.push({
         type: "rent",
@@ -541,6 +580,7 @@ export class BillingService {
 
     const invoice = await this.prisma.invoice.create({
       data: {
+        id: randomUUID(),
         billingCycleId: cycleId,
         campgroundId: reservation.campgroundId,
         reservationId: reservation.id,
@@ -549,15 +589,23 @@ export class BillingService {
         subtotalCents: subtotal,
         totalCents: total,
         balanceCents: total,
-        lines: {
-          create: lines
+        InvoiceLine: {
+          create: lines.map((line) => ({
+            id: randomUUID(),
+            type: line.type,
+            description: line.description,
+            quantity: line.quantity,
+            unitCents: line.unitCents,
+            amountCents: line.amountCents,
+            meta: toJsonValue(line.meta)
+          }))
         }
       },
-      include: { lines: true }
+      include: { InvoiceLine: true }
     });
 
     // Ledger posting
-    for (const line of invoice.lines) {
+    for (const line of invoice.InvoiceLine) {
       const gl = line.type === "rent" ? "RENT" : line.type === "late_fee" ? "LATE_FEE" : "UTILITY";
       await this.createLedgerPair({
         campgroundId: reservation.campgroundId,
@@ -579,9 +627,9 @@ export class BillingService {
   }
 
   private async recalcInvoiceTotals(invoiceId: string) {
-    const invoice = await this.prisma.invoice.findUnique({ where: { id: invoiceId }, include: { lines: true } });
+    const invoice = await this.prisma.invoice.findUnique({ where: { id: invoiceId }, include: { InvoiceLine: true } });
     if (!invoice) return;
-    const subtotal = invoice.lines.reduce((acc: number, l: any) => acc + l.amountCents, 0);
+    const subtotal = invoice.InvoiceLine.reduce((acc, line) => acc + line.amountCents, 0);
     const total = subtotal;
     const paid = invoice.totalCents - invoice.balanceCents;
     const balance = Math.max(0, total - paid);
@@ -605,20 +653,20 @@ export class BillingService {
         ...(campgroundId ? { campgroundId } : {})
       },
       include: {
-        billingCycle: true,
-        lines: true,
-        reservation: true
+        BillingCycle: true,
+        InvoiceLine: true,
+        Reservation: true
       }
     });
 
     for (const invoice of invoices) {
-      const hasLateFee = invoice.lines.some((l: any) => l.type === "late_fee");
+      const hasLateFee = invoice.InvoiceLine.some((line) => line.type === "late_fee");
       if (hasLateFee) continue;
 
       const rule = await this.prisma.lateFeeRule.findFirst({
         where: {
           campgroundId: invoice.campgroundId,
-          cadence: invoice.billingCycle?.cadence ?? "monthly",
+          cadence: invoice.BillingCycle?.cadence ?? "monthly",
           active: true
         },
         orderBy: { effectiveFrom: "desc" }
@@ -633,6 +681,7 @@ export class BillingService {
 
       const lateLine = await this.prisma.invoiceLine.create({
         data: {
+          id: randomUUID(),
           invoiceId: invoice.id,
           type: "late_fee",
           description: "Late fee",
@@ -672,13 +721,14 @@ export class BillingService {
       // Create adjustment line
       await tx.invoiceLine.create({
         data: {
+          id: randomUUID(),
           invoiceId,
           type: "adjustment",
           description: `Write-off: ${reason}`,
           quantity: 1,
           unitCents: -amount,
           amountCents: -amount,
-          meta: { reason }
+          meta: toJsonValue({ reason })
         }
       });
 
@@ -691,7 +741,7 @@ export class BillingService {
           account: "Bad Debt",
           description: `Write-off ${invoice.number}`,
           amountCents: amount,
-          direction: "debit" as const,
+          direction: "debit",
           dedupeKey: `${dedupeKey}:debit`
         },
         {
@@ -701,16 +751,17 @@ export class BillingService {
           account: "Accounts Receivable",
           description: `Write-off ${invoice.number}`,
           amountCents: amount,
-          direction: "credit" as const,
+          direction: "credit",
           dedupeKey: `${dedupeKey}:credit`
         }
       ]);
 
       // Find the AR credit entry for arLedgerEntry link
-      const creditEntry = ledgerEntries.find((e: any) => e.direction === "credit");
+      const creditEntry = ledgerEntries.find((entry) => entry.direction === "credit");
       if (creditEntry) {
         await tx.arLedgerEntry.create({
           data: {
+            id: randomUUID(),
             ledgerEntryId: creditEntry.id,
             invoiceId,
             type: "writeoff"
@@ -729,6 +780,7 @@ export class BillingService {
 
     await this.prisma.auditLog.create({
       data: {
+        id: randomUUID(),
         campgroundId: invoice.campgroundId,
         actorId: actorId || null,
         action: "invoice.writeoff",
@@ -763,11 +815,11 @@ export class BillingService {
       data: {
         amountCents,
         unitCents: amountCents,
-        meta: {
-          ...(line.meta as any),
+        meta: toJsonValue({
+          ...(isRecord(line.meta) ? line.meta : {}),
           overrideNote: note,
           overriddenBy: actorId || "system"
-        }
+        })
       }
     });
 
@@ -775,6 +827,7 @@ export class BillingService {
 
     await this.prisma.auditLog.create({
       data: {
+        id: randomUUID(),
         campgroundId: invoice.campgroundId,
         actorId: actorId || null,
         action: "invoice.override_line",
@@ -791,14 +844,14 @@ export class BillingService {
   async listInvoicesByReservation(campgroundId: string, reservationId: string) {
     return this.prisma.invoice.findMany({
       where: { reservationId, campgroundId },
-      include: { lines: true, billingCycle: true }
+      include: { InvoiceLine: true, BillingCycle: true }
     });
   }
 
   async getInvoice(campgroundId: string, id: string) {
     const invoice = await this.prisma.invoice.findFirst({
       where: { id, campgroundId },
-      include: { lines: true, billingCycle: true }
+      include: { InvoiceLine: true, BillingCycle: true }
     });
     if (!invoice) throw new NotFoundException("Invoice not found");
     return invoice;

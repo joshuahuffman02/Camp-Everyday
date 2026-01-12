@@ -2,12 +2,12 @@
 
 import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { Breadcrumbs } from "@/components/breadcrumbs";
-import { Command, Search, Zap } from "lucide-react";
+import { Command, Search, Zap, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 
 interface ShortcutGroup {
   title: string;
-  icon: any;
+  icon: LucideIcon;
   shortcuts: {
     keys: string[];
     description: string;

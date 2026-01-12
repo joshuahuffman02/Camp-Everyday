@@ -45,7 +45,8 @@ describe("SupportAnalyticsPage", () => {
         ],
       }),
     });
-    vi.stubGlobal("fetch", mockFetch as unknown as typeof fetch);
+    const fetchMock: typeof fetch = (input, init) => mockFetch(input, init);
+    vi.stubGlobal("fetch", fetchMock);
     localStorage.setItem("campreserv:selectedCampground", "cg1");
   });
 
@@ -64,4 +65,3 @@ describe("SupportAnalyticsPage", () => {
     expect(await screen.findByText(/Example overdue ticket/i)).toBeInTheDocument();
   });
 });
-

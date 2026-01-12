@@ -2,6 +2,22 @@ import { CanActivate, ExecutionContext, Injectable } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { PermissionsService } from "./permissions.service";
 import { SCOPE_KEY, ScopeDescriptor } from "./scope.decorator";
+import type { Request } from "express";
+import type { AuthUser } from "../auth/auth.types";
+
+type ScopeRequest = Request & {
+  user?: AuthUser;
+  permissionDenied?: { allowed: boolean; deniedFields?: string[] };
+};
+
+const getStringValue = (value: unknown): string | null => {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) {
+    const first = value[0];
+    return typeof first === "string" ? first : null;
+  }
+  return null;
+};
 
 @Injectable()
 export class ScopeGuard implements CanActivate {
@@ -14,7 +30,7 @@ export class ScopeGuard implements CanActivate {
     ]);
     if (!descriptor) return true;
 
-    const request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest<ScopeRequest>();
     const user = request.user;
     const campgroundId = this.extractCampgroundId(request);
     const region = this.extractRegion(request);
@@ -22,7 +38,7 @@ export class ScopeGuard implements CanActivate {
 
     const inRegionScope = isPlatform ? true : region ? !user?.region || user.region === region : true;
     const inCampgroundScope = campgroundId
-      ? isPlatform || (Array.isArray(user?.memberships) && user.memberships.some((m: any) => m.campgroundId === campgroundId))
+      ? isPlatform || (Array.isArray(user?.memberships) && user.memberships.some((membership) => membership.campgroundId === campgroundId))
       : true;
 
     if (!user || !inRegionScope || !inCampgroundScope) {
@@ -44,24 +60,23 @@ export class ScopeGuard implements CanActivate {
     return result.allowed;
   }
 
-  private extractRegion(request: any): string | null {
+  private extractRegion(request: ScopeRequest): string | null {
     return (
-      request.query?.region ||
-      request.body?.region ||
-      request.params?.region ||
-      request.headers?.["x-region-id"] ||
+      getStringValue(request.query?.region) ||
+      getStringValue(request.body?.region) ||
+      getStringValue(request.params?.region) ||
+      getStringValue(request.headers?.["x-region-id"]) ||
       null
     );
   }
 
-  private extractCampgroundId(request: any): string | null {
+  private extractCampgroundId(request: ScopeRequest): string | null {
     return (
-      request.params?.campgroundId ||
-      request.query?.campgroundId ||
-      request.body?.campgroundId ||
-      request.headers?.["x-campground-id"] ||
+      getStringValue(request.params?.campgroundId) ||
+      getStringValue(request.query?.campgroundId) ||
+      getStringValue(request.body?.campgroundId) ||
+      getStringValue(request.headers?.["x-campground-id"]) ||
       null
     );
   }
 }
-

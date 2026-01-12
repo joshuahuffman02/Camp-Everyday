@@ -131,9 +131,16 @@ export function NewbookImport({ campgroundId, onImportComplete }: NewbookImportP
     const handleFileUpload = useCallback((file: File) => {
         const reader = new FileReader();
         reader.onload = (e) => {
-            const content = e.target?.result as string;
-            setCsvContent(content);
-            const parsed = parseNewbookCsvLocally(content);
+            const result = e.target?.result;
+            if (typeof result !== "string") {
+                setImportResult({
+                    success: false,
+                    message: "Unable to read CSV file",
+                });
+                return;
+            }
+            setCsvContent(result);
+            const parsed = parseNewbookCsvLocally(result);
             setPreview(parsed);
             setImportResult(null);
         };
@@ -191,10 +198,11 @@ export function NewbookImport({ campgroundId, onImportComplete }: NewbookImportP
                     message: result.message || "Import failed",
                 });
             }
-        } catch (error: any) {
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "Failed to connect to server";
             setImportResult({
                 success: false,
-                message: error.message || "Failed to connect to server",
+                message,
             });
         } finally {
             setImporting(false);

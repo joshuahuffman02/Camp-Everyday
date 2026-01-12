@@ -8,8 +8,11 @@ import {
   SeasonalPaymentStatus,
   SeasonalPaymentMethod,
   SeasonalBillingFrequency,
+  SignatureRequestStatus,
+  SignatureDocumentType,
   Prisma,
 } from ".prisma/client";
+import { randomUUID } from "crypto";
 import {
   CreateSeasonalGuestDto,
   UpdateSeasonalGuestDto,
@@ -17,6 +20,22 @@ import {
 
 // Re-export for backwards compatibility
 export { CreateSeasonalGuestDto, UpdateSeasonalGuestDto };
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const hasToNumber = (value: unknown): value is { toNumber: () => number } =>
+  isRecord(value) && typeof value.toNumber === "function";
+
+const coerceNumber = (value: unknown): number => {
+  if (typeof value === "number") return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  if (hasToNumber(value)) return value.toNumber();
+  return 0;
+};
 
 export interface SeasonalGuestFilters {
   status?: SeasonalStatus | SeasonalStatus[];
@@ -133,6 +152,7 @@ export class SeasonalsService {
 
     return this.prisma.seasonalGuest.create({
       data: {
+        id: randomUUID(),
         campgroundId: dto.campgroundId,
         guestId: dto.guestId,
         firstSeasonYear: dto.firstSeasonYear,
@@ -150,10 +170,11 @@ export class SeasonalsService {
         notes: dto.notes,
         tags: dto.tags || [],
         createdBy,
+        updatedAt: new Date(),
       },
       include: {
-        guest: true,
-        currentSite: true,
+        Guest: true,
+        Site: true,
       },
     });
   }
@@ -162,17 +183,17 @@ export class SeasonalsService {
     const seasonal = await this.prisma.seasonalGuest.findUnique({
       where: { id },
       include: {
-        guest: true,
-        currentSite: true,
-        pricing: {
+        Guest: true,
+        Site: true,
+        SeasonalGuestPricing: {
           orderBy: { seasonYear: "desc" },
           take: 2,
         },
-        payments: {
+        SeasonalPayment: {
           orderBy: { dueDate: "desc" },
           take: 12,
         },
-        communications: {
+        SeasonalCommunication: {
           orderBy: { createdAt: "desc" },
           take: 10,
         },
@@ -211,23 +232,24 @@ export class SeasonalsService {
     }
 
     // Tenure filters
-    if (filters.tenureMin !== undefined) {
-      where.totalSeasons = { gte: filters.tenureMin };
-    }
-    if (filters.tenureMax !== undefined) {
-      where.totalSeasons = {
-        ...(where.totalSeasons as Prisma.IntFilter || {}),
-        lte: filters.tenureMax,
-      };
+    if (filters.tenureMin !== undefined || filters.tenureMax !== undefined) {
+      const totalSeasons: Prisma.IntFilter = {};
+      if (filters.tenureMin !== undefined) {
+        totalSeasons.gte = filters.tenureMin;
+      }
+      if (filters.tenureMax !== undefined) {
+        totalSeasons.lte = filters.tenureMax;
+      }
+      where.totalSeasons = totalSeasons;
     }
 
     // Search filter
     if (filters.search) {
       where.OR = [
-        { guest: { primaryFirstName: { contains: filters.search, mode: "insensitive" } } },
-        { guest: { primaryLastName: { contains: filters.search, mode: "insensitive" } } },
-        { guest: { email: { contains: filters.search, mode: "insensitive" } } },
-        { currentSite: { name: { contains: filters.search, mode: "insensitive" } } },
+        { Guest: { primaryFirstName: { contains: filters.search, mode: "insensitive" } } },
+        { Guest: { primaryLastName: { contains: filters.search, mode: "insensitive" } } },
+        { Guest: { email: { contains: filters.search, mode: "insensitive" } } },
+        { Site: { name: { contains: filters.search, mode: "insensitive" } } },
         { notes: { contains: filters.search, mode: "insensitive" } },
       ];
     }
@@ -236,13 +258,13 @@ export class SeasonalsService {
       this.prisma.seasonalGuest.findMany({
         where,
         include: {
-          guest: true,
-          currentSite: true,
-          pricing: {
+          Guest: true,
+          Site: true,
+          SeasonalGuestPricing: {
             orderBy: { seasonYear: "desc" },
             take: 1,
           },
-          payments: {
+          SeasonalPayment: {
             where: {
               status: { in: [SeasonalPaymentStatus.past_due, SeasonalPaymentStatus.due] },
             },
@@ -261,14 +283,14 @@ export class SeasonalsService {
     ]);
 
     type SeasonalListItem = (typeof seasonals)[number];
-    type PaymentListItem = SeasonalListItem["payments"][number];
+    type PaymentListItem = SeasonalListItem["SeasonalPayment"][number];
 
     // Post-filter by payment status if needed
     let filteredSeasonals: SeasonalListItem[] = seasonals;
     if (filters.paymentStatus) {
       filteredSeasonals = seasonals.filter((s: SeasonalListItem) => {
-        const hasPastDue = s.payments.some((p: PaymentListItem) => p.status === SeasonalPaymentStatus.past_due);
-        const hasDue = s.payments.some((p: PaymentListItem) => p.status === SeasonalPaymentStatus.due);
+        const hasPastDue = s.SeasonalPayment.some((p: PaymentListItem) => p.status === SeasonalPaymentStatus.past_due);
+        const hasDue = s.SeasonalPayment.some((p: PaymentListItem) => p.status === SeasonalPaymentStatus.due);
 
         switch (filters.paymentStatus) {
           case "past_due":
@@ -310,8 +332,8 @@ export class SeasonalsService {
       where: { id },
       data,
       include: {
-        guest: true,
-        currentSite: true,
+        Guest: true,
+        Site: true,
       },
     });
   }
@@ -358,14 +380,14 @@ export class SeasonalsService {
       this.prisma.seasonalGuest.findMany({
         where: { campgroundId },
         include: {
-          guest: true,
-          payments: {
+          Guest: true,
+          SeasonalPayment: {
             where: { seasonYear: currentYear },
           },
-          pricing: {
+          SeasonalGuestPricing: {
             where: { seasonYear: currentYear },
             include: {
-              rateCard: {
+              SeasonalRateCard: {
                 select: { seasonStartDate: true, seasonEndDate: true },
               },
             },
@@ -453,7 +475,7 @@ export class SeasonalsService {
     ]);
 
     type SeasonalWithRelations = (typeof seasonals)[number];
-    type PaymentRecord = SeasonalWithRelations["payments"][number];
+    type PaymentRecord = SeasonalWithRelations["SeasonalPayment"][number];
     type ContractRecord = (typeof contracts)[number];
 
     const activeSeasonals = seasonals.filter((s: SeasonalWithRelations) => s.status === SeasonalStatus.active);
@@ -465,27 +487,27 @@ export class SeasonalsService {
     let totalMonthlyRevenue = 0;
 
     for (const seasonal of activeSeasonals) {
-      const hasPastDue = seasonal.payments.some((p: PaymentRecord) => p.status === SeasonalPaymentStatus.past_due);
-      const allPaid = seasonal.payments.every(
+      const hasPastDue = seasonal.SeasonalPayment.some((p: PaymentRecord) => p.status === SeasonalPaymentStatus.past_due);
+      const allPaid = seasonal.SeasonalPayment.every(
         (p: PaymentRecord) => p.status === SeasonalPaymentStatus.paid || p.dueDate > now
       );
 
       if (hasPastDue) {
         paymentsPastDue++;
-      } else if (allPaid && seasonal.payments.length > 0) {
+      } else if (allPaid && seasonal.SeasonalPayment.length > 0) {
         paymentsPaidAhead++;
       } else {
         paymentsCurrent++;
       }
 
       // Sum up monthly revenue from pricing (calculated from rate card dates)
-      if (seasonal.pricing[0]) {
-        const pricing = seasonal.pricing[0] as any;
+      if (seasonal.SeasonalGuestPricing[0]) {
+        const pricing = seasonal.SeasonalGuestPricing[0];
         let seasonLengthMonths = 6; // Default fallback
 
-        if (pricing.rateCard?.seasonStartDate && pricing.rateCard?.seasonEndDate) {
-          const start = new Date(pricing.rateCard.seasonStartDate);
-          const end = new Date(pricing.rateCard.seasonEndDate);
+        if (pricing.SeasonalRateCard?.seasonStartDate && pricing.SeasonalRateCard?.seasonEndDate) {
+          const start = new Date(pricing.SeasonalRateCard.seasonStartDate);
+          const end = new Date(pricing.SeasonalRateCard.seasonEndDate);
           // Calculate months between dates
           seasonLengthMonths = Math.max(1,
             (end.getFullYear() - start.getFullYear()) * 12 +
@@ -493,7 +515,7 @@ export class SeasonalsService {
           );
         }
 
-        const monthlyRate = pricing.finalRate.toNumber() / seasonLengthMonths;
+        const monthlyRate = coerceNumber(pricing.finalRate) / seasonLengthMonths;
         totalMonthlyRevenue += monthlyRate;
       }
     }
@@ -532,8 +554,8 @@ export class SeasonalsService {
 
     for (const seasonal of activeSeasonals) {
       if (milestoneYears.includes(seasonal.totalSeasons)) {
-        const guestName = seasonal.guest
-          ? `${seasonal.guest.primaryFirstName} ${seasonal.guest.primaryLastName}`
+        const guestName = seasonal.Guest
+          ? `${seasonal.Guest.primaryFirstName} ${seasonal.Guest.primaryLastName}`
           : "Unknown Guest";
 
         let type: "5year" | "10year" | "15year" | "20year";
@@ -563,8 +585,8 @@ export class SeasonalsService {
          seasonal.renewalIntent === null);
 
       if (isAtRisk) {
-        const guestName = seasonal.guest
-          ? `${seasonal.guest.primaryFirstName} ${seasonal.guest.primaryLastName}`
+        const guestName = seasonal.Guest
+          ? `${seasonal.Guest.primaryFirstName} ${seasonal.Guest.primaryLastName}`
           : "Unknown Guest";
 
         // Calculate risk level based on tenure and status
@@ -636,7 +658,7 @@ export class SeasonalsService {
     const seasonalGuest = await this.prisma.seasonalGuest.findUnique({
       where: { id: dto.seasonalGuestId },
       include: {
-        payments: {
+        SeasonalPayment: {
           where: {
             seasonYear: dto.seasonYear,
             status: { in: [SeasonalPaymentStatus.due, SeasonalPaymentStatus.past_due, SeasonalPaymentStatus.scheduled] },
@@ -652,9 +674,9 @@ export class SeasonalsService {
 
     // Find the earliest unpaid payment to apply this to
     let remainingAmount = dto.amount;
-    const updates: Promise<any>[] = [];
+    const updates: Array<Promise<unknown>> = [];
 
-    for (const payment of seasonalGuest.payments) {
+    for (const payment of seasonalGuest.SeasonalPayment) {
       if (remainingAmount <= 0) break;
 
       const paymentAmount = payment.amount.toNumber();
@@ -707,14 +729,22 @@ export class SeasonalsService {
 
   // ==================== RATE CARDS ====================
 
-  async createRateCard(data: Prisma.SeasonalRateCardCreateInput) {
-    return this.prisma.seasonalRateCard.create({
-      data,
+  async createRateCard(
+    data: Omit<Prisma.SeasonalRateCardCreateInput, "id" | "updatedAt">
+  ) {
+    const rateCard = await this.prisma.seasonalRateCard.create({
+      data: {
+        ...data,
+        id: randomUUID(),
+        updatedAt: new Date(),
+      },
       include: {
-        discounts: true,
-        incentives: true,
+        SeasonalDiscount: true,
+        SeasonalIncentive: true,
       },
     });
+    const { SeasonalDiscount, SeasonalIncentive, ...rest } = rateCard;
+    return { ...rest, discounts: SeasonalDiscount, incentives: SeasonalIncentive };
   }
 
   async getRateCards(campgroundId: string, seasonYear?: number) {
@@ -723,41 +753,58 @@ export class SeasonalsService {
       where.seasonYear = seasonYear;
     }
 
-    return this.prisma.seasonalRateCard.findMany({
+    const rateCards = await this.prisma.seasonalRateCard.findMany({
       where,
       include: {
-        discounts: { where: { isActive: true } },
-        incentives: { where: { isActive: true } },
+        SeasonalDiscount: { where: { isActive: true } },
+        SeasonalIncentive: { where: { isActive: true } },
       },
       orderBy: [{ seasonYear: "desc" }, { name: "asc" }],
     });
+    return rateCards.map(({ SeasonalDiscount, SeasonalIncentive, ...rest }) => ({
+      ...rest,
+      discounts: SeasonalDiscount,
+      incentives: SeasonalIncentive,
+    }));
   }
 
   async updateRateCard(id: string, data: Prisma.SeasonalRateCardUpdateInput) {
-    return this.prisma.seasonalRateCard.update({
+    const rateCard = await this.prisma.seasonalRateCard.update({
       where: { id },
       data,
       include: {
-        discounts: true,
-        incentives: true,
+        SeasonalDiscount: true,
+        SeasonalIncentive: true,
       },
     });
+    const { SeasonalDiscount, SeasonalIncentive, ...rest } = rateCard;
+    return { ...rest, discounts: SeasonalDiscount, incentives: SeasonalIncentive };
   }
 
-  async addDiscount(rateCardId: string, data: Omit<Prisma.SeasonalDiscountCreateInput, "rateCard">) {
+  async addDiscount(
+    rateCardId: string,
+    data: Omit<Prisma.SeasonalDiscountCreateInput, "SeasonalRateCard" | "id" | "updatedAt">
+  ) {
     return this.prisma.seasonalDiscount.create({
       data: {
         ...data,
-        rateCard: { connect: { id: rateCardId } },
+        id: randomUUID(),
+        updatedAt: new Date(),
+        SeasonalRateCard: { connect: { id: rateCardId } },
       },
     });
   }
 
-  async addIncentive(rateCardId: string, data: Omit<Prisma.SeasonalIncentiveCreateInput, "rateCard">) {
+  async addIncentive(
+    rateCardId: string,
+    data: Omit<Prisma.SeasonalIncentiveCreateInput, "SeasonalRateCard" | "id" | "updatedAt">
+  ) {
     return this.prisma.seasonalIncentive.create({
       data: {
         ...data,
-        rateCard: { connect: { id: rateCardId } },
+        id: randomUUID(),
+        updatedAt: new Date(),
+        SeasonalRateCard: { connect: { id: rateCardId } },
       },
     });
   }
@@ -779,8 +826,8 @@ export class SeasonalsService {
     for (const seasonal of seasonals) {
       // Replace template tokens
       let body = dto.body;
-      body = body.replace(/\{\{first_name\}\}/g, seasonal.guest.primaryFirstName);
-      body = body.replace(/\{\{last_name\}\}/g, seasonal.guest.primaryLastName);
+      body = body.replace(/\{\{first_name\}\}/g, seasonal.Guest.primaryFirstName);
+      body = body.replace(/\{\{last_name\}\}/g, seasonal.Guest.primaryLastName);
       body = body.replace(/\{\{site\}\}/g, seasonal.currentSiteId || "TBD");
       body = body.replace(/\{\{tenure_years\}\}/g, String(seasonal.totalSeasons));
 
@@ -792,6 +839,7 @@ export class SeasonalsService {
       }
 
       communications.push({
+        id: randomUUID(),
         seasonalGuestId: seasonal.id,
         campgroundId: dto.campgroundId,
         channel: dto.channel,
@@ -814,9 +862,9 @@ export class SeasonalsService {
       seasonals.map(async (seasonal, index) => {
         const comm = communications[index];
 
-        if (dto.channel === "email" && seasonal.guest.email) {
+        if (dto.channel === "email" && seasonal.Guest.email) {
           await this.emailService.sendEmail({
-            to: seasonal.guest.email,
+            to: seasonal.Guest.email,
             subject: dto.subject || "Message from your campground",
             html: comm.body.replace(/\n/g, "<br>"),
             campgroundId: dto.campgroundId,
@@ -896,9 +944,9 @@ export class SeasonalsService {
     const reservation = await this.prisma.reservation.findUnique({
       where: { id: reservationId },
       include: {
-        guest: true,
-        site: true,
-        campground: true,
+        Guest: true,
+        Site: true,
+        Campground: true,
       },
     });
 
@@ -961,6 +1009,7 @@ export class SeasonalsService {
     // Create the seasonal guest record
     const seasonalGuest = await this.prisma.seasonalGuest.create({
       data: {
+        id: randomUUID(),
         campgroundId: reservation.campgroundId,
         guestId: reservation.guestId,
         firstSeasonYear,
@@ -978,10 +1027,11 @@ export class SeasonalsService {
         convertedBy,
         notes: options.notes,
         createdBy: convertedBy,
+        updatedAt: new Date(),
       },
       include: {
-        guest: true,
-        currentSite: true,
+        Guest: true,
+        Site: true,
       },
     });
 
@@ -1123,7 +1173,7 @@ export class SeasonalsService {
   ) {
     const seasonals = await this.prisma.seasonalGuest.findMany({
       where: { id: { in: dto.seasonalGuestIds } },
-      include: { Guest: true, site: true },
+      include: { Guest: true, Site: true },
     });
 
     if (seasonals.length === 0) {
@@ -1132,12 +1182,14 @@ export class SeasonalsService {
 
     // Find default contract template if not specified
     let templateId = dto.templateId;
+    let templateName: string | undefined;
     if (!templateId) {
       const template = await this.prisma.documentTemplate.findFirst({
-        where: { campgroundId: dto.campgroundId, category: "seasonal_contract", isActive: true },
+        where: { campgroundId: dto.campgroundId, type: SignatureDocumentType.seasonal, isActive: true },
         orderBy: { createdAt: "desc" },
       });
       templateId = template?.id;
+      templateName = template?.name;
     }
 
     if (!templateId) {
@@ -1148,36 +1200,41 @@ export class SeasonalsService {
     let failed = 0;
 
     for (const seasonal of seasonals) {
-      if (!seasonal.guest?.email) {
+      if (!seasonal.Guest?.email) {
         failed++;
         continue;
       }
 
       try {
         // Create signature request for each seasonal
+        const token = randomUUID();
         await this.prisma.signatureRequest.create({
           data: {
+            id: randomUUID(),
             campgroundId: dto.campgroundId,
             templateId,
-            recipientEmail: seasonal.guest.email,
-            recipientName: `${seasonal.guest.firstName} ${seasonal.guest.lastName}`,
-            recipientType: "seasonal",
-            referenceType: "seasonal_guest",
-            referenceId: seasonal.id,
-            status: "pending",
-            createdBy: sentBy,
+            documentType: SignatureDocumentType.seasonal,
+            token,
+            status: SignatureRequestStatus.sent,
+            subject: templateName ?? "Seasonal Contract",
+            recipientEmail: seasonal.Guest.email,
+            recipientName: `${seasonal.Guest.primaryFirstName} ${seasonal.Guest.primaryLastName}`,
+            guestId: seasonal.guestId,
+            seasonYear: new Date().getFullYear(),
+            sentAt: new Date(),
             expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+            updatedAt: new Date(),
           },
         });
 
         // Send email notification
         await this.emailService.sendEmail({
-          to: seasonal.guest.email,
+          to: seasonal.Guest.email,
           subject: "Please sign your seasonal contract",
           html: `
             <h2>Seasonal Contract Ready for Signature</h2>
-            <p>Hi ${seasonal.guest.firstName},</p>
-            <p>Your seasonal contract for site ${seasonal.site?.name || "your site"} is ready for review and signature.</p>
+            <p>Hi ${seasonal.Guest.primaryFirstName},</p>
+            <p>Your seasonal contract for site ${seasonal.Site?.name || "your site"} is ready for review and signature.</p>
             <p>Please log in to your guest portal to review and sign the contract.</p>
             <p>This contract will expire in 30 days.</p>
           `,
@@ -1186,7 +1243,7 @@ export class SeasonalsService {
 
         sent++;
       } catch (err) {
-        this.logger.error(`Failed to send contract to ${seasonal.guest.email}: ${err}`);
+        this.logger.error(`Failed to send contract to ${seasonal.Guest.email}: ${err}`);
         failed++;
       }
     }
@@ -1210,6 +1267,14 @@ export class SeasonalsService {
       return { recorded: 0, failed: 0 };
     }
 
+    const now = new Date();
+    const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const amount = dto.amountCents / 100;
+    const paymentMethod = Object.values(SeasonalPaymentMethod).find(
+      (value) => value === dto.method
+    );
+
     let recorded = 0;
     let failed = 0;
 
@@ -1217,13 +1282,21 @@ export class SeasonalsService {
       try {
         await this.prisma.seasonalPayment.create({
           data: {
+            id: randomUUID(),
             seasonalGuestId: seasonal.id,
-            amountCents: dto.amountCents,
-            method: dto.method,
-            status: "paid",
-            paidAt: new Date(),
-            note: dto.note,
+            campgroundId: seasonal.campgroundId,
+            seasonYear: now.getFullYear(),
+            periodStart,
+            periodEnd,
+            amount,
+            dueDate: now,
+            status: SeasonalPaymentStatus.paid,
+            paidAmount: amount,
+            paidAt: now,
+            paymentMethod,
+            notes: dto.note,
             recordedBy,
+            updatedAt: new Date(),
           },
         });
         recorded++;
@@ -1241,7 +1314,7 @@ export class SeasonalsService {
    * Export seasonal guests to CSV format
    */
   async exportToCsv(campgroundId: string, seasonYear: number, ids?: string[]) {
-    const where: any = { campgroundId };
+    const where: Prisma.SeasonalGuestWhereInput = { campgroundId };
     if (ids && ids.length > 0) {
       where.id = { in: ids };
     }
@@ -1249,15 +1322,20 @@ export class SeasonalsService {
     const seasonals = await this.prisma.seasonalGuest.findMany({
       where,
       include: {
-        guest: true,
-        site: true,
-        rateCard: true,
-        payments: {
+        Guest: true,
+        Site: true,
+        SeasonalGuestPricing: {
+          where: { seasonYear },
+          include: { SeasonalRateCard: true },
+          orderBy: { seasonYear: "desc" },
+          take: 1,
+        },
+        SeasonalPayment: {
           orderBy: { createdAt: "desc" },
           take: 1,
         },
       },
-      orderBy: [{ site: { name: "asc" } }, { guest: { lastName: "asc" } }],
+      orderBy: [{ Site: { name: "asc" } }, { Guest: { primaryLastName: "asc" } }],
     });
 
     // Build CSV header
@@ -1282,26 +1360,33 @@ export class SeasonalsService {
 
     // Build CSV rows
     const rows = seasonals.map((s) => {
-      const totalPaid = s.payments?.reduce((sum, p) => sum + (p.amountCents || 0), 0) || 0;
-      const balance = (s.totalDueCents || 0) - totalPaid;
-      const lastPayment = s.payments?.[0];
+      const pricing = s.SeasonalGuestPricing[0];
+      const totalDueCents = pricing ? Math.round(coerceNumber(pricing.finalRate) * 100) : 0;
+      const totalPaid =
+        s.SeasonalPayment?.reduce((sum, p) => {
+          const paid = p.paidAmount ?? p.amount;
+          return sum + Math.round(coerceNumber(paid) * 100);
+        }, 0) || 0;
+      const balance = totalDueCents - totalPaid;
+      const lastPayment = s.SeasonalPayment?.[0];
+      const contractStatus = "Unknown";
 
       return [
-        s.site?.name || "",
-        s.guest?.firstName || "",
-        s.guest?.lastName || "",
-        s.guest?.email || "",
-        s.guest?.phone || "",
+        s.Site?.name || "",
+        s.Guest?.primaryFirstName || "",
+        s.Guest?.primaryLastName || "",
+        s.Guest?.email || "",
+        s.Guest?.phone || "",
         s.status || "",
         s.renewalIntent || "",
         s.totalSeasons?.toString() || "0",
         s.seniorityRank?.toString() || "",
-        s.rateCard?.name || "",
-        ((s.totalDueCents || 0) / 100).toFixed(2),
+        pricing?.SeasonalRateCard?.name || "",
+        (totalDueCents / 100).toFixed(2),
         (totalPaid / 100).toFixed(2),
         (balance / 100).toFixed(2),
         lastPayment?.paidAt ? new Date(lastPayment.paidAt).toLocaleDateString() : "",
-        s.contractSigned ? "Signed" : "Pending",
+        contractStatus,
         s.notes || "",
       ];
     });

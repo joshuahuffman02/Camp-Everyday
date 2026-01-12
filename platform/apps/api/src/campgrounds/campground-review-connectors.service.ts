@@ -1,10 +1,48 @@
 import { Injectable, Logger } from "@nestjs/common";
 
+type ExternalReviewItem = {
+  author?: string | null;
+  rating?: number | null;
+  text?: string | null;
+  time?: number | null;
+  relativeTime?: string | null;
+  profilePhotoUrl?: string | null;
+  date?: string | null;
+};
+
 type ExternalReview = {
   rating?: number | null;
   count?: number | null;
   source: string;
-  reviews?: any[];
+  reviews?: ExternalReviewItem[];
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : String(error);
+
+const parseGoogleReview = (review: unknown): ExternalReviewItem | null => {
+  if (!isRecord(review)) return null;
+  return {
+    author: typeof review.author_name === "string" ? review.author_name : null,
+    rating: typeof review.rating === "number" ? review.rating : null,
+    text: typeof review.text === "string" ? review.text : null,
+    time: typeof review.time === "number" ? review.time : null,
+    relativeTime: typeof review.relative_time_description === "string" ? review.relative_time_description : null,
+    profilePhotoUrl: typeof review.profile_photo_url === "string" ? review.profile_photo_url : null
+  };
+};
+
+const parseRvLifeReview = (review: unknown): ExternalReviewItem | null => {
+  if (!isRecord(review)) return null;
+  return {
+    author: typeof review.author_name === "string" ? review.author_name : null,
+    rating: typeof review.rating === "number" ? review.rating : null,
+    text: typeof review.review_text === "string" ? review.review_text : null,
+    date: typeof review.created_at === "string" ? review.created_at : null
+  };
 };
 
 @Injectable()
@@ -45,25 +83,22 @@ export class CampgroundReviewConnectors {
         return { source: "google_places", rating: null, count: null, reviews: [] };
       }
       const json = await res.json();
-      if (json?.status && json.status !== "OK") {
+      if (isRecord(json) && typeof json.status === "string" && json.status !== "OK") {
         this.logger.warn(`Google Places response status=${json.status}`);
       }
-      const result = json?.result ?? {};
-      const rating = result.rating ?? null;
-      const count = result.user_ratings_total ?? null;
+      const result = isRecord(json) && isRecord(json.result) ? json.result : {};
+      const rating = typeof result.rating === "number" ? result.rating : null;
+      const count = typeof result.user_ratings_total === "number" ? result.user_ratings_total : null;
       const reviews = Array.isArray(result.reviews)
-        ? result.reviews.slice(0, 10).map((r: any) => ({
-            author: r.author_name,
-            rating: r.rating,
-            text: r.text,
-            time: r.time,
-            relativeTime: r.relative_time_description,
-            profilePhotoUrl: r.profile_photo_url
-          }))
+        ? result.reviews.slice(0, 10).reduce<ExternalReviewItem[]>((acc, review) => {
+            const parsed = parseGoogleReview(review);
+            if (parsed) acc.push(parsed);
+            return acc;
+          }, [])
         : [];
       return { source: "google_places", rating, count, reviews };
-    } catch (err: any) {
-      this.logger.error(`Google Places fetch error: ${err?.message || err}`);
+    } catch (err) {
+      this.logger.error(`Google Places fetch error: ${getErrorMessage(err)}`);
       return { source: "google_places", rating: null, count: null, reviews: [] };
     }
   }
@@ -123,8 +158,8 @@ export class CampgroundReviewConnectors {
       // return this.parseRvLifeResponse(data);
 
       return { source: "rv_life", rating: null, count: null, reviews: [] };
-    } catch (err: any) {
-      this.logger.error(`RV Life API error: ${err?.message || err}`);
+    } catch (err) {
+      this.logger.error(`RV Life API error: ${getErrorMessage(err)}`);
       return { source: "rv_life", rating: null, count: null, reviews: [] };
     }
   }
@@ -133,19 +168,21 @@ export class CampgroundReviewConnectors {
    * Parse RV Life API response
    * TODO: Implement based on actual API response format
    */
-  private parseRvLifeResponse(data: any): ExternalReview {
+  private parseRvLifeResponse(data: unknown): ExternalReview {
+    if (!isRecord(data)) {
+      return { source: "rv_life", rating: null, count: null, reviews: [] };
+    }
     // This will need to be implemented based on RV Life's actual response format
     return {
       source: "rv_life",
-      rating: data?.rating ?? null,
-      count: data?.review_count ?? null,
-      reviews: Array.isArray(data?.reviews)
-        ? data.reviews.slice(0, 10).map((r: any) => ({
-            author: r.author_name,
-            rating: r.rating,
-            text: r.review_text,
-            date: r.created_at,
-          }))
+      rating: typeof data.rating === "number" ? data.rating : null,
+      count: typeof data.review_count === "number" ? data.review_count : null,
+      reviews: Array.isArray(data.reviews)
+        ? data.reviews.slice(0, 10).reduce<ExternalReviewItem[]>((acc, review) => {
+            const parsed = parseRvLifeReview(review);
+            if (parsed) acc.push(parsed);
+            return acc;
+          }, [])
         : [],
     };
   }
@@ -159,4 +196,3 @@ export class CampgroundReviewConnectors {
     return results;
   }
 }
-

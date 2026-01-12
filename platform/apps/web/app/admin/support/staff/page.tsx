@@ -28,16 +28,14 @@ type Staff = {
   memberships?: { campgroundId: string; role?: string | null }[];
 };
 
-interface UserWithPlatformRole {
-  memberships?: Array<{ campgroundId: string; role?: string | null }>;
-  platformRole?: string | null;
-}
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
 
-interface WhoamiAllowed {
-  supportRead?: boolean;
-  supportAssign?: boolean;
-  supportAnalytics?: boolean;
-}
+const isStaff = (value: unknown): value is Staff =>
+  isRecord(value) && typeof value.id === "string" && typeof value.email === "string";
+
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error && error.message ? error.message : "Unexpected error";
 
 export default function SupportStaffDirectoryPage() {
   const [staff, setStaff] = useState<Staff[]>([]);
@@ -48,12 +46,12 @@ export default function SupportStaffDirectoryPage() {
   const [drafts, setDrafts] = useState<Record<string, { region: string; ownershipRoles: string }>>({});
   const { toast } = useToast();
   const { data: whoami, isLoading: whoamiLoading, error: whoamiError } = useWhoami();
-  const hasMembership = ((whoami?.user as UserWithPlatformRole | undefined)?.memberships?.length ?? 0) > 0;
-  const platformRole = (whoami?.user as UserWithPlatformRole | undefined)?.platformRole;
+  const hasMembership = (whoami?.user?.memberships?.length ?? 0) > 0;
+  const platformRole = whoami?.user?.platformRole;
   const supportAllowed =
-    (whoami?.allowed as WhoamiAllowed | undefined)?.supportRead ||
-    (whoami?.allowed as WhoamiAllowed | undefined)?.supportAssign ||
-    (whoami?.allowed as WhoamiAllowed | undefined)?.supportAnalytics;
+    whoami?.allowed?.supportRead ||
+    whoami?.allowed?.supportAssign ||
+    whoami?.allowed?.supportAnalytics;
   const allowSupport = !!supportAllowed && (!!platformRole || hasMembership);
 
   useEffect(() => {
@@ -76,10 +74,11 @@ export default function SupportStaffDirectoryPage() {
         headers: getAuthHeaders()
       });
       if (!res.ok) throw new Error(`Failed to load staff (${res.status})`);
-      const data = (await res.json()) as Staff[];
-      setStaff(data);
-    } catch (err: any) {
-      toast({ title: "Load failed", description: err?.message || "Could not fetch staff", variant: "destructive" });
+      const raw = await res.json();
+      const list = Array.isArray(raw) ? raw.filter(isStaff) : [];
+      setStaff(list);
+    } catch (error) {
+      toast({ title: "Load failed", description: getErrorMessage(error), variant: "destructive" });
       setStaff([]);
     } finally {
       setLoading(false);
@@ -123,11 +122,13 @@ export default function SupportStaffDirectoryPage() {
         body: JSON.stringify({ region: draft.region || null, ownershipRoles: roles })
       });
       if (!res.ok) throw new Error(`Failed to update (${res.status})`);
-      const updated = (await res.json()) as Staff;
-      setStaff((prev) => prev.map((s) => (s.id === staffId ? updated : s)));
+      const updatedRaw = await res.json();
+      if (isStaff(updatedRaw)) {
+        setStaff((prev) => prev.map((s) => (s.id === staffId ? updatedRaw : s)));
+      }
       toast({ title: "Updated", description: "Staff scope saved" });
-    } catch (err: any) {
-      toast({ title: "Save failed", description: err?.message || "Unable to save", variant: "destructive" });
+    } catch (error) {
+      toast({ title: "Save failed", description: getErrorMessage(error), variant: "destructive" });
     } finally {
       setSavingId(null);
     }
@@ -198,7 +199,7 @@ export default function SupportStaffDirectoryPage() {
               <p className="text-sm text-muted-foreground">Only staff permitted for the selected region/campground are shown.</p>
             </div>
             {loading && <div className="text-xs text-muted-foreground">Loading…</div>}
-            {whoamiError && <div className="text-xs text-rose-600">Scope fetch failed: {(whoamiError as Error)?.message}</div>}
+            {whoamiError && <div className="text-xs text-rose-600">Scope fetch failed: {getErrorMessage(whoamiError)}</div>}
           </div>
 
           <div className="grid gap-3">
@@ -285,4 +286,3 @@ export default function SupportStaffDirectoryPage() {
     </div>
   );
 }
-

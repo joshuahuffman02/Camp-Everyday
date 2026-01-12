@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
+import type { Variants } from "framer-motion";
 import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { PageHeader } from "@/components/ui/layout/PageHeader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,17 +31,17 @@ import { formatDistanceToNow } from "date-fns";
 type DisputeSummary = { open: number; won: number; lost: number; total: number };
 
 // Animation variants
-const container = {
+const container: Variants = {
   hidden: { opacity: 0 },
   show: {
     opacity: 1,
     transition: { staggerChildren: 0.1 }
   }
-} as const;
+};
 
-const item = {
+const item: Variants = {
   hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 300, damping: 25 } }
+  show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 25 } }
 };
 
 export default function FinancePage() {

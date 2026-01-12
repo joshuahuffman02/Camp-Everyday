@@ -1,8 +1,28 @@
-import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { GamificationEventCategory, OperationalTask } from '@prisma/client';
+import { GamificationEventCategory, OperationalTask, Prisma } from '@prisma/client';
+import { randomUUID } from 'crypto';
 import { GamificationService } from '../gamification/gamification.service';
 import { EmailService } from '../email/email.service';
+
+type OpsMembership = { campgroundId?: string | null };
+type OpsUser = { memberships?: OpsMembership[] };
+type OpsAlertPayload = {
+    campgroundId: string;
+    channel: string;
+    target: string;
+    message: string;
+    at: string;
+};
+type AlertCampground = { name?: string | null; email?: string | null } | null;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null && !Array.isArray(value);
+
+type OperationalTaskCreateData = Omit<
+    Prisma.OperationalTaskUncheckedCreateInput,
+    "id" | "campgroundId" | "updatedAt" | "type"
+> & { type?: string };
 
 @Injectable()
 export class OperationsService {
@@ -26,17 +46,20 @@ export class OperationsService {
         });
     }
 
-    async createTask(campgroundId: string, data: any, user?: any): Promise<OperationalTask> {
+    async createTask(campgroundId: string, data: OperationalTaskCreateData, user?: OpsUser): Promise<OperationalTask> {
         this.ensureCampgroundAccess(user, campgroundId);
         return this.prisma.operationalTask.create({
             data: {
+                id: randomUUID(),
                 ...data,
                 campgroundId,
+                type: data.type ?? "maintenance",
+                updatedAt: new Date(),
             },
         });
     }
 
-    async updateTask(id: string, data: any, user?: any): Promise<OperationalTask> {
+    async updateTask(id: string, data: Prisma.OperationalTaskUncheckedUpdateInput, user?: OpsUser): Promise<OperationalTask> {
         const existing = await this.prisma.operationalTask.findUnique({ where: { id } });
         if (!existing) {
             throw new ForbiddenException("Task not found");
@@ -49,7 +72,12 @@ export class OperationsService {
             data,
         });
 
-        const statusTarget = data.status as string | undefined;
+        const statusTarget =
+            typeof data.status === "string"
+                ? data.status
+                : isRecord(data.status) && typeof data.status.set === "string"
+                    ? data.status.set
+                    : undefined;
         const becameCompleted = !!existing && !!statusTarget && ["completed", "verified"].includes(statusTarget) && existing.status !== statusTarget;
         const becameOnTime = becameCompleted && existing?.dueDate
             ? new Date(existing.dueDate).getTime() >= Date.now()
@@ -84,7 +112,7 @@ export class OperationsService {
         return updated;
     }
 
-    async updateSiteHousekeeping(siteId: string, status: string, user?: any) {
+    async updateSiteHousekeeping(siteId: string, status: string, user?: OpsUser) {
         const site = await this.prisma.site.findUnique({
             where: { id: siteId },
             select: { campgroundId: true },
@@ -142,7 +170,7 @@ export class OperationsService {
         ];
     }
 
-    async triggerAutoTask(campgroundId: string, trigger: string, user?: any) {
+    async triggerAutoTask(campgroundId: string, trigger: string, user?: OpsUser) {
         this.ensureCampgroundAccess(user, campgroundId);
         return {
             triggered: true,
@@ -318,10 +346,10 @@ export class OperationsService {
         channel = "webhook",
         target = "ops-alerts",
         message = "Test alert from ops health",
-        user?: any,
+        user?: OpsUser,
     ) {
         this.ensureCampgroundAccess(user, campgroundId);
-        const payload = {
+        const payload: OpsAlertPayload = {
             campgroundId,
             channel,
             target,
@@ -360,23 +388,24 @@ export class OperationsService {
             }
 
             return { sent: true, ...payload };
-        } catch (error: any) {
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : "Unknown error";
             // Log error but don't throw - alerts should fail gracefully
             // Use parameterized query to prevent SQL injection
-            const metadata = JSON.stringify({ error: error.message, payload });
+            const metadata = JSON.stringify({ error: errorMessage, payload });
             this.prisma.$executeRaw`
                 INSERT INTO system_logs (level, message, metadata, created_at)
                 VALUES ('error', 'Failed to send ops alert', ${metadata}::jsonb, NOW())
             `.catch(() => {
                 // If logging fails, use logger as fallback
-                this.logger?.error?.("Failed to send ops alert and log:", error.message, payload);
+                this.logger?.error?.("Failed to send ops alert and log:", errorMessage, payload);
             });
 
-            return { sent: false, error: error.message, ...payload };
+            return { sent: false, error: errorMessage, ...payload };
         }
     }
 
-    private async sendWebhookAlert(payload: any, campground: any) {
+    private async sendWebhookAlert(payload: OpsAlertPayload, campground: AlertCampground) {
         const webhookUrl = process.env.OPS_ALERT_WEBHOOK_URL;
 
         if (!webhookUrl) {
@@ -398,7 +427,7 @@ export class OperationsService {
         }
     }
 
-    private async sendSlackAlert(payload: any, campground: any) {
+    private async sendSlackAlert(payload: OpsAlertPayload, campground: AlertCampground) {
         const slackUrl = process.env.SLACK_OPS_WEBHOOK_URL;
 
         if (!slackUrl) {
@@ -441,7 +470,7 @@ export class OperationsService {
         }
     }
 
-    private async sendEmailAlert(payload: any, campground: any) {
+    private async sendEmailAlert(payload: OpsAlertPayload, campground: AlertCampground) {
         const alertEmail = process.env.OPS_ALERT_EMAIL || campground?.email;
 
         if (!alertEmail) {
@@ -465,7 +494,7 @@ export class OperationsService {
         });
     }
 
-    private async sendSmsAlert(payload: any, campground: any) {
+    private async sendSmsAlert(payload: OpsAlertPayload, campground: AlertCampground) {
         const accountSid = process.env.TWILIO_ACCOUNT_SID;
         const authToken = process.env.TWILIO_AUTH_TOKEN;
         const fromPhone = process.env.TWILIO_PHONE_FROM;
@@ -499,7 +528,7 @@ export class OperationsService {
         }
     }
 
-    private async sendPagerDutyAlert(payload: any, campground: any) {
+    private async sendPagerDutyAlert(payload: OpsAlertPayload, campground: AlertCampground) {
         const integrationKey = process.env.PAGERDUTY_INTEGRATION_KEY;
 
         if (!integrationKey) {
@@ -534,7 +563,7 @@ export class OperationsService {
         }
     }
 
-    private async sendTeamsAlert(payload: any, campground: any) {
+    private async sendTeamsAlert(payload: OpsAlertPayload, campground: AlertCampground) {
         const teamsUrl = process.env.TEAMS_OPS_WEBHOOK_URL;
 
         if (!teamsUrl) {
@@ -569,11 +598,11 @@ export class OperationsService {
         }
     }
 
-    private ensureCampgroundAccess(user: any, campgroundId?: string | null) {
+    private ensureCampgroundAccess(user: OpsUser | undefined, campgroundId?: string | null) {
         if (!campgroundId) {
             throw new ForbiddenException("Campground scope required");
         }
-        const allowed = Array.isArray(user?.memberships) && user.memberships.some((m: any) => m.campgroundId === campgroundId);
+        const allowed = Array.isArray(user?.memberships) && user.memberships.some((membership) => membership.campgroundId === campgroundId);
         if (!allowed) {
             throw new ForbiddenException("Forbidden by campground scope");
         }

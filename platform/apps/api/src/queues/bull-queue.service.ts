@@ -45,7 +45,9 @@ export interface QueueStats {
   delayed: number;
 }
 
-type ProcessorFn<T> = (job: JobData<T>) => Promise<unknown>;
+type ProcessorFn<T> = {
+  bivarianceHack(job: JobData<T>): Promise<unknown>;
+}["bivarianceHack"];
 
 /**
  * BullMQ-style queue service with Redis persistence
@@ -84,7 +86,7 @@ export class BullQueueService implements OnModuleInit, OnModuleDestroy {
    * Register a processor for a queue
    */
   registerProcessor<T>(queueName: string, processor: ProcessorFn<T>) {
-    this.processors.set(queueName, processor as ProcessorFn<unknown>);
+    this.processors.set(queueName, processor);
     this.logger.log(`Registered processor for queue: ${queueName}`);
   }
 
@@ -299,7 +301,7 @@ export class BullQueueService implements OnModuleInit, OnModuleDestroy {
       this.memoryQueues.set(queueName, []);
     }
     const queue = this.memoryQueues.get(queueName)!;
-    queue.push(job as JobData);
+    queue.push(job);
     // Sort by priority then by processAfter
     queue.sort((a, b) => {
       if (a.priority !== b.priority) return a.priority - b.priority;

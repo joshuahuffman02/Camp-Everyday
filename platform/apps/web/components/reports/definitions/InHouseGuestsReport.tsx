@@ -104,7 +104,7 @@ export function InHouseGuestsReport({ campgroundId, dateRange }: InHouseGuestsRe
                                     </td>
                                 </tr>
                             ) : (
-                                inHouse.map((r: any) => (
+                                inHouse.map((r) => (
                                     <tr key={r.id} className="hover:bg-muted group transition-colors">
                                         <td className="px-4 py-3 text-foreground font-bold font-mono">{getSiteName(r.siteId)}</td>
                                         <td className="px-4 py-3 font-medium text-foreground">
@@ -116,7 +116,7 @@ export function InHouseGuestsReport({ campgroundId, dateRange }: InHouseGuestsRe
                                         <td className="px-4 py-3 text-muted-foreground">{format(new Date(r.arrivalDate), "MMM d")}</td>
                                         <td className="px-4 py-3 text-muted-foreground">{format(new Date(r.departureDate), "MMM d")}</td>
                                         <td className="px-4 py-3 text-muted-foreground">
-                                            {r.occupants?.adults || 0}ad / {r.occupants?.children || 0}ch
+                                            {r.adults || 0}ad / {r.children || 0}ch
                                         </td>
                                         <td className="px-4 py-3">
                                             <span className={((r.totalAmount - (r.paidAmount || 0)) > 0) ? "text-rose-600 font-medium" : "text-emerald-600"}>

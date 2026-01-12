@@ -125,24 +125,42 @@ const readMetadataString = (metadata: Record<string, unknown> | null | undefined
   return typeof value === "string" ? value : undefined;
 };
 
+type IssueFormState = {
+  code: string;
+  amount: string;
+  expiresOn: string;
+  issuedTo: string;
+  issuedFor: RedemptionChannel;
+  scopeType: "campground" | "organization" | "global";
+  note: string;
+  reference: string;
+};
+
+type RedeemFormState = {
+  code: string;
+  amount: string;
+  channel: RedemptionChannel;
+  reference: string;
+};
+
 export default function GiftCardsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [campgroundId, setCampgroundId] = useState<string | null>(null);
-  const [issueForm, setIssueForm] = useState({
+  const [issueForm, setIssueForm] = useState<IssueFormState>({
     code: "",
     amount: "100",
     expiresOn: "",
     issuedTo: "",
-    issuedFor: "reservation" as RedemptionChannel,
-    scopeType: "campground" as "campground" | "organization" | "global",
+    issuedFor: "reservation",
+    scopeType: "campground",
     note: "",
     reference: ""
   });
-  const [redeemForm, setRedeemForm] = useState({
+  const [redeemForm, setRedeemForm] = useState<RedeemFormState>({
     code: "",
     amount: "",
-    channel: "reservation" as RedemptionChannel,
+    channel: "reservation",
     reference: ""
   });
 
@@ -152,7 +170,7 @@ export default function GiftCardsPage() {
     if (stored) setCampgroundId(stored);
   }, []);
 
-  const accountsQuery = useQuery({
+  const accountsQuery = useQuery<StoredValueAccount[]>({
     queryKey: ["stored-value-accounts", campgroundId],
     queryFn: () => apiClient.getStoredValueAccounts(campgroundId!),
     enabled: !!campgroundId
@@ -166,7 +184,7 @@ export default function GiftCardsPage() {
 
   const organizationId = campgroundQuery.data?.organizationId;
 
-  const ledgerQuery = useQuery({
+  const ledgerQuery = useQuery<StoredValueLedger[]>({
     queryKey: ["stored-value-ledger", campgroundId],
     queryFn: () => apiClient.getStoredValueLedger(campgroundId!),
     enabled: !!campgroundId
@@ -226,7 +244,7 @@ export default function GiftCardsPage() {
   }, [ledgerQuery.data]);
 
   const cards = useMemo(() => {
-    const accounts = (accountsQuery.data ?? []) as StoredValueAccount[];
+    const accounts = accountsQuery.data ?? [];
     return accounts.map((account) => {
       const metadata = account.metadata ?? {};
       const issuedForRaw = readMetadataString(metadata, "issuedFor") || readMetadataString(metadata, "channel");
@@ -243,7 +261,7 @@ export default function GiftCardsPage() {
         .map((entry) => {
           const type = mapLedgerType(entry.direction);
           if (!type) return null;
-          return {
+          const historyEntry: GiftCardHistory = {
             id: entry.id,
             type,
             amount: entry.amountCents / 100,
@@ -252,7 +270,8 @@ export default function GiftCardsPage() {
             channel: normalizeChannel(entry.channel || issuedForRaw),
             createdAt: entry.createdAt,
             balanceAfter: (entry.afterBalanceCents ?? entry.amountCents) / 100
-          } as GiftCardHistory;
+          };
+          return historyEntry;
         })
         .filter((entry): entry is GiftCardHistory => Boolean(entry));
 

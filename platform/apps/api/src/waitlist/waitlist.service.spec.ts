@@ -1,48 +1,90 @@
-import { WaitlistService } from './waitlist.service';
+import {
+  WaitlistService,
+  WaitlistStore,
+  WaitlistEmailSender,
+  WaitlistIdempotency,
+  WaitlistObservability,
+  calculatePriorityScore,
+} from './waitlist.service';
+import { WaitlistEntry, WaitlistStatus, WaitlistType } from '@prisma/client';
+
+const buildWaitlistEntry = (overrides: Partial<WaitlistEntry> = {}): WaitlistEntry => ({
+  id: 'entry-default',
+  campgroundId: 'cg-1',
+  guestId: null,
+  siteId: null,
+  siteTypeId: null,
+  arrivalDate: null,
+  departureDate: null,
+  status: WaitlistStatus.active,
+  type: WaitlistType.regular,
+  contactName: null,
+  contactEmail: null,
+  contactPhone: null,
+  notes: null,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  lastNotifiedAt: null,
+  notifiedCount: 0,
+  priority: 50,
+  autoOffer: false,
+  maxPrice: null,
+  flexibleDates: false,
+  flexibleDays: 0,
+  convertedReservationId: null,
+  convertedAt: null,
+  throttleBucket: null,
+  cooldownUntil: null,
+  lastOfferSentAt: null,
+  lastOfferStatus: null,
+  offerCount: 0,
+  ...overrides,
+});
+
+const createMockWaitlistStore = () => ({
+  waitlistEntry: {
+    create: jest.fn(),
+    findMany: jest.fn(),
+    findUnique: jest.fn(),
+    update: jest.fn(),
+    updateMany: jest.fn(),
+    delete: jest.fn(),
+  },
+  $queryRaw: jest.fn(),
+} satisfies WaitlistStore);
+
+const createMockEmailSender = () => ({
+  sendEmail: jest.fn().mockResolvedValue(undefined),
+} satisfies WaitlistEmailSender);
+
+const createMockIdempotency = () => ({
+  start: jest.fn().mockResolvedValue(null),
+  complete: jest.fn().mockResolvedValue(undefined),
+  fail: jest.fn().mockResolvedValue(undefined),
+  findBySequence: jest.fn().mockResolvedValue(null),
+} satisfies WaitlistIdempotency);
+
+const createMockObservability = () => ({
+  recordOfferLag: jest.fn(),
+} satisfies WaitlistObservability);
 
 describe('WaitlistService', () => {
   let service: WaitlistService;
-  let mockPrisma: any;
-  let mockEmailService: any;
-  let mockIdempotency: any;
-  let mockObservability: any;
+  let mockPrisma: ReturnType<typeof createMockWaitlistStore>;
+  let mockEmailService: ReturnType<typeof createMockEmailSender>;
+  let mockIdempotency: ReturnType<typeof createMockIdempotency>;
+  let mockObservability: ReturnType<typeof createMockObservability>;
 
   beforeEach(() => {
-    mockPrisma = {
-      waitlistEntry: {
-        create: jest.fn(),
-        findMany: jest.fn(),
-        findUnique: jest.fn(),
-        update: jest.fn(),
-        updateMany: jest.fn(),
-        delete: jest.fn(),
-        count: jest.fn(),
-      },
-    };
-
-    mockEmailService = {
-      sendEmail: jest.fn().mockResolvedValue(undefined),
-    };
-
-    mockIdempotency = {
-      start: jest.fn().mockResolvedValue(null),
-      complete: jest.fn().mockResolvedValue(undefined),
-      fail: jest.fn().mockResolvedValue(undefined),
-      findBySequence: jest.fn().mockResolvedValue(null),
-    };
-
-    mockObservability = {
-      recordOfferLag: jest.fn(),
-    };
+    mockPrisma = createMockWaitlistStore();
+    mockEmailService = createMockEmailSender();
+    mockIdempotency = createMockIdempotency();
+    mockObservability = createMockObservability();
 
     service = new WaitlistService(mockPrisma, mockEmailService, mockIdempotency, mockObservability);
   });
 
   describe('calculatePriorityScore', () => {
-    const calculatePriorityScore = (entry: any, freedArrival: Date, freedDeparture: Date) => {
-      return (service as any).calculatePriorityScore(entry, freedArrival, freedDeparture);
-    };
-
     const freedArrival = new Date('2024-06-15');
     const freedDeparture = new Date('2024-06-20');
 
@@ -198,8 +240,8 @@ describe('WaitlistService', () => {
   describe('checkWaitlist', () => {
     it('should find matching waitlist entries', async () => {
       const entries = [
-        { id: 'entry-1', priority: 80, createdAt: new Date() },
-        { id: 'entry-2', priority: 50, createdAt: new Date() },
+        buildWaitlistEntry({ id: 'entry-1', priority: 80, createdAt: new Date() }),
+        buildWaitlistEntry({ id: 'entry-2', priority: 50, createdAt: new Date() }),
       ];
       mockPrisma.waitlistEntry.findMany.mockResolvedValue(entries);
 
@@ -217,8 +259,8 @@ describe('WaitlistService', () => {
 
     it('should return entries sorted by score descending', async () => {
       const entries = [
-        { id: 'entry-low', priority: 10, createdAt: new Date() },
-        { id: 'entry-high', priority: 90, createdAt: new Date() },
+        buildWaitlistEntry({ id: 'entry-low', priority: 10, createdAt: new Date() }),
+        buildWaitlistEntry({ id: 'entry-high', priority: 90, createdAt: new Date() }),
       ];
       mockPrisma.waitlistEntry.findMany.mockResolvedValue(entries);
 
@@ -236,22 +278,24 @@ describe('WaitlistService', () => {
 
   describe('getStats', () => {
     it('should aggregate waitlist stats', async () => {
-      mockPrisma.waitlistEntry.count
-        .mockResolvedValueOnce(10) // active
-        .mockResolvedValueOnce(5)  // offered
-        .mockResolvedValueOnce(3)  // converted
-        .mockResolvedValueOnce(2)  // fulfilled
-        .mockResolvedValueOnce(1)  // expired
-        .mockResolvedValueOnce(1); // cancelled
+      mockPrisma.$queryRaw.mockResolvedValue([
+        {
+          active: BigInt(10),
+          offered: BigInt(5),
+          converted: BigInt(3),
+          expired: BigInt(1),
+          cancelled: BigInt(1),
+        },
+      ]);
 
       const result = await service.getStats('cg-1');
 
       expect(result).toEqual({
         active: 10,
         offered: 5,
-        converted: 5,  // converted + fulfilled
-        expired: 2,    // expired + cancelled
-        total: 22,
+        converted: 3,
+        expired: 2,
+        total: 15,
       });
     });
   });
@@ -283,18 +327,20 @@ describe('WaitlistService', () => {
 
   describe('markConverted', () => {
     it('should mark entry as converted with reservation ID', async () => {
-      mockPrisma.waitlistEntry.update.mockResolvedValue({
-        id: 'entry-1',
-        status: 'converted',
-        convertedReservationId: 'res-123',
-      });
+      mockPrisma.waitlistEntry.update.mockResolvedValue(
+        buildWaitlistEntry({
+          id: 'entry-1',
+          status: WaitlistStatus.fulfilled,
+          convertedReservationId: 'res-123',
+        })
+      );
 
       await service.markConverted('entry-1', 'res-123');
 
       expect(mockPrisma.waitlistEntry.update).toHaveBeenCalledWith({
         where: { id: 'entry-1' },
         data: {
-          status: 'converted',
+          status: 'fulfilled',
           convertedReservationId: 'res-123',
           convertedAt: expect.any(Date),
         },
@@ -310,27 +356,32 @@ describe('WaitlistService', () => {
 
       expect(mockPrisma.waitlistEntry.findMany).toHaveBeenCalledWith({
         where: { campgroundId: 'cg-1' },
-        include: { guest: true, site: true, siteClass: true },
+        include: { Guest: true, Site: true, SiteClass: true },
         orderBy: { createdAt: 'desc' },
+        take: 100,
+        skip: 0,
       });
     });
 
     it('should filter by type when provided', async () => {
       mockPrisma.waitlistEntry.findMany.mockResolvedValue([]);
 
-      await service.findAll('cg-1', 'seasonal');
+      await service.findAll('cg-1', { type: 'seasonal' });
 
       expect(mockPrisma.waitlistEntry.findMany).toHaveBeenCalledWith({
         where: { campgroundId: 'cg-1', type: 'seasonal' },
-        include: { guest: true, site: true, siteClass: true },
+        include: { Guest: true, Site: true, SiteClass: true },
         orderBy: { createdAt: 'desc' },
+        take: 100,
+        skip: 0,
       });
     });
 
     it('should remove entry', async () => {
-      mockPrisma.waitlistEntry.delete.mockResolvedValue({ id: 'entry-1' });
+      mockPrisma.waitlistEntry.findUnique.mockResolvedValue({ campgroundId: 'cg-1' });
+      mockPrisma.waitlistEntry.delete.mockResolvedValue(buildWaitlistEntry({ id: 'entry-1' }));
 
-      await service.remove('entry-1');
+      await service.remove('entry-1', 'cg-1');
 
       expect(mockPrisma.waitlistEntry.delete).toHaveBeenCalledWith({
         where: { id: 'entry-1' },

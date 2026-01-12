@@ -33,6 +33,16 @@ const typeColors = {
     success: "bg-status-success/15 text-status-success border-status-success/30",
 };
 
+const toAnnouncementType = (value: string): AnnouncementType => {
+    if (value === "warning" || value === "success" || value === "info") return value;
+    return "info";
+};
+
+const toAnnouncementTarget = (value: string): AnnouncementTarget => {
+    if (value === "admins" || value === "campground" || value === "all") return value;
+    return "all";
+};
+
 export default function AnnouncementsPage() {
     const [announcements, setAnnouncements] = useState<Announcement[]>([]);
     const [loading, setLoading] = useState(true);
@@ -61,10 +71,10 @@ export default function AnnouncementsPage() {
                 headers: getAuthHeaders(),
             });
             if (!res.ok) throw new Error(`Failed to load announcements (${res.status})`);
-            const data = await res.json();
+            const data: Announcement[] = await res.json();
             setAnnouncements(Array.isArray(data) ? data : []);
-        } catch (err: any) {
-            setError(err.message || "Failed to load announcements");
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : "Failed to load announcements");
         } finally {
             setLoading(false);
         }
@@ -89,12 +99,12 @@ export default function AnnouncementsPage() {
                 body: JSON.stringify(newAnnouncement),
             });
             if (!res.ok) throw new Error(`Failed to create announcement`);
-            const created = await res.json();
+            const created: Announcement = await res.json();
             setAnnouncements([created, ...announcements]);
             setNewAnnouncement({ title: "", message: "", type: "info", target: "all" });
             setShowNew(false);
-        } catch (err: any) {
-            setError(err.message);
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : "Failed to create announcement");
         } finally {
             setCreating(false);
         }
@@ -109,12 +119,12 @@ export default function AnnouncementsPage() {
                 headers: getAuthHeaders(),
             });
             if (!res.ok) throw new Error(`Failed to send announcement`);
-            const updated = await res.json();
+            const updated: Announcement = await res.json();
             setAnnouncements((prev) =>
                 prev.map((a) => (a.id === id ? updated : a))
             );
-        } catch (err: any) {
-            setError(err.message);
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : "Failed to send announcement");
         }
     };
 
@@ -177,7 +187,7 @@ export default function AnnouncementsPage() {
                                 <select
                                     value={newAnnouncement.type}
                                     onChange={(e) => {
-                                        const value = e.target.value as AnnouncementType;
+                                        const value = toAnnouncementType(e.target.value);
                                         setNewAnnouncement({ ...newAnnouncement, type: value });
                                     }}
                                     className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -192,7 +202,7 @@ export default function AnnouncementsPage() {
                                 <select
                                     value={newAnnouncement.target}
                                     onChange={(e) => {
-                                        const value = e.target.value as AnnouncementTarget;
+                                        const value = toAnnouncementTarget(e.target.value);
                                         setNewAnnouncement({ ...newAnnouncement, target: value });
                                     }}
                                     className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500"

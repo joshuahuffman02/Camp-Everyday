@@ -18,7 +18,7 @@ export class IotController {
     async getMeters() {
         return this.prisma.utilityMeter.findMany({
             include: {
-                reads: {
+                UtilityMeterRead: {
                     orderBy: { readAt: 'desc' },
                     take: 1
                 }

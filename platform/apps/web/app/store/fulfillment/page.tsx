@@ -45,6 +45,13 @@ const NEXT_STATUS: Record<FulfillmentStatus, FulfillmentStatus | null> = {
     completed: null,
 };
 
+const activeStatuses: Array<Exclude<FulfillmentStatus, "completed">> = [
+    "unassigned",
+    "assigned",
+    "preparing",
+    "ready",
+];
+
 export default function FulfillmentQueuePage() {
     const [campgroundId, setCampgroundId] = useState<string | null>(null);
     const [orders, setOrders] = useState<FulfillmentOrder[]>([]);
@@ -187,7 +194,7 @@ export default function FulfillmentQueuePage() {
                         <div className="text-2xl font-bold text-foreground">{totalActive}</div>
                         <div className="text-sm text-muted-foreground">All Active</div>
                     </button>
-                    {(["unassigned", "assigned", "preparing", "ready"] as FulfillmentStatus[]).map((status) => (
+                    {activeStatuses.map((status) => (
                         <button
                             key={status}
                             onClick={() => setStatusFilter(status)}

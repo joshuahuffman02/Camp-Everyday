@@ -2,7 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion, type Variants } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import {
   Mail,
@@ -41,7 +41,7 @@ function ConfirmContent() {
   };
 
   // Stagger animation config
-  const containerVariants = {
+  const containerVariants: Variants = {
     hidden: { opacity: 0 },
     visible: {
       opacity: 1,
@@ -50,16 +50,16 @@ function ConfirmContent() {
         delayChildren: 0.2
       }
     }
-  } as const;
+  };
 
-  const itemVariants = {
+  const itemVariants: Variants = {
     hidden: { opacity: 0, y: 10 },
     visible: {
       opacity: 1,
       y: 0,
-      transition: { type: "spring" as const, stiffness: 300, damping: 24 }
+      transition: { type: "spring", stiffness: 300, damping: 24 }
     }
-  } as const;
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center py-12 px-4">
@@ -97,7 +97,7 @@ function ConfirmContent() {
             className="relative z-10 w-24 h-24 bg-emerald-500/20 rounded-full flex items-center justify-center"
             initial={prefersReducedMotion ? {} : { rotate: -180, scale: 0 }}
             animate={prefersReducedMotion ? {} : { rotate: 0, scale: 1 }}
-            transition={{ type: "spring" as const, stiffness: 200, damping: 15, delay: 0.3 }}
+            transition={{ type: "spring", stiffness: 200, damping: 15, delay: 0.3 }}
           >
             <Mail className="h-12 w-12 text-emerald-400" />
           </motion.div>

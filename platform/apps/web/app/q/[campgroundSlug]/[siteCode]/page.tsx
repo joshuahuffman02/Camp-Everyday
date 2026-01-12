@@ -9,8 +9,10 @@ import { Zap, Wifi, ArrowRight, CheckCircle2, AlertCircle, ShoppingCart } from "
 import { useToast } from "@/components/ui/use-toast";
 import Link from "next/link";
 
+type PublicSiteResponse = Awaited<ReturnType<typeof ApiClient.getPublicSite>>;
+
 export default function QrSitePage({ params }: { params: { campgroundSlug: string; siteCode: string } }) {
-    const [data, setData] = useState<any>(null);
+    const [data, setData] = useState<PublicSiteResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [bookingMode, setBookingMode] = useState(false);
@@ -115,7 +117,9 @@ export default function QrSitePage({ params }: { params: { campgroundSlug: strin
                             <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 text-center">
                                 <p className="text-sm text-blue-800">Reserved until</p>
                                 <p className="font-semibold text-blue-900">
-                                    {new Date(currentReservation?.departureDate).toLocaleDateString()}
+                                    {currentReservation?.departureDate
+                                      ? new Date(currentReservation.departureDate).toLocaleDateString()
+                                      : "—"}
                                 </p>
                                 {/* Simple Auth Check Mock */}
                                 <div className="mt-4 pt-4 border-t border-blue-200">

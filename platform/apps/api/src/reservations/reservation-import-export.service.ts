@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, ServiceUnavailableException } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { ReservationsService } from "./reservations.service";
 import { IdempotencyService } from "../payments/idempotency.service";
@@ -12,15 +13,15 @@ import {
   reservationImportRecordSchema,
   reservationImportSchemaSummary,
 } from "./dto/reservation-import.dto";
-import { ReservationStatus } from "@prisma/client";
 import { parseNewbookCsv, mapNewbookToInternal, NewbookImportResult } from "./integrations/newbook.adapter";
+import { randomUUID } from "crypto";
 
 type ImportFormat = "csv" | "json" | "newbook";
 
 type ImportRequest = {
   campgroundId: string;
   format: ImportFormat;
-  payload: string | any[];
+  payload: string | unknown[];
   dryRun?: boolean;
   idempotencyKey?: string | null;
   requestedById?: string | null;
@@ -35,6 +36,24 @@ type ExportParams = {
   includePII?: boolean;
   filters?: Record<string, unknown>;
   requestedById?: string | null;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error && error.message ? error.message : fallback;
+
+const toNullableJsonInput = (
+  value: unknown
+): Prisma.InputJsonValue | Prisma.NullTypes.DbNull | undefined => {
+  if (value === undefined) return undefined;
+  if (value === null) return Prisma.DbNull;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
 };
 
 @Injectable()
@@ -60,7 +79,7 @@ export class ReservationImportExportService {
     return {
       formats: ["csv", "json", "newbook"],
       csvColumns: reservationImportCsvColumns,
-      jsonSchema: reservationImportRecordSchema.describe(),
+      jsonSchema: reservationImportRecordSchema.describe("Reservation import record"),
       summary: reservationImportSchemaSummary,
       newbookFormat: {
         description: "NewBook PMS CSV export format",
@@ -89,7 +108,7 @@ export class ReservationImportExportService {
   // Import
   // ---------------------------------------------------------------------------
 
-  private mask(value: any) {
+  private mask(value: unknown) {
     if (typeof value !== "string") return value;
     return value
       .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "***@redacted")
@@ -136,14 +155,15 @@ export class ReservationImportExportService {
         ...row,
       });
       if (!parsed.success) {
-        parsed.error.issues.forEach((issue) =>
+        parsed.error.issues.forEach((issue) => {
+          const field = typeof issue.path?.[0] === "string" ? issue.path[0] : undefined;
           errors.push({
             row: idx + 2, // account for header
-            field: issue.path?.[0] as string | undefined,
+            field,
             message: issue.message,
-            value: (row as any)[issue.path?.[0] as string],
-          })
-        );
+            value: field ? row[field] : undefined,
+          });
+        });
         return;
       }
       if (parsed.data.campgroundId !== campgroundId) {
@@ -173,8 +193,7 @@ export class ReservationImportExportService {
         retryAfter,
         reason: "capacity_guard",
       });
-      (error as any).retryAfter = retryAfter;
-      throw error;
+      throw Object.assign(error, { retryAfter });
     }
   }
 
@@ -197,8 +216,12 @@ export class ReservationImportExportService {
       { endpoint: "reservations.import", requestBody: { format: request.format, dryRun: request.dryRun, filename: request.filename } }
     );
 
-    if ((idemp as any)?.status === "succeeded" && (idemp as any)?.responseJson) {
-      return (idemp as any).responseJson;
+    if (isRecord(idemp)) {
+      const status = idemp.status;
+      const responseJson = idemp.responseJson;
+      if (typeof status === "string" && status === "succeeded" && responseJson) {
+        return responseJson;
+      }
     }
 
     await this.enforceCapacityGuard();
@@ -229,7 +252,8 @@ export class ReservationImportExportService {
       records = parsed.records;
       parseErrors = parsed.errors;
     } else {
-      records = Array.isArray(request.payload) ? request.payload : [];
+      const rawRecords = Array.isArray(request.payload) ? request.payload : [];
+      records = rawRecords.filter((row): row is Record<string, unknown> => isRecord(row));
     }
 
     if (!records.length) {
@@ -258,17 +282,18 @@ export class ReservationImportExportService {
 
     const job = await this.prisma.integrationExportJob.create({
       data: {
+        id: randomUUID(),
         campgroundId: request.campgroundId,
         type: "api",
         resource: this.importResource,
         status: "queued",
         location: request.format,
-        filters: {
+        filters: toNullableJsonInput({
           filename: request.filename,
           requestedById: request.requestedById,
           totalRows: validation.valid.length,
           errorCount: validation.errors.length,
-        },
+        }),
         requestedById: request.requestedById ?? null,
         lastError: validation.errors.length ? "Some rows failed validation; see status" : null,
       },
@@ -309,7 +334,7 @@ export class ReservationImportExportService {
           departureDate: row.departureDate,
           adults: row.adults,
           children: row.children ?? 0,
-          status: row.status as ReservationStatus,
+          status: row.status,
           totalAmount: row.totalAmount,
           paidAmount: row.paidAmount ?? 0,
           notes: row.notes,
@@ -320,13 +345,13 @@ export class ReservationImportExportService {
           holdId: row.holdId,
           createdBy: row.createdBy,
           updatedBy: row.updatedBy,
-        } as any);
+        });
         created.push(row.externalId || row.guestId);
-      } catch (err: any) {
+      } catch (err) {
         failed.push({
           row: failed.length + created.length + 2,
           field: "create",
-          message: err?.message || "Failed to create reservation",
+          message: getErrorMessage(err, "Failed to create reservation"),
         });
       }
     }
@@ -338,11 +363,11 @@ export class ReservationImportExportService {
         status,
         completedAt: new Date(),
         lastError: failed.length ? `${failed.length} rows failed` : null,
-        filters: {
+        filters: toNullableJsonInput({
           createdCount: created.length,
           failedCount: failed.length,
           errors: failed.slice(0, 50).map((f) => ({ ...f, value: this.mask(f.value) })),
-        },
+        }),
       },
     });
 
@@ -398,16 +423,17 @@ export class ReservationImportExportService {
     return Buffer.from(JSON.stringify(payload)).toString("base64url");
   }
 
-  private decodeToken<T>(token?: string): T | null {
+  private decodeToken(token?: string): Record<string, unknown> | null {
     if (!token) return null;
     try {
-      return JSON.parse(Buffer.from(token, "base64url").toString()) as T;
+      const parsed: unknown = JSON.parse(Buffer.from(token, "base64url").toString());
+      return isRecord(parsed) ? parsed : null;
     } catch {
       return null;
     }
   }
 
-  private redactRow(row: any, includePII: boolean) {
+  private redactRow(row: Record<string, unknown>, includePII: boolean) {
     if (includePII) return row;
     return {
       ...row,
@@ -418,7 +444,7 @@ export class ReservationImportExportService {
     };
   }
 
-  private toCsv(rows: any[]) {
+  private toCsv(rows: Record<string, unknown>[]) {
     if (!rows.length) return "";
     const headers = Object.keys(rows[0]);
     const lines = [headers.join(",")];
@@ -436,8 +462,9 @@ export class ReservationImportExportService {
 
   async exportReservations(params: ExportParams) {
     await this.idempotency.throttleScope(params.campgroundId, null, "report");
-    const decoded = this.decodeToken<{ lastId?: string; emitted?: number }>(params.paginationToken) || { emitted: 0 };
-    const emitted = decoded.emitted ?? 0;
+    const decoded = this.decodeToken(params.paginationToken);
+    const decodedLastId = decoded && typeof decoded.lastId === "string" ? decoded.lastId : undefined;
+    const emitted = decoded && typeof decoded.emitted === "number" ? decoded.emitted : 0;
     const maxRows = this.exportMaxRows();
     if (emitted >= maxRows) {
       return { rows: [], nextToken: null, emitted, remaining: 0 };
@@ -450,7 +477,7 @@ export class ReservationImportExportService {
         ...(params.filters ?? {}),
       },
       orderBy: { createdAt: "asc" },
-      ...(decoded.lastId ? { cursor: { id: decoded.lastId }, skip: 1 } : {}),
+      ...(decodedLastId ? { cursor: { id: decodedLastId }, skip: 1 } : {}),
       take,
       select: {
         id: true,
@@ -503,7 +530,7 @@ export class ReservationImportExportService {
       await this.audit.recordExport({
         campgroundId: params.campgroundId,
         requestedById: params.requestedById ?? "system",
-        format: (params.format ?? "json") as any,
+        format: params.format ?? "json",
         filters: params.filters,
         recordCount: shaped.length,
       });
@@ -525,12 +552,13 @@ export class ReservationImportExportService {
     await this.idempotency.throttleScope(campgroundId, null, "apply");
     const job = await this.prisma.integrationExportJob.create({
       data: {
+        id: randomUUID(),
         campgroundId,
         type: "api",
         resource: this.exportResource,
         status: "queued",
         location: format,
-        filters: filters ?? {},
+        filters: toNullableJsonInput(filters ?? null),
         requestedById: requestedById ?? null,
       },
     });

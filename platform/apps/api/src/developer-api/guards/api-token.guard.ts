@@ -2,6 +2,9 @@ import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from
 import { PrismaService } from "../../prisma/prisma.service";
 import { createHash } from "crypto";
 import { ApiPrincipal } from "../types";
+import type { Request } from "express";
+
+type ApiTokenRequest = Request & { apiPrincipal?: ApiPrincipal; campgroundId?: string };
 
 @Injectable()
 export class ApiTokenGuard implements CanActivate {
@@ -12,13 +15,14 @@ export class ApiTokenGuard implements CanActivate {
   }
 
   async canActivate(context: ExecutionContext) {
-    const request = context.switchToHttp().getRequest() as any;
-    const authHeader = request.headers["authorization"] as string | undefined;
-    if (!authHeader || !authHeader.toLowerCase().startsWith("bearer ")) {
+    const request = context.switchToHttp().getRequest<ApiTokenRequest>();
+    const authHeader = request.headers["authorization"];
+    const authHeaderValue = Array.isArray(authHeader) ? authHeader[0] : authHeader;
+    if (!authHeaderValue || !authHeaderValue.toLowerCase().startsWith("bearer ")) {
       throw new UnauthorizedException("Missing bearer token");
     }
 
-    const token = authHeader.split(" ")[1];
+    const token = authHeaderValue.split(" ")[1];
     if (!token) throw new UnauthorizedException("Missing bearer token");
 
     const hashed = this.hashToken(token);
@@ -27,19 +31,19 @@ export class ApiTokenGuard implements CanActivate {
         accessTokenHash: hashed,
         revokedAt: null,
         expiresAt: { gt: new Date() },
-        apiClient: { isActive: true }
+        ApiClient: { isActive: true }
       },
-      include: { apiClient: true }
+      include: { ApiClient: true }
     });
 
-    if (!record || !record.apiClient) {
+    if (!record || !record.ApiClient) {
       throw new UnauthorizedException("Invalid or expired token");
     }
 
     const principal: ApiPrincipal = {
       apiClientId: record.apiClientId,
       tokenId: record.id,
-      campgroundId: record.apiClient.campgroundId,
+      campgroundId: record.ApiClient.campgroundId,
       scopes: record.scopes || []
     };
 
@@ -49,4 +53,3 @@ export class ApiTokenGuard implements CanActivate {
     return true;
   }
 }
-

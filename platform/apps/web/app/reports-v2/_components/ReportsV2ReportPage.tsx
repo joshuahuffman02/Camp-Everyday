@@ -24,6 +24,12 @@ const DEFAULT_FILTERS: ReportsV2Filters = {
   groupBy: "none"
 };
 
+const isStatusFilter = (value: string | null): value is ReportsV2Filters["status"] =>
+  value === "all" || value === "confirmed" || value === "checked_in" || value === "pending" || value === "cancelled";
+
+const isGroupByFilter = (value: string | null): value is ReportsV2Filters["groupBy"] =>
+  value === "none" || value === "site" || value === "status" || value === "date" || value === "siteType";
+
 export function ReportsV2ReportPage() {
   const params = useParams();
   const pathname = usePathname();
@@ -80,9 +86,9 @@ export function ReportsV2ReportPage() {
 
     if (status || siteType || groupBy) {
       setFilters((prev) => ({
-        status: (status || prev.status) as ReportsV2Filters["status"],
-        siteType: (siteType || prev.siteType) as string,
-        groupBy: (groupBy || prev.groupBy) as ReportsV2Filters["groupBy"]
+        status: isStatusFilter(status) ? status : prev.status,
+        siteType: siteType || prev.siteType,
+        groupBy: isGroupByFilter(groupBy) ? groupBy : prev.groupBy
       }));
     }
     setIsReady(true);
@@ -129,7 +135,7 @@ export function ReportsV2ReportPage() {
     setLastUpdatedAt(new Date());
   };
 
-  const { reportLabel, description } = getReportMetaV2(normalized.tab as ReportTabV2, normalized.subTab);
+  const { reportLabel, description } = getReportMetaV2(normalized.tab, normalized.subTab);
 
   const pinnedReports = useMemo(() => savedReports.filter((r) => r.pinned), [savedReports]);
 
@@ -139,7 +145,7 @@ export function ReportsV2ReportPage() {
         <Breadcrumbs items={[{ label: "Reports v2", href: "/reports-v2" }, { label: reportLabel }]} />
 
         <ReportsV2Shell
-          activeTab={normalized.tab as ReportTabV2}
+          activeTab={normalized.tab}
           activeSubTab={normalized.subTab}
           dateRange={dateRange}
           filters={filters}
@@ -160,7 +166,7 @@ export function ReportsV2ReportPage() {
           />
 
           <ReportsV2SubNav
-            tab={normalized.tab as ReportTabV2}
+            tab={normalized.tab}
             activeSubTab={normalized.subTab}
             dateRange={dateRange}
             filters={filters}
@@ -174,7 +180,7 @@ export function ReportsV2ReportPage() {
 
           {campgroundId && (
             <ReportRendererV2
-              tab={normalized.tab as ReportTabV2}
+              tab={normalized.tab}
               subTab={normalized.subTab}
               campgroundId={campgroundId}
               dateRange={dateRange}

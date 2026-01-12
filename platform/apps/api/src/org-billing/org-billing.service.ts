@@ -1,4 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
+import { randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 
 // Types for billing configuration
@@ -43,6 +45,28 @@ const TIER_CONFIGS: Record<string, TierConfig> = {
   },
 };
 
+const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined => {
+  if (value === undefined || value === null) return undefined;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
+};
+
+const toNullableJsonInput = (
+  value: unknown
+): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined => {
+  if (value === undefined) return undefined;
+  if (value === null) return Prisma.JsonNull;
+  return toJsonValue(value) ?? Prisma.JsonNull;
+};
+
+type BillingLineItemCreateData = Omit<
+  Prisma.OrganizationBillingLineItemUncheckedCreateInput,
+  "id" | "billingPeriodId"
+>;
+
 @Injectable()
 export class OrgBillingService {
   constructor(private prisma: PrismaService) {}
@@ -63,7 +87,7 @@ export class OrgBillingService {
         },
       },
       include: {
-        lineItems: {
+        OrganizationBillingLineItem: {
           orderBy: { createdAt: "asc" },
         },
       },
@@ -72,19 +96,22 @@ export class OrgBillingService {
     if (!period) {
       period = await this.prisma.organizationBillingPeriod.create({
         data: {
+          id: randomUUID(),
           organizationId,
           periodStart,
           periodEnd,
           status: "open",
           dueAt: new Date(periodEnd.getTime() + 15 * 24 * 60 * 60 * 1000), // Due 15 days after period end
+          updatedAt: new Date(),
         },
         include: {
-          lineItems: true,
+          OrganizationBillingLineItem: true,
         },
       });
     }
 
-    return period;
+    const { OrganizationBillingLineItem, ...rest } = period;
+    return { ...rest, lineItems: OrganizationBillingLineItem };
   }
 
   /**
@@ -95,8 +122,8 @@ export class OrgBillingService {
     const org = await this.prisma.organization.findUnique({
       where: { id: organizationId },
       include: {
-        earlyAccessEnrollment: true,
-        campgrounds: {
+        EarlyAccessEnrollment: true,
+        Campground: {
           select: { id: true, name: true },
         },
       },
@@ -110,7 +137,7 @@ export class OrgBillingService {
     const currentPeriod = await this.getCurrentPeriod(organizationId);
 
     // Get tier config
-    const tierName = org.earlyAccessEnrollment?.tier || "standard";
+    const tierName = org.EarlyAccessEnrollment?.tier || "standard";
     const tierConfig = TIER_CONFIGS[tierName] || TIER_CONFIGS.standard;
 
     // Calculate current period charges from usage events
@@ -122,13 +149,13 @@ export class OrgBillingService {
 
     // Calculate monthly fee (check if still in free period)
     let monthlyFeeCents = tierConfig.monthlyFeeCents;
-    if (org.earlyAccessEnrollment?.monthlyFeeEndsAt) {
-      const freeUntil = new Date(org.earlyAccessEnrollment.monthlyFeeEndsAt);
+    if (org.EarlyAccessEnrollment?.monthlyFeeEndsAt) {
+      const freeUntil = new Date(org.EarlyAccessEnrollment.monthlyFeeEndsAt);
       if (new Date() < freeUntil) {
         monthlyFeeCents = 0;
       } else {
         // After promo period, use locked rate or standard
-        monthlyFeeCents = org.earlyAccessEnrollment.lockedMonthlyFee || 2900; // $29 default
+        monthlyFeeCents = org.EarlyAccessEnrollment.lockedMonthlyFee || 2900; // $29 default
       }
     } else if (tierName === "founders_circle") {
       // Founder's circle is forever free
@@ -137,7 +164,7 @@ export class OrgBillingService {
 
     // Calculate totals
     const subscriptionCents = monthlyFeeCents;
-    const bookingFeesCents = usageSummary.bookingCount * (org.earlyAccessEnrollment?.lockedBookingFee || tierConfig.perBookingFeeCents);
+    const bookingFeesCents = usageSummary.bookingCount * (org.EarlyAccessEnrollment?.lockedBookingFee || tierConfig.perBookingFeeCents);
     const smsOutboundCents = usageSummary.smsOutbound * tierConfig.smsOutboundCents;
     const smsInboundCents = usageSummary.smsInbound * tierConfig.smsInboundCents;
     const aiTokensCents = Math.round((usageSummary.aiTokens / 1000) * tierConfig.aiTokensPer1kCents);
@@ -168,8 +195,8 @@ export class OrgBillingService {
       tier: {
         name: tierName,
         displayName: this.getTierDisplayName(tierName),
-        lockedBookingFee: org.earlyAccessEnrollment?.lockedBookingFee,
-        monthlyFeeEndsAt: org.earlyAccessEnrollment?.monthlyFeeEndsAt,
+        lockedBookingFee: org.EarlyAccessEnrollment?.lockedBookingFee,
+        monthlyFeeEndsAt: org.EarlyAccessEnrollment?.monthlyFeeEndsAt,
       },
       currentPeriod: {
         id: currentPeriod.id,
@@ -186,7 +213,7 @@ export class OrgBillingService {
         bookingFees: {
           description: `Per-booking fees (${usageSummary.bookingCount} bookings)`,
           quantity: usageSummary.bookingCount,
-          unitCents: org.earlyAccessEnrollment?.lockedBookingFee || tierConfig.perBookingFeeCents,
+          unitCents: org.EarlyAccessEnrollment?.lockedBookingFee || tierConfig.perBookingFeeCents,
           amountCents: bookingFeesCents,
         },
         smsOutbound: {
@@ -325,17 +352,17 @@ export class OrgBillingService {
     // Get the tier config for pricing
     const org = await this.prisma.organization.findUnique({
       where: { id: data.organizationId },
-      include: { earlyAccessEnrollment: true },
+      include: { EarlyAccessEnrollment: true },
     });
 
-    const tierName = org?.earlyAccessEnrollment?.tier || "standard";
+    const tierName = org?.EarlyAccessEnrollment?.tier || "standard";
     const tierConfig = TIER_CONFIGS[tierName] || TIER_CONFIGS.standard;
 
     // Calculate unit cost based on event type
     let unitCents: number | null = null;
     switch (data.eventType) {
       case "booking_created":
-        unitCents = org?.earlyAccessEnrollment?.lockedBookingFee || tierConfig.perBookingFeeCents;
+        unitCents = org?.EarlyAccessEnrollment?.lockedBookingFee || tierConfig.perBookingFeeCents;
         break;
       case "sms_outbound":
         unitCents = tierConfig.smsOutboundCents;
@@ -347,6 +374,7 @@ export class OrgBillingService {
 
     return this.prisma.usageEvent.create({
       data: {
+        id: randomUUID(),
         organizationId: data.organizationId,
         campgroundId: data.campgroundId,
         eventType: data.eventType,
@@ -354,7 +382,7 @@ export class OrgBillingService {
         unitCents,
         referenceType: data.referenceType,
         referenceId: data.referenceId,
-        metadata: data.metadata,
+        metadata: data.metadata === undefined ? undefined : toNullableJsonInput(data.metadata),
       },
     });
   }
@@ -368,7 +396,7 @@ export class OrgBillingService {
       orderBy: { periodStart: "desc" },
       take: limit,
       include: {
-        lineItems: {
+        OrganizationBillingLineItem: {
           orderBy: { createdAt: "asc" },
         },
       },
@@ -386,7 +414,7 @@ export class OrgBillingService {
       invoicedAt: period.invoicedAt,
       paidAt: period.paidAt,
       dueAt: period.dueAt,
-      lineItems: period.lineItems,
+      lineItems: period.OrganizationBillingLineItem,
     }));
   }
 
@@ -421,7 +449,7 @@ export class OrgBillingService {
         take: limit,
         skip: offset,
         include: {
-          campground: {
+          Campground: {
             select: { id: true, name: true },
           },
         },
@@ -430,7 +458,10 @@ export class OrgBillingService {
     ]);
 
     return {
-      events,
+      events: events.map((event) => {
+        const { Campground, ...rest } = event;
+        return { ...rest, campground: Campground };
+      }),
       total,
       limit,
       offset,
@@ -444,8 +475,8 @@ export class OrgBillingService {
     const period = await this.prisma.organizationBillingPeriod.findUnique({
       where: { id: periodId },
       include: {
-        organization: {
-          include: { earlyAccessEnrollment: true },
+        Organization: {
+          include: { EarlyAccessEnrollment: true },
         },
       },
     });
@@ -465,30 +496,30 @@ export class OrgBillingService {
       period.periodEnd
     );
 
-    const tierName = period.organization.earlyAccessEnrollment?.tier || "standard";
+    const tierName = period.Organization.EarlyAccessEnrollment?.tier || "standard";
     const tierConfig = TIER_CONFIGS[tierName] || TIER_CONFIGS.standard;
-    const lockedBookingFee = period.organization.earlyAccessEnrollment?.lockedBookingFee || tierConfig.perBookingFeeCents;
+    const lockedBookingFee = period.Organization.EarlyAccessEnrollment?.lockedBookingFee || tierConfig.perBookingFeeCents;
 
     // Calculate monthly fee
     let monthlyFeeCents = tierConfig.monthlyFeeCents;
-    if (period.organization.earlyAccessEnrollment?.monthlyFeeEndsAt) {
-      const freeUntil = new Date(period.organization.earlyAccessEnrollment.monthlyFeeEndsAt);
+    if (period.Organization.EarlyAccessEnrollment?.monthlyFeeEndsAt) {
+      const freeUntil = new Date(period.Organization.EarlyAccessEnrollment.monthlyFeeEndsAt);
       if (period.periodEnd < freeUntil) {
         monthlyFeeCents = 0;
       } else {
-        monthlyFeeCents = period.organization.earlyAccessEnrollment.lockedMonthlyFee || 2900;
+        monthlyFeeCents = period.Organization.EarlyAccessEnrollment.lockedMonthlyFee || 2900;
       }
     } else if (tierName === "founders_circle") {
       monthlyFeeCents = 0;
     }
 
     // Create line items
-    const lineItems = [];
+    const lineItems: BillingLineItemCreateData[] = [];
 
     // Subscription
     if (monthlyFeeCents > 0) {
       lineItems.push({
-        type: "subscription" as const,
+        type: "subscription",
         description: "Monthly subscription",
         quantity: 1,
         unitCents: monthlyFeeCents,
@@ -499,7 +530,7 @@ export class OrgBillingService {
     // Booking fees
     if (usage.bookingCount > 0) {
       lineItems.push({
-        type: "booking_fee" as const,
+        type: "booking_fee",
         description: `Per-booking fees (${usage.bookingCount} bookings)`,
         quantity: usage.bookingCount,
         unitCents: lockedBookingFee,
@@ -510,7 +541,7 @@ export class OrgBillingService {
     // SMS outbound
     if (usage.smsOutbound > 0) {
       lineItems.push({
-        type: "sms_outbound" as const,
+        type: "sms_outbound",
         description: `Outbound SMS (${usage.smsOutbound} messages)`,
         quantity: usage.smsOutbound,
         unitCents: tierConfig.smsOutboundCents,
@@ -521,7 +552,7 @@ export class OrgBillingService {
     // SMS inbound
     if (usage.smsInbound > 0) {
       lineItems.push({
-        type: "sms_inbound" as const,
+        type: "sms_inbound",
         description: `Inbound SMS (${usage.smsInbound} messages)`,
         quantity: usage.smsInbound,
         unitCents: tierConfig.smsInboundCents,
@@ -533,7 +564,7 @@ export class OrgBillingService {
     if (usage.aiTokens > 0) {
       const aiTokensCents = Math.round((usage.aiTokens / 1000) * tierConfig.aiTokensPer1kCents);
       lineItems.push({
-        type: "ai_usage" as const,
+        type: "ai_usage",
         description: `AI Usage (${(usage.aiTokens / 1000).toFixed(1)}K tokens)`,
         quantity: usage.aiTokens,
         unitCents: tierConfig.aiTokensPer1kCents, // per 1K tokens
@@ -544,11 +575,12 @@ export class OrgBillingService {
     // Setup service surcharges (pay-over-time)
     if (usage.setupServiceSurchargeCents > 0) {
       lineItems.push({
-        type: "setup_service_surcharge" as const,
+        type: "overage",
         description: `Setup service pay-over-time (${usage.setupServiceSurchargeCount} bookings @ $1.00)`,
         quantity: usage.setupServiceSurchargeCount,
         unitCents: 100, // $1.00
         totalCents: usage.setupServiceSurchargeCents,
+        metadata: { kind: "setup_service_surcharge" },
       });
     }
 
@@ -560,6 +592,7 @@ export class OrgBillingService {
       // Create line items
       await tx.organizationBillingLineItem.createMany({
         data: lineItems.map((item) => ({
+          id: randomUUID(),
           billingPeriodId: periodId,
           ...item,
         })),
@@ -590,14 +623,16 @@ export class OrgBillingService {
           subtotalCents,
           totalCents: subtotalCents,
           invoicedAt: new Date(),
+          updatedAt: new Date(),
         },
         include: {
-          lineItems: true,
+          OrganizationBillingLineItem: true,
         },
       });
     });
 
-    return updated;
+    const { OrganizationBillingLineItem, ...rest } = updated;
+    return { ...rest, lineItems: OrganizationBillingLineItem };
   }
 
   /**
@@ -610,6 +645,7 @@ export class OrgBillingService {
         status: "paid",
         paidAt: new Date(),
         stripePaymentIntentId,
+        updatedAt: new Date(),
       },
     });
   }

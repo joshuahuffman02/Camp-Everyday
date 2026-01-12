@@ -2,14 +2,14 @@ import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../../../prisma/prisma.service";
 import { DateRange } from "../platform-analytics.service";
 
-interface GeographicOverview {
+export interface GeographicOverview {
   topOriginState: string;
   averageTravelDistance: number;
   uniqueStates: number;
   internationalPercentage: number;
 }
 
-interface StateData {
+export interface StateData {
   state: string;
   country: string;
   guestCount: number;
@@ -18,7 +18,7 @@ interface StateData {
   averageDistance: number;
 }
 
-interface DistanceBucket {
+export interface DistanceBucket {
   range: string;
   count: number;
   percentage: number;
@@ -38,7 +38,7 @@ export class GeographicIntelligenceService {
     // Get guests with reservations in period
     const guestsWithLocation = await this.prisma.guest.findMany({
       where: {
-        reservations: {
+        Reservation: {
           some: {
             createdAt: { gte: start, lte: end },
             status: { in: ["confirmed", "checked_in", "checked_out"] },
@@ -118,10 +118,10 @@ export class GeographicIntelligenceService {
       },
       select: {
         totalAmount: true,
-        guest: {
+        Guest: {
           select: { state: true, country: true, city: true },
         },
-        campground: {
+        Campground: {
           select: { latitude: true, longitude: true, state: true },
         },
       },
@@ -131,27 +131,29 @@ export class GeographicIntelligenceService {
     const byState: Record<string, { guests: Set<string>; reservations: number; revenue: number; distances: number[] }> = {};
 
     for (const res of reservations) {
-      const state = res.guest?.state || "Unknown";
-      const country = res.guest?.country || "US";
+      const state = res.Guest?.state || "Unknown";
+      const country = res.Guest?.country || "US";
 
       if (!byState[state]) {
         byState[state] = { guests: new Set(), reservations: 0, revenue: 0, distances: [] };
       }
 
       // Use guest state as unique identifier for deduplication
-      byState[state].guests.add(`${state}-${res.guest?.city || ""}`);
+      byState[state].guests.add(`${state}-${res.Guest?.city || ""}`);
       byState[state].reservations++;
       byState[state].revenue += res.totalAmount || 0;
 
       // Estimate distance if we have coordinates
-      if (res.campground?.latitude && res.campground?.longitude && res.guest?.state) {
-        const stateCenter = this.getStateCenterCoordinates(res.guest.state);
+      if (res.Campground?.latitude && res.Campground?.longitude && res.Guest?.state) {
+        const stateCenter = this.getStateCenterCoordinates(res.Guest.state);
         if (stateCenter) {
+          const campgroundLat = res.Campground.latitude.toNumber();
+          const campgroundLng = res.Campground.longitude.toNumber();
           const distance = this.calculateDistance(
             stateCenter.lat,
             stateCenter.lng,
-            res.campground.latitude,
-            res.campground.longitude
+            campgroundLat,
+            campgroundLng
           );
           byState[state].distances.push(distance);
         }
@@ -187,22 +189,24 @@ export class GeographicIntelligenceService {
       },
       select: {
         totalAmount: true,
-        guest: { select: { state: true, city: true } },
-        campground: { select: { latitude: true, longitude: true } },
+        Guest: { select: { state: true, city: true } },
+        Campground: { select: { latitude: true, longitude: true } },
       },
     });
 
     const distances: { distance: number; spend: number }[] = [];
 
     for (const res of reservations) {
-      if (res.campground?.latitude && res.campground?.longitude && res.guest?.state) {
-        const stateCenter = this.getStateCenterCoordinates(res.guest.state);
+      if (res.Campground?.latitude && res.Campground?.longitude && res.Guest?.state) {
+        const stateCenter = this.getStateCenterCoordinates(res.Guest.state);
         if (stateCenter) {
+          const campgroundLat = res.Campground.latitude.toNumber();
+          const campgroundLng = res.Campground.longitude.toNumber();
           const distance = this.calculateDistance(
             stateCenter.lat,
             stateCenter.lng,
-            res.campground.latitude,
-            res.campground.longitude
+            campgroundLat,
+            campgroundLng
           );
           distances.push({ distance, spend: res.totalAmount || 0 });
         }
@@ -269,7 +273,7 @@ export class GeographicIntelligenceService {
       select: {
         totalAmount: true,
         createdAt: true,
-        guest: { select: { state: true } },
+        Guest: { select: { state: true } },
       },
     });
 
@@ -281,7 +285,7 @@ export class GeographicIntelligenceService {
     }
 
     for (const res of reservations) {
-      const state = res.guest?.state;
+      const state = res.Guest?.state;
       if (!state) continue;
 
       const region = Object.entries(regions).find(([_, states]) =>

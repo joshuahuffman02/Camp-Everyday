@@ -12,7 +12,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "../ui/alert-dialog";
-import { BlackoutModal } from "./BlackoutModal";
+import { BlackoutModal, type BlackoutFormData } from "./BlackoutModal";
 import { format } from "date-fns";
 import { Site } from "@keepr/shared";
 
@@ -25,18 +25,26 @@ export function BlackoutList({ campgroundId }: BlackoutListProps) {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
-    const blackoutsQuery = useQuery({
+    type BlackoutDate = Awaited<ReturnType<typeof apiClient.getBlackouts>>[number];
+
+    const blackoutsQuery = useQuery<BlackoutDate[]>({
         queryKey: ["blackouts", campgroundId],
         queryFn: () => apiClient.getBlackouts(campgroundId)
     });
 
-    const sitesQuery = useQuery({
+    const sitesQuery = useQuery<Site[]>({
         queryKey: ["sites", campgroundId],
         queryFn: () => apiClient.getSites(campgroundId)
     });
 
     const createMutation = useMutation({
-        mutationFn: (data: any) => apiClient.createBlackout({ ...data, campgroundId }),
+        mutationFn: (data: BlackoutFormData) =>
+            apiClient.createBlackout({
+                ...data,
+                campgroundId,
+                siteId: data.siteId || undefined,
+                reason: data.reason || undefined,
+            }),
         onSuccess: () => qc.invalidateQueries({ queryKey: ["blackouts"] })
     });
 
@@ -45,7 +53,7 @@ export function BlackoutList({ campgroundId }: BlackoutListProps) {
         onSuccess: () => qc.invalidateQueries({ queryKey: ["blackouts"] })
     });
 
-    const handleSave = async (data: any) => {
+    const handleSave = async (data: BlackoutFormData) => {
         await createMutation.mutateAsync(data);
     };
 
@@ -97,7 +105,7 @@ export function BlackoutList({ campgroundId }: BlackoutListProps) {
             <BlackoutModal
                 open={isModalOpen}
                 onOpenChange={setIsModalOpen}
-                sites={sites as Site[]}
+                sites={sites}
                 onSave={handleSave}
             />
 

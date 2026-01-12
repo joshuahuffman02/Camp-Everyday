@@ -71,7 +71,7 @@ const ACTION_LABELS: Record<string, string> = {
   adjust_rate: "Adjust rate",
 };
 
-function formatValue(value: any) {
+function formatValue(value: unknown) {
   if (value === null || value === undefined) return "-";
   if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
     return String(value);

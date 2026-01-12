@@ -11,15 +11,20 @@ interface SessionWithToken {
   };
 }
 
+type WhoamiResponse = Awaited<ReturnType<typeof apiClient.getWhoami>>;
+
+const hasApiToken = (value: unknown): value is SessionWithToken =>
+  typeof value === "object" && value !== null && "apiToken" in value;
+
 export function useWhoami() {
   const isBrowser = typeof window !== "undefined";
   const { data: session } = useSession();
   const token = isBrowser ? localStorage.getItem("campreserv:authToken") : null;
-  const sessionWithToken = session as SessionWithToken | null;
-  const sessionToken = sessionWithToken?.apiToken;
+  const sessionToken =
+    hasApiToken(session) && typeof session.apiToken === "string" ? session.apiToken : undefined;
   const hasAuth = Boolean(sessionToken || token);
 
-  return useQuery({
+  return useQuery<WhoamiResponse>({
     queryKey: ["permissions-whoami"],
     queryFn: () => apiClient.getWhoami(sessionToken || token || undefined),
     enabled: isBrowser && hasAuth,

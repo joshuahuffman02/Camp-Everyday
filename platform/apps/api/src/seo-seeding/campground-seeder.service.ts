@@ -6,6 +6,7 @@ import {
 } from "./recreation-gov.service";
 import { GeoAssociationService } from "./geo-association.service";
 import { CampgroundDataSource, CampgroundClaimStatus } from "@prisma/client";
+import { randomUUID } from "crypto";
 
 /**
  * Campground Seeder Service
@@ -165,6 +166,7 @@ export class CampgroundSeederService {
       // Create new
       const created = await this.prisma.campground.create({
         data: {
+          id: randomUUID(),
           ...campgroundData,
           organizationId,
           claimStatus: CampgroundClaimStatus.unclaimed,
@@ -291,8 +293,8 @@ export class CampgroundSeederService {
 
     const newOrg = await this.prisma.organization.create({
       data: {
+        id: randomUUID(),
         name: "Seeded Campgrounds",
-        slug: "seeded-campgrounds",
       },
     });
 

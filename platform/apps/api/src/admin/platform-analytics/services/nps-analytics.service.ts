@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../../../prisma/prisma.service";
 import { DateRange } from "../platform-analytics.service";
 
-interface NpsOverview {
+export interface NpsOverview {
   score: number;
   totalResponses: number;
   promoters: number;
@@ -21,7 +21,7 @@ interface NpsOverview {
   yoyResponsesChange: number | null;
 }
 
-interface NpsBySegment {
+export interface NpsBySegment {
   segment: string;
   score: number;
   responses: number;
@@ -29,7 +29,7 @@ interface NpsBySegment {
   detractors: number;
 }
 
-interface NpsTrend {
+export interface NpsTrend {
   period: string;
   score: number;
   responses: number;
@@ -38,7 +38,7 @@ interface NpsTrend {
   detractors: number;
 }
 
-interface NpsComment {
+export interface NpsComment {
   id: string;
   score: number;
   category: "promoter" | "passive" | "detractor";
@@ -49,7 +49,7 @@ interface NpsComment {
   campgroundName?: string;
 }
 
-interface NpsBySeason {
+export interface NpsBySeason {
   season: string;
   score: number;
   responses: number;
@@ -58,7 +58,7 @@ interface NpsBySeason {
   detractors: number;
 }
 
-interface NpsByGuestType {
+export interface NpsByGuestType {
   guestType: "first_time" | "repeat";
   score: number;
   responses: number;
@@ -68,7 +68,7 @@ interface NpsByGuestType {
   avgLifetimeValue?: number;
 }
 
-interface DetractorFollowUp {
+export interface DetractorFollowUp {
   id: string;
   score: number;
   comment: string;
@@ -284,9 +284,9 @@ export class NpsAnalyticsService {
       },
       select: {
         score: true,
-        reservation: {
+        Reservation: {
           select: {
-            site: { select: { siteType: true } },
+            Site: { select: { siteType: true } },
           },
         },
       },
@@ -296,7 +296,7 @@ export class NpsAnalyticsService {
     const byType: Record<string, { score: number }[]> = {};
 
     for (const r of responses) {
-      const type = r.reservation?.site?.siteType || "unknown";
+      const type = r.Reservation?.Site?.siteType || "unknown";
       if (!byType[type]) byType[type] = [];
       byType[type].push({ score: r.score });
     }
@@ -337,7 +337,7 @@ export class NpsAnalyticsService {
       select: {
         score: true,
         campgroundId: true,
-        campground: { select: { name: true } },
+        Campground: { select: { name: true } },
       },
     });
 
@@ -347,7 +347,7 @@ export class NpsAnalyticsService {
     for (const r of responses) {
       if (!byCampground[r.campgroundId]) {
         byCampground[r.campgroundId] = {
-          name: r.campground.name,
+          name: r.Campground.name,
           responses: [],
         };
       }
@@ -396,7 +396,7 @@ export class NpsAnalyticsService {
         score: true,
         tags: true,
         campgroundId: true,
-        campground: { select: { name: true } },
+        Campground: { select: { name: true } },
       },
     });
 
@@ -409,7 +409,7 @@ export class NpsAnalyticsService {
     for (const r of responses) {
       if (!byCampground[r.campgroundId]) {
         byCampground[r.campgroundId] = {
-          name: r.campground.name,
+          name: r.Campground.name,
           responses: [],
           tagCounts: {},
         };
@@ -469,7 +469,7 @@ export class NpsAnalyticsService {
         sentiment: true,
         tags: true,
         createdAt: true,
-        campground: { select: { name: true } },
+        Campground: { select: { name: true } },
       },
       orderBy: { createdAt: "desc" },
       take: limit,
@@ -483,7 +483,7 @@ export class NpsAnalyticsService {
       sentiment: r.sentiment,
       tags: r.tags,
       createdAt: r.createdAt,
-      campgroundName: r.campground.name,
+      campgroundName: r.Campground.name,
     }));
   }
 
@@ -586,7 +586,7 @@ export class NpsAnalyticsService {
       },
       select: {
         score: true,
-        guest: {
+        Guest: {
           select: {
             repeatStays: true,
           },
@@ -598,7 +598,7 @@ export class NpsAnalyticsService {
     const repeat: { score: number }[] = [];
 
     for (const r of responses) {
-      const isRepeat = (r.guest?.repeatStays || 0) > 1;
+      const isRepeat = (r.Guest?.repeatStays || 0) > 1;
       if (isRepeat) {
         repeat.push({ score: r.score });
       } else {
@@ -701,8 +701,8 @@ export class NpsAnalyticsService {
         resolved: true,
         resolvedAt: true,
         resolvedNote: true,
-        campground: { select: { name: true } },
-        guest: { select: { email: true } },
+        Campground: { select: { name: true } },
+        Guest: { select: { email: true } },
       },
       orderBy: { createdAt: "desc" },
       take: limit,
@@ -712,12 +712,12 @@ export class NpsAnalyticsService {
       id: r.id,
       score: r.score,
       comment: r.comment || "",
-      campgroundName: r.campground.name,
-      guestEmail: r.guest?.email,
+      campgroundName: r.Campground.name,
+      guestEmail: r.Guest?.email,
       createdAt: r.createdAt,
       followedUp: r.followedUp,
-      followUpAt: r.followUpAt,
-      followUpNote: r.followUpNote,
+      followUpAt: r.followUpAt ?? undefined,
+      followUpNote: r.followUpNote ?? undefined,
       resolved: r.resolved,
       resolvedAt: r.resolvedAt,
       resolvedNote: r.resolvedNote,

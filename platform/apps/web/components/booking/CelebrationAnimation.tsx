@@ -27,6 +27,7 @@ const COLORS = [
   "#8b5cf6", // purple
   "#14b8a6", // teal
 ];
+const SHAPES: Particle["shape"][] = ["circle", "square", "star"];
 
 export function CelebrationAnimation({
   isActive,
@@ -50,7 +51,7 @@ export function CelebrationAnimation({
       color: COLORS[Math.floor(Math.random() * COLORS.length)],
       size: Math.random() * 8 + 4,
       rotation: Math.random() * 360,
-      shape: ["circle", "square", "star"][Math.floor(Math.random() * 3)] as Particle["shape"]
+      shape: SHAPES[Math.floor(Math.random() * SHAPES.length)]
     }));
 
     setParticles(newParticles);

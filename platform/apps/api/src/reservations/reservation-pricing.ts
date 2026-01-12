@@ -26,7 +26,7 @@ export async function evaluatePricingV2(
   });
   if (!site) throw new NotFoundException("Site not found");
 
-  const defaultRate = site.siteClass?.defaultRate ?? 0;
+  const defaultRate = site.SiteClass?.defaultRate ?? 0;
   const breakdown = await pricingV2Service.evaluate(
     campgroundId,
     site.siteClassId,

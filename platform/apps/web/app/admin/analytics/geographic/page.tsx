@@ -91,6 +91,9 @@ export default function GeographicPage() {
     ...stats,
   }));
 
+  const toNumber = (value: unknown): number | undefined =>
+    typeof value === "number" ? value : undefined;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -200,10 +203,36 @@ export default function GeographicPage() {
         description="Where your guests are coming from"
         columns={[
           { key: "state", label: "State" },
-          { key: "guestCount", label: "Guests", align: "right", format: (v) => v?.toLocaleString() ?? "0" },
-          { key: "reservations", label: "Reservations", align: "right", format: (v) => v?.toLocaleString() ?? "0" },
-          { key: "revenue", label: "Revenue", align: "right", format: (v) => formatCurrency(v ?? 0) },
-          { key: "averageDistance", label: "Avg Distance", align: "right", format: (v) => `${Math.round(v ?? 0)} mi` },
+          {
+            key: "guestCount",
+            label: "Guests",
+            align: "right",
+            format: (v) => (toNumber(v) ?? 0).toLocaleString(),
+          },
+          {
+            key: "reservations",
+            label: "Reservations",
+            align: "right",
+            format: (v) => (toNumber(v) ?? 0).toLocaleString(),
+          },
+          {
+            key: "revenue",
+            label: "Revenue",
+            align: "right",
+            format: (v) => {
+              const numberValue = toNumber(v);
+              return numberValue !== undefined ? formatCurrency(numberValue) : "—";
+            },
+          },
+          {
+            key: "averageDistance",
+            label: "Avg Distance",
+            align: "right",
+            format: (v) => {
+              const numberValue = toNumber(v);
+              return `${Math.round(numberValue ?? 0)} mi`;
+            },
+          },
         ]}
         data={data.originHeatmap}
         loading={loading}
@@ -216,9 +245,30 @@ export default function GeographicPage() {
         description="Guest and revenue by US region"
         columns={[
           { key: "region", label: "Region" },
-          { key: "totalGuests", label: "Guests", align: "right", format: (v) => v?.toLocaleString() ?? "0" },
-          { key: "totalRevenue", label: "Revenue", align: "right", format: (v) => formatCurrency(v ?? 0) },
-          { key: "growthRate", label: "Growth Rate", align: "right", format: (v) => `+${(v ?? 0).toFixed(1)}%` },
+          {
+            key: "totalGuests",
+            label: "Guests",
+            align: "right",
+            format: (v) => (toNumber(v) ?? 0).toLocaleString(),
+          },
+          {
+            key: "totalRevenue",
+            label: "Revenue",
+            align: "right",
+            format: (v) => {
+              const numberValue = toNumber(v);
+              return numberValue !== undefined ? formatCurrency(numberValue) : "—";
+            },
+          },
+          {
+            key: "growthRate",
+            label: "Growth Rate",
+            align: "right",
+            format: (v) => {
+              const numberValue = toNumber(v);
+              return numberValue !== undefined ? `+${numberValue.toFixed(1)}%` : "—";
+            },
+          },
         ]}
         data={regionData}
         loading={loading}

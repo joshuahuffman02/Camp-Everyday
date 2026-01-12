@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BookingMap } from "@/components/maps/BookingMap";
-import { Loader2, Search, CheckCircle, MapPin, Calendar, User, CreditCard, Home, RefreshCw, Flame, Snowflake, Plus, Minus, ShoppingBag, Tent, ArrowRight, Grid3X3, Zap, Droplet, Waves, Tablet, AlertCircle, Mail, Car, Truck, Bike, Users, Baby, Clock, FileText, ChevronDown, ChevronUp, Check } from "lucide-react";
+import { Loader2, Search, CheckCircle, MapPin, Calendar, User, CreditCard, Home, RefreshCw, Flame, Snowflake, Plus, Minus, ShoppingBag, Tent, ArrowRight, Grid3X3, Zap, Droplet, Waves, Tablet, AlertCircle, Mail, Car, Truck, Bike, Users, Baby, Clock, FileText, ChevronDown, ChevronUp, Check, type LucideIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,13 +19,18 @@ import Link from "next/link";
 import { format, parseISO, addDays } from "date-fns";
 import { randomId } from "@/lib/random-id";
 import confetti from "canvas-confetti";
+import { FormTemplateSchema, type FormTemplate } from "@keepr/shared";
 
 // Storage key for kiosk device token
 const KIOSK_TOKEN_KEY = "campreserv:kioskDeviceToken";
 const KIOSK_CAMPGROUND_KEY = "campreserv:kioskCampground";
 
+type SpringConfig = { type: "spring"; stiffness: number; damping: number };
+type TweenConfig = { type: "tween"; duration: number };
+type MotionConfig = SpringConfig | TweenConfig;
+
 // Animation configs
-const SPRING_CONFIG = { type: "spring" as const, stiffness: 200, damping: 20 };
+const SPRING_CONFIG: SpringConfig = { type: "spring", stiffness: 200, damping: 20 };
 const STAGGER_DELAY = 0.05;
 
 const pageVariants = {
@@ -45,29 +50,14 @@ type Reservation = {
     departureDate: string;
     status: string;
     adults: number;
-    children: number;
+    children?: number;
     totalAmount: number;
-    paidAmount: number;
-    site?: { id: string; name: string; siteNumber: string } | null;
-    guest?: { primaryFirstName: string; primaryLastName: string; email: string } | null;
+    paidAmount?: number;
+    site?: { id: string; name?: string | null; siteNumber?: string | null } | null;
+    guest?: { primaryFirstName?: string | null; primaryLastName?: string | null; email?: string | null } | null;
 };
 
-type Site = {
-    id: string;
-    name: string;
-    siteNumber: string;
-    siteType: string;
-    hookupsPower?: boolean;
-    hookupsWater?: boolean;
-    hookupsSewer?: boolean;
-    powerAmps?: number;
-    petFriendly?: boolean;
-    accessible?: boolean;
-    siteClass: {
-        name: string;
-        defaultRate: number;
-    } | null;
-};
+type Site = Awaited<ReturnType<typeof apiClient.getPublicAvailability>>[number];
 
 type SiteFilters = {
     siteType: string | null;
@@ -95,19 +85,141 @@ type FieldErrors = {
     zipCode?: string;
 };
 
-interface CheckinForm {
-    id: string;
-    displayConditions?: CheckinFormCondition[];
-    conditionLogic?: "all" | "any";
-    isRequired?: boolean;
-    allowSkipWithNote?: boolean;
-}
+type VehicleType = "car" | "truck" | "rv" | "motorcycle" | "trailer";
 
-interface CheckinFormCondition {
-    field: string;
-    operator: "equals" | "not_equals" | "greater_than" | "less_than" | "in" | "not_in" | "contains";
-    value: unknown;
-}
+type FormQuestionType = "text" | "textarea" | "number" | "checkbox" | "select";
+
+type FormQuestion = {
+    id: string;
+    label: string;
+    type: FormQuestionType;
+    required?: boolean;
+    options?: string[];
+};
+
+type CheckinForm = FormTemplate & { questions: FormQuestion[] };
+
+type VehicleOption = {
+    type: VehicleType;
+    icon: LucideIcon;
+    label: string;
+};
+
+type CheckInQueueItem = {
+    id: string;
+    reservationId: string;
+    upsellTotal: number;
+    attempt: number;
+    nextAttemptAt: number;
+    createdAt: string;
+    lastError?: string | null;
+    idempotencyKey: string;
+    conflict?: boolean;
+};
+
+type GuestInfo = {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    plate: string;
+    zipCode: string;
+    adults: number;
+    children: number;
+    vehicleType: VehicleType;
+};
+
+const VEHICLE_OPTIONS: VehicleOption[] = [
+    { type: "car", icon: Car, label: "Car" },
+    { type: "truck", icon: Truck, label: "Truck" },
+    { type: "rv", icon: Home, label: "RV" },
+    { type: "motorcycle", icon: Bike, label: "Bike" },
+    { type: "trailer", icon: Tent, label: "Trailer" },
+];
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null && !Array.isArray(value);
+
+const readString = (value: unknown) => (typeof value === "string" ? value : undefined);
+
+const readNullableString = (value: unknown) => {
+    if (value === null) return null;
+    return readString(value);
+};
+
+const readNumber = (value: unknown) => (typeof value === "number" ? value : undefined);
+
+const readNullableNumber = (value: unknown) => {
+    if (value === null) return null;
+    return readNumber(value);
+};
+
+const readStringArray = (value: unknown) => (
+    Array.isArray(value) && value.every((entry) => typeof entry === "string") ? value : undefined
+);
+
+const formQuestionTypes: FormQuestionType[] = ["text", "textarea", "number", "checkbox", "select"];
+
+const isFormQuestionType = (value: string): value is FormQuestionType =>
+    formQuestionTypes.some((type) => type === value);
+
+const parseQuestions = (fields: unknown): FormQuestion[] => {
+    if (!isRecord(fields)) return [];
+    const questionsValue = fields.questions;
+    if (!Array.isArray(questionsValue)) return [];
+    const questions: FormQuestion[] = [];
+    for (const entry of questionsValue) {
+        if (!isRecord(entry)) continue;
+        const id = readString(entry.id);
+        const label = readString(entry.label);
+        const type = readString(entry.type);
+        if (!id || !label || !type || !isFormQuestionType(type)) continue;
+        const required = typeof entry.required === "boolean" ? entry.required : undefined;
+        const options = readStringArray(entry.options);
+        questions.push({ id, label, type, required, options });
+    }
+    return questions;
+};
+
+const parseCheckinForms = (data: unknown): CheckinForm[] => {
+    const parsed = FormTemplateSchema.array().safeParse(data);
+    if (!parsed.success) return [];
+    return parsed.data.map((form) => ({
+        ...form,
+        questions: parseQuestions(form.fields),
+    }));
+};
+
+const parseCampgroundInfo = (data: unknown): CampgroundInfo | null => {
+    if (!isRecord(data)) return null;
+    const id = readString(data.id);
+    const name = readString(data.name);
+    const slug = readString(data.slug);
+    if (!id || !name || !slug) return null;
+    const heroImageUrl = readNullableString(data.heroImageUrl) ?? null;
+    const latitude = readNullableNumber(data.latitude) ?? null;
+    const longitude = readNullableNumber(data.longitude) ?? null;
+    const checkInTime = readNullableString(data.checkInTime) ?? null;
+    const checkOutTime = readNullableString(data.checkOutTime) ?? null;
+    return { id, name, slug, heroImageUrl, latitude, longitude, checkInTime, checkOutTime };
+};
+
+const getErrorStatus = (error: unknown) => {
+    if (!isRecord(error)) return undefined;
+    const status = error.status;
+    if (typeof status === "number") return status;
+    if (typeof status === "string") {
+        const parsed = Number(status);
+        return Number.isNaN(parsed) ? undefined : parsed;
+    }
+    return undefined;
+};
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+    if (error instanceof Error) return error.message;
+    if (isRecord(error) && typeof error.message === "string") return error.message;
+    return fallback;
+};
 
 const INACTIVITY_TIMEOUT = 120000; // 120 seconds (increased for better UX)
 const WARNING_THRESHOLD = 15000; // Show warning at 15 seconds
@@ -202,7 +314,7 @@ export default function KioskPage() {
     const [isOnline, setIsOnline] = useState(true);
     const [queuedCheckins, setQueuedCheckins] = useState(0);
     const [queuedCheckinPending, setQueuedCheckinPending] = useState(false);
-    const [conflicts, setConflicts] = useState<any[]>([]);
+    const [conflicts, setConflicts] = useState<CheckInQueueItem[]>([]);
     const queueKey = "campreserv:kiosk:checkinQueue";
     const isFlushingRef = useRef(false);
 
@@ -210,14 +322,14 @@ export default function KioskPage() {
     const confirmationInputRef = useRef<HTMLInputElement>(null);
     const firstNameInputRef = useRef<HTMLInputElement>(null);
 
-    const loadQueue = () => loadQueueGeneric<any>(queueKey);
-    const saveQueue = (items: any[]) => {
+    const loadQueue = () => loadQueueGeneric<CheckInQueueItem>(queueKey);
+    const saveQueue = (items: CheckInQueueItem[]) => {
         saveQueueGeneric(queueKey, items);
         setQueuedCheckins(items.length);
-        setConflicts(items.filter((i) => i?.conflict));
+        setConflicts(items.filter((item) => item.conflict));
     };
     const queueCheckIn = (payload: { reservationId: string; upsellTotal: number }) => {
-        const item = {
+        const item: CheckInQueueItem = {
             ...payload,
             id: randomId(),
             attempt: 0,
@@ -240,7 +352,7 @@ export default function KioskPage() {
             const now = Date.now();
             const items = loadQueue();
             if (!items.length) return;
-            const remaining: any[] = [];
+            const remaining: CheckInQueueItem[] = [];
             for (const item of items) {
                 if (item.nextAttemptAt && item.nextAttemptAt > now) {
                     remaining.push(item);
@@ -251,17 +363,19 @@ export default function KioskPage() {
                     await apiClient.kioskCheckIn(item.reservationId, item.upsellTotal, deviceToken);
                     recordTelemetry({ source: "kiosk", type: "sync", status: "success", message: "Queued check-in flushed", meta: { reservationId: item.reservationId } });
                     setQueuedCheckinPending(false);
-                } catch (err: any) {
+                } catch (err: unknown) {
                     const attempt = (item.attempt ?? 0) + 1;
                     const delay = Math.min(300000, 1000 * 2 ** attempt) + Math.floor(Math.random() * 500);
-                    const isConflict = err?.status === 409 || err?.status === 412 || /conflict/i.test(err?.message ?? "");
-                    remaining.push({ ...item, attempt, nextAttemptAt: Date.now() + delay, lastError: err?.message, conflict: isConflict });
+                    const status = getErrorStatus(err);
+                    const message = getErrorMessage(err, "");
+                    const isConflict = status === 409 || status === 412 || (message ? /conflict/i.test(message) : false);
+                    remaining.push({ ...item, attempt, nextAttemptAt: Date.now() + delay, lastError: message || null, conflict: isConflict });
                     recordTelemetry({
                         source: "kiosk",
                         type: isConflict ? "conflict" : "error",
                         status: isConflict ? "conflict" : "failed",
                         message: isConflict ? "Check-in conflict, needs review" : "Flush failed, retry scheduled",
-                        meta: { error: err?.message },
+                        meta: { error: message },
                     });
                 }
             }
@@ -282,7 +396,7 @@ export default function KioskPage() {
         saveQueue(items);
     };
 
-    const [guestInfo, setGuestInfo] = useState({
+    const [guestInfo, setGuestInfo] = useState<GuestInfo>({
         firstName: "",
         lastName: "",
         email: "",
@@ -291,7 +405,7 @@ export default function KioskPage() {
         zipCode: "",
         adults: 2,
         children: 0,
-        vehicleType: "car" as "car" | "truck" | "rv" | "motorcycle" | "trailer"
+        vehicleType: "car"
     });
 
     // Payment form
@@ -316,13 +430,14 @@ export default function KioskPage() {
     const [skipNotes, setSkipNotes] = useState<Record<string, string>>({});
 
     // Fetch check-in forms for this campground
-    const { data: checkinForms = [] } = useQuery({
+    const { data: checkinForms = [] } = useQuery<CheckinForm[]>({
         queryKey: ["kiosk-checkin-forms", campground?.id],
         queryFn: async () => {
             if (!campground?.id) return [];
             const res = await fetch(`/api/public/campgrounds/${campground.id}/forms?showAt=at_checkin`);
             if (!res.ok) return [];
-            return res.json();
+            const data = await res.json();
+            return parseCheckinForms(data);
         },
         enabled: !!campground?.id,
         staleTime: 5 * 60 * 1000 // 5 minutes
@@ -344,8 +459,7 @@ export default function KioskPage() {
             })()
         };
 
-        const typedForms = checkinForms as CheckinForm[];
-        return typedForms.filter((form) => {
+        return checkinForms.filter((form) => {
             const conditions = form.displayConditions || [];
             if (conditions.length === 0) return true;
 
@@ -366,8 +480,10 @@ export default function KioskPage() {
                     case "not_equals": return fieldValue !== cond.value;
                     case "greater_than": return typeof fieldValue === "number" && typeof cond.value === "number" && fieldValue > cond.value;
                     case "less_than": return typeof fieldValue === "number" && typeof cond.value === "number" && fieldValue < cond.value;
-                    case "in": return Array.isArray(cond.value) && cond.value.includes(fieldValue);
-                    case "not_in": return Array.isArray(cond.value) && !cond.value.includes(fieldValue);
+                    case "in":
+                        return Array.isArray(cond.value) && cond.value.some((value) => value === fieldValue);
+                    case "not_in":
+                        return Array.isArray(cond.value) && cond.value.every((value) => value !== fieldValue);
                     case "contains": return typeof fieldValue === "string" && typeof cond.value === "string" && fieldValue.includes(cond.value);
                     default: return true;
                 }
@@ -378,13 +494,11 @@ export default function KioskPage() {
 
     // Check if all required forms are complete
     const requiredForms = useMemo(() => {
-        const typedForms = applicableForms as CheckinForm[];
-        return typedForms.filter((f) => f.isRequired !== false);
+        return applicableForms.filter((f) => f.isRequired !== false);
     }, [applicableForms]);
 
     const allFormsComplete = useMemo(() => {
-        const typedForms = requiredForms as CheckinForm[];
-        return typedForms.every((f) => completedForms.has(f.id) || (f.allowSkipWithNote && skipNotes[f.id]));
+        return requiredForms.every((f) => completedForms.has(f.id) || (f.allowSkipWithNote && skipNotes[f.id]));
     },
         [requiredForms, completedForms, skipNotes]
     );
@@ -394,8 +508,8 @@ export default function KioskPage() {
     const [timeRemaining, setTimeRemaining] = useState(INACTIVITY_TIMEOUT);
 
     // Animation spring config based on reduced motion preference
-    const springConfig = shouldReduceMotion
-        ? { type: "tween" as const, duration: 0.15 }
+    const springConfig: MotionConfig = shouldReduceMotion
+        ? { type: "tween", duration: 0.15 }
         : SPRING_CONFIG;
 
     // Reset to home screen
@@ -469,7 +583,7 @@ export default function KioskPage() {
         setIsOnline(navigator.onLine);
         const list = loadQueue();
         setQueuedCheckins(list.length);
-        setConflicts(list.filter((i) => i?.conflict));
+        setConflicts(list.filter((item) => item.conflict));
         const handleOnline = () => {
             setIsOnline(true);
             recordTelemetry({ source: "kiosk", type: "sync", status: "success", message: "Back online" });
@@ -529,15 +643,17 @@ export default function KioskPage() {
                 const cached = localStorage.getItem(KIOSK_CAMPGROUND_KEY);
                 if (cached) {
                     try {
-                        const cachedCampground = JSON.parse(cached) as CampgroundInfo;
-                        setCampground(cachedCampground);
-                        setCampgroundCenter({
-                            latitude: cachedCampground.latitude,
-                            longitude: cachedCampground.longitude
-                        });
-                        setLoading(false);
-                        setState("home");
-                        return;
+                        const parsed = parseCampgroundInfo(JSON.parse(cached));
+                        if (parsed) {
+                            setCampground(parsed);
+                            setCampgroundCenter({
+                                latitude: parsed.latitude,
+                                longitude: parsed.longitude
+                            });
+                            setLoading(false);
+                            setState("home");
+                            return;
+                        }
                     } catch {}
                 }
                 localStorage.removeItem(KIOSK_TOKEN_KEY);
@@ -576,8 +692,8 @@ export default function KioskPage() {
             setPairingCode("");
             setDeviceName("");
             setState("home");
-        } catch (err: any) {
-            setError(err?.message || "Invalid or expired pairing code. Please try again.");
+        } catch (err: unknown) {
+            setError(getErrorMessage(err, "Invalid or expired pairing code. Please try again."));
         } finally {
             setLoading(false);
         }
@@ -595,7 +711,7 @@ export default function KioskPage() {
             if (confirmationCode) {
                 try {
                     const res = await apiClient.getReservation(confirmationCode.trim());
-                    found = res as Reservation;
+                    found = res;
                 } catch {
                     // Not found by ID
                 }
@@ -646,10 +762,8 @@ export default function KioskPage() {
                 departureDate: format(departure, "yyyy-MM-dd")
             });
             // Only show sites that are actually available
-            if (Array.isArray(sites)) {
-                const available = sites.filter((s: { status?: string }) => s.status === "available");
-                setAvailableSites(available as Site[]);
-            }
+            const available = sites.filter((site) => site.status === "available");
+            setAvailableSites(available);
             setState("walkin-sites");
         } catch (err) {
             console.error(err);
@@ -721,12 +835,11 @@ export default function KioskPage() {
                 }
             });
 
-            setReservation(newRes as unknown as Reservation);
+            setReservation(newRes);
             setState("upsell");
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error(err);
-            const message = err?.message || "Couldn't create reservation. Please try again or visit the front desk.";
-            setError(message);
+            setError(getErrorMessage(err, "Couldn't create reservation. Please try again or visit the front desk."));
         } finally {
             setLoading(false);
         }
@@ -776,16 +889,16 @@ export default function KioskPage() {
             recordTelemetry({ source: "kiosk", type: "sync", status: "success", message: "Check-in completed", meta: { reservationId: reservation.id } });
             setState("success");
             triggerCelebration();
-        } catch (err) {
+        } catch (err: unknown) {
             console.error(err);
-            const error = err as { message?: string };
+            const message = getErrorMessage(err, "Unknown error");
             setError("Check-in couldn't be completed. Please visit the front desk for assistance.");
             recordTelemetry({
                 source: "kiosk",
                 type: "error",
                 status: "failed",
                 message: "Check-in failed",
-                meta: { error: error?.message ?? "Unknown error" }
+                meta: { error: message }
             });
         } finally {
             setLoading(false);
@@ -804,7 +917,7 @@ export default function KioskPage() {
         }
     };
 
-    const balanceDue = reservation ? reservation.totalAmount - reservation.paidAmount : 0;
+    const balanceDue = reservation ? reservation.totalAmount - (reservation.paidAmount ?? 0) : 0;
     const upsellTotal = (firewoodQty * 1000) + (iceQty * 500);
     const totalDue = balanceDue + upsellTotal;
     const showTimeWarning = timeRemaining <= WARNING_THRESHOLD && state !== "home" && state !== "setup";
@@ -1204,15 +1317,16 @@ export default function KioskPage() {
                 {/* Walk-in: Site Selection */}
                 {state === "walkin-sites" && (() => {
                     const filteredSites = availableSites.filter((site) => {
+                        const siteClass = site.siteClass;
                         if (siteFilters.siteType && site.siteType !== siteFilters.siteType) return false;
-                        if (siteFilters.hookups.includes("power") && !site.hookupsPower) return false;
-                        if (siteFilters.hookups.includes("water") && !site.hookupsWater) return false;
-                        if (siteFilters.hookups.includes("sewer") && !site.hookupsSewer) return false;
+                        if (siteFilters.hookups.includes("power") && !siteClass?.hookupsPower) return false;
+                        if (siteFilters.hookups.includes("water") && !siteClass?.hookupsWater) return false;
+                        if (siteFilters.hookups.includes("sewer") && !siteClass?.hookupsSewer) return false;
                         return true;
                     });
 
                     const siteTypes = [...new Set(availableSites.map((s) => s.siteType))];
-                    const hasHookupSites = availableSites.some((s) => s.hookupsPower || s.hookupsWater || s.hookupsSewer);
+                    const hasHookupSites = availableSites.some((s) => s.siteClass?.hookupsPower || s.siteClass?.hookupsWater || s.siteClass?.hookupsSewer);
 
                     const toggleHookup = (hookup: "power" | "water" | "sewer") => {
                         setSiteFilters((prev) => ({
@@ -1357,19 +1471,19 @@ export default function KioskPage() {
                                                         <p>{site.siteClass?.name}</p>
                                                         {/* Hookup badges */}
                                                         <div className="flex flex-wrap gap-1.5">
-                                                            {site.hookupsPower && (
+                                                            {site.siteClass?.hookupsPower && (
                                                                 <Badge variant="outline" className="text-xs">
                                                                     <Zap className="w-3 h-3 mr-1" />
-                                                                    {site.powerAmps}A
+                                                                    Power
                                                                 </Badge>
                                                             )}
-                                                            {site.hookupsWater && (
+                                                            {site.siteClass?.hookupsWater && (
                                                                 <Badge variant="outline" className="text-xs">
                                                                     <Droplet className="w-3 h-3 mr-1" />
                                                                     Water
                                                                 </Badge>
                                                             )}
-                                                            {site.hookupsSewer && (
+                                                            {site.siteClass?.hookupsSewer && (
                                                                 <Badge variant="outline" className="text-xs">
                                                                     <Waves className="w-3 h-3 mr-1" />
                                                                     Sewer
@@ -1618,13 +1732,7 @@ export default function KioskPage() {
                                 <div className="space-y-2">
                                     <p className="text-sm font-medium text-gray-700">Vehicle Type</p>
                                     <div className="grid grid-cols-5 gap-2">
-                                        {([
-                                            { type: "car", icon: Car, label: "Car" },
-                                            { type: "truck", icon: Truck, label: "Truck" },
-                                            { type: "rv", icon: Home, label: "RV" },
-                                            { type: "motorcycle", icon: Bike, label: "Bike" },
-                                            { type: "trailer", icon: Tent, label: "Trailer" }
-                                        ] as const).map(({ type, icon: Icon, label }) => (
+                                        {VEHICLE_OPTIONS.map(({ type, icon: Icon, label }) => (
                                             <Button
                                                 key={type}
                                                 variant={guestInfo.vehicleType === type ? "default" : "outline"}
@@ -1952,10 +2060,10 @@ export default function KioskPage() {
                                 </Badge>
                             </CardHeader>
                             <CardContent className="space-y-4 md:space-y-6 px-6 md:px-10 pb-8 md:pb-10 max-h-[50vh] overflow-y-auto">
-                                {applicableForms.map((form: any) => {
+                                {applicableForms.map((form) => {
                                     const isComplete = completedForms.has(form.id);
                                     const isExpanded = expandedForm === form.id;
-                                    const questions = form.fields?.questions || [];
+                                    const questions = form.questions;
 
                                     return (
                                         <motion.div
@@ -2014,20 +2122,20 @@ export default function KioskPage() {
                                                                 </p>
                                                             ) : (
                                                                 <div className="space-y-4 pt-4">
-                                                                    {questions.map((q: any) => (
-                                                                        <div key={q.id} className="space-y-2">
+                                                                    {questions.map((question) => (
+                                                                        <div key={question.id} className="space-y-2">
                                                                             <label className="text-sm font-medium text-gray-700">
-                                                                                {q.label}
-                                                                                {q.required && <span className="text-red-500 ml-1">*</span>}
+                                                                                {question.label}
+                                                                                {question.required && <span className="text-red-500 ml-1">*</span>}
                                                                             </label>
 
-                                                                            {q.type === "text" && (
+                                                                            {question.type === "text" && (
                                                                                 <Input
-                                                                                    value={String(formResponses[form.id]?.[q.id] ?? "")}
+                                                                                    value={String(formResponses[form.id]?.[question.id] ?? "")}
                                                                                     onChange={(e) => {
                                                                                         setFormResponses(prev => ({
                                                                                             ...prev,
-                                                                                            [form.id]: { ...(prev[form.id] || {}), [q.id]: e.target.value }
+                                                                                            [form.id]: { ...(prev[form.id] || {}), [question.id]: e.target.value }
                                                                                         }));
                                                                                         handleActivity();
                                                                                     }}
@@ -2036,13 +2144,13 @@ export default function KioskPage() {
                                                                                 />
                                                                             )}
 
-                                                                            {q.type === "textarea" && (
+                                                                            {question.type === "textarea" && (
                                                                                 <Textarea
-                                                                                    value={String(formResponses[form.id]?.[q.id] ?? "")}
+                                                                                    value={String(formResponses[form.id]?.[question.id] ?? "")}
                                                                                     onChange={(e) => {
                                                                                         setFormResponses(prev => ({
                                                                                             ...prev,
-                                                                                            [form.id]: { ...(prev[form.id] || {}), [q.id]: e.target.value }
+                                                                                            [form.id]: { ...(prev[form.id] || {}), [question.id]: e.target.value }
                                                                                         }));
                                                                                         handleActivity();
                                                                                     }}
@@ -2051,14 +2159,14 @@ export default function KioskPage() {
                                                                                 />
                                                                             )}
 
-                                                                            {q.type === "number" && (
+                                                                            {question.type === "number" && (
                                                                                 <Input
                                                                                     type="number"
-                                                                                    value={String(formResponses[form.id]?.[q.id] ?? "")}
+                                                                                    value={String(formResponses[form.id]?.[question.id] ?? "")}
                                                                                     onChange={(e) => {
                                                                                         setFormResponses(prev => ({
                                                                                             ...prev,
-                                                                                            [form.id]: { ...(prev[form.id] || {}), [q.id]: e.target.value }
+                                                                                            [form.id]: { ...(prev[form.id] || {}), [question.id]: e.target.value }
                                                                                         }));
                                                                                         handleActivity();
                                                                                     }}
@@ -2068,14 +2176,14 @@ export default function KioskPage() {
                                                                                 />
                                                                             )}
 
-                                                                            {q.type === "checkbox" && (
+                                                                            {question.type === "checkbox" && (
                                                                                 <div className="flex items-center gap-3 py-2">
                                                                                     <Checkbox
-                                                                                        checked={Boolean(formResponses[form.id]?.[q.id])}
+                                                                                        checked={Boolean(formResponses[form.id]?.[question.id])}
                                                                                         onCheckedChange={(checked) => {
                                                                                             setFormResponses(prev => ({
                                                                                                 ...prev,
-                                                                                                [form.id]: { ...(prev[form.id] || {}), [q.id]: Boolean(checked) }
+                                                                                                [form.id]: { ...(prev[form.id] || {}), [question.id]: Boolean(checked) }
                                                                                             }));
                                                                                             handleActivity();
                                                                                         }}
@@ -2085,13 +2193,13 @@ export default function KioskPage() {
                                                                                 </div>
                                                                             )}
 
-                                                                            {q.type === "select" && q.options && (
+                                                                            {question.type === "select" && question.options && (
                                                                                 <Select
-                                                                                    value={String(formResponses[form.id]?.[q.id] ?? "")}
+                                                                                    value={String(formResponses[form.id]?.[question.id] ?? "")}
                                                                                     onValueChange={(v) => {
                                                                                         setFormResponses(prev => ({
                                                                                             ...prev,
-                                                                                            [form.id]: { ...(prev[form.id] || {}), [q.id]: v }
+                                                                                            [form.id]: { ...(prev[form.id] || {}), [question.id]: v }
                                                                                         }));
                                                                                         handleActivity();
                                                                                     }}
@@ -2100,7 +2208,7 @@ export default function KioskPage() {
                                                                                         <SelectValue placeholder="Select an option" />
                                                                                     </SelectTrigger>
                                                                                     <SelectContent>
-                                                                                        {q.options.map((opt: string) => (
+                                                                                        {question.options.map((opt) => (
                                                                                             <SelectItem key={opt} value={opt} className="text-base py-3">
                                                                                                 {opt}
                                                                                             </SelectItem>
@@ -2118,9 +2226,9 @@ export default function KioskPage() {
                                                                     size="lg"
                                                                     onClick={() => {
                                                                         const responses = formResponses[form.id] || {};
-                                                                        const missingRequired = questions.filter((q: any) => q.required && !responses[q.id]);
+                                                                        const missingRequired = questions.filter((question) => question.required && !responses[question.id]);
                                                                         if (missingRequired.length > 0) {
-                                                                            setError(`Please complete required fields: ${missingRequired.map((q: any) => q.label).join(", ")}`);
+                                                                            setError(`Please complete required fields: ${missingRequired.map((question) => question.label).join(", ")}`);
                                                                             return;
                                                                         }
                                                                         setCompletedForms(prev => new Set([...prev, form.id]));

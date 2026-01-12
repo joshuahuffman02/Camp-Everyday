@@ -1,5 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../../../prisma/prisma.service";
+import { randomUUID } from "crypto";
+import { Prisma } from "@prisma/client";
 import { DateRange } from "../platform-analytics.service";
 
 export interface CreateGoalDto {
@@ -27,7 +29,7 @@ export interface UpdateGoalDto {
   dueDate?: string;
 }
 
-interface GoalWithProgress {
+export interface GoalWithProgress {
   id: string;
   name: string;
   description: string | null;
@@ -76,7 +78,7 @@ export class GoalsService {
       where,
       orderBy: [{ status: "asc" }, { dueDate: "asc" }],
       include: {
-        campground: {
+        Campground: {
           select: { name: true },
         },
       },
@@ -97,7 +99,7 @@ export class GoalsService {
       createdAt: goal.createdAt,
       updatedAt: goal.updatedAt,
       campgroundId: goal.campgroundId,
-      campgroundName: goal.campground?.name,
+      campgroundName: goal.Campground?.name,
       progress: goal.target > 0 ? (goal.current / goal.target) * 100 : 0,
       daysRemaining: Math.ceil(
         (goal.dueDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
@@ -113,7 +115,7 @@ export class GoalsService {
     const goal = await this.prisma.platformGoal.findUnique({
       where: { id },
       include: {
-        campground: {
+        Campground: {
           select: { name: true },
         },
       },
@@ -136,7 +138,7 @@ export class GoalsService {
       createdAt: goal.createdAt,
       updatedAt: goal.updatedAt,
       campgroundId: goal.campgroundId,
-      campgroundName: goal.campground?.name,
+      campgroundName: goal.Campground?.name,
       progress: goal.target > 0 ? (goal.current / goal.target) * 100 : 0,
       daysRemaining: Math.ceil(
         (goal.dueDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
@@ -149,23 +151,26 @@ export class GoalsService {
    * Create a new goal
    */
   async createGoal(data: CreateGoalDto, createdBy?: string): Promise<GoalWithProgress> {
+    const createData: Prisma.PlatformGoalUncheckedCreateInput = {
+      id: randomUUID(),
+      name: data.name,
+      description: data.description,
+      metric: data.metric,
+      target: data.target,
+      current: 0,
+      unit: data.unit,
+      period: data.period,
+      category: data.category,
+      status: "on_track",
+      dueDate: new Date(data.dueDate),
+      createdBy,
+      updatedAt: new Date(),
+      ...(data.campgroundId ? { campgroundId: data.campgroundId } : {}),
+    };
     const goal = await this.prisma.platformGoal.create({
-      data: {
-        name: data.name,
-        description: data.description,
-        metric: data.metric,
-        target: data.target,
-        current: 0,
-        unit: data.unit,
-        period: data.period,
-        category: data.category,
-        status: "on_track",
-        dueDate: new Date(data.dueDate),
-        createdBy,
-        campgroundId: data.campgroundId,
-      },
+      data: createData,
       include: {
-        campground: {
+        Campground: {
           select: { name: true },
         },
       },
@@ -186,7 +191,7 @@ export class GoalsService {
       createdAt: goal.createdAt,
       updatedAt: goal.updatedAt,
       campgroundId: goal.campgroundId,
-      campgroundName: goal.campground?.name,
+      campgroundName: goal.Campground?.name,
       progress: 0,
       daysRemaining: Math.ceil(
         (goal.dueDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
@@ -216,7 +221,7 @@ export class GoalsService {
       where: { id },
       data: updateData,
       include: {
-        campground: {
+        Campground: {
           select: { name: true },
         },
       },
@@ -237,7 +242,7 @@ export class GoalsService {
       createdAt: goal.createdAt,
       updatedAt: goal.updatedAt,
       campgroundId: goal.campgroundId,
-      campgroundName: goal.campground?.name,
+      campgroundName: goal.Campground?.name,
       progress: goal.target > 0 ? (goal.current / goal.target) * 100 : 0,
       daysRemaining: Math.ceil(
         (goal.dueDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
@@ -304,7 +309,7 @@ export class GoalsService {
             },
             _sum: { totalAmount: true },
           });
-          currentValue = revenueResult._sum.totalAmount?.toNumber() ?? 0;
+          currentValue = revenueResult._sum.totalAmount ?? 0;
           break;
 
         case "nps score":
@@ -356,7 +361,7 @@ export class GoalsService {
           const [repeatGuests, totalGuests] = await Promise.all([
             this.prisma.guest.count({
               where: {
-                reservations: {
+                Reservation: {
                   some: {
                     createdAt: { gte: start, lte: end },
                     ...(goal.campgroundId && { campgroundId: goal.campgroundId }),
@@ -367,7 +372,7 @@ export class GoalsService {
             }),
             this.prisma.guest.count({
               where: {
-                reservations: {
+                Reservation: {
                   some: {
                     createdAt: { gte: start, lte: end },
                     ...(goal.campgroundId && { campgroundId: goal.campgroundId }),
@@ -380,19 +385,30 @@ export class GoalsService {
           break;
 
         case "average daily rate":
-          const adrResult = await this.prisma.reservation.aggregate({
+          const adrReservations = await this.prisma.reservation.findMany({
             where: {
               createdAt: { gte: start, lte: end },
               status: { notIn: ["cancelled"] },
-              nights: { gt: 0 },
               ...(goal.campgroundId && { campgroundId: goal.campgroundId }),
             },
-            _avg: { totalAmount: true },
-            _sum: { nights: true },
+            select: {
+              totalAmount: true,
+              arrivalDate: true,
+              departureDate: true,
+            },
           });
-          const avgTotal = adrResult._avg.totalAmount?.toNumber() ?? 0;
-          const totalNights = adrResult._sum.nights ?? 1;
-          currentValue = totalNights > 0 ? avgTotal / totalNights : 0;
+          const nightlyRates = adrReservations
+            .map((res) => {
+              const nights = Math.ceil(
+                (new Date(res.departureDate).getTime() - new Date(res.arrivalDate).getTime()) /
+                (1000 * 60 * 60 * 24)
+              );
+              return nights > 0 ? (res.totalAmount || 0) / nights : null;
+            })
+            .filter((rate): rate is number => rate !== null);
+          currentValue = nightlyRates.length > 0
+            ? nightlyRates.reduce((sum, rate) => sum + rate, 0) / nightlyRates.length
+            : 0;
           break;
       }
 

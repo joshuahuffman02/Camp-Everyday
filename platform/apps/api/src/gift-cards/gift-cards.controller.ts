@@ -10,6 +10,8 @@ import { ScopeGuard } from "../permissions/scope.guard";
 import type { Request } from "express";
 import type { AuthUser } from "../auth/auth.types";
 
+type GiftCardsRequest = Request & { user?: AuthUser; campgroundId?: string | null };
+
 class RedeemGiftCardDto {
   @IsString()
   code!: string;
@@ -25,7 +27,7 @@ class RedeemGiftCardDto {
 export class GiftCardsController {
   constructor(private readonly giftCards: GiftCardsService) {}
 
-  private requireCampgroundId(req: Request): string {
+  private requireCampgroundId(req: GiftCardsRequest): string {
     const headerValue = req.headers["x-campground-id"];
     const headerCampgroundId = Array.isArray(headerValue) ? headerValue[0] : headerValue;
     const campgroundId = req.campgroundId ?? headerCampgroundId ?? undefined;
@@ -38,7 +40,6 @@ export class GiftCardsController {
   private assertCampgroundAccess(campgroundId: string, user: AuthUser | null | undefined): void {
     const isPlatformStaff =
       user?.platformRole === "platform_admin" ||
-      user?.platformRole === "platform_superadmin" ||
       user?.platformRole === "support_agent";
     if (isPlatformStaff) {
       return;
@@ -53,7 +54,7 @@ export class GiftCardsController {
   @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
   @Post("bookings/:bookingId/gift-cards/redeem")
   @SetHttpCode(200)
-  redeemBooking(@Param("bookingId") bookingId: string, @Body() body: RedeemGiftCardDto, @Req() req: Request) {
+  redeemBooking(@Param("bookingId") bookingId: string, @Body() body: RedeemGiftCardDto, @Req() req: GiftCardsRequest) {
     const requiredCampgroundId = this.requireCampgroundId(req);
     this.assertCampgroundAccess(requiredCampgroundId, req.user);
     const actor = req.user ? { ...req.user, campgroundId: requiredCampgroundId } : undefined;
@@ -63,7 +64,7 @@ export class GiftCardsController {
   @Roles(UserRole.owner, UserRole.manager, UserRole.finance)
   @Post("pos/orders/:orderId/gift-cards/redeem")
   @SetHttpCode(200)
-  redeemPosOrder(@Param("orderId") orderId: string, @Body() body: RedeemGiftCardDto, @Req() req: Request) {
+  redeemPosOrder(@Param("orderId") orderId: string, @Body() body: RedeemGiftCardDto, @Req() req: GiftCardsRequest) {
     const requiredCampgroundId = this.requireCampgroundId(req);
     this.assertCampgroundAccess(requiredCampgroundId, req.user);
     const actor = req.user ? { ...req.user, campgroundId: requiredCampgroundId } : undefined;

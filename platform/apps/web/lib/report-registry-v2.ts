@@ -241,13 +241,13 @@ export function isReportTabV2(value: string): value is ReportTabV2 {
 
 export function getDefaultSubTabV2(tab: ReportTabV2): string | null {
   if (tab === "overview") return null;
-  const subs = subTabsV2[tab as keyof typeof subTabsV2] || [];
+  const subs = subTabsV2[tab] || [];
   return subs[0]?.id ?? null;
 }
 
 export function findSubTabV2(tab: ReportTabV2, subTab: string | null | undefined) {
   if (tab === "overview") return null;
-  const subs = subTabsV2[tab as keyof typeof subTabsV2] || [];
+  const subs = subTabsV2[tab] || [];
   return subs.find((s) => s.id === subTab) ?? null;
 }
 

@@ -88,6 +88,21 @@ const PAYMENT_METHODS = [
   { value: "folio", label: "Folio" }
 ];
 
+type Campground = Awaited<ReturnType<typeof apiClient.getCampgrounds>>[number];
+type Guest = Awaited<ReturnType<typeof apiClient.getGuests>>[number];
+type SiteStatus = Awaited<ReturnType<typeof apiClient.getSitesWithStatus>>[number] & {
+  rigMaxLength?: number | null;
+};
+type SiteClass = Awaited<ReturnType<typeof apiClient.getSiteClasses>>[number];
+type ReservationRecord = Awaited<ReturnType<typeof apiClient.getReservations>>[number];
+type CreateReservationPayload = Parameters<typeof apiClient.createReservation>[0];
+
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  return "Unknown error";
+};
+
 export default function BookingPage() {
   return (
     <Suspense fallback={<div className="p-8 text-sm text-muted-foreground">Loading booking...</div>}>
@@ -117,7 +132,7 @@ function BookingPageInner() {
   const initialAdults = Number.isFinite(parsedAdults) && parsedAdults > 0 ? parsedAdults : 2;
   const initialChildren = Number.isFinite(parsedChildren) && parsedChildren >= 0 ? parsedChildren : 0;
 
-  const { data: campgrounds = [] } = useQuery({
+  const { data: campgrounds = [] } = useQuery<Campground[]>({
     queryKey: ["campgrounds"],
     queryFn: () => apiClient.getCampgrounds()
   });
@@ -130,11 +145,11 @@ function BookingPageInner() {
     if (typeof window !== "undefined") {
       stored = localStorage.getItem("campreserv:selectedCampground");
     }
-    const storedValid = stored && campgrounds.some((cg) => cg.id === stored);
+    const storedId = stored && campgrounds.some((cg) => cg.id === stored) ? stored : null;
     const currentValid = selectedCampgroundId && campgrounds.some((cg) => cg.id === selectedCampgroundId);
 
-    if (!currentValid && storedValid) {
-      setSelectedCampgroundId(stored as string);
+    if (!currentValid && storedId) {
+      setSelectedCampgroundId(storedId);
       return;
     }
     if (!currentValid) {
@@ -142,28 +157,23 @@ function BookingPageInner() {
     }
   }, [campgrounds, selectedCampgroundId]);
 
-  interface CampgroundWithFees {
-    id: string;
-    name?: string;
-    siteSelectionFeeCents?: number;
-  }
   const selectedCampground = campgrounds.find((cg) => cg.id === selectedCampgroundId) || null;
   const campgroundGuestTag = selectedCampground?.id ? `campground:${selectedCampground.id}` : null;
-  const siteLockFeeCents = (selectedCampground as CampgroundWithFees)?.siteSelectionFeeCents ?? 0;
+  const siteLockFeeCents = selectedCampground?.siteSelectionFeeCents ?? 0;
 
-  const guestsQuery = useQuery({
+  const guestsQuery = useQuery<Guest[]>({
     queryKey: ["booking-v2-guests", selectedCampground?.id],
     queryFn: () => apiClient.getGuests(selectedCampground?.id),
     enabled: !!selectedCampground?.id
   });
 
-  const siteClassesQuery = useQuery({
+  const siteClassesQuery = useQuery<SiteClass[]>({
     queryKey: ["booking-v2-site-classes", selectedCampground?.id],
     queryFn: () => apiClient.getSiteClasses(selectedCampground!.id),
     enabled: !!selectedCampground?.id
   });
 
-  const reservationsQuery = useQuery({
+  const reservationsQuery = useQuery<ReservationRecord[]>({
     queryKey: ["booking-v2-reservations", selectedCampground?.id],
     queryFn: () => apiClient.getReservations(selectedCampground!.id),
     enabled: !!selectedCampground?.id,
@@ -391,7 +401,7 @@ function BookingPageInner() {
     return departure > arrival;
   }, [formData.arrivalDate, formData.departureDate]);
 
-  const siteStatusQuery = useQuery({
+  const siteStatusQuery = useQuery<SiteStatus[]>({
     queryKey: ["booking-v2-site-status", selectedCampground?.id, formData.arrivalDate, formData.departureDate],
     queryFn: () => apiClient.getSitesWithStatus(selectedCampground!.id, {
       arrivalDate: formData.arrivalDate,
@@ -457,7 +467,7 @@ function BookingPageInner() {
       if (rigTypeFilter && !rigTypeFilter.has(site.siteType)) return false;
       if (hasRigLength && rigTypeFilter?.has("rv")) {
         const siteMaxLength =
-          (site as { rigMaxLength?: number | null }).rigMaxLength ??
+          site.rigMaxLength ??
           siteClassById.get(site.siteClassId ?? "")?.rigMaxLength ??
           null;
         if (siteMaxLength && rigLengthValue > siteMaxLength) return false;
@@ -484,7 +494,7 @@ function BookingPageInner() {
       if (rigTypeFilter && !rigTypeFilter.has(site.siteType)) return false;
       if (hasRigLength && rigTypeFilter?.has("rv")) {
         const siteMaxLength =
-          (site as { rigMaxLength?: number | null }).rigMaxLength ??
+          site.rigMaxLength ??
           siteClassById.get(site.siteClassId ?? "")?.rigMaxLength ??
           null;
         if (siteMaxLength && rigLengthValue > siteMaxLength) return false;
@@ -500,7 +510,7 @@ function BookingPageInner() {
       if (rigTypeFilter && !rigTypeFilter.has(site.siteType)) return;
       if (hasRigLength && rigTypeFilter?.has("rv")) {
         const siteMaxLength =
-          (site as { rigMaxLength?: number | null }).rigMaxLength ??
+          site.rigMaxLength ??
           siteClassById.get(site.siteClassId ?? "")?.rigMaxLength ??
           null;
         if (siteMaxLength && rigLengthValue > siteMaxLength) return;
@@ -757,22 +767,25 @@ function BookingPageInner() {
           ? `Cash received $${(cashReceivedCents / 100).toFixed(2)}${cashChangeDueCents ? ` • Change due $${(cashChangeDueCents / 100).toFixed(2)}` : ""}`
           : "";
       const paymentNotes = [formData.paymentNotes, cashNote].filter(Boolean).join(" • ") || undefined;
-      const staffAssignmentNote =
-        formData.assignSpecificSite && selectedSite
-          ? `[Staff override] Assigned site ${selectedSite.name}${formData.lockSite ? " (site selection fee applied)" : " (fee waived)"}`
-          : null;
-      const staffOnlyNote =
-        formData.assignSpecificSite && formData.siteAssignmentNote
-          ? `[Staff note] ${formData.siteAssignmentNote}`
-          : null;
-      const combinedNotes = [formData.notes, staffAssignmentNote, staffOnlyNote].filter(Boolean).join("\n") || undefined;
       const needsOverride = lockFeeCents > 0 || pricingIsEstimate || quoteQuery.isError;
       const overrideReason = lockFeeCents > 0 ? "Site lock fee" : needsOverride ? "Manual rate estimate" : undefined;
       const overrideApprovedBy = overrideReason ? whoami?.user?.id || undefined : undefined;
       if (overrideReason && !overrideApprovedBy) {
         throw new Error("Override approval required. Refresh and try again.");
       }
-      const payload: any = {
+      const staffAssignmentNote =
+        formData.assignSpecificSite && selectedSite
+          ? `[Staff override] Assigned site ${selectedSite.name}${formData.lockSite ? " (site selection fee applied)" : " (fee waived)"}`
+          : null;
+      const overrideNote = overrideReason ? `[Rate override] ${overrideReason}` : null;
+      const staffOnlyNote =
+        formData.assignSpecificSite && formData.siteAssignmentNote
+          ? `[Staff note] ${formData.siteAssignmentNote}`
+          : null;
+      const combinedNotes = [formData.notes, staffAssignmentNote, overrideNote, staffOnlyNote]
+        .filter(Boolean)
+        .join("\n") || undefined;
+      const payload: CreateReservationPayload = {
         campgroundId: selectedCampground!.id,
         guestId: formData.guestId,
         siteId: formData.siteId,
@@ -793,9 +806,7 @@ function BookingPageInner() {
         status: (isCardPayment || !formData.collectPayment) ? "pending" : "confirmed",
         paymentMethod: formData.collectPayment ? formData.paymentMethod : undefined,
         paymentNotes: (formData.collectPayment && !isCardPayment) ? paymentNotes : undefined,
-        siteLocked: formData.lockSite,
-        overrideReason,
-        overrideApprovedBy
+        siteLocked: formData.lockSite
       };
 
       console.log("[Booking] Creating reservation with payload:", JSON.stringify(payload, null, 2));
@@ -835,9 +846,9 @@ function BookingPageInner() {
         changeDueCents: formData.paymentMethod === "cash" ? cashChangeDueCents : undefined
       });
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
       console.error("[Booking] Reservation creation failed:", err);
-      toast({ title: "Booking failed", description: err?.message || "Please try again.", variant: "destructive" });
+      toast({ title: "Booking failed", description: getErrorMessage(err) || "Please try again.", variant: "destructive" });
     }
   });
 

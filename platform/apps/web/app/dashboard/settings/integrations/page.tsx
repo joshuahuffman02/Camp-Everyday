@@ -27,22 +27,21 @@ import {
 } from "@/lib/integrations-directory";
 import { cn } from "@/lib/utils";
 
-const SPRING_CONFIG = {
-    type: "spring" as const,
+const SPRING_CONFIG: { type: "spring"; stiffness: number; damping: number } = {
+    type: "spring",
     stiffness: 200,
     damping: 20,
 };
 
 type ConnectionStatus = "connected" | "error" | "pending" | "disconnected";
+type Connection = Awaited<ReturnType<typeof apiClient.listIntegrationConnections>>[number];
 
-interface Connection {
-    id: string;
-    provider: string;
-    type: string;
-    status: string;
-    lastSyncAt?: string | null;
-    lastError?: string | null;
-}
+const integrationCategories: IntegrationCategory[] = [
+    "accounting",
+    "crm",
+    "access_control",
+    "export",
+];
 
 export default function IntegrationsSettingsPage() {
     const { toast } = useToast();
@@ -73,7 +72,7 @@ export default function IntegrationsSettingsPage() {
         const map = new Map<string, Connection>();
         if (connectionsQuery.data) {
             for (const conn of connectionsQuery.data) {
-                map.set(conn.provider, conn as Connection);
+                map.set(conn.provider, conn);
             }
         }
         return map;
@@ -243,10 +242,11 @@ export default function IntegrationsSettingsPage() {
                     `width=${width},height=${height},left=${left},top=${top}`
                 );
             }
-        } catch (err: any) {
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : "Please try again.";
             toast({
                 title: "Connection failed",
-                description: err.message || "Please try again.",
+                description: message,
                 variant: "destructive"
             });
         }
@@ -416,28 +416,28 @@ export default function IntegrationsSettingsPage() {
             {/* Integration categories */}
             {campgroundId && !connectionsQuery.isLoading && filteredIntegrations.length > 0 && (
                 <div className="space-y-10">
-                    {(Object.entries(integrationsByCategory) as [IntegrationCategory, IntegrationDefinition[]][]).map(
-                        ([category, integrations], categoryIndex) => {
-                            if (integrations.length === 0) return null;
-                            const categoryInfo = INTEGRATION_CATEGORIES[category];
+                    {integrationCategories.map((category, categoryIndex) => {
+                        const integrations = integrationsByCategory[category];
+                        if (integrations.length === 0) return null;
+                        const categoryInfo = INTEGRATION_CATEGORIES[category];
 
-                            return (
-                                <motion.section
-                                    key={category}
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ ...SPRING_CONFIG, delay: 0.15 + categoryIndex * 0.05 }}
-                                >
-                                    <div className="mb-4">
-                                        <h2 className="text-lg font-semibold text-foreground">
-                                            {categoryInfo.label}
-                                        </h2>
-                                        <p className="text-sm text-muted-foreground">
-                                            {categoryInfo.description}
-                                        </p>
-                                    </div>
+                        return (
+                            <motion.section
+                                key={category}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ ...SPRING_CONFIG, delay: 0.15 + categoryIndex * 0.05 }}
+                            >
+                                <div className="mb-4">
+                                    <h2 className="text-lg font-semibold text-foreground">
+                                        {categoryInfo.label}
+                                    </h2>
+                                    <p className="text-sm text-muted-foreground">
+                                        {categoryInfo.description}
+                                    </p>
+                                </div>
 
-                                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                                         {integrations.map((integration, index) => (
                                             <motion.div
                                                 key={integration.id}
@@ -460,8 +460,7 @@ export default function IntegrationsSettingsPage() {
                                     </div>
                                 </motion.section>
                             );
-                        }
-                    )}
+                    })}
                 </div>
             )}
 

@@ -3,7 +3,7 @@
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useState, useMemo, useRef, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, type Transition } from "framer-motion";
 import { apiClient } from "@/lib/api-client";
 import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { Breadcrumbs } from "@/components/breadcrumbs";
@@ -42,19 +42,24 @@ import {
     PartyPopper,
     MapPin
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
-const SPRING_CONFIG = {
-    type: "spring" as const,
+const SPRING_CONFIG: Transition = {
+    type: "spring",
     stiffness: 200,
     damping: 20,
 };
 
+type MeterType = "power" | "water" | "sewer";
+
 type UtilityMeter = {
     id: string;
     siteId: string;
-    type: string;
+    type: MeterType;
     serialNumber?: string;
 };
+
+type ApiUtilityMeter = Awaited<ReturnType<typeof apiClient.listUtilityMeters>>[number];
 
 type Invoice = {
     id: string;
@@ -79,11 +84,31 @@ type SiteClass = {
     meteredType?: string | null;
 };
 
-const meterTypeConfig = {
+type MeterTypeConfig = {
+    icon: LucideIcon;
+    label: string;
+    color: string;
+    bg: string;
+    unit: string;
+};
+
+const meterTypeConfig: Record<MeterType, MeterTypeConfig> = {
     power: { icon: Zap, label: "Power", color: "text-amber-600", bg: "bg-status-warning/15", unit: "kWh" },
     water: { icon: Droplets, label: "Water", color: "text-blue-600", bg: "bg-status-info/15", unit: "gal" },
     sewer: { icon: Waves, label: "Sewer", color: "text-muted-foreground", bg: "bg-muted", unit: "gal" },
 };
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null;
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+    if (error instanceof Error) return error.message;
+    if (isRecord(error) && typeof error.message === "string") return error.message;
+    return fallback;
+};
+
+const isMeterType = (value: string): value is MeterType =>
+    value === "power" || value === "water" || value === "sewer";
 
 // Celebration confetti effect
 const SuccessCelebration = ({ show }: { show: boolean }) => {
@@ -108,15 +133,19 @@ const SuccessCelebration = ({ show }: { show: boolean }) => {
 };
 
 export default function BillingSettingsPage() {
-    const params = useParams();
-    const campgroundId = params?.campgroundId as string;
+    const params = useParams<{ campgroundId: string }>();
+    const campgroundId = params.campgroundId;
 
     // Celebration state
     const [showCelebration, setShowCelebration] = useState(false);
 
     // Meter state
     const [meterMessage, setMeterMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-    const [meterForm, setMeterForm] = useState({ siteId: "", type: "power", serialNumber: "" });
+    const [meterForm, setMeterForm] = useState<{ siteId: string; type: MeterType; serialNumber: string }>({
+        siteId: "",
+        type: "power",
+        serialNumber: ""
+    });
     const [creatingMeter, setCreatingMeter] = useState(false);
 
     // Meter reading state
@@ -145,57 +174,66 @@ export default function BillingSettingsPage() {
         enabled: !!campgroundId
     });
 
-    const metersQuery = useQuery({
+    const metersQuery = useQuery<ApiUtilityMeter[]>({
         queryKey: ["utility-meters", campgroundId],
         queryFn: () => apiClient.listUtilityMeters(campgroundId),
         enabled: !!campgroundId
     });
 
-    const sitesQuery = useQuery({
+    const sitesQuery = useQuery<Site[]>({
         queryKey: ["sites", campgroundId],
         queryFn: () => apiClient.getSites(campgroundId),
         enabled: !!campgroundId
     });
 
-    const siteClassesQuery = useQuery({
+    const siteClassesQuery = useQuery<SiteClass[]>({
         queryKey: ["site-classes", campgroundId],
         queryFn: () => apiClient.getSiteClasses(campgroundId),
         enabled: !!campgroundId
     });
 
-    const invoicesQuery = useQuery({
+    const invoicesQuery = useQuery<Invoice[]>({
         queryKey: ["invoices", reservationId],
         queryFn: () => apiClient.listInvoicesByReservation(reservationId, campgroundId),
         enabled: !!reservationId
     });
 
     const cg = campgroundQuery.data;
-    const meters = metersQuery.data ?? [];
-    const sites = (sitesQuery.data ?? []) as Site[];
-    const siteClasses = (siteClassesQuery.data ?? []) as SiteClass[];
+    const meters = useMemo<UtilityMeter[]>(() => {
+        const raw = metersQuery.data ?? [];
+        return raw.flatMap((meter) => {
+            if (!isMeterType(meter.type)) return [];
+            return [{
+                id: meter.id,
+                siteId: meter.siteId,
+                type: meter.type,
+                serialNumber: meter.serialNumber ?? undefined
+            }];
+        });
+    }, [metersQuery.data]);
+    const sites = sitesQuery.data ?? [];
+    const siteClasses = siteClassesQuery.data ?? [];
 
     // Get sites with metered billing enabled (through their site class)
     const meteredSites = useMemo(() => {
         const meteredClassIds = new Set(
             siteClasses
-                .filter((sc: SiteClass) => sc.meteredEnabled)
-                .map((sc: SiteClass) => sc.id)
+                .filter((sc) => sc.meteredEnabled)
+                .map((sc) => sc.id)
         );
 
-        return sites.filter((site: Site) =>
+        return sites.filter((site) =>
             site.siteClassId && meteredClassIds.has(site.siteClassId)
         );
     }, [sites, siteClasses]);
 
     // Sites that already have meters
-    const sitesWithMeters = useMemo(() => {
-        return new Set(meters.map((m: any) => m.siteId));
-    }, [meters]);
+    const sitesWithMeters = useMemo(() => new Set(meters.map((m) => m.siteId)), [meters]);
 
     // Sites available for new meters (metered enabled but no meter yet for this type)
     const availableSitesForMeter = useMemo(() => {
         const existingMetersBySiteAndType = new Map<string, Set<string>>();
-        meters.forEach((m: any) => {
+        meters.forEach((m) => {
             const key = m.siteId;
             if (!existingMetersBySiteAndType.has(key)) {
                 existingMetersBySiteAndType.set(key, new Set());
@@ -224,16 +262,17 @@ export default function BillingSettingsPage() {
                 type: meterForm.type,
                 serialNumber: meterForm.serialNumber || undefined
             });
-            const siteName = sites.find((s: Site) => s.id === meterForm.siteId)?.siteNumber || meterForm.siteId;
-            setMeterMessage({ type: "success", text: `${meterTypeConfig[meterForm.type as keyof typeof meterTypeConfig]?.label || "Meter"} meter added to ${siteName}!` });
+            const siteName = sites.find((s) => s.id === meterForm.siteId)?.siteNumber || meterForm.siteId;
+            const meterLabel = meterTypeConfig[meterForm.type]?.label ?? "Meter";
+            setMeterMessage({ type: "success", text: `${meterLabel} meter added to ${siteName}!` });
             setMeterForm({ siteId: "", type: meterForm.type, serialNumber: "" });
             metersQuery.refetch();
             // Celebrate first meter
             if (meters.length === 0) {
                 triggerCelebration();
             }
-        } catch (err: any) {
-            setMeterMessage({ type: "error", text: err?.message || "Failed to create meter. Please try again." });
+        } catch (err: unknown) {
+            setMeterMessage({ type: "error", text: getErrorMessage(err, "Failed to create meter. Please try again.") });
         } finally {
             setCreatingMeter(false);
         }
@@ -251,8 +290,8 @@ export default function BillingSettingsPage() {
             }, campgroundId);
             setReadMessage({ type: "success", text: "Reading saved! Usage will be calculated on next billing cycle." });
             setReadForm({ meterId: readForm.meterId, readingValue: "", readAt: "", note: "" });
-        } catch (err: any) {
-            setReadMessage({ type: "error", text: err?.message || "Failed to save reading. Please check the value and try again." });
+        } catch (err: unknown) {
+            setReadMessage({ type: "error", text: getErrorMessage(err, "Failed to save reading. Please check the value and try again.") });
         } finally {
             setSavingRead(false);
         }
@@ -297,8 +336,8 @@ export default function BillingSettingsPage() {
             if (validRows.length >= 3) {
                 triggerCelebration();
             }
-        } catch (err: any) {
-            setImportMessage({ type: "error", text: err?.message || "Failed to import readings. Please check your data." });
+        } catch (err: unknown) {
+            setImportMessage({ type: "error", text: getErrorMessage(err, "Failed to import readings. Please check your data.") });
         } finally {
             setImportingBulk(false);
         }
@@ -310,8 +349,8 @@ export default function BillingSettingsPage() {
         try {
             await apiClient.runLateFees(campgroundId);
             setLateFeeMessage({ type: "success", text: "Late fee processing started. Overdue invoices will be updated shortly." });
-        } catch (err: any) {
-            setLateFeeMessage({ type: "error", text: err?.message || "Failed to run late fees. Please try again." });
+        } catch (err: unknown) {
+            setLateFeeMessage({ type: "error", text: getErrorMessage(err, "Failed to run late fees. Please try again.") });
         } finally {
             setRunningLateFees(false);
         }
@@ -457,10 +496,10 @@ export default function BillingSettingsPage() {
                                                     <SelectContent>
                                                         {availableSitesForMeter.length === 0 ? (
                                                             <div className="px-2 py-3 text-sm text-muted-foreground text-center">
-                                                                All metered sites already have {meterTypeConfig[meterForm.type as keyof typeof meterTypeConfig]?.label.toLowerCase()} meters
+                                                                All metered sites already have {(meterTypeConfig[meterForm.type]?.label ?? "Meter").toLowerCase()} meters
                                                             </div>
                                                         ) : (
-                                                            availableSitesForMeter.map((site: Site) => (
+                                                            availableSitesForMeter.map((site) => (
                                                                 <SelectItem key={site.id} value={site.id}>
                                                                     <span className="flex items-center gap-2">
                                                                         <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
@@ -482,7 +521,14 @@ export default function BillingSettingsPage() {
                                                 <Label htmlFor="meter-type" className="text-foreground">
                                                     Utility Type <span className="text-red-500">*</span>
                                                 </Label>
-                                                <Select value={meterForm.type} onValueChange={(v) => setMeterForm({ ...meterForm, type: v })}>
+                                                <Select
+                                                    value={meterForm.type}
+                                                    onValueChange={(value) => {
+                                                        if (isMeterType(value)) {
+                                                            setMeterForm({ ...meterForm, type: value });
+                                                        }
+                                                    }}
+                                                >
                                                     <SelectTrigger id="meter-type">
                                                         <SelectValue />
                                                     </SelectTrigger>
@@ -571,10 +617,10 @@ export default function BillingSettingsPage() {
                                         </div>
                                     ) : (
                                         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                                            {meters.map((meter: any, i: number) => {
-                                                const config = meterTypeConfig[meter.type as keyof typeof meterTypeConfig] || meterTypeConfig.power;
+                                            {meters.map((meter, i) => {
+                                                const config = meterTypeConfig[meter.type] ?? meterTypeConfig.power;
                                                 const Icon = config.icon;
-                                                const site = sites.find((s: Site) => s.id === meter.siteId);
+                                                const site = sites.find((s) => s.id === meter.siteId);
                                                 return (
                                                     <motion.div
                                                         key={meter.id}
@@ -647,10 +693,10 @@ export default function BillingSettingsPage() {
                                                             <SelectValue placeholder="Select meter..." />
                                                         </SelectTrigger>
                                                         <SelectContent>
-                                                            {meters.map((m: any) => {
-                                                                const config = meterTypeConfig[m.type as keyof typeof meterTypeConfig] || meterTypeConfig.power;
+                                                            {meters.map((m) => {
+                                                                const config = meterTypeConfig[m.type] ?? meterTypeConfig.power;
                                                                 const Icon = config.icon;
-                                                                const site = sites.find((s: Site) => s.id === m.siteId);
+                                                                const site = sites.find((s) => s.id === m.siteId);
                                                                 return (
                                                                     <SelectItem key={m.id} value={m.id}>
                                                                         <span className="flex items-center gap-2">
@@ -743,10 +789,10 @@ export default function BillingSettingsPage() {
                                                                                 <SelectValue placeholder="Select..." />
                                                                             </SelectTrigger>
                                                                             <SelectContent>
-                                                                                {meters.map((m: any) => {
-                                                                                    const config = meterTypeConfig[m.type as keyof typeof meterTypeConfig] || meterTypeConfig.power;
+                                                                                {meters.map((m) => {
+                                                                                    const config = meterTypeConfig[m.type] ?? meterTypeConfig.power;
                                                                                     const Icon = config.icon;
-                                                                                    const site = sites.find((s: Site) => s.id === m.siteId);
+                                                                                    const site = sites.find((s) => s.id === m.siteId);
                                                                                     return (
                                                                                         <SelectItem key={m.id} value={m.id}>
                                                                                             <span className="flex items-center gap-2">

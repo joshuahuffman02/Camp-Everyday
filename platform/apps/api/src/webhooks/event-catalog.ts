@@ -105,39 +105,39 @@ export interface EventDefinition {
 /**
  * Common field schemas reused across events
  */
-const CommonFields = {
+const CommonFields: Record<string, FieldSchema> = {
   id: {
-    type: "string" as const,
+    type: "string",
     description: "Unique identifier (CUID)",
     format: "cuid",
   },
   campgroundId: {
-    type: "string" as const,
+    type: "string",
     description: "Campground identifier",
     format: "cuid",
   },
   timestamp: {
-    type: "string" as const,
+    type: "string",
     description: "ISO 8601 timestamp",
     format: "date-time",
   },
   dateOnly: {
-    type: "string" as const,
+    type: "string",
     description: "Date in YYYY-MM-DD format",
     format: "date",
   },
   email: {
-    type: "string" as const,
+    type: "string",
     description: "Email address",
     format: "email",
   },
   phone: {
-    type: "string" as const,
+    type: "string",
     description: "Phone number",
     format: "phone",
   },
   moneyAmount: {
-    type: "number" as const,
+    type: "number",
     description: "Amount in cents (integer)",
     format: "int32",
   },
@@ -745,22 +745,30 @@ export const EventCatalog: EventDefinition[] = [
  * Get all event types grouped by category
  */
 export function getEventsByCategory(): Record<EventCategory, EventDefinition[]> {
-  const grouped: Record<string, EventDefinition[]> = {};
+  const grouped: Record<EventCategory, EventDefinition[]> = {
+    Reservations: [],
+    Payments: [],
+    Guests: [],
+    "Check-in/out": [],
+    Sites: [],
+    Events: [],
+    Charity: [],
+    Store: [],
+    Messaging: [],
+    Inventory: [],
+  };
 
   for (const event of EventCatalog) {
-    if (!grouped[event.category]) {
-      grouped[event.category] = [];
-    }
     grouped[event.category].push(event);
   }
 
-  return grouped as Record<EventCategory, EventDefinition[]>;
+  return grouped;
 }
 
 /**
  * Get all available event types
  */
-export function getAllEventTypes(): WebhookEvent[] {
+export function getAllEventTypes(): string[] {
   return EventCatalog.map((e) => e.event);
 }
 
@@ -828,7 +836,7 @@ export function validateEventTypes(
       }
       continue;
     }
-    if (!allEvents.includes(et as WebhookEvent)) {
+    if (!allEvents.includes(et)) {
       invalid.push(et);
     }
   }

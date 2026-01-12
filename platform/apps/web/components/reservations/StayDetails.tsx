@@ -1,15 +1,18 @@
-import { Reservation, Site } from "@keepr/shared";
+import { Reservation } from "@keepr/shared";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar, Caravan, Tent, Users } from "lucide-react";
 import { format, differenceInDays } from "date-fns";
 
 interface StayDetailsProps {
     reservation: Reservation;
-    site: Site;
+    site: NonNullable<Reservation["site"]>;
 }
 
 export function StayDetails({ reservation, site }: StayDetailsProps) {
     const nights = differenceInDays(new Date(reservation.departureDate), new Date(reservation.arrivalDate));
+    const siteLabel = site.siteNumber ?? site.name ?? "";
+    const siteLabelText = siteLabel ? `Site ${siteLabel}` : "Site";
+    const siteTypeLabel = site.siteType ? site.siteType.replace("_", " ") : "unknown";
 
     return (
         <Card>
@@ -52,8 +55,8 @@ export function StayDetails({ reservation, site }: StayDetailsProps) {
                             <span>Site</span>
                         </div>
                         <div className="text-right">
-                            <div className="font-medium text-foreground">Site {site.siteNumber}</div>
-                            <div className="text-xs text-muted-foreground capitalize">{site.siteType.replace("_", " ")}</div>
+                            <div className="font-medium text-foreground">{siteLabelText}</div>
+                            <div className="text-xs text-muted-foreground capitalize">{siteTypeLabel}</div>
                         </div>
                     </div>
 

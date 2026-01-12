@@ -1,10 +1,14 @@
+import { LoyaltyProfile, PointsTransaction } from '@prisma/client';
 import { LoyaltyService } from './loyalty.service';
+import type { LoyaltyStore } from './loyalty.service';
 
 describe('LoyaltyService', () => {
   let service: LoyaltyService;
-  let mockPrisma: any;
+  let mockPrisma: ReturnType<typeof buildMockPrisma>;
 
-  const createMockProfile = (overrides: any = {}) => ({
+  type LoyaltyProfileWithTransactions = LoyaltyProfile & { transactions: PointsTransaction[] };
+
+  const createMockProfile = (overrides: Partial<LoyaltyProfileWithTransactions> = {}): LoyaltyProfileWithTransactions => ({
     id: 'profile-1',
     guestId: 'guest-1',
     pointsBalance: 0,
@@ -15,18 +19,31 @@ describe('LoyaltyService', () => {
     ...overrides,
   });
 
+  const createMockTransaction = (overrides: Partial<PointsTransaction> = {}): PointsTransaction => ({
+    id: 'tx-1',
+    profileId: 'profile-1',
+    amount: 100,
+    reason: 'test',
+    createdAt: new Date(),
+    ...overrides,
+  });
+
+  const buildMockPrisma = () => ({
+    loyaltyProfile: {
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+    },
+    pointsTransaction: {
+      create: jest.fn(),
+    },
+    $transaction: jest.fn(),
+  }) satisfies LoyaltyStore;
+
   beforeEach(() => {
-    mockPrisma = {
-      loyaltyProfile: {
-        findUnique: jest.fn(),
-        create: jest.fn(),
-        update: jest.fn(),
-      },
-      pointsTransaction: {
-        create: jest.fn(),
-      },
-      $transaction: jest.fn((fn: any) => fn(mockPrisma)),
-    };
+    mockPrisma = buildMockPrisma();
+    mockPrisma.$transaction.mockImplementation(async (fn) => fn(mockPrisma));
 
     service = new LoyaltyService(mockPrisma);
   });
@@ -97,8 +114,8 @@ describe('LoyaltyService', () => {
     it('should include transactions with profile', async () => {
       const profile = createMockProfile({
         transactions: [
-          { id: 'tx-1', amount: 100, reason: 'Stay bonus' },
-          { id: 'tx-2', amount: 50, reason: 'Referral bonus' },
+          { id: 'tx-1', profileId: 'profile-1', amount: 100, reason: 'Stay bonus', createdAt: new Date() },
+          { id: 'tx-2', profileId: 'profile-1', amount: 50, reason: 'Referral bonus', createdAt: new Date() },
         ],
       });
       mockPrisma.loyaltyProfile.findUnique.mockResolvedValue(profile);
@@ -126,7 +143,7 @@ describe('LoyaltyService', () => {
     it('should award points and update balance', async () => {
       const profile = createMockProfile({ pointsBalance: 500 });
       mockPrisma.loyaltyProfile.findUnique.mockResolvedValue(profile);
-      mockPrisma.pointsTransaction.create.mockResolvedValue({});
+      mockPrisma.pointsTransaction.create.mockResolvedValue(createMockTransaction());
       mockPrisma.loyaltyProfile.update.mockResolvedValue({
         ...profile,
         pointsBalance: 600,
@@ -154,7 +171,7 @@ describe('LoyaltyService', () => {
     it('should upgrade tier when points threshold reached', async () => {
       const profile = createMockProfile({ pointsBalance: 900 });
       mockPrisma.loyaltyProfile.findUnique.mockResolvedValue(profile);
-      mockPrisma.pointsTransaction.create.mockResolvedValue({});
+      mockPrisma.pointsTransaction.create.mockResolvedValue(createMockTransaction());
       mockPrisma.loyaltyProfile.update.mockResolvedValue({
         ...profile,
         pointsBalance: 1000,
@@ -175,7 +192,7 @@ describe('LoyaltyService', () => {
     it('should create profile if guest has none', async () => {
       mockPrisma.loyaltyProfile.findUnique.mockResolvedValue(null);
       mockPrisma.loyaltyProfile.create.mockResolvedValue(createMockProfile());
-      mockPrisma.pointsTransaction.create.mockResolvedValue({});
+      mockPrisma.pointsTransaction.create.mockResolvedValue(createMockTransaction());
       mockPrisma.loyaltyProfile.update.mockResolvedValue(createMockProfile({ pointsBalance: 100 }));
 
       await service.awardPoints('guest-new', 100, 'Welcome bonus');
@@ -186,7 +203,7 @@ describe('LoyaltyService', () => {
     it('should handle large point awards', async () => {
       const profile = createMockProfile({ pointsBalance: 0 });
       mockPrisma.loyaltyProfile.findUnique.mockResolvedValue(profile);
-      mockPrisma.pointsTransaction.create.mockResolvedValue({});
+      mockPrisma.pointsTransaction.create.mockResolvedValue(createMockTransaction());
       mockPrisma.loyaltyProfile.update.mockResolvedValue({
         ...profile,
         pointsBalance: 15000,
@@ -217,8 +234,8 @@ describe('LoyaltyService', () => {
       for (const scenario of scenarios) {
         const profile = createMockProfile({ pointsBalance: scenario.current });
         mockPrisma.loyaltyProfile.findUnique.mockResolvedValue(profile);
-        mockPrisma.pointsTransaction.create.mockResolvedValue({});
-        mockPrisma.loyaltyProfile.update.mockResolvedValue({});
+        mockPrisma.pointsTransaction.create.mockResolvedValue(createMockTransaction());
+        mockPrisma.loyaltyProfile.update.mockResolvedValue(createMockProfile());
 
         await service.awardPoints('guest-1', scenario.award, 'test');
 

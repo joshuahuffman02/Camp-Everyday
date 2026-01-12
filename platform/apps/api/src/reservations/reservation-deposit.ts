@@ -2,9 +2,10 @@ import { BadRequestException } from "@nestjs/common";
 import { DepositPoliciesService } from "../deposit-policies/deposit-policies.service";
 
 type DepositResult = { depositAmount: number; depositPolicyVersion: string };
+type DepositCalculator = Pick<DepositPoliciesService, "calculateDeposit">;
 
 export async function calculateReservationDepositV2(
-  depositPoliciesService: DepositPoliciesService,
+  depositPoliciesService: DepositCalculator,
   params: {
     campgroundId: string;
     siteClassId: string | null;
@@ -32,7 +33,7 @@ export async function calculateReservationDepositV2(
 }
 
 export async function assertReservationDepositV2(
-  depositPoliciesService: DepositPoliciesService,
+  depositPoliciesService: DepositCalculator,
   params: {
     campgroundId: string;
     siteClassId: string | null;

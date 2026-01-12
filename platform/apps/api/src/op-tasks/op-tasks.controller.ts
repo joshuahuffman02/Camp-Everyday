@@ -1,4 +1,4 @@
-import type { Request } from "express";
+import type { Request as ExpressRequest } from "express";
 import {
   Controller,
   Get,
@@ -10,7 +10,8 @@ import {
   Param,
   Query,
   UseGuards,
-  Request,
+  Req,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import {
@@ -52,6 +53,14 @@ export class OpTasksController {
     private gamificationService: OpGamificationService,
   ) {}
 
+  private requireUserId(req: ExpressRequest) {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new UnauthorizedException("Authenticated user required");
+    }
+    return userId;
+  }
+
   // ============================================================================
   // TASKS
   // ============================================================================
@@ -82,9 +91,9 @@ export class OpTasksController {
   @Get(':campgroundId/tasks/my-tasks')
   async getMyTasks(
     @Param('campgroundId') campgroundId: string,
-    @Request() req: Request,
+    @Req() req: ExpressRequest,
   ) {
-    return this.taskService.getMyTasks(campgroundId, req.user.id);
+    return this.taskService.getMyTasks(campgroundId, this.requireUserId(req));
   }
 
   @Get(':campgroundId/tasks/:taskId')
@@ -96,18 +105,18 @@ export class OpTasksController {
   async createTask(
     @Param('campgroundId') campgroundId: string,
     @Body() dto: CreateOpTaskDto,
-    @Request() req: Request,
+    @Req() req: ExpressRequest,
   ) {
-    return this.taskService.create(campgroundId, dto, req.user.id);
+    return this.taskService.create(campgroundId, dto, this.requireUserId(req));
   }
 
   @Patch(':campgroundId/tasks/:taskId')
   async updateTask(
     @Param('taskId') taskId: string,
     @Body() dto: UpdateOpTaskDto,
-    @Request() req: Request,
+    @Req() req: ExpressRequest,
   ) {
-    return this.taskService.update(taskId, dto, req.user.id);
+    return this.taskService.update(taskId, dto, this.requireUserId(req));
   }
 
   @Delete(':campgroundId/tasks/:taskId')
@@ -119,26 +128,26 @@ export class OpTasksController {
   async assignTask(
     @Param('taskId') taskId: string,
     @Body() body: { userId?: string; teamId?: string },
-    @Request() req: Request,
+    @Req() req: ExpressRequest,
   ) {
-    return this.taskService.assign(taskId, body.userId, body.teamId, req.user.id);
+    return this.taskService.assign(taskId, body.userId, body.teamId, this.requireUserId(req));
   }
 
   @Post(':campgroundId/tasks/:taskId/comments')
   async addComment(
     @Param('taskId') taskId: string,
     @Body() dto: CreateOpTaskCommentDto,
-    @Request() req: Request,
+    @Req() req: ExpressRequest,
   ) {
-    return this.taskService.addComment(taskId, req.user.id, dto);
+    return this.taskService.addComment(taskId, this.requireUserId(req), dto);
   }
 
   @Post(':campgroundId/tasks/bulk-update')
   async bulkUpdateState(
     @Body() body: { ids: string[]; state: OpTaskState },
-    @Request() req: Request,
+    @Req() req: ExpressRequest,
   ) {
-    return this.taskService.bulkUpdateState(body.ids, body.state, req.user.id);
+    return this.taskService.bulkUpdateState(body.ids, body.state, this.requireUserId(req));
   }
 
   // ============================================================================
@@ -317,9 +326,9 @@ export class OpTasksController {
   @Get(':campgroundId/teams/my-teams')
   async getMyTeams(
     @Param('campgroundId') campgroundId: string,
-    @Request() req: Request,
+    @Req() req: ExpressRequest,
   ) {
-    return this.teamService.getUserTeams(campgroundId, req.user.id);
+    return this.teamService.getUserTeams(campgroundId, this.requireUserId(req));
   }
 
   @Get(':campgroundId/teams/available-staff')
@@ -469,9 +478,9 @@ export class OpTasksController {
   @Get(':campgroundId/gamification/my-stats')
   async getMyStats(
     @Param('campgroundId') campgroundId: string,
-    @Request() req: Request,
+    @Req() req: ExpressRequest,
   ) {
-    return this.gamificationService.getStaffProfile(req.user.id, campgroundId);
+    return this.gamificationService.getStaffProfile(this.requireUserId(req), campgroundId);
   }
 
   @Get(':campgroundId/gamification/all-staff')

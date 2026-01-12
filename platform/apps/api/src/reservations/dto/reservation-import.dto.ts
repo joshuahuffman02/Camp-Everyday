@@ -40,7 +40,7 @@ export type ReservationImportValidationError = {
   row: number;
   field?: string;
   message: string;
-  value?: any;
+  value?: unknown;
 };
 
 export const reservationImportCsvColumns = [

@@ -2,14 +2,14 @@ import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../../../prisma/prisma.service";
 import { DateRange } from "../platform-analytics.service";
 
-interface AccommodationOverview {
+export interface AccommodationOverview {
   totalSites: number;
   activeReservations: number;
   overallOccupancy: number;
   topPerformingType: string;
 }
 
-interface TypeDistribution {
+export interface TypeDistribution {
   type: string;
   siteCount: number;
   reservations: number;
@@ -18,7 +18,7 @@ interface TypeDistribution {
   revenueShare: number;
 }
 
-interface RigTypeBreakdown {
+export interface RigTypeBreakdown {
   rigType: string;
   count: number;
   percentage: number;
@@ -126,7 +126,7 @@ export class AccommodationMixService {
         totalAmount: true,
         arrivalDate: true,
         departureDate: true,
-        site: { select: { siteType: true } },
+        Site: { select: { siteType: true } },
       },
     });
 
@@ -137,7 +137,7 @@ export class AccommodationMixService {
     const byType: Record<string, { reservations: number; revenue: number; nights: number }> = {};
 
     for (const res of reservations) {
-      const type = res.site?.siteType || "unknown";
+      const type = res.Site?.siteType || "unknown";
       const nights = Math.ceil(
         (new Date(res.departureDate).getTime() - new Date(res.arrivalDate).getTime()) /
         (1000 * 60 * 60 * 24)
@@ -256,7 +256,7 @@ export class AccommodationMixService {
 
         const reservations = await this.prisma.reservation.findMany({
           where: {
-            site: { siteType },
+            Site: { siteType },
             arrivalDate: { lt: monthEnd },
             departureDate: { gt: monthStart },
             status: { in: ["confirmed", "checked_in", "checked_out"] },

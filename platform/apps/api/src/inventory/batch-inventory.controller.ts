@@ -1,4 +1,3 @@
-import type { Request } from "express";
 import {
     Controller,
     Get,
@@ -9,8 +8,9 @@ import {
     Param,
     Query,
     UseGuards,
-    Request,
+    Req,
 } from "@nestjs/common";
+import type { Request } from "express";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { ScopeGuard } from "../auth/guards/scope.guard";
 import { BatchInventoryService } from "./batch-inventory.service";
@@ -22,6 +22,13 @@ import {
     AdjustBatchDto,
     DisposeBatchDto,
 } from "./dto/batch.dto";
+import { ExpirationTier } from "@prisma/client";
+import type { AuthUser } from "../auth/auth.types";
+
+type AuthenticatedRequest = Request & { user: AuthUser };
+
+const isExpirationTier = (value: string): value is ExpirationTier =>
+    Object.values(ExpirationTier).some((tier) => tier === value);
 
 @Controller("campgrounds/:campgroundId/inventory")
 @UseGuards(JwtAuthGuard, ScopeGuard)
@@ -38,7 +45,7 @@ export class BatchInventoryController {
     async createBatch(
         @Param("campgroundId") campgroundId: string,
         @Body() dto: CreateBatchDto,
-        @Request() req: Request
+        @Req() req: AuthenticatedRequest
     ) {
         return this.batchService.createBatch(campgroundId, dto, req.user.id);
     }
@@ -90,7 +97,7 @@ export class BatchInventoryController {
         @Param("campgroundId") campgroundId: string,
         @Param("id") id: string,
         @Body() dto: AdjustBatchDto,
-        @Request() req: Request
+        @Req() req: AuthenticatedRequest
     ) {
         return this.batchService.adjustBatch(id, campgroundId, dto, req.user.id);
     }
@@ -100,7 +107,7 @@ export class BatchInventoryController {
         @Param("campgroundId") campgroundId: string,
         @Param("id") id: string,
         @Body() dto: DisposeBatchDto,
-        @Request() req: Request
+        @Req() req: AuthenticatedRequest
     ) {
         return this.batchService.disposeBatch(id, campgroundId, dto, req.user.id);
     }
@@ -113,21 +120,22 @@ export class BatchInventoryController {
         @Query("tier") tier?: string,
         @Query("limit") limit?: string
     ) {
+        const parsedTier = tier && isExpirationTier(tier) ? tier : undefined;
         return this.alertService.getActiveAlerts(campgroundId, {
-            tier: tier as any,
+            tier: parsedTier,
             limit: limit ? parseInt(limit, 10) : undefined,
         });
     }
 
     @Post("alerts/:id/acknowledge")
-    async acknowledgeAlert(@Param("id") id: string, @Request() req: Request) {
+    async acknowledgeAlert(@Param("id") id: string, @Req() req: AuthenticatedRequest) {
         return this.alertService.acknowledgeAlert(id, req.user.id);
     }
 
     @Post("alerts/acknowledge-bulk")
     async acknowledgeAlertsBulk(
         @Body() body: { ids: string[] },
-        @Request() req: Request
+        @Req() req: AuthenticatedRequest
     ) {
         return this.alertService.acknowledgeAlerts(body.ids, req.user.id);
     }

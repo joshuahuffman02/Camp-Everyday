@@ -16,7 +16,7 @@ async function bootstrap(): Promise<Handler> {
 
 // Vercel serverless handler
 export const handler: Handler = async (
-    event: any,
+    event,
     context: Context,
     callback: Callback
 ) => {

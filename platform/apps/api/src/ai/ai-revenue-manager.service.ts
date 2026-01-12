@@ -1,8 +1,14 @@
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
 import { PrismaService } from "../prisma/prisma.service";
+import type { AiRevenueInsight, Prisma } from "@prisma/client";
 import { AiProviderService } from "./ai-provider.service";
 import { AiAutopilotConfigService } from "./ai-autopilot-config.service";
+import { randomUUID } from "crypto";
+
+const reservationInclude = {
+  Site: { include: { SiteClass: true } },
+} satisfies Prisma.ReservationInclude;
 
 /**
  * AI Revenue Manager Service
@@ -18,6 +24,8 @@ import { AiAutopilotConfigService } from "./ai-autopilot-config.service";
 @Injectable()
 export class AiRevenueManagerService {
   private readonly logger = new Logger(AiRevenueManagerService.name);
+
+  private readonly reservationInclude = reservationInclude;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -37,7 +45,7 @@ export class AiRevenueManagerService {
   ) {
     const { status, insightType, limit = 50 } = options;
 
-    const where: any = { campgroundId };
+    const where: Prisma.AiRevenueInsightWhereInput = { campgroundId };
     if (status) where.status = status;
     if (insightType) where.insightType = insightType;
 
@@ -69,7 +77,7 @@ export class AiRevenueManagerService {
       return [];
     }
 
-    const insights: any[] = [];
+    const insights: RevenueInsightDraft[] = [];
 
     // Run all analyses in parallel
     const [
@@ -90,7 +98,7 @@ export class AiRevenueManagerService {
     insights.push(...upsellOpportunities);
 
     // Save insights
-    const created: any[] = [];
+    const created: AiRevenueInsight[] = [];
     for (const insight of insights) {
       // Check for existing similar insight
       const existing = await this.prisma.aiRevenueInsight.findFirst({
@@ -107,6 +115,8 @@ export class AiRevenueManagerService {
       const saved = await this.prisma.aiRevenueInsight.create({
         data: {
           campgroundId,
+          id: randomUUID(),
+          updatedAt: new Date(),
           ...insight,
         },
       });
@@ -125,7 +135,7 @@ export class AiRevenueManagerService {
    * Analyze occupancy gaps (empty nights between bookings)
    */
   private async analyzeOccupancyGaps(campgroundId: string) {
-    const insights: any[] = [];
+    const insights: RevenueInsightDraft[] = [];
 
     // Get upcoming reservations
     const today = new Date();
@@ -138,12 +148,12 @@ export class AiRevenueManagerService {
         status: { in: ["confirmed", "pending"] },
         arrivalDate: { gte: today, lte: nextMonth },
       },
-      include: { Site: { include: { SiteClass: true } } },
+      include: this.reservationInclude,
       orderBy: [{ siteId: "asc" }, { arrivalDate: "asc" }],
     });
 
     // Group by site
-    const bySite: Record<string, any[]> = {};
+    const bySite: Record<string, ReservationWithSite[]> = {};
     for (const res of reservations) {
       if (!bySite[res.siteId]) bySite[res.siteId] = [];
       bySite[res.siteId].push(res);
@@ -162,13 +172,13 @@ export class AiRevenueManagerService {
 
         // 1-2 night gaps are opportunities
         if (gap >= 1 && gap <= 2) {
-          const pricePerNight = current.site?.siteClass?.defaultRate || 5000;
+          const pricePerNight = current.Site?.SiteClass?.defaultRate || 5000;
           const impact = pricePerNight * gap;
 
           insights.push({
             insightType: "occupancy_gap",
-            title: `${gap}-night gap on ${current.site?.name}`,
-            summary: `There's a ${gap}-night gap between ${current.departureDate.toLocaleDateString()} and ${next.arrivalDate.toLocaleDateString()} on ${current.site?.name}. This could be filled with a short-stay promotion.`,
+            title: `${gap}-night gap on ${current.Site?.name}`,
+            summary: `There's a ${gap}-night gap between ${current.departureDate.toLocaleDateString()} and ${next.arrivalDate.toLocaleDateString()} on ${current.Site?.name}. This could be filled with a short-stay promotion.`,
             impactCents: impact,
             difficulty: "easy",
             priority: 70,
@@ -188,9 +198,9 @@ export class AiRevenueManagerService {
             ],
             metadata: {
               siteId,
-              siteName: current.site?.name,
-              gapStart: current.departureDate,
-              gapEnd: next.arrivalDate,
+              siteName: current.Site?.name ?? null,
+              gapStart: current.departureDate.toISOString(),
+              gapEnd: next.arrivalDate.toISOString(),
               gapNights: gap,
             },
           });
@@ -205,7 +215,7 @@ export class AiRevenueManagerService {
    * Analyze underutilized sites
    */
   private async analyzeUnderutilizedSites(campgroundId: string) {
-    const insights: any[] = [];
+    const insights: RevenueInsightDraft[] = [];
 
     // Get site occupancy for last 90 days
     const past90Days = new Date();
@@ -214,8 +224,8 @@ export class AiRevenueManagerService {
     const sites = await this.prisma.site.findMany({
       where: { campgroundId, status: "available" },
       include: {
-        siteClass: true,
-        reservations: {
+        SiteClass: true,
+        Reservation: {
           where: {
             status: { in: ["confirmed", "checked_in", "checked_out"] },
             arrivalDate: { gte: past90Days },
@@ -226,11 +236,15 @@ export class AiRevenueManagerService {
     });
 
     // Calculate occupancy per site
-    const siteStats: { site: any; occupancyPercent: number; nights: number }[] = [];
+    const siteStats: {
+      site: SiteWithReservations;
+      occupancyPercent: number;
+      nights: number;
+    }[] = [];
 
     for (const site of sites) {
       let occupiedNights = 0;
-      for (const res of site.reservations) {
+      for (const res of site.Reservation) {
         const nights = Math.ceil(
           (res.departureDate.getTime() - res.arrivalDate.getTime()) /
             (1000 * 60 * 60 * 24)
@@ -249,7 +263,7 @@ export class AiRevenueManagerService {
     for (const stat of siteStats) {
       if (stat.occupancyPercent < 30 && avgOccupancy > 50) {
         const missedNights = Math.round(90 * (avgOccupancy / 100) - stat.nights);
-        const pricePerNight = stat.site.siteClass?.defaultRate || 5000;
+        const pricePerNight = stat.site.SiteClass?.defaultRate || 5000;
         const impact = missedNights * pricePerNight;
 
         insights.push({
@@ -280,7 +294,7 @@ export class AiRevenueManagerService {
           metadata: {
             siteId: stat.site.id,
             siteName: stat.site.name,
-            siteType: stat.site.siteClass?.name,
+            siteType: stat.site.SiteClass?.name ?? null,
             occupancyPercent: stat.occupancyPercent,
             avgOccupancy,
             missedNights,
@@ -296,15 +310,15 @@ export class AiRevenueManagerService {
    * Analyze pricing opportunities
    */
   private async analyzePricingOpportunities(campgroundId: string) {
-    const insights: any[] = [];
+    const insights: RevenueInsightDraft[] = [];
 
     // Get site classes with reservation data
     const siteClasses = await this.prisma.siteClass.findMany({
       where: { campgroundId },
       include: {
-        sites: {
+        Site: {
           include: {
-            reservations: {
+            Reservation: {
               where: {
                 status: { in: ["confirmed", "checked_in", "checked_out"] },
                 createdAt: { gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) },
@@ -316,12 +330,12 @@ export class AiRevenueManagerService {
     });
 
     for (const siteClass of siteClasses) {
-      const totalSites = siteClass.sites.length;
+      const totalSites = siteClass.Site.length;
       if (totalSites === 0) continue;
 
       // Calculate booking velocity
-      const totalBookings = siteClass.sites.reduce(
-        (sum, s) => sum + s.reservations.length,
+      const totalBookings = siteClass.Site.reduce(
+        (sum, s) => sum + s.Reservation.length,
         0
       );
 
@@ -371,7 +385,7 @@ export class AiRevenueManagerService {
    * Analyze upsell opportunities
    */
   private async analyzeUpsellOpportunities(campgroundId: string) {
-    const insights: any[] = [];
+    const insights: RevenueInsightDraft[] = [];
 
     // Get reservation add-on usage
     const past90Days = new Date();
@@ -384,12 +398,14 @@ export class AiRevenueManagerService {
         arrivalDate: { gte: past90Days },
       },
       include: {
-        addOns: true,
+        ReservationUpsell: true,
       },
     });
 
     const totalRes = reservations.length;
-    const withAddOns = reservations.filter((r) => r.addOns.length > 0).length;
+    const withAddOns = reservations.filter(
+      (r) => r.ReservationUpsell.length > 0
+    ).length;
     const addOnRate = totalRes > 0 ? (withAddOns / totalRes) * 100 : 0;
 
     // Low add-on rate is an opportunity
@@ -492,15 +508,14 @@ export class AiRevenueManagerService {
       0
     );
 
-    const byType = insights.reduce(
-      (acc, i) => {
-        if (!acc[i.insightType]) acc[i.insightType] = { count: 0, impact: 0 };
-        acc[i.insightType].count++;
-        acc[i.insightType].impact += i.impactCents || 0;
-        return acc;
-      },
-      {} as Record<string, { count: number; impact: number }>
-    );
+    const byType: Record<string, { count: number; impact: number }> = {};
+    for (const insight of insights) {
+      if (!byType[insight.insightType]) {
+        byType[insight.insightType] = { count: 0, impact: 0 };
+      }
+      byType[insight.insightType].count += 1;
+      byType[insight.insightType].impact += insight.impactCents || 0;
+    }
 
     return {
       totalOpportunityCents: totalOpportunity,
@@ -546,3 +561,27 @@ export class AiRevenueManagerService {
     );
   }
 }
+
+type RevenueInsightDraft = {
+  insightType: string;
+  title: string;
+  summary: string;
+  impactCents: number;
+  difficulty: string;
+  priority: number;
+  recommendations: Array<{ action: string; details: string }>;
+  metadata: Prisma.InputJsonValue;
+};
+
+type ReservationWithSite = Prisma.ReservationGetPayload<{
+  include: typeof reservationInclude;
+}>;
+
+type SiteWithReservations = Prisma.SiteGetPayload<{
+  include: {
+    SiteClass: true;
+    Reservation: {
+      select: { arrivalDate: true; departureDate: true };
+    };
+  };
+}>;

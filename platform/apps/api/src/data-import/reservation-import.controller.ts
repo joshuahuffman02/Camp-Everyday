@@ -12,6 +12,7 @@ import {
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { OptionalJwtAuthGuard } from "../auth/guards";
+import type { AuthUser } from "../auth/auth.types";
 import {
   ReservationImportService,
   ReservationImportColumnMapping,
@@ -193,20 +194,20 @@ export class ReservationImportController {
   private async validateCampgroundAccess(
     campgroundId: string,
     onboardingToken?: string,
-    user?: any
+    user?: AuthUser
   ): Promise<void> {
     // If onboarding token provided, validate it matches the campground
     if (onboardingToken) {
-      const session = await this.prisma.onboardingSession.findFirst({
+      const invite = await this.prisma.onboardingInvite.findUnique({
         where: { token: onboardingToken },
         select: { campgroundId: true },
       });
 
-      if (!session) {
+      if (!invite) {
         throw new BadRequestException("Invalid onboarding token");
       }
 
-      if (session.campgroundId !== campgroundId) {
+      if (invite.campgroundId !== campgroundId) {
         throw new BadRequestException("Token does not match campground");
       }
 
@@ -219,20 +220,20 @@ export class ReservationImportController {
     }
 
     // Platform admins can access any campground
-    if (user.platformRole === "platform_admin" || user.platformRole === "platform_superadmin") {
+    if (user.platformRole === "platform_admin") {
       return;
     }
 
     // Check user has owner/manager role for this campground
     const userMemberships = user.memberships || [];
-    const membership = userMemberships.find((m: any) => m.campgroundId === campgroundId);
+    const membership = userMemberships.find((m) => m.campgroundId === campgroundId);
 
     if (!membership) {
       throw new ForbiddenException("You do not have access to this campground");
     }
 
     // Only owner and manager can import data
-    if (!["owner", "manager"].includes(membership.role)) {
+    if (membership.role !== "owner" && membership.role !== "manager") {
       throw new ForbiddenException("Only owners and managers can import reservations");
     }
   }

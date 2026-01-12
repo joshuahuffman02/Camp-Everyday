@@ -205,6 +205,18 @@ export default function PlatformGrowthPage() {
   const foundingRetentionRate = Math.round((data.overview.foundingMembersActive / data.overview.foundingMembers) * 100);
   const overallRetentionRate = Math.round((data.overview.activeCampgrounds / data.overview.totalCampgrounds) * 100);
 
+  const toNumber = (value: unknown): number | undefined =>
+    typeof value === "number" ? value : undefined;
+
+  const toDate = (value: unknown): Date | null => {
+    if (value instanceof Date) return value;
+    if (typeof value === "string" || typeof value === "number") {
+      const parsed = new Date(value);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+    return null;
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -440,8 +452,24 @@ export default function PlatformGrowthPage() {
             { key: "name", label: "Campground" },
             { key: "tier", label: "Plan" },
             { key: "state", label: "State", align: "center" },
-            { key: "mrr", label: "MRR", align: "right", format: (v) => formatCurrency(v ?? 0) },
-            { key: "signupDate", label: "Joined", align: "right", format: (v) => new Date(v).toLocaleDateString() },
+            {
+              key: "mrr",
+              label: "MRR",
+              align: "right",
+              format: (v) => {
+                const numberValue = toNumber(v);
+                return numberValue !== undefined ? formatCurrency(numberValue) : "—";
+              },
+            },
+            {
+              key: "signupDate",
+              label: "Joined",
+              align: "right",
+              format: (v) => {
+                const dateValue = toDate(v);
+                return dateValue ? dateValue.toLocaleDateString() : "—";
+              },
+            },
           ]}
           data={data.recentSignups}
           loading={loading}
@@ -455,8 +483,24 @@ export default function PlatformGrowthPage() {
           columns={[
             { key: "name", label: "Campground" },
             { key: "reason", label: "Reason" },
-            { key: "monthsActive", label: "Tenure", align: "right", format: (v) => `${v ?? 0} mo` },
-            { key: "lifetimeValue", label: "LTV", align: "right", format: (v) => formatCurrency(v ?? 0) },
+            {
+              key: "monthsActive",
+              label: "Tenure",
+              align: "right",
+              format: (v) => {
+                const numberValue = toNumber(v);
+                return `${numberValue ?? 0} mo`;
+              },
+            },
+            {
+              key: "lifetimeValue",
+              label: "LTV",
+              align: "right",
+              format: (v) => {
+                const numberValue = toNumber(v);
+                return numberValue !== undefined ? formatCurrency(numberValue) : "—";
+              },
+            },
           ]}
           data={data.recentChurn}
           loading={loading}

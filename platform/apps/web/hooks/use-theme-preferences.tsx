@@ -150,7 +150,7 @@ export function useThemePreferences(): UseThemePreferencesReturn {
 
   // Save preferences
   const savePreferences = useCallback((newPrefs: ThemePreferences) => {
-    const normalized = { ...newPrefs, colorMode: "light" as const };
+    const normalized: ThemePreferences = { ...newPrefs, colorMode: "light" };
     setPreferences(normalized);
     if (typeof window !== "undefined") {
       try {

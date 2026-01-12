@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { randomUUID } from "crypto";
 
 @Injectable()
 export class InternalMessagesService {
@@ -8,12 +9,13 @@ export class InternalMessagesService {
     async create(content: string, senderId: string, conversationId: string) {
         return this.prisma.internalMessage.create({
             data: {
+                id: randomUUID(),
                 content,
                 senderId,
                 conversationId,
             },
             include: {
-                sender: {
+                User: {
                     select: {
                         id: true,
                         firstName: true,
@@ -38,7 +40,7 @@ export class InternalMessagesService {
                 content: true,
                 senderId: true,
                 createdAt: true,
-                sender: {
+                User: {
                     select: {
                         id: true,
                         firstName: true,

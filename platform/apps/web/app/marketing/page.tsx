@@ -89,6 +89,9 @@ export default function MarketingPage() {
     { value: "qualified", label: "Qualified" },
   ];
 
+  const isLeadStatus = (value: string): value is LeadRecord["status"] =>
+    value === "new" || value === "contacted" || value === "qualified";
+
   return (
     <DashboardShell>
       <div className="grid gap-4">
@@ -184,7 +187,11 @@ export default function MarketingPage() {
                     <TableCell>
                       <Select
                         value={lead.status}
-                        onValueChange={(value) => updateStatus.mutate({ id: lead.id, status: value as LeadRecord["status"] })}
+                        onValueChange={(value) => {
+                          if (isLeadStatus(value)) {
+                            updateStatus.mutate({ id: lead.id, status: value });
+                          }
+                        }}
                         disabled={updateStatus.isPending}
                       >
                         <SelectTrigger className="h-8 w-[140px]">

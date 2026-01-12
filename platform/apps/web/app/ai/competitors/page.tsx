@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, type Transition } from "framer-motion";
 import { apiClient } from "@/lib/api-client";
 import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -60,10 +60,19 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import { format } from "date-fns";
 
-const SPRING_CONFIG = {
-  type: "spring" as const,
+const SPRING_CONFIG: Transition = {
+  type: "spring",
   stiffness: 300,
   damping: 25,
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof Error) return error.message;
+  if (isRecord(error) && typeof error.message === "string") return error.message;
+  return fallback;
 };
 
 const SITE_TYPES = [
@@ -74,6 +83,8 @@ const SITE_TYPES = [
   { value: "hotel_room", label: "Hotel Room" },
   { value: "yurt", label: "Yurt" },
 ];
+
+const TABS: Array<"competitors" | "comparison" | "alerts"> = ["competitors", "comparison", "alerts"];
 
 type Competitor = {
   id: string;
@@ -160,21 +171,21 @@ export default function CompetitorsPage() {
   const campground = campgrounds[0];
 
   // Get competitors
-  const { data: competitors = [], isLoading: loadingCompetitors } = useQuery({
+  const { data: competitors = [], isLoading: loadingCompetitors } = useQuery<Competitor[]>({
     queryKey: ["competitors", campground?.id],
     queryFn: () => apiClient.getCompetitors(campground!.id),
     enabled: !!campground?.id,
   });
 
   // Get market position
-  const { data: marketPosition = [], isLoading: loadingPosition } = useQuery({
+  const { data: marketPosition = [], isLoading: loadingPosition } = useQuery<MarketPosition[]>({
     queryKey: ["market-position", campground?.id],
     queryFn: () => apiClient.getMarketPosition(campground!.id),
     enabled: !!campground?.id,
   });
 
   // Get rate parity alerts
-  const { data: alerts = [], isLoading: loadingAlerts } = useQuery({
+  const { data: alerts = [], isLoading: loadingAlerts } = useQuery<RateParityAlert[]>({
     queryKey: ["rate-parity-alerts", campground?.id],
     queryFn: () => apiClient.getRateParityAlerts(campground!.id),
     enabled: !!campground?.id,
@@ -190,8 +201,8 @@ export default function CompetitorsPage() {
       setIsAddCompetitorOpen(false);
       setCompetitorForm({ name: "", url: "", notes: "" });
     },
-    onError: (error: any) => {
-      toast({ title: "Failed to add competitor", description: error.message, variant: "destructive" });
+    onError: (error: unknown) => {
+      toast({ title: "Failed to add competitor", description: getErrorMessage(error, "Please try again"), variant: "destructive" });
     },
   });
 
@@ -202,8 +213,8 @@ export default function CompetitorsPage() {
       toast({ title: "Competitor deleted" });
       queryClient.invalidateQueries({ queryKey: ["competitors"] });
     },
-    onError: (error: any) => {
-      toast({ title: "Failed to delete competitor", description: error.message, variant: "destructive" });
+    onError: (error: unknown) => {
+      toast({ title: "Failed to delete competitor", description: getErrorMessage(error, "Please try again"), variant: "destructive" });
     },
   });
 
@@ -220,8 +231,8 @@ export default function CompetitorsPage() {
       setIsAddRateOpen(false);
       setRateForm({ competitorId: "", siteType: "rv", rateNightly: "", source: "manual", notes: "" });
     },
-    onError: (error: any) => {
-      toast({ title: "Failed to add rate", description: error.message, variant: "destructive" });
+    onError: (error: unknown) => {
+      toast({ title: "Failed to add rate", description: getErrorMessage(error, "Please try again"), variant: "destructive" });
     },
   });
 
@@ -257,7 +268,7 @@ export default function CompetitorsPage() {
     );
   }
 
-  const activeAlerts = (alerts as RateParityAlert[]).filter((a) => a.status === "active");
+  const activeAlerts = alerts.filter((a) => a.status === "active");
 
   return (
     <DashboardShell>
@@ -369,7 +380,7 @@ export default function CompetitorsPage() {
                         <SelectValue placeholder="Select competitor" />
                       </SelectTrigger>
                       <SelectContent>
-                        {(competitors as Competitor[]).map((c) => (
+                        {competitors.map((c) => (
                           <SelectItem key={c.id} value={c.id}>
                             {c.name}
                           </SelectItem>
@@ -460,7 +471,7 @@ export default function CompetitorsPage() {
                 <Building2 className="h-5 w-5 text-primary" />
               </div>
               <div className="text-2xl font-bold text-foreground">
-                {(competitors as Competitor[]).length}
+                {competitors.length}
               </div>
               <p className="text-xs text-muted-foreground">Tracked Competitors</p>
             </CardContent>
@@ -472,10 +483,10 @@ export default function CompetitorsPage() {
                 <BarChart3 className="h-5 w-5 text-status-info-text" />
               </div>
               <div className="text-2xl font-bold text-foreground">
-                {(marketPosition as MarketPosition[]).length > 0
+                {marketPosition.length > 0
                   ? Math.round(
-                      (marketPosition as MarketPosition[]).reduce((acc, p) => acc + p.position, 0) /
-                        (marketPosition as MarketPosition[]).length
+                      marketPosition.reduce((acc, p) => acc + p.position, 0) /
+                        marketPosition.length
                     )
                   : "-"}
               </div>
@@ -489,8 +500,8 @@ export default function CompetitorsPage() {
                 <TrendingUp className="h-5 w-5 text-status-success-text" />
               </div>
               <div className="text-2xl font-bold text-foreground">
-                {(marketPosition as MarketPosition[]).length > 0
-                  ? `$${((marketPosition as MarketPosition[]).reduce((acc, p) => acc + p.averageMarketRate, 0) / (marketPosition as MarketPosition[]).length / 100).toFixed(0)}`
+                {marketPosition.length > 0
+                  ? `$${((marketPosition.reduce((acc, p) => acc + p.averageMarketRate, 0) / marketPosition.length) / 100).toFixed(0)}`
                   : "-"}
               </div>
               <p className="text-xs text-muted-foreground">Avg. Market Rate</p>
@@ -512,7 +523,7 @@ export default function CompetitorsPage() {
 
         {/* Tabs */}
         <div className="flex gap-2 border-b">
-          {(["competitors", "comparison", "alerts"] as const).map((tab) => (
+          {TABS.map((tab) => (
             <Button
               key={tab}
               variant="ghost"
@@ -546,7 +557,7 @@ export default function CompetitorsPage() {
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
-              ) : (competitors as Competitor[]).length === 0 ? (
+              ) : competitors.length === 0 ? (
                 <Card>
                   <CardContent className="py-12">
                     <div className="text-center">
@@ -564,7 +575,7 @@ export default function CompetitorsPage() {
                 </Card>
               ) : (
                 <div className="space-y-4">
-                  {(competitors as Competitor[]).map((competitor) => (
+                  {competitors.map((competitor) => (
                     <Card key={competitor.id}>
                       <CardContent className="p-5">
                         <div className="flex items-start justify-between">
@@ -634,7 +645,7 @@ export default function CompetitorsPage() {
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
-              ) : (marketPosition as MarketPosition[]).length === 0 ? (
+              ) : marketPosition.length === 0 ? (
                 <Card>
                   <CardContent className="py-12">
                     <div className="text-center">
@@ -648,7 +659,7 @@ export default function CompetitorsPage() {
                 </Card>
               ) : (
                 <div className="space-y-4">
-                  {(marketPosition as MarketPosition[]).map((pos) => (
+                  {marketPosition.map((pos) => (
                     <Card key={pos.siteType}>
                       <CardHeader>
                         <div className="flex items-center justify-between">
@@ -727,7 +738,7 @@ export default function CompetitorsPage() {
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
-              ) : (alerts as RateParityAlert[]).length === 0 ? (
+              ) : alerts.length === 0 ? (
                 <Card>
                   <CardContent className="py-12">
                     <div className="text-center">
@@ -741,7 +752,7 @@ export default function CompetitorsPage() {
                 </Card>
               ) : (
                 <div className="space-y-4">
-                  {(alerts as RateParityAlert[]).map((alert) => (
+                  {alerts.map((alert) => (
                     <Card
                       key={alert.id}
                       className={cn(alert.status === "active" && "border-l-4 border-l-status-warning")}

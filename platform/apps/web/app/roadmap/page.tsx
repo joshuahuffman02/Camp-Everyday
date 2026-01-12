@@ -7,7 +7,7 @@ import { useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useWhoami } from "@/hooks/use-whoami";
-import * as LucideIcons from "lucide-react";
+import { icons } from "lucide-react";
 import {
     roadmapPhases,
     getPhaseProgress,
@@ -19,21 +19,26 @@ import {
     type Milestone,
 } from "../../lib/roadmap-data";
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    value !== null && typeof value === "object";
+
+const isLucideIconName = (value: string): value is keyof typeof icons =>
+    value in icons;
+
 // Helper to render a lucide icon from its name (kebab-case)
 function PhaseIcon({ name, className = "h-6 w-6" }: { name: string; className?: string }) {
     // Convert kebab-case to PascalCase (e.g., "building-2" -> "Building2")
     const iconName = name
         .split('-')
         .map((part, i) => part.charAt(0).toUpperCase() + part.slice(1))
-        .join('') as keyof typeof LucideIcons;
+        .join('');
 
-    const IconComponent = LucideIcons[iconName] as React.ComponentType<{ className?: string }>;
-
-    if (!IconComponent) {
+    if (!isLucideIconName(iconName)) {
         // Fallback to a default icon if not found
-        return <LucideIcons.Circle className={className} />;
+        return <icons.Circle className={className} />;
     }
 
+    const IconComponent = icons[iconName];
     return <IconComponent className={className} />;
 }
 
@@ -209,18 +214,17 @@ function PhaseCard({ phase, index }: { phase: RoadmapPhase; index: number }) {
     );
 }
 
-type UserWithPlatformRole = {
-    platformRole?: string;
-    [key: string]: unknown;
-};
-
 export default function RoadmapPage() {
     const { status } = useSession();
     const router = useRouter();
     const { data: whoami, isLoading: whoamiLoading } = useWhoami();
 
+    const platformRole = isRecord(whoami?.user) && typeof whoami.user.platformRole === "string"
+        ? whoami.user.platformRole
+        : undefined;
+
     const isStaff =
-        !!(whoami?.user as UserWithPlatformRole)?.platformRole ||
+        !!platformRole ||
         (whoami?.user?.memberships && whoami.user.memberships.length > 0);
 
     useEffect(() => {

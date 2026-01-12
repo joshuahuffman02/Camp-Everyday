@@ -156,9 +156,10 @@ export function FolioMethod({ onSuccess, onError, onCancel }: FolioMethodProps) 
       });
 
       onSuccess?.(reference);
-    } catch (err: any) {
-      setError(err.message || "Failed to charge to folio");
-      onError?.(err.message || "Failed to charge to folio");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to charge to folio";
+      setError(message);
+      onError?.(message);
     } finally {
       setLoading(false);
     }
@@ -172,12 +173,12 @@ export function FolioMethod({ onSuccess, onError, onCancel }: FolioMethodProps) 
   };
 
   const getStatusBadge = (status: string) => {
-    const styles = {
+    const styles: Record<string, string> = {
       checked_in: "bg-emerald-100 text-emerald-700",
       confirmed: "bg-blue-100 text-blue-700",
       pending: "bg-amber-100 text-amber-700",
     };
-    return styles[status as keyof typeof styles] || "bg-muted text-foreground";
+    return styles[status] || "bg-muted text-foreground";
   };
 
   return (

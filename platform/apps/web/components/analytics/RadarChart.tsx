@@ -1,42 +1,16 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import type { ComponentType } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
-// Dynamic import for Recharts to avoid SSR issues
-const ResponsiveContainer = dynamic(
-  () => import("recharts").then((mod) => mod.ResponsiveContainer as unknown as ComponentType<any>),
-  { ssr: false }
-);
-const RadarChartComponent = dynamic(
-  () => import("recharts").then((mod) => mod.RadarChart as unknown as ComponentType<any>),
-  { ssr: false }
-);
-const PolarGrid = dynamic(
-  () => import("recharts").then((mod) => mod.PolarGrid as unknown as ComponentType<any>),
-  { ssr: false }
-);
-const PolarAngleAxis = dynamic(
-  () => import("recharts").then((mod) => mod.PolarAngleAxis as unknown as ComponentType<any>),
-  { ssr: false }
-);
-const PolarRadiusAxis = dynamic(
-  () => import("recharts").then((mod) => mod.PolarRadiusAxis as unknown as ComponentType<any>),
-  { ssr: false }
-);
-const Radar = dynamic(
-  () => import("recharts").then((mod) => mod.Radar as unknown as ComponentType<any>),
-  { ssr: false }
-);
-const Legend = dynamic(
-  () => import("recharts").then((mod) => mod.Legend as unknown as ComponentType<any>),
-  { ssr: false }
-);
-const Tooltip = dynamic(
-  () => import("recharts").then((mod) => mod.Tooltip as unknown as ComponentType<any>),
-  { ssr: false }
-);
+import {
+  Legend,
+  PolarAngleAxis,
+  PolarGrid,
+  PolarRadiusAxis,
+  Radar,
+  RadarChart as RechartsRadarChart,
+  ResponsiveContainer,
+  Tooltip,
+} from "@/components/charts/recharts";
 
 interface RadarDataPoint {
   metric: string;
@@ -101,7 +75,7 @@ export function RadarChart({
       <CardContent>
         <div style={{ height }}>
           <ResponsiveContainer width="100%" height="100%">
-            <RadarChartComponent cx="50%" cy="50%" outerRadius="80%" data={normalizedData}>
+            <RechartsRadarChart cx="50%" cy="50%" outerRadius="80%" data={normalizedData}>
               <PolarGrid stroke="#64748b" strokeOpacity={0.3} />
               <PolarAngleAxis
                 dataKey="metric"
@@ -147,7 +121,7 @@ export function RadarChart({
                 wrapperStyle={{ paddingTop: "16px" }}
                 formatter={(value: string) => <span className="text-muted-foreground">{value}</span>}
               />
-            </RadarChartComponent>
+            </RechartsRadarChart>
           </ResponsiveContainer>
         </div>
 

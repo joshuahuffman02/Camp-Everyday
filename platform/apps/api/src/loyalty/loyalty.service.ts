@@ -1,9 +1,35 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import { LoyaltyProfile, PointsTransaction } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+
+type LoyaltyProfileWithTransactions = LoyaltyProfile & { transactions: PointsTransaction[] };
+type LoyaltyProfileSummary = { guestId: string; tier: string; pointsBalance: number };
+
+type LoyaltyStoreClient = {
+    loyaltyProfile: {
+        findUnique: (args: {
+            where: { guestId: string };
+            include?: { transactions?: { orderBy: { createdAt: 'desc' } } };
+        }) => Promise<LoyaltyProfileWithTransactions | null>;
+        findMany: (args: {
+            where: { guestId: { in: string[] } };
+            select: { guestId: true; tier: true; pointsBalance: true };
+        }) => Promise<LoyaltyProfileSummary[]>;
+        create: (args: { data: { guestId: string }; include: { transactions: true } }) => Promise<LoyaltyProfileWithTransactions>;
+        update: (args: { where: { id: string }; data: { pointsBalance: number; tier: string } }) => Promise<LoyaltyProfile>;
+    };
+    pointsTransaction: {
+        create: (args: { data: { profileId: string; amount: number; reason: string } }) => Promise<PointsTransaction>;
+    };
+};
+
+export type LoyaltyStore = LoyaltyStoreClient & {
+    $transaction: <T>(fn: (tx: LoyaltyStoreClient) => Promise<T>) => Promise<T>;
+};
 
 @Injectable()
 export class LoyaltyService {
-    constructor(private readonly prisma: PrismaService) { }
+    constructor(@Inject(PrismaService) private readonly prisma: LoyaltyStore) { }
 
     async getProfile(guestId: string) {
         const profile = await this.prisma.loyaltyProfile.findUnique({

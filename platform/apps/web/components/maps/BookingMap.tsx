@@ -6,20 +6,21 @@ import { Caravan, Tent, Home, Users, Sparkles, MapPin, type LucideIcon } from "l
 import { renderToStaticMarkup } from "react-dom/server";
 import { cn } from "@/lib/utils";
 
-// Dynamic import for maplibre-gl to reduce initial bundle size
-let maplibregl: any = null;
-let MapLibreMap: any = null;
-let Marker: any = null;
+type MapLibreGl = typeof import("maplibre-gl");
+type MapLibreMap = InstanceType<MapLibreGl["Map"]>;
+type MapLibreMarker = InstanceType<MapLibreGl["Marker"]>;
 
-const loadMapLibre = async () => {
-  if (!maplibregl) {
-    const mapLibreModule = await import("maplibre-gl");
-    await import("maplibre-gl/dist/maplibre-gl.css");
-    maplibregl = mapLibreModule.default;
-    MapLibreMap = mapLibreModule.Map;
-    Marker = mapLibreModule.Marker;
-  }
-  return { maplibregl, MapLibreMap, Marker };
+const toLngLat = (lng: number, lat: number): [number, number] => [lng, lat];
+
+// Dynamic import for maplibre-gl to reduce initial bundle size
+let maplibregl: MapLibreGl | null = null;
+
+const loadMapLibre = async (): Promise<MapLibreGl> => {
+  if (maplibregl) return maplibregl;
+  const mapLibreModule = await import("maplibre-gl");
+  await import("maplibre-gl/dist/maplibre-gl.css");
+  maplibregl = mapLibreModule;
+  return mapLibreModule;
 };
 
 export type MapSite = {
@@ -74,8 +75,8 @@ export function BookingMap({
   className
 }: BookingMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<any>(null);
-  const markersRef = useRef<any[]>([]);
+  const mapRef = useRef<MapLibreMap | null>(null);
+  const markersRef = useRef<MapLibreMarker[]>([]);
   const [isReady, setIsReady] = useState(false);
   const [isMapLibreLoaded, setIsMapLibreLoaded] = useState(false);
   const heightStyle = {
@@ -114,22 +115,22 @@ export function BookingMap({
   const mapCenter = useMemo(() => {
     if (validSites.length > 0 && selectedSiteId) {
       const selected = validSites.find(s => s.id === selectedSiteId);
-      if (selected) return [Number(selected.longitude), Number(selected.latitude)] as [number, number];
+      if (selected) return toLngLat(Number(selected.longitude), Number(selected.latitude));
     }
     if (validSites.length > 0) {
       // average center
       const avgLat = validSites.reduce((acc, s) => acc + (s.latitude || 0), 0) / validSites.length;
       const avgLng = validSites.reduce((acc, s) => acc + (s.longitude || 0), 0) / validSites.length;
-      return [avgLng, avgLat] as [number, number];
+      return toLngLat(avgLng, avgLat);
     }
     return fallbackCenter;
   }, [validSites, fallbackCenter, selectedSiteId]);
 
   useEffect(() => {
-    if (!isReady || !isMapLibreLoaded || typeof window === "undefined" || !containerRef.current || mapRef.current) return;
+    if (!isReady || !isMapLibreLoaded || typeof window === "undefined" || !containerRef.current || mapRef.current || !maplibregl) return;
 
     try {
-      mapRef.current = new maplibregl.Map({
+      const map = new maplibregl.Map({
         container: containerRef.current,
         style: "https://demotiles.maplibre.org/style.json",
         center: mapCenter,
@@ -137,7 +138,8 @@ export function BookingMap({
         attributionControl: false
       });
 
-      mapRef.current.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
+      map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
+      mapRef.current = map;
     } catch (err) {
       console.error("Failed to initialize map:", err);
     }
@@ -158,8 +160,10 @@ export function BookingMap({
 
   // Markers update
   useEffect(() => {
-    if (!mapRef.current || !isReady || !isMapLibreLoaded) return;
+    const mapLibre = maplibregl;
+    if (!mapRef.current || !isReady || !isMapLibreLoaded || !mapLibre) return;
 
+    const mapInstance = mapRef.current;
     markersRef.current.forEach((marker) => marker.remove());
     markersRef.current = [];
 
@@ -185,9 +189,9 @@ export function BookingMap({
         el.addEventListener("click", () => onSelectSite(site.id));
       }
 
-      const marker = new maplibregl.Marker({ element: el, anchor: "center" })
+      const marker = new mapLibre.Marker({ element: el, anchor: "center" })
         .setLngLat([Number(site.longitude), Number(site.latitude)])
-        .addTo(mapRef.current!);
+        .addTo(mapInstance);
 
       markersRef.current.push(marker);
     });

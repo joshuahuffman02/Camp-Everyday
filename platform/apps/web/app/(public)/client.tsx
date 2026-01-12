@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import Image from "next/image";
-import { motion, useInView } from "framer-motion";
+import { motion, useInView, type Variants } from "framer-motion";
 import { useReducedMotionSafe } from "@/hooks/use-reduced-motion-safe";
 import { useGeolocation, getStateAbbreviation } from "@/hooks/use-geolocation";
 import { Search, Calendar, Sparkles, MapPin, Mountain } from "lucide-react";
@@ -24,23 +24,23 @@ import { FeaturedCampground } from "../../components/design/FeaturedCampground";
 import { GuestStories } from "../../components/public/GuestStories";
 
 // Animation variants for scroll reveal
-const fadeInUp = {
+const fadeInUp: Variants = {
     hidden: { opacity: 0, y: 30 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" as const } }
-} as const;
+    visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } }
+};
 
-const staggerContainer = {
+const staggerContainer: Variants = {
     hidden: { opacity: 0 },
     visible: {
         opacity: 1,
         transition: { staggerChildren: 0.1, delayChildren: 0.1 }
     }
-} as const;
+};
 
-const scaleIn = {
+const scaleIn: Variants = {
     hidden: { opacity: 0, scale: 0.95 },
-    visible: { opacity: 1, scale: 1, transition: { duration: 0.5, ease: "easeOut" as const } }
-} as const;
+    visible: { opacity: 1, scale: 1, transition: { duration: 0.5, ease: "easeOut" } }
+};
 
 // US States for filter
 const US_STATES = [
@@ -85,6 +85,19 @@ const DATE_RANGES = [
     { value: "this-month", label: "This Month" },
     { value: "next-month", label: "Next Month" }
 ];
+
+type SortBy = "recommended" | "name" | "rating" | "reviews";
+
+const sortByValues: SortBy[] = ["recommended", "name", "rating", "reviews"];
+
+const isSortBy = (value: string): value is SortBy =>
+    sortByValues.some((option) => option === value);
+
+const isCategoryType = (value: string | null): value is CategoryType =>
+    typeof value === "string" && categories.some((category) => category.id === value);
+
+const isAdaCertificationLevel = (value: unknown): value is AdaCertificationLevel =>
+    value === "none" || value === "friendly" || value === "compliant" || value === "excellence";
 
 const resolveStateFromLocation = (location?: string | null) => {
     if (!location) return null;
@@ -133,13 +146,11 @@ export function HomeClient() {
             })
     );
     const categoryParam = searchParams.get("category");
-    const initialCategory = categories.some((c) => c.id === categoryParam)
-        ? (categoryParam as CategoryType)
-        : "all";
+    const initialCategory = isCategoryType(categoryParam) ? categoryParam : "all";
     const [activeCategory, setActiveCategory] = useState<CategoryType>(initialCategory);
     const [eventTypeFilter, setEventTypeFilter] = useState<string>(searchParams.get("eventType") || "");
     const [dateRangeFilter, setDateRangeFilter] = useState<string>(searchParams.get("dateRange") || "");
-    const [sortBy, setSortBy] = useState<"recommended" | "name" | "rating" | "reviews">("recommended");
+    const [sortBy, setSortBy] = useState<SortBy>("recommended");
     const [displayCount, setDisplayCount] = useState(24);
     const [searchFilters, setSearchFilters] = useState<{
         location: string;
@@ -511,24 +522,28 @@ export function HomeClient() {
             {/* Location-based curated sections - only show when no filters active */}
             {!isLoading && activeCategory === "all" && !searchQuery && !stateFilter && amenityFilters.length === 0 && (
                 <LocationSections
-                    campgrounds={allCampgrounds.map((cg) => ({
-                        id: cg.id,
-                        name: cg.name,
-                        slug: "slug" in cg ? cg.slug : undefined,
-                        city: cg.city || undefined,
-                        state: cg.state || undefined,
-                        country: "country" in cg ? (cg.country || undefined) : undefined,
-                        heroImageUrl: "heroImageUrl" in cg ? (cg.heroImageUrl || undefined) : undefined,
-                        isInternal: cg.isInternal,
-                        isExternal: cg.isExternal,
-                        rating: cg.rating,
-                        reviewCount: cg.reviewCount,
-                        pricePerNight: "pricePerNight" in cg ? cg.pricePerNight : undefined,
-                        amenities: "amenities" in cg ? cg.amenities : [],
-                        npsBadge: cg.npsBadge,
-                        pastAwards: "pastAwards" in cg ? cg.pastAwards : [],
-                        adaCertificationLevel: "adaCertificationLevel" in cg ? cg.adaCertificationLevel as AdaCertificationLevel : undefined
-                    }))}
+                    campgrounds={allCampgrounds.map((cg) => {
+                        const adaLevel = "adaCertificationLevel" in cg ? cg.adaCertificationLevel : undefined;
+
+                        return {
+                            id: cg.id,
+                            name: cg.name,
+                            slug: "slug" in cg ? cg.slug : undefined,
+                            city: cg.city || undefined,
+                            state: cg.state || undefined,
+                            country: "country" in cg ? (cg.country || undefined) : undefined,
+                            heroImageUrl: "heroImageUrl" in cg ? (cg.heroImageUrl || undefined) : undefined,
+                            isInternal: cg.isInternal,
+                            isExternal: cg.isExternal,
+                            rating: cg.rating,
+                            reviewCount: cg.reviewCount,
+                            pricePerNight: "pricePerNight" in cg ? cg.pricePerNight : undefined,
+                            amenities: "amenities" in cg ? cg.amenities : [],
+                            npsBadge: cg.npsBadge,
+                            pastAwards: "pastAwards" in cg ? cg.pastAwards : [],
+                            adaCertificationLevel: isAdaCertificationLevel(adaLevel) ? adaLevel : undefined
+                        };
+                    })}
                     className="py-8 border-b border-slate-100"
                 />
             )}
@@ -662,7 +677,12 @@ export function HomeClient() {
                         {/* Sort */}
                         <select
                             value={sortBy}
-                            onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                            onChange={(e) => {
+                                const { value } = e.target;
+                                if (isSortBy(value)) {
+                                    setSortBy(value);
+                                }
+                            }}
                             className="px-3 py-2.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/20 bg-white min-w-[160px]"
                         >
                             <option value="recommended">Recommended</option>
@@ -869,6 +889,12 @@ export function HomeClient() {
                         >
                             {allCampgrounds.slice(0, displayCount).map((campground, index) => {
                                 const pricePerNight = "pricePerNight" in campground ? campground.pricePerNight : undefined;
+                                const adaLevel = "adaCertificationLevel" in campground
+                                    ? campground.adaCertificationLevel
+                                    : undefined;
+                                const resolvedAdaLevel = isAdaCertificationLevel(adaLevel)
+                                    ? adaLevel
+                                    : undefined;
 
                                 return (
                                     <motion.div
@@ -892,7 +918,7 @@ export function HomeClient() {
                                             amenities={"amenities" in campground ? campground.amenities : []}
                                             npsBadge={campground.npsBadge}
                                             pastAwards={"pastAwards" in campground ? campground.pastAwards : []}
-                                            adaCertificationLevel={"adaCertificationLevel" in campground ? campground.adaCertificationLevel as AdaCertificationLevel : undefined}
+                                            adaCertificationLevel={resolvedAdaLevel}
                                             onExplore={() => trackEvent("site_card_view", { campgroundId: campground.id, page: "/" })}
                                         />
                                     </motion.div>

@@ -26,7 +26,7 @@ interface ReservationHoverCardProps {
       siteType?: string | null;
     } | null;
   };
-  children: React.ReactNode;
+  children: React.ReactElement;
   onQuickCheckIn?: () => void;
   isArrivalToday?: boolean;
 }
@@ -58,13 +58,19 @@ const statusConfig = {
   },
 };
 
+type ReservationStatus = keyof typeof statusConfig;
+
+const isReservationStatus = (value: string): value is ReservationStatus =>
+  Object.prototype.hasOwnProperty.call(statusConfig, value);
+
 export function ReservationHoverCard({
   reservation,
   children,
   onQuickCheckIn,
   isArrivalToday,
 }: ReservationHoverCardProps) {
-  const config = statusConfig[reservation.status as keyof typeof statusConfig] || statusConfig.pending;
+  const statusKey = isReservationStatus(reservation.status) ? reservation.status : "pending";
+  const config = statusConfig[statusKey];
   const StatusIcon = config.icon;
 
   const guestName = `${reservation.guest?.primaryFirstName || ""} ${reservation.guest?.primaryLastName || ""}`.trim() || "Guest";

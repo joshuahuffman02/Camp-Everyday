@@ -1,6 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
-import { EventType } from "@prisma/client";
+import { EventType, type Prisma } from "@prisma/client";
 
 export interface PublicEventResult {
   id: string;
@@ -61,21 +61,16 @@ export class PublicEventsService {
     } = options;
 
     // Build where clause dynamically
-    const where: {
-      isPublished: boolean;
-      isCancelled: boolean;
-      isGuestOnly: boolean;
-      startDate?: { gte?: Date; lte?: Date };
-      eventType?: EventType;
-      campground?: { state: string };
-    } = {
+    const startDateFilter: Prisma.DateTimeFilter = {
+      gte: startDate ?? new Date()
+    };
+
+    const where: Prisma.EventWhereInput = {
       isPublished: true,
       isCancelled: false,
       isGuestOnly: false, // Only show public events
       // Only upcoming events by default
-      startDate: {
-        gte: startDate || new Date()
-      }
+      startDate: startDateFilter
     };
 
     // Filter by event type
@@ -85,15 +80,12 @@ export class PublicEventsService {
 
     // Filter by end date if provided
     if (endDate) {
-      where.startDate = {
-        ...where.startDate,
-        lte: endDate
-      };
+      startDateFilter.lte = endDate;
     }
 
     // Filter by campground state
     if (state) {
-      where.campground = {
+      where.Campground = {
         state: state.toUpperCase()
       };
     }
@@ -105,7 +97,7 @@ export class PublicEventsService {
     const events = await this.prisma.event.findMany({
       where,
       include: {
-        campground: {
+        Campground: {
           select: {
             id: true,
             slug: true,
@@ -138,12 +130,12 @@ export class PublicEventsService {
       currentSignups: event.currentSignups,
       location: event.location,
       campground: {
-        id: event.campground.id,
-        slug: event.campground.slug,
-        name: event.campground.name,
-        city: event.campground.city,
-        state: event.campground.state,
-        heroImageUrl: event.campground.heroImageUrl
+        id: event.Campground.id,
+        slug: event.Campground.slug,
+        name: event.Campground.name,
+        city: event.Campground.city,
+        state: event.Campground.state,
+        heroImageUrl: event.Campground.heroImageUrl
       }
     }));
 

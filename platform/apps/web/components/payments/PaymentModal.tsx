@@ -79,7 +79,14 @@ function CheckoutForm({
             return;
         }
 
-        const confirmParams: any = {
+        const confirmParams: {
+            return_url: string;
+            payment_method_data?: {
+                billing_details: {
+                    address: { postal_code: string };
+                };
+            };
+        } = {
             return_url: window.location.href,
         };
         if (postalCode.trim()) {

@@ -8,30 +8,44 @@ import {
   Body,
   Param,
   UseGuards,
-  Request,
+  Req,
+  UnauthorizedException,
 } from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { FeatureProgressService } from "./feature-progress.service";
+import type { AuthUser } from "../auth/auth.types";
+
+type FeatureProgressRequest = Request & { user?: AuthUser };
 
 @Controller("feature-progress")
 @UseGuards(JwtAuthGuard)
 export class FeatureProgressController {
   constructor(private readonly featureProgressService: FeatureProgressService) {}
 
+  private requireUserId(req: FeatureProgressRequest): string {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new UnauthorizedException("User authentication required");
+    }
+    return userId;
+  }
+
   /**
    * Get all feature progress for the current user
    */
   @Get()
-  async getProgress(@Request() req: Request) {
-    return this.featureProgressService.getProgress(req.user.id);
+  async getProgress(@Req() req: FeatureProgressRequest) {
+    const userId = this.requireUserId(req);
+    return this.featureProgressService.getProgress(userId);
   }
 
   /**
    * Get completion statistics
    */
   @Get("stats")
-  async getStats(@Request() req: Request) {
-    return this.featureProgressService.getStats(req.user.id);
+  async getStats(@Req() req: FeatureProgressRequest) {
+    const userId = this.requireUserId(req);
+    return this.featureProgressService.getStats(userId);
   }
 
   /**
@@ -39,10 +53,11 @@ export class FeatureProgressController {
    */
   @Get(":featureKey")
   async getFeatureProgress(
-    @Request() req: Request,
+    @Req() req: FeatureProgressRequest,
     @Param("featureKey") featureKey: string
   ) {
-    return this.featureProgressService.getFeatureProgress(req.user.id, featureKey);
+    const userId = this.requireUserId(req);
+    return this.featureProgressService.getFeatureProgress(userId, featureKey);
   }
 
   /**
@@ -50,10 +65,11 @@ export class FeatureProgressController {
    */
   @Post(":featureKey/toggle")
   async toggleFeature(
-    @Request() req: Request,
+    @Req() req: FeatureProgressRequest,
     @Param("featureKey") featureKey: string
   ) {
-    return this.featureProgressService.toggleFeature(req.user.id, featureKey);
+    const userId = this.requireUserId(req);
+    return this.featureProgressService.toggleFeature(userId, featureKey);
   }
 
   /**
@@ -61,12 +77,13 @@ export class FeatureProgressController {
    */
   @Post(":featureKey/complete")
   async markCompleted(
-    @Request() req: Request,
+    @Req() req: FeatureProgressRequest,
     @Param("featureKey") featureKey: string,
     @Body() body: { notes?: string }
   ) {
+    const userId = this.requireUserId(req);
     return this.featureProgressService.markCompleted(
-      req.user.id,
+      userId,
       featureKey,
       body.notes
     );
@@ -77,10 +94,11 @@ export class FeatureProgressController {
    */
   @Delete(":featureKey/complete")
   async markIncomplete(
-    @Request() req: Request,
+    @Req() req: FeatureProgressRequest,
     @Param("featureKey") featureKey: string
   ) {
-    return this.featureProgressService.markIncomplete(req.user.id, featureKey);
+    const userId = this.requireUserId(req);
+    return this.featureProgressService.markIncomplete(userId, featureKey);
   }
 
   /**
@@ -88,17 +106,19 @@ export class FeatureProgressController {
    */
   @Patch("bulk")
   async bulkUpdate(
-    @Request() req: Request,
+    @Req() req: FeatureProgressRequest,
     @Body() body: { updates: Array<{ featureKey: string; completed: boolean }> }
   ) {
-    return this.featureProgressService.bulkUpdate(req.user.id, body.updates);
+    const userId = this.requireUserId(req);
+    return this.featureProgressService.bulkUpdate(userId, body.updates);
   }
 
   /**
    * Reset all feature progress
    */
   @Delete("reset")
-  async resetProgress(@Request() req: Request) {
-    return this.featureProgressService.resetProgress(req.user.id);
+  async resetProgress(@Req() req: FeatureProgressRequest) {
+    const userId = this.requireUserId(req);
+    return this.featureProgressService.resetProgress(userId);
   }
 }

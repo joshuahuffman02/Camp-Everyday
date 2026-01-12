@@ -52,16 +52,8 @@ type TimeOffRequest = {
   } | null;
 };
 
-interface WhoamiUser {
-  id: string;
-  email: string;
-  name?: string;
-  firstName?: string;
-  lastName?: string;
-}
-
-const SPRING_CONFIG = {
-  type: "spring" as const,
+const SPRING_CONFIG: { type: "spring"; stiffness: number; damping: number } = {
+  type: "spring",
   stiffness: 200,
   damping: 20,
 };
@@ -120,7 +112,7 @@ export default function TimeOffPage({ params }: { params: { campgroundId: string
 
   const myRequests = useMemo(() => {
     if (!whoami?.user) return [];
-    const currentUser = whoami.user as WhoamiUser | undefined;
+    const currentUser = whoami.user;
     return requests.filter((r) => r.user?.id === currentUser?.id);
   }, [requests, whoami?.user]);
 
@@ -138,7 +130,7 @@ export default function TimeOffPage({ params }: { params: { campgroundId: string
     setError(null);
 
     try {
-      const currentUser = whoami?.user as WhoamiUser | undefined;
+      const currentUser = whoami?.user;
       const res = await fetch("/api/staff/time-off", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -172,7 +164,7 @@ export default function TimeOffPage({ params }: { params: { campgroundId: string
   const reviewRequest = async (id: string, status: "approved" | "rejected") => {
     setProcessing((prev) => new Set([...prev, id]));
     try {
-      const currentUser = whoami?.user as WhoamiUser | undefined;
+      const currentUser = whoami?.user;
       await fetch(`/api/staff/time-off/${id}/review`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

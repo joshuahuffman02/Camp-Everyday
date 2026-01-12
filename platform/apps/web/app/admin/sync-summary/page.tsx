@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { OfflineTelemetryPanel } from "@/components/pwa/OfflineTelemetryPanel";
 
 type QueueStat = { key: string; label: string; count: number; conflicts: number; nextRetry?: number | null; lastError?: string | null };
+type QueueEntry = { conflict?: boolean; nextAttemptAt?: number; lastError?: string | null };
 
 const queueSources = [
   { key: "campreserv:pwa:queuedMessages", label: "Guest messages" },
@@ -16,12 +17,27 @@ const queueSources = [
   { key: "campreserv:portal:activityQueue", label: "Activity bookings" },
 ];
 
-function loadQueue(key: string) {
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const isQueueEntry = (value: unknown): value is QueueEntry => {
+  if (!isRecord(value)) return false;
+  const conflict = value.conflict;
+  const nextAttemptAt = value.nextAttemptAt;
+  const lastError = value.lastError;
+  return (
+    (conflict === undefined || typeof conflict === "boolean") &&
+    (nextAttemptAt === undefined || typeof nextAttemptAt === "number") &&
+    (lastError === undefined || typeof lastError === "string" || lastError === null)
+  );
+};
+
+function loadQueue(key: string): QueueEntry[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(key);
     const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
+    return Array.isArray(parsed) ? parsed.filter(isQueueEntry) : [];
   } catch {
     return [];
   }
@@ -34,13 +50,13 @@ export default function SyncSummaryPage() {
     if (typeof window === "undefined") return;
     const stats: QueueStat[] = queueSources.map((q) => {
       const list = loadQueue(q.key);
-      const conflicts = list.filter((i: any) => i?.conflict).length;
+      const conflicts = list.filter((i) => i.conflict).length;
       const nextRetry =
         list
-          .map((i: any) => i?.nextAttemptAt)
-          .filter((n: any) => typeof n === "number")
+          .map((i) => i.nextAttemptAt)
+          .filter((n): n is number => typeof n === "number")
           .sort((a: number, b: number) => a - b)[0] ?? null;
-      const lastError = list.map((i: any) => i?.lastError).find((e: any) => e) ?? null;
+      const lastError = list.map((i) => i.lastError).find((e): e is string => Boolean(e)) ?? null;
       return {
         key: q.key,
         label: q.label,
@@ -89,4 +105,3 @@ export default function SyncSummaryPage() {
     </div>
   );
 }
-

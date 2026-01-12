@@ -16,6 +16,9 @@ import { SubscriptionService } from "./subscription.service";
 import { JwtAuthGuard, RolesGuard, Roles } from "../auth/guards";
 import { UserRole, PlatformRole } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import type { AuthUser } from "../auth/auth.types";
+
+type AuthRequest = Request & { user: AuthUser };
 
 @Controller("organizations/:organizationId/billing")
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -31,14 +34,18 @@ export class OrgBillingController {
    * Validates that the user has access to the organization via campground membership.
    * Platform admins bypass this check.
    */
-  private async validateOrgAccess(organizationId: string, user: any): Promise<void> {
+  private async validateOrgAccess(organizationId: string, user?: AuthUser): Promise<void> {
+    if (!user) {
+      throw new ForbiddenException("User not authenticated");
+    }
+
     // Platform admins can access any organization
-    if (user.platformRole === "platform_admin" || user.platformRole === "platform_superadmin") {
+    if (user.platformRole === PlatformRole.platform_admin) {
       return;
     }
 
     // Check if user has membership to any campground in this organization
-    const userCampgroundIds = (user.memberships || []).map((m: any) => m.campgroundId);
+    const userCampgroundIds = user.memberships.map((membership) => membership.campgroundId);
     if (userCampgroundIds.length === 0) {
       throw new ForbiddenException("You do not have access to this organization");
     }
@@ -81,7 +88,7 @@ export class OrgBillingController {
    * Get billing summary for current period
    */
   @Get("summary")
-  async getBillingSummary(@Param("organizationId") organizationId: string, @Req() req: Request) {
+  async getBillingSummary(@Param("organizationId") organizationId: string, @Req() req: AuthRequest) {
     await this.validateOrgAccess(organizationId, req.user);
     return this.billingService.getBillingSummary(organizationId);
   }
@@ -90,7 +97,7 @@ export class OrgBillingController {
    * Get current billing period
    */
   @Get("current-period")
-  async getCurrentPeriod(@Param("organizationId") organizationId: string, @Req() req: Request) {
+  async getCurrentPeriod(@Param("organizationId") organizationId: string, @Req() req: AuthRequest) {
     await this.validateOrgAccess(organizationId, req.user);
     return this.billingService.getCurrentPeriod(organizationId);
   }
@@ -101,10 +108,10 @@ export class OrgBillingController {
   @Get("history")
   async getBillingHistory(
     @Param("organizationId") organizationId: string,
-    @Query("limit") limit?: string,
-    @Req() req?: Request
+    @Req() req: AuthRequest,
+    @Query("limit") limit?: string
   ) {
-    await this.validateOrgAccess(organizationId, req?.user);
+    await this.validateOrgAccess(organizationId, req.user);
     return this.billingService.getBillingHistory(
       organizationId,
       limit ? parseInt(limit, 10) : 12
@@ -117,14 +124,14 @@ export class OrgBillingController {
   @Get("usage")
   async getUsageDetails(
     @Param("organizationId") organizationId: string,
+    @Req() req: AuthRequest,
     @Query("eventType") eventType?: string,
     @Query("periodStart") periodStartStr?: string,
     @Query("periodEnd") periodEndStr?: string,
     @Query("limit") limitStr?: string,
-    @Query("offset") offsetStr?: string,
-    @Req() req?: Request
+    @Query("offset") offsetStr?: string
   ) {
-    await this.validateOrgAccess(organizationId, req?.user);
+    await this.validateOrgAccess(organizationId, req.user);
     const periodStart = periodStartStr ? new Date(periodStartStr) : undefined;
     const periodEnd = periodEndStr ? new Date(periodEndStr) : undefined;
     const limit = limitStr ? parseInt(limitStr, 10) : 100;
@@ -155,9 +162,9 @@ export class OrgBillingController {
       referenceId?: string;
       metadata?: Record<string, unknown>;
     },
-    @Req() req?: Request
+    @Req() req: AuthRequest
   ) {
-    await this.validateOrgAccess(organizationId, req?.user);
+    await this.validateOrgAccess(organizationId, req.user);
     return this.billingService.recordUsageEvent({
       organizationId,
       ...body,
@@ -173,7 +180,7 @@ export class OrgBillingController {
   async finalizePeriod(
     @Param("organizationId") organizationId: string,
     @Param("periodId") periodId: string,
-    @Req() req: Request
+    @Req() req: AuthRequest
   ) {
     // Validate period ownership to prevent cross-org manipulation
     await this.validatePeriodOwnership(periodId, organizationId);
@@ -194,7 +201,7 @@ export class OrgBillingController {
     @Param("organizationId") organizationId: string,
     @Param("periodId") periodId: string,
     @Body() body: { stripePaymentIntentId?: string },
-    @Req() req: Request
+    @Req() req: AuthRequest
   ) {
     // Validate period ownership to prevent cross-org manipulation
     await this.validatePeriodOwnership(periodId, organizationId);
@@ -213,7 +220,7 @@ export class OrgBillingController {
    * Get Stripe subscription details
    */
   @Get("subscription")
-  async getSubscription(@Param("organizationId") organizationId: string, @Req() req: Request) {
+  async getSubscription(@Param("organizationId") organizationId: string, @Req() req: AuthRequest) {
     await this.validateOrgAccess(organizationId, req.user);
     const subscription = await this.subscriptionService.getSubscription(organizationId);
     if (!subscription) {
@@ -223,10 +230,14 @@ export class OrgBillingController {
       hasSubscription: true,
       id: subscription.id,
       status: subscription.status,
-      currentPeriodStart: new Date(subscription.current_period_start * 1000),
-      currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+      currentPeriodStart: subscription.items.data[0]
+        ? new Date(subscription.items.data[0].current_period_start * 1000)
+        : null,
+      currentPeriodEnd: subscription.items.data[0]
+        ? new Date(subscription.items.data[0].current_period_end * 1000)
+        : null,
       cancelAtPeriodEnd: subscription.cancel_at_period_end,
-      items: subscription.items.data.map((item: any) => ({
+      items: subscription.items.data.map((item) => ({
         id: item.id,
         priceId: item.price.id,
         nickname: item.price.nickname,
@@ -243,7 +254,7 @@ export class OrgBillingController {
   async createSubscription(
     @Param("organizationId") organizationId: string,
     @Body() body: { tier?: string },
-    @Req() req: Request
+    @Req() req: AuthRequest
   ) {
     await this.validateOrgAccess(organizationId, req.user);
     return this.subscriptionService.createSubscription(
@@ -258,10 +269,10 @@ export class OrgBillingController {
   @Delete("subscription")
   async cancelSubscription(
     @Param("organizationId") organizationId: string,
-    @Query("immediately") immediately?: string,
-    @Req() req?: Request
+    @Req() req: AuthRequest,
+    @Query("immediately") immediately?: string
   ) {
-    await this.validateOrgAccess(organizationId, req?.user);
+    await this.validateOrgAccess(organizationId, req.user);
     return this.subscriptionService.cancelSubscription(
       organizationId,
       immediately === "true"
@@ -275,7 +286,7 @@ export class OrgBillingController {
   async getBillingPortal(
     @Param("organizationId") organizationId: string,
     @Body() body: { returnUrl: string },
-    @Req() req: Request
+    @Req() req: AuthRequest
   ) {
     await this.validateOrgAccess(organizationId, req.user);
     const url = await this.subscriptionService.getBillingPortalUrl(
@@ -289,7 +300,7 @@ export class OrgBillingController {
    * Get current Stripe usage (metered billing)
    */
   @Get("stripe-usage")
-  async getStripeUsage(@Param("organizationId") organizationId: string, @Req() req: Request) {
+  async getStripeUsage(@Param("organizationId") organizationId: string, @Req() req: AuthRequest) {
     await this.validateOrgAccess(organizationId, req.user);
     return this.subscriptionService.getCurrentUsage(organizationId);
   }
@@ -301,7 +312,7 @@ export class OrgBillingController {
   async changeTier(
     @Param("organizationId") organizationId: string,
     @Body() body: { tier: string },
-    @Req() req: Request
+    @Req() req: AuthRequest
   ) {
     await this.validateOrgAccess(organizationId, req.user);
     return this.subscriptionService.changeTier(organizationId, body.tier);

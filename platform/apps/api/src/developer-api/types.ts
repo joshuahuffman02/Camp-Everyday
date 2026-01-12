@@ -72,18 +72,28 @@ export interface ApiPrincipal {
   tier?: ApiClientTier;
 }
 
+type ScopeCategory =
+  | "reservations"
+  | "guests"
+  | "sites"
+  | "webhooks"
+  | "tokens"
+  | "payments"
+  | "analytics"
+  | "inventory";
+
 /**
  * Scope categories for permission grouping
  */
-export const SCOPE_CATEGORIES = {
-  reservations: ["reservations:read", "reservations:write"] as ApiScope[],
-  guests: ["guests:read", "guests:write"] as ApiScope[],
-  sites: ["sites:read", "sites:write"] as ApiScope[],
-  webhooks: ["webhooks:read", "webhooks:write"] as ApiScope[],
-  tokens: ["tokens:read", "tokens:write"] as ApiScope[],
-  payments: ["payments:read", "payments:write"] as ApiScope[],
-  analytics: ["analytics:read"] as ApiScope[],
-  inventory: ["inventory:read", "inventory:write"] as ApiScope[],
+export const SCOPE_CATEGORIES: Record<ScopeCategory, ApiScope[]> = {
+  reservations: ["reservations:read", "reservations:write"],
+  guests: ["guests:read", "guests:write"],
+  sites: ["sites:read", "sites:write"],
+  webhooks: ["webhooks:read", "webhooks:write"],
+  tokens: ["tokens:read", "tokens:write"],
+  payments: ["payments:read", "payments:write"],
+  analytics: ["analytics:read"],
+  inventory: ["inventory:read", "inventory:write"],
 };
 
 /**
@@ -125,4 +135,3 @@ export const DEFAULT_TIER_SCOPES: Record<ApiClientTier, ApiScope[]> = {
     "inventory:write",
   ],
 };
-

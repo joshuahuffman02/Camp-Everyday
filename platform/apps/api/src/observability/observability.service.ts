@@ -50,7 +50,7 @@ type ObservabilitySnapshot = {
     recentErrors: { path: string; status: number; at: number }[];
   };
   jobs: Aggregate & {
-    queues: Record<string, { running: number; queued: number; oldestMs?: number }>;
+    queues: Record<string, { running: number; queued: number; oldestMs?: number; rawName?: string }>;
   };
   web: {
     lcp: Aggregate;
@@ -58,6 +58,21 @@ type ObservabilitySnapshot = {
     p75: { lcp: number; ttfb: number };
   };
   synthetics: Record<string, { ok: boolean; latencyMs?: number; at: number; message?: string }>;
+};
+
+type CommsProviderTotals = {
+  total: number;
+  delivered: number;
+  failures: number;
+};
+
+type CommsTotals = {
+  total: number;
+  delivered: number;
+  bounced: number;
+  complaints: number;
+  failures: number;
+  byProvider: Record<string, CommsProviderTotals>;
 };
 
 @Injectable()
@@ -235,10 +250,18 @@ export class ObservabilityService {
     const offerStats = domainRate("offer");
     const reportStats = domainRate("report");
     const commsEvents = (this.domainEvents["comms"] || []).filter((e) => e.at >= windowStart);
+    const initialCommsTotals: CommsTotals = {
+      total: 0,
+      delivered: 0,
+      bounced: 0,
+      complaints: 0,
+      failures: 0,
+      byProvider: {},
+    };
     const commsTotals = commsEvents.reduce(
       (acc, e) => {
         const status = e.kind ?? "sent";
-        const provider = (e.meta?.provider ?? "unknown") as string;
+        const provider = typeof e.meta?.provider === "string" ? e.meta.provider : "unknown";
         acc.total += 1;
         acc.byProvider[provider] = acc.byProvider[provider] ?? { total: 0, delivered: 0, failures: 0 };
         acc.byProvider[provider].total += 1;
@@ -254,7 +277,7 @@ export class ObservabilityService {
         }
         return acc;
       },
-      { total: 0, delivered: 0, bounced: 0, complaints: 0, failures: 0, byProvider: {} as Record<string, { total: number; delivered: number; failures: number }> }
+      initialCommsTotals
     );
     const commsDeliveryRate = commsTotals.total === 0 ? 1 : commsTotals.delivered / commsTotals.total;
     const commsBounceRate = commsTotals.total === 0 ? 0 : commsTotals.bounced / commsTotals.total;
@@ -411,4 +434,3 @@ export class ObservabilityService {
     };
   }
 }
-

@@ -48,17 +48,35 @@ type Reservation = {
   status: string;
   arrivalDate: string;
   departureDate: string;
-  balanceAmount: number;
+  balanceAmount?: number;
   totalAmount?: number;
   paidAmount?: number;
   nights?: number;
   adults?: number;
   children?: number;
   siteId?: string | null;
-  site?: { name?: string };
-  guest: { id?: string; email?: string; primaryFirstName: string; primaryLastName: string };
+  site?: { name?: string | null } | null;
+  guest?: { id?: string; email?: string; primaryFirstName: string; primaryLastName: string } | null;
   notes?: string | null;
 };
+
+type PaymentMethod = "card" | "cash" | "check" | "folio";
+type OfflinePaymentMethod = Exclude<PaymentMethod, "card">;
+type TabKey = "arrivals" | "departures" | "onsite";
+
+const isTabKey = (value: string): value is TabKey =>
+  value === "arrivals" || value === "departures" || value === "onsite";
+
+const isPaymentMethod = (value: string): value is PaymentMethod =>
+  value === "card" || value === "cash" || value === "check" || value === "folio";
+
+const getGuestName = (guest: Reservation["guest"]) =>
+  guest ? `${guest.primaryFirstName} ${guest.primaryLastName}`.trim() : "Guest";
+
+const hasGuestContact = (
+  guest: Reservation["guest"]
+): guest is { id: string; email: string; primaryFirstName: string; primaryLastName: string } =>
+  Boolean(guest && typeof guest.id === "string" && typeof guest.email === "string");
 
 // Helper to get today's date as YYYY-MM-DD string in local timezone
 // (campground dates should match the local timezone, e.g., Central/Chicago)
@@ -87,7 +105,7 @@ export default function CheckInOutPage() {
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "balance" | "unassigned">("all");
-  const [tab, setTab] = useState<"arrivals" | "departures" | "onsite">("arrivals");
+  const [tab, setTab] = useState<TabKey>("arrivals");
   const [sortBy, setSortBy] = useState<"name" | "site" | "balance" | "date">("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
@@ -104,7 +122,7 @@ export default function CheckInOutPage() {
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState("cash"); // Default to cash for manual entry
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash"); // Default to cash for manual entry
   const [isStripePaymentOpen, setIsStripePaymentOpen] = useState(false);
   const [checkInAfterPayment, setCheckInAfterPayment] = useState(false);
   const [checkOutAfterPayment, setCheckOutAfterPayment] = useState(false);
@@ -121,7 +139,7 @@ export default function CheckInOutPage() {
     setHasMounted(true);
   }, []);
 
-  const reservationsQuery = useQuery({
+  const reservationsQuery = useQuery<Reservation[]>({
     queryKey: ["reservations", campgroundId],
     queryFn: () => apiClient.getReservations(campgroundId),
     enabled: !!campgroundId
@@ -175,7 +193,7 @@ export default function CheckInOutPage() {
   });
 
   const paymentMutation = useMutation({
-    mutationFn: (data: { id: string; amount: number; method: "card" | "cash" | "check" | "folio" }) =>
+    mutationFn: (data: { id: string; amount: number; method: OfflinePaymentMethod }) =>
       apiClient.recordReservationPayment(data.id, data.amount, [
         { method: data.method, amountCents: data.amount }
       ]),
@@ -187,7 +205,7 @@ export default function CheckInOutPage() {
     onError: () => toast({ title: "Payment failed", variant: "destructive" })
   });
 
-  const reservations = (reservationsQuery.data as Reservation[]) || [];
+  const reservations = reservationsQuery.data ?? [];
 
   // Helper to compare dates by extracting the date portion directly from ISO strings
   // This avoids timezone issues when comparing dates stored in the database
@@ -259,10 +277,13 @@ export default function CheckInOutPage() {
     const filtered = list
       .filter((r) => {
         if (!search) return true;
+        const firstName = r.guest?.primaryFirstName ?? "";
+        const lastName = r.guest?.primaryLastName ?? "";
+        const siteName = r.site?.name ?? "";
         return (
-          r.guest.primaryFirstName.toLowerCase().includes(lower) ||
-          r.guest.primaryLastName.toLowerCase().includes(lower) ||
-          r.site?.name?.toLowerCase().includes(lower)
+          firstName.toLowerCase().includes(lower) ||
+          lastName.toLowerCase().includes(lower) ||
+          siteName.toLowerCase().includes(lower)
         );
       })
       .filter((r) => {
@@ -276,9 +297,7 @@ export default function CheckInOutPage() {
       let cmp = 0;
       switch (sortBy) {
         case "name":
-          cmp = `${a.guest.primaryLastName} ${a.guest.primaryFirstName}`.localeCompare(
-            `${b.guest.primaryLastName} ${b.guest.primaryFirstName}`
-          );
+          cmp = getGuestName(a.guest).localeCompare(getGuestName(b.guest));
           break;
         case "site":
           cmp = (a.site?.name || "zzz").localeCompare(b.site?.name || "zzz");
@@ -379,12 +398,15 @@ export default function CheckInOutPage() {
   const handleSendBulkMessage = async () => {
     const selectedGuests = filteredList
       .filter(r => selectedIds.has(r.id))
-      .map(r => ({
-        id: r.guest.id,
-        email: r.guest.email,
-        name: `${r.guest.primaryFirstName} ${r.guest.primaryLastName}`,
-        reservationId: r.id
-      }));
+      .flatMap((r) => {
+        if (!hasGuestContact(r.guest)) return [];
+        return [{
+          id: r.guest.id,
+          email: r.guest.email,
+          name: getGuestName(r.guest),
+          reservationId: r.id
+        }];
+      });
 
     // For now, just show a toast. In production this would call the messaging API
     toast({
@@ -557,7 +579,15 @@ export default function CheckInOutPage() {
                 <SelectItem value="unassigned">Unassigned site</SelectItem>
               </SelectContent>
             </Select>
-            <Tabs value={tab} onValueChange={(v) => setTab(v as "arrivals" | "departures" | "onsite")} className="space-y-0">
+            <Tabs
+              value={tab}
+              onValueChange={(value) => {
+                if (isTabKey(value)) {
+                  setTab(value);
+                }
+              }}
+              className="space-y-0"
+            >
               <TabsList>
                 <TabsTrigger value="onsite" className="gap-1">
                   On Site
@@ -698,7 +728,7 @@ export default function CheckInOutPage() {
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="font-semibold text-lg text-foreground">
-                          {res.guest.primaryFirstName} {res.guest.primaryLastName}
+                          {getGuestName(res.guest)}
                         </h3>
                         {needsPayment && (
                           <Badge className="h-5 px-1.5 text-[10px] uppercase tracking-wider border border-amber-200 bg-amber-50 text-amber-700">
@@ -750,7 +780,7 @@ export default function CheckInOutPage() {
                   <div className="flex flex-col items-end gap-3 min-w-[200px]">
                     <div className="text-right">
                       <div className="text-xs text-muted-foreground">Balance</div>
-                      <div className={`font-bold ${res.balanceAmount > 0 ? "text-amber-700" : "text-emerald-700"}`}>
+                      <div className={`font-bold ${(res.balanceAmount ?? 0) > 0 ? "text-amber-700" : "text-emerald-700"}`}>
                         {formatMoney(res.balanceAmount)}
                       </div>
                     </div>
@@ -768,7 +798,7 @@ export default function CheckInOutPage() {
                               Assign Site
                             </Button>
                           )}
-                          {res.balanceAmount > 0 && (
+                          {(res.balanceAmount ?? 0) > 0 && (
                             <Button
                               variant="outline"
                               className="text-amber-700 border-amber-200 hover:bg-amber-50"
@@ -781,9 +811,9 @@ export default function CheckInOutPage() {
                           <Button
                             onClick={() => checkInMutation.mutate(res.id)}
                             disabled={checkInMutation.isPending}
-                            className={res.balanceAmount > 0 ? "bg-amber-600 hover:bg-amber-700" : "bg-emerald-600 hover:bg-emerald-700"}
+                            className={(res.balanceAmount ?? 0) > 0 ? "bg-amber-600 hover:bg-amber-700" : "bg-emerald-600 hover:bg-emerald-700"}
                           >
-                            {checkInMutation.isPending ? "Checking..." : res.balanceAmount > 0 ? "Check In Anyway" : "Check In"}
+                            {checkInMutation.isPending ? "Checking..." : (res.balanceAmount ?? 0) > 0 ? "Check In Anyway" : "Check In"}
                           </Button>
                         </div>
                       )
@@ -794,7 +824,7 @@ export default function CheckInOutPage() {
                             View Details
                           </Button>
                         </Link>
-                        {res.balanceAmount > 0 && (
+                        {(res.balanceAmount ?? 0) > 0 && (
                           <Button variant="outline" className="text-amber-700 border-amber-200 hover:bg-amber-50" onClick={() => openUnifiedPayment(res, false)}>
                             Settle Balance
                           </Button>
@@ -802,9 +832,9 @@ export default function CheckInOutPage() {
                         <Button
                           onClick={() => handlePayAndCheckout(res)}
                           disabled={checkOutMutation.isPending}
-                          className={res.balanceAmount > 0 ? "bg-amber-600 hover:bg-amber-700" : ""}
+                          className={(res.balanceAmount ?? 0) > 0 ? "bg-amber-600 hover:bg-amber-700" : ""}
                         >
-                          {res.balanceAmount > 0 ? "Pay & Check Out" : "Check Out"}
+                          {(res.balanceAmount ?? 0) > 0 ? "Pay & Check Out" : "Check Out"}
                         </Button>
                       </div>
                     ) : res.status === "checked_out" ? (
@@ -813,7 +843,7 @@ export default function CheckInOutPage() {
                       </Button>
                     ) : (
                       <div className="flex flex-wrap gap-2 justify-end">
-                        {res.balanceAmount > 0 && (
+                        {(res.balanceAmount ?? 0) > 0 && (
                           <Button variant="outline" className="text-amber-700 border-amber-200 hover:bg-amber-50" onClick={() => openUnifiedPayment(res, false)}>
                             Settle Balance
                           </Button>
@@ -821,9 +851,9 @@ export default function CheckInOutPage() {
                         <Button
                           onClick={() => handlePayAndCheckout(res)}
                           disabled={checkOutMutation.isPending}
-                          className={res.balanceAmount > 0 ? "bg-amber-600 hover:bg-amber-700" : ""}
+                          className={(res.balanceAmount ?? 0) > 0 ? "bg-amber-600 hover:bg-amber-700" : ""}
                         >
-                          {res.balanceAmount > 0 ? "Pay & Check Out" : "Check Out"}
+                          {(res.balanceAmount ?? 0) > 0 ? "Pay & Check Out" : "Check Out"}
                         </Button>
                       </div>
                     )}
@@ -849,7 +879,7 @@ export default function CheckInOutPage() {
           <DialogHeader>
             <DialogTitle>Collect Outstanding Balance</DialogTitle>
             <DialogDescription>
-              {selectedReservation?.guest.primaryFirstName} {selectedReservation?.guest.primaryLastName} owes {formatMoney(selectedReservation?.balanceAmount)}.
+              {getGuestName(selectedReservation?.guest)} owes {formatMoney(selectedReservation?.balanceAmount)}.
               {tab === "arrivals" ? " Collect payment before or during check-in." : " Record payment to proceed with checkout."}
             </DialogDescription>
           </DialogHeader>
@@ -870,7 +900,14 @@ export default function CheckInOutPage() {
 
             <div className="grid gap-2">
               <Label>Payment Method</Label>
-              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+              <Select
+                value={paymentMethod}
+                onValueChange={(value) => {
+                  if (isPaymentMethod(value)) {
+                    setPaymentMethod(value);
+                  }
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -918,7 +955,7 @@ export default function CheckInOutPage() {
                   onClick={() => selectedReservation && paymentMutation.mutate({
                     id: selectedReservation.id,
                     amount: paymentAmount,
-                    method: paymentMethod as "cash" | "check" | "folio"
+                    method: paymentMethod
                   })}
                   disabled={paymentMutation.isPending}
                   variant="outline"
@@ -931,7 +968,7 @@ export default function CheckInOutPage() {
                       if (!selectedReservation) return;
                       try {
                         await apiClient.recordReservationPayment(selectedReservation.id, paymentAmount, [
-                          { method: paymentMethod as "cash" | "check" | "folio", amountCents: paymentAmount }
+                          { method: paymentMethod, amountCents: paymentAmount }
                         ]);
                         await apiClient.checkInReservation(selectedReservation.id);
                         queryClient.invalidateQueries({ queryKey: ["reservations", campgroundId] });

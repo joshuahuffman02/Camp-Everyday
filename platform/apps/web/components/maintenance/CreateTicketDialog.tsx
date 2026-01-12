@@ -15,6 +15,14 @@ import type { Site } from "@keepr/shared";
 type MaintenancePriority = "low" | "medium" | "high" | "critical";
 type MaintenanceStatus = "open" | "in_progress" | "closed";
 
+const maintenancePriorities: MaintenancePriority[] = ["low", "medium", "high", "critical"];
+const maintenanceStatuses: MaintenanceStatus[] = ["open", "in_progress", "closed"];
+
+const isMaintenancePriority = (value: string): value is MaintenancePriority =>
+    maintenancePriorities.some((priority) => priority === value);
+const isMaintenanceStatus = (value: string): value is MaintenanceStatus =>
+    maintenanceStatuses.some((status) => status === value);
+
 export interface MaintenanceTicket {
     id: string;
     title: string;
@@ -39,6 +47,18 @@ interface CreateTicketDialogProps {
 
 type SiteOption = Pick<Site, "id" | "name" | "siteNumber">;
 
+type TicketFormState = {
+    title: string;
+    description: string;
+    priority: MaintenancePriority;
+    status: MaintenanceStatus;
+    siteId: string;
+    isBlocking: boolean;
+    outOfOrder: boolean;
+    outOfOrderReason: string;
+    dueDate: string;
+};
+
 export function CreateTicketDialog({ open, onOpenChange, onSuccess, campgroundId, ticket }: CreateTicketDialogProps) {
     const { toast } = useToast();
     const [loading, setLoading] = useState(false);
@@ -48,11 +68,11 @@ export function CreateTicketDialog({ open, onOpenChange, onSuccess, campgroundId
 
     const isEditMode = !!ticket;
 
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState<TicketFormState>({
         title: "",
         description: "",
-        priority: "medium" as MaintenancePriority,
-        status: "open" as MaintenanceStatus,
+        priority: "medium",
+        status: "open",
         siteId: "none",
         isBlocking: false,
         outOfOrder: false,
@@ -138,7 +158,7 @@ export function CreateTicketDialog({ open, onOpenChange, onSuccess, campgroundId
                 title: formData.title,
                 description: formData.description,
                 priority: formData.priority,
-                status: formData.status as "open" | "in_progress" | "closed",
+                status: formData.status,
                 siteId: formData.siteId === "none" ? undefined : formData.siteId,
                 campgroundId: selectedCampgroundId,
                 isBlocking: formData.isBlocking,
@@ -222,7 +242,11 @@ export function CreateTicketDialog({ open, onOpenChange, onSuccess, campgroundId
                             <Label htmlFor="priority">Priority</Label>
                             <Select
                                 value={formData.priority}
-                                onValueChange={(v) => setFormData({ ...formData, priority: v as MaintenancePriority })}
+                                onValueChange={(v) => {
+                                    if (isMaintenancePriority(v)) {
+                                        setFormData({ ...formData, priority: v });
+                                    }
+                                }}
                             >
                                 <SelectTrigger>
                                     <SelectValue />
@@ -268,7 +292,11 @@ export function CreateTicketDialog({ open, onOpenChange, onSuccess, campgroundId
                             <Label htmlFor="status">Status</Label>
                             <Select
                                 value={formData.status}
-                                onValueChange={(v) => setFormData({ ...formData, status: v as MaintenanceStatus })}
+                                onValueChange={(v) => {
+                                    if (isMaintenanceStatus(v)) {
+                                        setFormData({ ...formData, status: v });
+                                    }
+                                }}
                             >
                                 <SelectTrigger>
                                     <SelectValue />

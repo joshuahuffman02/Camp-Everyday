@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { GlAccountType } from "@prisma/client";
-import { createHash } from "crypto";
+import { createHash, randomUUID } from "crypto";
+import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 
 type LedgerPostLine = {
@@ -168,7 +169,7 @@ export class LedgerService {
     const existing = await this.prisma.glAccount.findFirst({ where: { campgroundId, code }, select: { id: true } });
     if (existing) return existing.id;
     const created = await this.prisma.glAccount.create({
-      data: { campgroundId, code, name, type }
+      data: { id: randomUUID(), campgroundId, code, name, type }
     });
     return created.id;
   }
@@ -201,10 +202,9 @@ export class LedgerService {
     };
     const hash = createHash("sha256").update(JSON.stringify(payloadForHash)).digest("hex");
     const dedupeKey = request.dedupeKey ?? hash;
-    const dedupeFilters = [
-      dedupeKey ? { dedupeKey } : null,
-      request.sourceTxId ? { sourceTxId: request.sourceTxId } : null
-    ].filter(Boolean) as any[];
+    const dedupeFilters: Prisma.LedgerEntryWhereInput[] = [];
+    if (dedupeKey) dedupeFilters.push({ dedupeKey });
+    if (request.sourceTxId) dedupeFilters.push({ sourceTxId: request.sourceTxId });
 
     if (dedupeFilters.length > 0) {
       const exists = await this.prisma.ledgerEntry.findFirst({
@@ -224,6 +224,7 @@ export class LedgerService {
       for (const line of request.lines) {
         const entry = await tx.ledgerEntry.create({
           data: {
+            id: randomUUID(),
             campgroundId: request.campgroundId,
             reservationId: request.reservationId ?? null,
             periodId,
@@ -245,6 +246,7 @@ export class LedgerService {
         entryIds.push(entry.id);
         await tx.ledgerLine.create({
           data: {
+            id: randomUUID(),
             ledgerEntryId: entry.id,
             glAccountId: line.glAccountId,
             side: line.side,
@@ -294,6 +296,7 @@ export class LedgerService {
     await this.assertNoOverlap(campgroundId, startDate, endDate);
     return this.prisma.glPeriod.create({
       data: {
+        id: randomUUID(),
         campgroundId,
         startDate,
         endDate,

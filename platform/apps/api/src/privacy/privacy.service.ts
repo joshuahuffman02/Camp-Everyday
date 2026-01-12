@@ -1,33 +1,101 @@
-import { Injectable } from "@nestjs/common";
-import { Response } from "express";
+import { BadRequestException, Injectable } from "@nestjs/common";
+import { ConsentMethod, PiiClassification, RedactionMode, Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import { randomUUID } from "crypto";
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const isString = (value: unknown): value is string => typeof value === "string";
+
+const isJsonValue = (value: unknown): value is Prisma.InputJsonValue => {
+  if (value === null) return true;
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return true;
+  if (Array.isArray(value)) return value.every(isJsonValue);
+  if (isRecord(value)) return Object.values(value).every(isJsonValue);
+  return false;
+};
+
+const toNullableJsonInput = (
+  value: unknown
+): Prisma.InputJsonValue | Prisma.NullTypes.DbNull | undefined => {
+  if (value === undefined) return undefined;
+  if (value === null) return Prisma.DbNull;
+  return isJsonValue(value) ? value : undefined;
+};
+
+const toIsoString = (value: Date | string | null | undefined): string | null => {
+  if (!value) return null;
+  if (value instanceof Date) return value.toISOString();
+  if (isString(value)) {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+  }
+  return null;
+};
+
+const CONSENT_METHOD_VALUES: ConsentMethod[] = [
+  ConsentMethod.verbal,
+  ConsentMethod.written,
+  ConsentMethod.digital,
+];
+
+const PII_CLASSIFICATION_VALUES: PiiClassification[] = [
+  PiiClassification.basic,
+  PiiClassification.sensitive,
+  PiiClassification.payment,
+  PiiClassification.secret,
+];
+
+const REDACTION_MODE_VALUES: RedactionMode[] = [RedactionMode.mask, RedactionMode.remove];
+
+const parseConsentMethod = (value: unknown): ConsentMethod | undefined => {
+  if (!isString(value)) return undefined;
+  return CONSENT_METHOD_VALUES.find((method) => method === value);
+};
+
+const parsePiiClassification = (value: unknown): PiiClassification | undefined => {
+  if (!isString(value)) return undefined;
+  return PII_CLASSIFICATION_VALUES.find((classification) => classification === value);
+};
+
+const parseRedactionMode = (value: unknown): RedactionMode | undefined => {
+  if (!isString(value)) return undefined;
+  return REDACTION_MODE_VALUES.find((mode) => mode === value);
+};
+
+type PrivacyExportResponse = {
+  set: (name: string, value: string) => unknown;
+  send: (body: string) => unknown;
+};
 
 @Injectable()
 export class PrivacyService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private maskValue(val: any) {
-    if (typeof val !== "string") return val;
+  private maskValue(val: unknown) {
+    if (!isString(val)) return val;
     const emailMasked = val.replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "***@redacted");
     const phoneMasked = emailMasked.replace(/\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b/g, "***-***-****");
     return phoneMasked;
   }
 
-  private scrub(value: any): any {
+  private scrub(value: unknown): unknown {
     if (Array.isArray(value)) return value.map((v) => this.scrub(v));
-    if (value && typeof value === "object") {
-      return Object.entries(value).reduce((acc, [k, v]) => {
-        acc[k] = this.scrub(v);
-        return acc;
-      }, {} as Record<string, unknown>);
+    if (isRecord(value)) {
+      const result: Record<string, unknown> = {};
+      for (const [key, val] of Object.entries(value)) {
+        result[key] = this.scrub(val);
+      }
+      return result;
     }
     return this.maskValue(value);
   }
 
-  private applyTagRedactions(sample: any, tags: { field: string; redactionMode?: string | null }[]): any {
+  private applyTagRedactions(sample: unknown, tags: { field: string; redactionMode?: RedactionMode | null }[]): unknown {
     if (Array.isArray(sample)) return sample.map((v) => this.applyTagRedactions(v, tags));
-    if (sample && typeof sample === "object") {
-      const byField = new Map(tags.map((t) => [t.field, t.redactionMode]));
+    if (isRecord(sample)) {
+      const byField = new Map(tags.map((tag) => [tag.field, tag.redactionMode]));
       const out: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(sample)) {
         const mode = byField.get(key);
@@ -44,11 +112,13 @@ export class PrivacyService {
     if (existing) return existing;
     return this.prisma.privacySetting.create({
       data: {
+        id: randomUUID(),
         campgroundId,
         redactPII: true,
         consentRequired: true,
         backupRetentionDays: 30,
         keyRotationDays: 90,
+        updatedAt: new Date(),
       },
     });
   }
@@ -75,17 +145,19 @@ export class PrivacyService {
     revokedAt?: Date | null;
     metadata?: Record<string, unknown>;
   }) {
+    const method = parseConsentMethod(entry.method);
     return this.prisma.consentLog.create({
       data: {
+        id: randomUUID(),
         campgroundId: entry.campgroundId,
         subject: entry.subject,
         consentType: entry.consentType,
         grantedBy: entry.grantedBy,
-        method: entry.method as any,
+        method: method ?? undefined,
         purpose: entry.purpose ?? null,
         expiresAt: entry.expiresAt ?? null,
         revokedAt: entry.revokedAt ?? null,
-        metadata: entry.metadata ?? undefined
+        metadata: toNullableJsonInput(entry.metadata),
       },
     });
   }
@@ -109,23 +181,32 @@ export class PrivacyService {
     redactionMode?: string;
     createdById?: string | null;
   }) {
+    const classification = parsePiiClassification(entry.classification);
+    if (!classification) {
+      throw new BadRequestException("Invalid PII classification");
+    }
+    const redactionMode = entry.redactionMode ? parseRedactionMode(entry.redactionMode) : undefined;
+    if (entry.redactionMode && !redactionMode) {
+      throw new BadRequestException("Invalid redaction mode");
+    }
     return this.prisma.piiFieldTag.upsert({
-      where: { resource_field: { resource: entry.resource, field: entry.field } } as any,
+      where: { resource_field: { resource: entry.resource, field: entry.field } },
       create: {
+        id: randomUUID(),
         resource: entry.resource,
         field: entry.field,
-        classification: entry.classification as any,
-        redactionMode: entry.redactionMode as any,
+        classification,
+        redactionMode,
         createdById: entry.createdById ?? null,
       },
       update: {
-        classification: entry.classification as any,
-        redactionMode: entry.redactionMode as any,
+        classification,
+        redactionMode,
       },
     });
   }
 
-  async previewRedaction(campgroundId: string, resource: string | undefined, sample: any) {
+  async previewRedaction(campgroundId: string, resource: string | undefined, sample: unknown) {
     // Pull tags for the resource if provided; otherwise apply generic masking.
     const tags = await this.prisma.piiFieldTag.findMany({
       where: resource ? { resource } : undefined,
@@ -151,7 +232,7 @@ export class PrivacyService {
       take: 10,
     });
 
-    return logs.map((log: any) => ({
+    return logs.map((log) => ({
       id: log.id,
       action: log.action,
       entity: log.entity,
@@ -175,33 +256,66 @@ export class PrivacyService {
       }),
     ]);
 
-    const consentRows =
+    type ConsentRow = {
+      id?: string | null;
+      subject: string;
+      consentType: string;
+      grantedBy: string;
+      grantedAt: Date | string;
+      purpose?: string | null;
+      method?: ConsentMethod | string | null;
+      expiresAt?: Date | string | null;
+      revokedAt?: Date | string | null;
+    };
+
+    type PiiRow = {
+      resource: string;
+      field: string;
+      classification: PiiClassification | string;
+      redactionMode?: RedactionMode | string | null;
+    };
+
+    const consentRows: ConsentRow[] =
       consents.length > 0
-        ? consents
+        ? consents.map((consent) => ({
+            id: consent.id,
+            subject: consent.subject,
+            consentType: consent.consentType,
+            grantedBy: consent.grantedBy,
+            grantedAt: consent.grantedAt,
+            purpose: consent.purpose ?? null,
+            method: consent.method ?? null,
+            expiresAt: consent.expiresAt ?? null,
+            revokedAt: consent.revokedAt ?? null,
+          }))
         : [
             {
               id: "stub-consent",
-              campgroundId,
               subject: "guest@example.com",
               consentType: "marketing",
               grantedBy: "system",
               grantedAt: new Date().toISOString(),
               purpose: "demo",
-              method: "digital",
+              method: ConsentMethod.digital,
               expiresAt: null,
               revokedAt: null,
             },
           ];
 
-    const piiRows =
+    const piiRows: PiiRow[] =
       piiTags.length > 0
-        ? piiTags
+        ? piiTags.map((tag) => ({
+            resource: tag.resource,
+            field: tag.field,
+            classification: tag.classification,
+            redactionMode: tag.redactionMode ?? null,
+          }))
         : [
             {
               resource: "guest",
               field: "email",
-              classification: "sensitive",
-              redactionMode: "mask",
+              classification: PiiClassification.sensitive,
+              redactionMode: RedactionMode.mask,
             },
           ];
 
@@ -215,18 +329,18 @@ export class PrivacyService {
         backupRetentionDays: settings.backupRetentionDays,
         keyRotationDays: settings.keyRotationDays,
       },
-      consents: consentRows.map((c: any) => ({
+      consents: consentRows.map((c) => ({
         id: c.id ?? null,
         subject: c.subject,
         consentType: c.consentType,
         grantedBy: c.grantedBy,
-        grantedAt: (c as any).grantedAt ? new Date((c as any).grantedAt).toISOString() : new Date().toISOString(),
+        grantedAt: toIsoString(c.grantedAt) ?? new Date().toISOString(),
         purpose: c.purpose ?? null,
         method: c.method ?? null,
-        expiresAt: (c as any).expiresAt ? new Date((c as any).expiresAt).toISOString() : null,
-        revokedAt: (c as any).revokedAt ? new Date((c as any).revokedAt).toISOString() : null,
+        expiresAt: toIsoString(c.expiresAt),
+        revokedAt: toIsoString(c.revokedAt),
       })),
-      piiTags: piiRows.map((p: any) => ({
+      piiTags: piiRows.map((p) => ({
         resource: p.resource,
         field: p.field,
         classification: p.classification,
@@ -235,7 +349,7 @@ export class PrivacyService {
     };
   }
 
-  async exportConsentCsv(campgroundId: string, res: Response) {
+  async exportConsentCsv(campgroundId: string, res: PrivacyExportResponse) {
     const bundle = await this.exportConsentBundle(campgroundId);
     const rows: string[] = [];
     rows.push(
@@ -257,7 +371,7 @@ export class PrivacyService {
       ].join(","),
     );
 
-    const sanitize = (value: any) => {
+    const sanitize = (value: unknown) => {
       if (value === null || value === undefined) return "";
       return String(value).replace(/,/g, ";");
     };
@@ -362,9 +476,8 @@ export class PrivacyService {
       ].join(","),
     );
 
-    (res as any).setHeader("Content-Type", "text/csv");
-    (res as any).setHeader("Content-Disposition", "attachment; filename=privacy-consent-export.csv");
-    return (res as any).send(rows.join("\n"));
+    res.set("Content-Type", "text/csv");
+    res.set("Content-Disposition", "attachment; filename=privacy-consent-export.csv");
+    return res.send(rows.join("\n"));
   }
 }
-

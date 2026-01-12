@@ -6,7 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AiFeatureGateService } from './ai-feature-gate.service';
 import { AiBookingAssistService } from './ai-booking-assist.service';
 import { AiSupportService } from './ai-support.service';
-import { AiPartnerService } from './ai-partner.service';
+import { AiPartnerService, type ActionType, type ImpactArea, type PartnerMembership, type PartnerUser, type SensitivityLevel } from './ai-partner.service';
 import { AiSentimentService } from './ai-sentiment.service';
 import { AiMorningBriefingService } from './ai-morning-briefing.service';
 import { AiReportQueryService } from './ai-report-query.service';
@@ -53,12 +53,67 @@ interface PartnerChatDto {
 
 interface PartnerConfirmDto {
   action: {
-    type: string;
+    type: ActionType;
     parameters?: Record<string, unknown>;
-    sensitivity?: "low" | "medium" | "high";
-    impactArea?: string;
+    sensitivity?: SensitivityLevel;
+    impactArea?: ImpactArea;
   };
 }
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const toStringArray = (value: unknown): string[] | undefined => {
+  if (!Array.isArray(value)) return undefined;
+  const entries = value.filter((entry): entry is string => typeof entry === "string");
+  return entries.length > 0 ? entries : undefined;
+};
+
+const toNullableString = (value: unknown): string | null | undefined => {
+  if (value === null) return null;
+  return typeof value === "string" ? value : undefined;
+};
+
+const getMemberships = (value: unknown): PartnerMembership[] | undefined => {
+  if (!Array.isArray(value)) return undefined;
+  const memberships: PartnerMembership[] = [];
+  for (const entry of value) {
+    if (!isRecord(entry)) continue;
+    const campgroundId = toNullableString(entry.campgroundId);
+    const role = typeof entry.role === "string" ? entry.role : undefined;
+    memberships.push({ campgroundId, role });
+  }
+  return memberships.length > 0 ? memberships : undefined;
+};
+
+const toPartnerUser = (value: unknown): PartnerUser => {
+  if (!isRecord(value)) return {};
+  return {
+    id: toNullableString(value.id),
+    role: typeof value.role === "string" ? value.role : undefined,
+    ownershipRoles: toStringArray(value.ownershipRoles),
+    memberships: getMemberships(value.memberships),
+    platformRole: typeof value.platformRole === "string" ? value.platformRole : undefined,
+  };
+};
+
+const getOrganizationId = (value: unknown): string | null => {
+  if (!isRecord(value)) return null;
+  const org = value.organizationId;
+  return typeof org === "string" ? org : null;
+};
+
+const getUserId = (value: unknown): string | undefined => {
+  if (!isRecord(value)) return undefined;
+  const id = value.id;
+  return typeof id === "string" ? id : undefined;
+};
+
+const getQueryString = (value: unknown): string | undefined => {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value) && typeof value[0] === "string") return value[0];
+  return undefined;
+};
 
 @Controller('ai')
 export class AiController {
@@ -140,7 +195,7 @@ export class AiController {
     @Body() body: SupportChatDto,
     @Req() req: Request,
   ) {
-    const userId = req.user?.id;
+    const userId = getUserId(req.user);
 
     try {
       return await this.supportService.chat({
@@ -198,7 +253,7 @@ export class AiController {
     @Body() body: PartnerChatDto,
     @Req() req: Request,
   ) {
-    const user = req.user;
+    const user = toPartnerUser(req.user);
 
     try {
       return await this.partnerService.chat({
@@ -225,7 +280,7 @@ export class AiController {
     @Body() body: PartnerConfirmDto,
     @Req() req: Request,
   ) {
-    const user = req.user;
+    const user = toPartnerUser(req.user);
 
     try {
       return await this.partnerService.confirmAction({
@@ -246,7 +301,7 @@ export class AiController {
   @UseGuards(JwtAuthGuard)
   @Get('campgrounds/:campgroundId/settings')
   async getAiSettings(@Param('campgroundId') campgroundId: string, @Req() req: Request) {
-    const org = req.organizationId || null;
+    const org = getOrganizationId(req);
 
     const campground = await this.prisma.campground.findUnique({
       where: { id: campgroundId },
@@ -293,7 +348,7 @@ export class AiController {
     @Body() body: UpdateAiSettingsDto,
     @Req() req: Request,
   ) {
-    const org = req.organizationId || null;
+    const org = getOrganizationId(req);
 
     const campground = await this.prisma.campground.findUnique({
       where: { id: campgroundId },
@@ -350,7 +405,7 @@ export class AiController {
     @Param('campgroundId') campgroundId: string,
     @Req() req: Request,
   ) {
-    const org = req.organizationId || null;
+    const org = getOrganizationId(req);
 
     const campground = await this.prisma.campground.findUnique({
       where: { id: campgroundId },
@@ -380,7 +435,7 @@ export class AiController {
     @Param('campgroundId') campgroundId: string,
     @Req() req: Request,
   ) {
-    const org = req.organizationId || null;
+    const org = getOrganizationId(req);
 
     const campground = await this.prisma.campground.findUnique({
       where: { id: campgroundId },
@@ -408,10 +463,12 @@ export class AiController {
     @Param('campgroundId') campgroundId: string,
     @Req() req: Request,
   ) {
-    const org = req.organizationId || null;
+    const org = getOrganizationId(req);
     const query = req.query || {};
-    const startDate = query.startDate ? new Date(query.startDate) : undefined;
-    const endDate = query.endDate ? new Date(query.endDate) : undefined;
+    const startDateValue = getQueryString(query.startDate);
+    const endDateValue = getQueryString(query.endDate);
+    const startDate = startDateValue ? new Date(startDateValue) : undefined;
+    const endDate = endDateValue ? new Date(endDateValue) : undefined;
 
     const campground = await this.prisma.campground.findUnique({
       where: { id: campgroundId },
@@ -453,7 +510,7 @@ export class AiController {
     @Param('campgroundId') campgroundId: string,
     @Req() req: Request,
   ) {
-    const org = req.organizationId || null;
+    const org = getOrganizationId(req);
 
     const campground = await this.prisma.campground.findUnique({
       where: { id: campgroundId },
@@ -481,7 +538,7 @@ export class AiController {
     @Param('campgroundId') campgroundId: string,
     @Req() req: Request,
   ) {
-    const org = req.organizationId || null;
+    const org = getOrganizationId(req);
 
     const campground = await this.prisma.campground.findUnique({
       where: { id: campgroundId },
@@ -512,8 +569,16 @@ export class AiController {
     @Body() body: { query: string },
     @Req() req: Request,
   ) {
-    const org = req.organizationId || null;
-    const userId = req.user?.id;
+    const org = getOrganizationId(req);
+    const userId = getUserId(req.user);
+
+    if (!userId) {
+      throw new ForbiddenException("User not found");
+    }
+
+    if (!userId) {
+      throw new ForbiddenException("User not found");
+    }
 
     const campground = await this.prisma.campground.findUnique({
       where: { id: campgroundId },
@@ -548,8 +613,16 @@ export class AiController {
     },
     @Req() req: Request,
   ) {
-    const org = req.organizationId || null;
-    const userId = req.user?.id;
+    const org = getOrganizationId(req);
+    const userId = getUserId(req.user);
+
+    if (!userId) {
+      throw new ForbiddenException("User not found");
+    }
+
+    if (!userId) {
+      throw new ForbiddenException("User not found");
+    }
 
     const campground = await this.prisma.campground.findUnique({
       where: { id: campgroundId },
@@ -586,9 +659,9 @@ export class AiController {
     @Param('campgroundId') campgroundId: string,
     @Req() req: Request,
   ) {
-    const org = req.organizationId || null;
+    const org = getOrganizationId(req);
     const query = req.query || {};
-    const category = query.category as string | undefined;
+    const category = typeof query.category === 'string' ? query.category : undefined;
 
     const campground = await this.prisma.campground.findUnique({
       where: { id: campgroundId },
@@ -629,7 +702,7 @@ export class AiController {
     },
     @Req() req: Request,
   ) {
-    const org = req.organizationId || null;
+    const org = getOrganizationId(req);
 
     const campground = await this.prisma.campground.findUnique({
       where: { id: campgroundId },
@@ -675,7 +748,7 @@ export class AiController {
     },
     @Req() req: Request,
   ) {
-    const org = req.organizationId || null;
+    const org = getOrganizationId(req);
 
     const campground = await this.prisma.campground.findUnique({
       where: { id: campgroundId },
@@ -714,7 +787,7 @@ export class AiController {
     },
     @Req() req: Request,
   ) {
-    const org = req.organizationId || null;
+    const org = getOrganizationId(req);
 
     const campground = await this.prisma.campground.findUnique({
       where: { id: campgroundId },
@@ -751,7 +824,7 @@ export class AiController {
     },
     @Req() req: Request,
   ) {
-    const org = req.organizationId || null;
+    const org = getOrganizationId(req);
 
     const campground = await this.prisma.campground.findUnique({
       where: { id: campgroundId },
@@ -788,7 +861,7 @@ export class AiController {
     },
     @Req() req: Request,
   ) {
-    const org = req.organizationId || null;
+    const org = getOrganizationId(req);
 
     const campground = await this.prisma.campground.findUnique({
       where: { id: campgroundId },
@@ -831,8 +904,12 @@ export class AiController {
     },
     @Req() req: Request,
   ) {
-    const org = req.organizationId || null;
-    const userId = req.user?.id;
+    const org = getOrganizationId(req);
+    const userId = getUserId(req.user);
+
+    if (!userId) {
+      throw new ForbiddenException("User not found");
+    }
 
     const campground = await this.prisma.campground.findUnique({
       where: { id: campgroundId },
@@ -877,8 +954,12 @@ export class AiController {
     },
     @Req() req: Request,
   ) {
-    const org = req.organizationId || null;
-    const userId = req.user?.id;
+    const org = getOrganizationId(req);
+    const userId = getUserId(req.user);
+
+    if (!userId) {
+      throw new ForbiddenException("User not found");
+    }
 
     const campground = await this.prisma.campground.findUnique({
       where: { id: campgroundId },
@@ -914,8 +995,12 @@ export class AiController {
     @Param('campgroundId') campgroundId: string,
     @Req() req: Request,
   ) {
-    const org = req.organizationId || null;
-    const userId = req.user?.id;
+    const org = getOrganizationId(req);
+    const userId = getUserId(req.user);
+
+    if (!userId) {
+      throw new ForbiddenException("User not found");
+    }
 
     const campground = await this.prisma.campground.findUnique({
       where: { id: campgroundId },

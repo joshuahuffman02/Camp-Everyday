@@ -1,21 +1,22 @@
-// @ts-nocheck
-import * as request from 'supertest';
-import { Test } from '@nestjs/testing';
-import { ValidationPipe } from '@nestjs/common';
-import { PaymentsController } from '../payments/payments.controller';
+import express = require("express");
+import { Test, type TestingModule } from '@nestjs/testing';
+import type { Request } from 'express';
 import { ReservationsService } from '../reservations/reservations.service';
 import { StripeService } from '../payments/stripe.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentsReconciliationService } from '../payments/reconciliation.service';
-import { JwtAuthGuard } from '../auth/guards';
-import { RolesGuard } from '../auth/guards/roles.guard';
+import { PaymentsController } from '../payments/payments.controller';
 import { PermissionsService } from '../permissions/permissions.service';
-import { ScopeGuard } from '../permissions/scope.guard';
 import { IdempotencyService } from '../payments/idempotency.service';
 import { GatewayConfigService } from '../payments/gateway-config.service';
+import { JwtAuthGuard } from '../auth/guards';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { ScopeGuard } from '../permissions/scope.guard';
+import type { AuthUser } from '../auth/auth.types';
+import { buildAuthMembership, buildAuthUser } from "../test-helpers/auth";
 
 describe('Payments finance smoke', () => {
-  let app: any;
+  let moduleRef: TestingModule;
   const campgroundId = 'camp-finance-smoke';
 
   const payoutRows = [
@@ -30,7 +31,7 @@ describe('Payments finance smoke', () => {
       status: 'paid',
       createdAt: new Date().toISOString(),
       arrivalDate: new Date().toISOString(),
-      lines: [
+      PayoutLine: [
         {
           id: 'line_1',
           type: 'charge',
@@ -69,10 +70,12 @@ describe('Payments finance smoke', () => {
 
   const payoutFindMany = jest.fn().mockResolvedValue(payoutRows);
   const disputeFindMany = jest.fn().mockResolvedValue(disputeRows);
-  const idempotencyMock = { withLock: async (_key: string, fn: any) => fn(), start: jest.fn(), complete: jest.fn(), fail: jest.fn() };
+  const idempotencyMock = { withLock: async (_key: string, fn: () => unknown) => fn(), start: jest.fn(), complete: jest.fn(), fail: jest.fn() };
+  type AuthedRequest = Request & { user?: AuthUser };
+  const requestApp = express();
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({
+    moduleRef = await Test.createTestingModule({
       controllers: [PaymentsController],
       providers: [
         {
@@ -127,54 +130,67 @@ describe('Payments finance smoke', () => {
       .useValue({ canActivate: () => true })
       .compile();
 
-    app = moduleRef.createNestApplication();
-    app.setGlobalPrefix('api');
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    // Inject a fake authenticated user with access to the campground
-    app.use((req: any, _res: any, next: () => void) => {
-      req.user = {
-        id: 'tester',
-        memberships: [{ campgroundId }],
-        roles: ['finance'],
-      };
-      next();
-    });
-    await app.init();
   });
 
   afterAll(async () => {
-    await app.close();
+    await moduleRef.close();
   });
 
   it('lists payouts with lines', async () => {
-    const api = request(app.getHttpServer());
-    const res = await api.get(`/api/campgrounds/${campgroundId}/payouts`).expect(200);
+    const req: AuthedRequest = Object.assign(requestApp.request, {
+      user: buildAuthUser({
+        id: 'tester',
+        role: 'finance',
+        memberships: [buildAuthMembership({ campgroundId, role: 'finance' })],
+      }),
+    });
+    const res = await moduleRef.get(PaymentsController).listPayouts(
+      campgroundId,
+      undefined,
+      undefined,
+      undefined,
+      req
+    );
 
     expect(payoutFindMany).toHaveBeenCalledWith({
       where: { campgroundId, status: undefined },
       orderBy: { createdAt: 'desc' },
-      include: { lines: true },
+      take: 100,
+      skip: 0,
+      include: { PayoutLine: true },
     });
-    expect(Array.isArray(res.body)).toBe(true);
-    expect(res.body[0].id).toBe(payoutRows[0].id);
-    expect(res.body[0].status).toBe('paid');
-    expect(Array.isArray(res.body[0].lines)).toBe(true);
-    expect(res.body[0].lines[0].amountCents).toBe(40000);
+    expect(Array.isArray(res)).toBe(true);
+    expect(res[0].id).toBe(payoutRows[0].id);
+    expect(res[0].status).toBe('paid');
+    expect(Array.isArray(res[0].lines)).toBe(true);
+    expect(res[0].lines[0].amountCents).toBe(40000);
   });
 
   it('lists disputes with status and due dates', async () => {
-    const api = request(app.getHttpServer());
-    const res = await api.get(`/api/campgrounds/${campgroundId}/disputes`).expect(200);
+    const req: AuthedRequest = Object.assign(requestApp.request, {
+      user: buildAuthUser({
+        id: 'tester',
+        role: 'finance',
+        memberships: [buildAuthMembership({ campgroundId, role: 'finance' })],
+      }),
+    });
+    const res = await moduleRef.get(PaymentsController).listDisputes(
+      campgroundId,
+      undefined,
+      undefined,
+      undefined,
+      req
+    );
 
     expect(disputeFindMany).toHaveBeenCalledWith({
       where: { campgroundId, status: undefined },
       orderBy: { createdAt: 'desc' },
+      take: 100,
+      skip: 0,
     });
-    expect(Array.isArray(res.body)).toBe(true);
-    expect(res.body[0].stripeDisputeId).toBe(disputeRows[0].stripeDisputeId);
-    expect(res.body[0].status).toBe(disputeRows[0].status);
-    expect(res.body[0].evidenceDueBy).toBe(disputeRows[0].evidenceDueBy);
+    expect(Array.isArray(res)).toBe(true);
+    expect(res[0].stripeDisputeId).toBe(disputeRows[0].stripeDisputeId);
+    expect(res[0].status).toBe(disputeRows[0].status);
+    expect(res[0].evidenceDueBy).toBe(disputeRows[0].evidenceDueBy);
   });
 });
-
-

@@ -1,9 +1,11 @@
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import type { AiWaitlistScore, Prisma, WaitlistEntry } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import { randomUUID } from "crypto";
 
 interface WaitlistMatch {
-  entry: any;
-  aiScore: any;
+  entry: WaitlistEntryWithRelations;
+  aiScore: AiWaitlistScore;
   reasons: string[];
 }
 
@@ -22,11 +24,18 @@ export class AiSmartWaitlistService {
     return this.prisma.aiWaitlistScore.findMany({
       where: { campgroundId },
       include: {
-        waitlistEntry: {
+        WaitlistEntry: {
           include: {
-            guest: { select: { id: true, primaryFirstName: true, primaryLastName: true, email: true } },
-            site: { select: { id: true, name: true } },
-            siteClass: { select: { id: true, name: true } },
+            Guest: {
+              select: {
+                id: true,
+                primaryFirstName: true,
+                primaryLastName: true,
+                email: true,
+              },
+            },
+            Site: { select: { id: true, name: true } },
+            SiteClass: { select: { id: true, name: true } },
           },
         },
       },
@@ -41,11 +50,11 @@ export class AiSmartWaitlistService {
     const score = await this.prisma.aiWaitlistScore.findUnique({
       where: { waitlistEntryId: entryId },
       include: {
-        waitlistEntry: {
+        WaitlistEntry: {
           include: {
-            guest: true,
-            site: true,
-            siteClass: true,
+            Guest: true,
+            Site: true,
+            SiteClass: true,
           },
         },
       },
@@ -66,8 +75,8 @@ export class AiSmartWaitlistService {
     const entry = await this.prisma.waitlistEntry.findUnique({
       where: { id: entryId },
       include: {
-        guest: true,
-        campground: true,
+        Guest: true,
+        Campground: true,
       },
     });
 
@@ -118,6 +127,7 @@ export class AiSmartWaitlistService {
     return this.prisma.aiWaitlistScore.upsert({
       where: { waitlistEntryId: entryId },
       create: {
+        id: randomUUID(),
         waitlistEntryId: entryId,
         campgroundId: entry.campgroundId,
         baseScore,
@@ -203,9 +213,9 @@ export class AiSmartWaitlistService {
         ...(siteClassId ? { OR: [{ siteTypeId: siteClassId }, { siteTypeId: null }] } : {}),
       },
       include: {
-        guest: true,
-        site: true,
-        siteClass: true,
+        Guest: true,
+        Site: true,
+        SiteClass: true,
       },
     });
 
@@ -259,7 +269,7 @@ export class AiSmartWaitlistService {
         status: { in: ["confirmed", "checked_in", "checked_out"] },
       },
       select: {
-        totalAmountCents: true,
+        totalAmount: true,
         arrivalDate: true,
       },
     });
@@ -267,7 +277,7 @@ export class AiSmartWaitlistService {
     if (reservations.length === 0) return 40; // New guest
 
     // Calculate metrics
-    const totalSpent = reservations.reduce((sum, r) => sum + (r.totalAmountCents || 0), 0);
+    const totalSpent = reservations.reduce((sum, r) => sum + r.totalAmount, 0);
     const reservationCount = reservations.length;
     const avgSpent = totalSpent / reservationCount;
 
@@ -288,7 +298,7 @@ export class AiSmartWaitlistService {
   /**
    * Predict likelihood guest will book if offered (0-100)
    */
-  private async predictBookingLikelihood(entry: any): Promise<number> {
+  private async predictBookingLikelihood(entry: WaitlistEntry): Promise<number> {
     let score = 50; // Base likelihood
 
     // Auto-offer enabled is a strong signal
@@ -407,3 +417,7 @@ export class AiSmartWaitlistService {
     return 50;
   }
 }
+
+type WaitlistEntryWithRelations = Prisma.WaitlistEntryGetPayload<{
+  include: { Guest: true; Site: true; SiteClass: true };
+}>;

@@ -1,6 +1,14 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
+import { Prisma } from "@prisma/client";
+import { randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null;
+
+const getNumber = (value: unknown): number | undefined =>
+    typeof value === "number" && Number.isFinite(value) ? value : undefined;
 
 @Injectable()
 export class IotSimulatorService {
@@ -16,18 +24,18 @@ export class IotSimulatorService {
         const meters = await this.prisma.utilityMeter.findMany({
             where: {
                 active: true,
-                metadata: { path: ["simulation"], not: null },
+                metadata: { path: ["simulation"], not: Prisma.DbNull },
             },
         });
 
         for (const meter of meters) {
             try {
-                const metadata = meter.metadata as any;
-                const simConfig = metadata.simulation || {};
+                const metadata = isRecord(meter.metadata) ? meter.metadata : {};
+                const simConfig = isRecord(metadata["simulation"]) ? metadata["simulation"] : {};
 
                 // Default base usage or random
-                const baseUsage = simConfig.baseUsage || 1.5; // e.g. kWh per 30 mins
-                const jitter = simConfig.jitter || 0.5;
+                const baseUsage = getNumber(simConfig["baseUsage"]) ?? 1.5; // e.g. kWh per 30 mins
+                const jitter = getNumber(simConfig["jitter"]) ?? 0.5;
                 const randomFactor = (Math.random() - 0.5) * jitter;
                 const readingIncrement = Math.max(0, baseUsage + randomFactor);
 
@@ -42,6 +50,7 @@ export class IotSimulatorService {
 
                 await this.prisma.utilityMeterRead.create({
                     data: {
+                        id: randomUUID(),
                         meterId: meter.id,
                         readingValue: newValue,
                         readAt: new Date(),

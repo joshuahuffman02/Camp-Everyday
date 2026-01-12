@@ -55,6 +55,9 @@ const POS_PROVIDERS: { id: POSProvider; label: string; color: string }[] = [
   { id: "other", label: "Other", color: "bg-muted" },
 ];
 
+const isPOSProvider = (value: string): value is POSProvider =>
+  POS_PROVIDERS.some((provider) => provider.id === value);
+
 interface ExternalPayment {
   id: string;
   provider: POSProvider;
@@ -281,7 +284,14 @@ export function ExternalPOSRecording({ campgroundId }: ExternalPOSRecordingProps
                   {/* POS Provider */}
                   <div className="space-y-2">
                     <Label htmlFor="pos-provider">POS Provider</Label>
-                    <Select value={provider} onValueChange={(v) => setProvider(v as POSProvider)}>
+                    <Select
+                      value={provider}
+                      onValueChange={(v) => {
+                        if (isPOSProvider(v)) {
+                          setProvider(v);
+                        }
+                      }}
+                    >
                       <SelectTrigger id="pos-provider">
                         <SelectValue placeholder="Select provider" />
                       </SelectTrigger>

@@ -188,8 +188,8 @@ export default function IssuesPage() {
 
       setIssues(Array.isArray(issuesData) ? issuesData : []);
       setCounts(countsData);
-    } catch (err: any) {
-      setError(err.message || "Failed to load issues");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to load issues");
     } finally {
       setLoading(false);
     }
@@ -214,8 +214,8 @@ export default function IssuesPage() {
       if (!res.ok) throw new Error("Failed to update issue");
       const updated = await res.json();
       setIssues((prev) => prev.map((i) => (i.id === id ? updated : i)));
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to update issue");
     }
   };
 
@@ -233,10 +233,10 @@ export default function IssuesPage() {
     return true;
   });
 
-  const issuesByStatus = STATUS_COLUMNS.reduce((acc, status) => {
+  const issuesByStatus = STATUS_COLUMNS.reduce<Record<string, Issue[]>>((acc, status) => {
     acc[status.key] = filteredIssues.filter((i) => i.status === status.key);
     return acc;
-  }, {} as Record<string, Issue[]>);
+  }, {});
 
   const categories = Array.from(new Set(issues.map((i) => i.category)));
   const totalIssues = issues.length;

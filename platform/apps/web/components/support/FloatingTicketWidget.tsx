@@ -63,6 +63,15 @@ type WhoamiData = {
 
 const LS_TICKET_DRAFT = "campreserv:ticket:draft";
 const LS_TICKET_OPEN = "campreserv:ticket:open";
+const ticketCategoryOptions: Array<{ id: TicketForm["category"]; label: string }> = [
+  { id: "issue", label: "Issue" },
+  { id: "question", label: "Question" },
+  { id: "feature", label: "Feature" },
+  { id: "other", label: "Other" },
+];
+
+const isWhoamiData = (value: unknown): value is WhoamiData =>
+  typeof value === "object" && value !== null;
 
 export function FloatingTicketWidget() {
   const { toast } = useToast();
@@ -149,7 +158,7 @@ export function FloatingTicketWidget() {
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
-      const whoamiData = whoami as WhoamiData | undefined;
+      const whoamiData = isWhoamiData(whoami) ? whoami : undefined;
       const submitter: TicketSubmitter = {
         id: whoamiData?.id ?? whoamiData?.user?.id ?? null,
         name:
@@ -172,7 +181,7 @@ export function FloatingTicketWidget() {
         typeof window !== "undefined"
           ? {
               userAgent: navigator.userAgent,
-              platform: (navigator.platform as string | undefined) ?? null,
+              platform: navigator.platform || null,
               language: navigator.language ?? null,
               deviceType: detectDeviceType(navigator.userAgent),
             }
@@ -274,16 +283,11 @@ export function FloatingTicketWidget() {
                 </SelectContent>
               </Select>
               <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                {[
-                  { id: "issue", label: "Issue" },
-                  { id: "question", label: "Question" },
-                  { id: "feature", label: "Feature" },
-                  { id: "other", label: "Other" },
-                ].map((opt) => (
+                {ticketCategoryOptions.map((opt) => (
                   <button
                     key={opt.id}
                     type="button"
-                    onClick={() => setForm((prev) => ({ ...prev, category: opt.id as TicketForm["category"] }))}
+                    onClick={() => setForm((prev) => ({ ...prev, category: opt.id }))}
                     className={`rounded-full border px-2 py-1 ${
                       form.category === opt.id ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-border text-foreground hover:bg-muted"
                     }`}

@@ -3,15 +3,25 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useEffect, useState } from "react";
 
-// Dynamic import for recharts to reduce initial bundle size
-let PieChart: any = null;
-let Pie: any = null;
-let Cell: any = null;
-let ResponsiveContainer: any = null;
-let Legend: any = null;
-let Tooltip: any = null;
+type RechartsModule = typeof import("recharts");
+type LoadedRecharts = {
+  PieChart: RechartsModule["PieChart"];
+  Pie: RechartsModule["Pie"];
+  Cell: RechartsModule["Cell"];
+  ResponsiveContainer: RechartsModule["ResponsiveContainer"];
+  Legend: RechartsModule["Legend"];
+  Tooltip: RechartsModule["Tooltip"];
+};
 
-const loadRecharts = async () => {
+// Dynamic import for recharts to reduce initial bundle size
+let PieChart: LoadedRecharts["PieChart"] | null = null;
+let Pie: LoadedRecharts["Pie"] | null = null;
+let Cell: LoadedRecharts["Cell"] | null = null;
+let ResponsiveContainer: LoadedRecharts["ResponsiveContainer"] | null = null;
+let Legend: LoadedRecharts["Legend"] | null = null;
+let Tooltip: LoadedRecharts["Tooltip"] | null = null;
+
+const loadRecharts = async (): Promise<LoadedRecharts> => {
   if (!PieChart) {
     const rechartsModule = await import("recharts");
     PieChart = rechartsModule.PieChart;
@@ -21,7 +31,30 @@ const loadRecharts = async () => {
     Legend = rechartsModule.Legend;
     Tooltip = rechartsModule.Tooltip;
   }
+  if (!PieChart || !Pie || !Cell || !ResponsiveContainer || !Legend || !Tooltip) {
+    throw new Error("Failed to load Recharts modules");
+  }
   return { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip };
+};
+
+type TooltipPayloadEntry = {
+  name?: string;
+  value?: number;
+  payload?: { fill?: string };
+};
+
+type TooltipContentProps = {
+  active?: boolean;
+  payload?: TooltipPayloadEntry[];
+};
+
+type LegendEntry = {
+  color?: string;
+  value?: string;
+};
+
+type LegendProps = {
+  payload?: LegendEntry[];
 };
 
 interface BreakdownPieProps {
@@ -75,16 +108,27 @@ export function BreakdownPie({
     );
   }
 
+  if (!PieChart || !Pie || !Cell || !ResponsiveContainer || !Legend || !Tooltip) {
+    return null;
+  }
+
+  const PieChartComponent = PieChart;
+  const PieComponent = Pie;
+  const CellComponent = Cell;
+  const ResponsiveContainerComponent = ResponsiveContainer;
+  const LegendComponent = Legend;
+  const TooltipComponent = Tooltip;
+
   const total = data.reduce((sum, item) => sum + item.value, 0);
 
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const entry = payload[0];
-      const percentage = ((entry.value / total) * 100).toFixed(1);
+  const CustomTooltip = ({ active, payload }: TooltipContentProps) => {
+    const entry = payload?.[0];
+    if (active && entry?.value !== undefined) {
+      const percentage = total > 0 ? ((entry.value / total) * 100).toFixed(1) : "0.0";
       return (
         <div className="bg-muted border border-border rounded-lg p-3 shadow-lg">
-          <p className="text-sm font-medium" style={{ color: entry.payload.fill }}>
-            {entry.name}
+          <p className="text-sm font-medium" style={{ color: entry.payload?.fill }}>
+            {entry.name ?? "Unknown"}
           </p>
           <p className="text-white text-sm">
             {formatValue(entry.value)} ({percentage}%)
@@ -95,22 +139,22 @@ export function BreakdownPie({
     return null;
   };
 
-  const renderLegend = (props: any) => {
-    const { payload } = props;
+  const renderLegend = ({ payload }: LegendProps) => {
+    const items = payload ?? [];
     // Use vertical layout for 5+ items, horizontal for fewer
-    const useVertical = payload.length >= 5;
+    const useVertical = items.length >= 5;
     return (
       <ul className={useVertical
         ? "flex flex-col gap-1.5 mt-2 text-xs"
         : "flex flex-wrap justify-center gap-4 mt-4"
       }>
-        {payload.map((entry: any, index: number) => (
+        {items.map((entry, index) => (
           <li key={`item-${index}`} className="flex items-center gap-2 text-sm">
             <span
               className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-              style={{ backgroundColor: entry.color }}
+              style={{ backgroundColor: entry.color ?? COLORS[index % COLORS.length] }}
             />
-            <span className="text-muted-foreground text-xs truncate">{entry.value}</span>
+            <span className="text-muted-foreground text-xs truncate">{entry.value ?? "Unknown"}</span>
           </li>
         ))}
       </ul>
@@ -124,9 +168,9 @@ export function BreakdownPie({
         {description && <p className="text-sm text-muted-foreground">{description}</p>}
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={height}>
-          <PieChart>
-            <Pie
+        <ResponsiveContainerComponent width="100%" height={height}>
+          <PieChartComponent>
+            <PieComponent
               data={data}
               cx="50%"
               cy="50%"
@@ -137,13 +181,13 @@ export function BreakdownPie({
               nameKey="name"
             >
               {data.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.color || COLORS[index % COLORS.length]} />
+                <CellComponent key={`cell-${index}`} fill={entry.color || COLORS[index % COLORS.length]} />
               ))}
-            </Pie>
-            <Tooltip content={<CustomTooltip />} />
-            {showLegend && <Legend content={renderLegend} />}
-          </PieChart>
-        </ResponsiveContainer>
+            </PieComponent>
+            <TooltipComponent content={<CustomTooltip />} />
+            {showLegend && <LegendComponent content={renderLegend} />}
+          </PieChartComponent>
+        </ResponsiveContainerComponent>
       </CardContent>
     </Card>
   );

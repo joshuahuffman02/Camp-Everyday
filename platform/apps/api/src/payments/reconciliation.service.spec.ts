@@ -1,11 +1,11 @@
-import { PaymentsReconciliationService } from './reconciliation.service';
-import { GlAccountType } from '@prisma/client';
+import { PaymentsReconciliationService, mapReconLineType } from './reconciliation.service';
+import type { LedgerServiceLike, PaymentsReconciliationStore, StripeServiceLike } from './reconciliation.service';
 
 describe('PaymentsReconciliationService', () => {
   let service: PaymentsReconciliationService;
-  let mockPrisma: any;
-  let mockStripeService: any;
-  let mockLedger: any;
+  let mockPrisma: jest.Mocked<PaymentsReconciliationStore>;
+  let mockStripeService: jest.Mocked<StripeServiceLike>;
+  let mockLedger: jest.Mocked<LedgerServiceLike>;
 
   beforeEach(() => {
     mockPrisma = {
@@ -58,38 +58,36 @@ describe('PaymentsReconciliationService', () => {
   });
 
   describe('mapReconLineType', () => {
-    const mapReconLineType = (tx: any) => {
-      return (service as any).mapReconLineType(tx);
-    };
+    const baseTxn = { id: 'txn_base', amount: 0, created: 0 };
 
     it('should map payout type', () => {
-      expect(mapReconLineType({ type: 'payout' })).toBe('payout');
+      expect(mapReconLineType({ ...baseTxn, type: 'payout' })).toBe('payout');
     });
 
     it('should map application_fee to fee', () => {
-      expect(mapReconLineType({ type: 'application_fee' })).toBe('fee');
+      expect(mapReconLineType({ ...baseTxn, type: 'application_fee' })).toBe('fee');
     });
 
     it('should map fee reporting_category to fee', () => {
-      expect(mapReconLineType({ type: 'other', reporting_category: 'fee' })).toBe('fee');
+      expect(mapReconLineType({ ...baseTxn, type: 'other', reporting_category: 'fee' })).toBe('fee');
     });
 
     it('should map dispute to chargeback', () => {
-      expect(mapReconLineType({ type: 'dispute' })).toBe('chargeback');
-      expect(mapReconLineType({ type: 'other', reporting_category: 'charge_dispute' })).toBe('chargeback');
+      expect(mapReconLineType({ ...baseTxn, type: 'dispute' })).toBe('chargeback');
+      expect(mapReconLineType({ ...baseTxn, type: 'other', reporting_category: 'charge_dispute' })).toBe('chargeback');
     });
 
     it('should map reserve_transaction to reserve', () => {
-      expect(mapReconLineType({ type: 'reserve_transaction' })).toBe('reserve');
+      expect(mapReconLineType({ ...baseTxn, type: 'reserve_transaction' })).toBe('reserve');
     });
 
     it('should map adjustment to adjustment', () => {
-      expect(mapReconLineType({ type: 'adjustment' })).toBe('adjustment');
+      expect(mapReconLineType({ ...baseTxn, type: 'adjustment' })).toBe('adjustment');
     });
 
     it('should map unknown types to other', () => {
-      expect(mapReconLineType({ type: 'unknown' })).toBe('other');
-      expect(mapReconLineType({ type: 'charge' })).toBe('other');
+      expect(mapReconLineType({ ...baseTxn, type: 'unknown' })).toBe('other');
+      expect(mapReconLineType({ ...baseTxn, type: 'charge' })).toBe('other');
     });
   });
 
@@ -183,7 +181,6 @@ describe('PaymentsReconciliationService', () => {
         id: 'res-1',
         paidAmount: 10000,
         totalAmount: 10000,
-        site: { siteClass: { glCode: 'REVENUE', clientAccount: 'Revenue' } },
       });
       mockPrisma.reservation.update.mockResolvedValue({ id: 'res-1' });
       mockPrisma.payment.create.mockResolvedValue({ id: 'payment-1' });
@@ -229,7 +226,6 @@ describe('PaymentsReconciliationService', () => {
         id: 'res-1',
         paidAmount: 10000, // $100 paid
         totalAmount: 10000, // $100 total
-        site: { siteClass: { glCode: 'REVENUE', clientAccount: 'Revenue' } },
       });
       mockPrisma.reservation.update.mockResolvedValue({ id: 'res-1' });
       mockPrisma.payment.create.mockResolvedValue({ id: 'payment-1' });
@@ -284,7 +280,7 @@ describe('PaymentsReconciliationService', () => {
       };
 
       mockPrisma.campground.findFirst.mockResolvedValue({ id: 'cg-1' });
-      mockPrisma.dispute.findUnique.mockResolvedValue({ id: 'dispute-1', stripeDisputeId: 'dp_existing' }); // Already exists
+      mockPrisma.dispute.findUnique.mockResolvedValue({ reason: 'fraudulent' }); // Already exists
       mockPrisma.dispute.upsert.mockResolvedValue({ id: 'dispute-1' });
 
       await service.upsertDispute(dispute);
@@ -313,14 +309,16 @@ describe('PaymentsReconciliationService', () => {
       mockPrisma.campground.findFirst.mockResolvedValue({ id: 'cg-1' });
       mockPrisma.dispute.findUnique.mockResolvedValue(null);
       // Payment lookup returns the reservation ID
-      mockPrisma.payment.findFirst.mockResolvedValue({ reservationId: 'res-found' });
+      mockPrisma.payment.findFirst.mockResolvedValue({
+        reservationId: 'res-found',
+        campgroundId: 'cg-1',
+      });
       mockPrisma.dispute.upsert.mockResolvedValue({ id: 'dispute-1', stripeDisputeId: 'dp_lookup', reason: 'product_not_received' });
       mockPrisma.ledgerEntry.findFirst.mockResolvedValue(null);
       mockPrisma.reservation.findUnique.mockResolvedValue({
         id: 'res-found',
         paidAmount: 5000,
         totalAmount: 5000,
-        site: { siteClass: null },
       });
       mockPrisma.reservation.update.mockResolvedValue({ id: 'res-found' });
       mockPrisma.payment.create.mockResolvedValue({ id: 'payment-1' });
@@ -363,7 +361,7 @@ describe('PaymentsReconciliationService', () => {
       mockPrisma.dispute.findUnique.mockResolvedValue(null); // Dispute record doesn't exist yet
       mockPrisma.dispute.upsert.mockResolvedValue({ id: 'dispute-1' });
       // Ledger entry already exists (e.g., from partial processing)
-      mockPrisma.ledgerEntry.findFirst.mockResolvedValue({ id: 'ledger-1', dedupeKey: 'dispute:dp_ledger_exists:balance_adjustment' });
+      mockPrisma.ledgerEntry.findFirst.mockResolvedValue({ id: 'ledger-1' });
 
       await service.upsertDispute(dispute);
 
@@ -378,6 +376,7 @@ describe('PaymentsReconciliationService', () => {
     it('should compute reconciliation summary', async () => {
       mockPrisma.payout.findFirst.mockResolvedValue({
         id: 'payout-1',
+        campgroundId: 'cg-1',
         amountCents: 100000,
         feeCents: 500,
         lines: [
@@ -389,7 +388,10 @@ describe('PaymentsReconciliationService', () => {
         { direction: 'credit', amountCents: 50000 },
         { direction: 'credit', amountCents: 49500 },
       ]);
-      mockPrisma.payout.update.mockResolvedValue({});
+      mockPrisma.payout.update.mockResolvedValue({
+        id: 'payout-1',
+        campgroundId: 'cg-1',
+      });
 
       const result = await service.computeReconSummary('payout-1', 'cg-1');
 
@@ -408,6 +410,7 @@ describe('PaymentsReconciliationService', () => {
     it('should detect drift and update recon status', async () => {
       mockPrisma.payout.findFirst.mockResolvedValue({
         id: 'payout-1',
+        campgroundId: 'cg-1',
         amountCents: 100000,
         feeCents: 0,
         lines: [{ amountCents: 90000, reservationId: 'res-1' }],
@@ -415,7 +418,10 @@ describe('PaymentsReconciliationService', () => {
       mockPrisma.ledgerEntry.findMany.mockResolvedValue([
         { direction: 'credit', amountCents: 80000 },
       ]);
-      mockPrisma.payout.update.mockResolvedValue({});
+      mockPrisma.payout.update.mockResolvedValue({
+        id: 'payout-1',
+        campgroundId: 'cg-1',
+      });
 
       const result = await service.computeReconSummary('payout-1', 'cg-1');
 
@@ -461,7 +467,10 @@ describe('PaymentsReconciliationService', () => {
         lines: [],
       });
       mockPrisma.ledgerEntry.findFirst.mockResolvedValue(null);
-      mockPrisma.payout.update.mockResolvedValue({});
+      mockPrisma.payout.update.mockResolvedValue({
+        id: 'internal-1',
+        campgroundId: 'cg-1',
+      });
 
       const results = await service.reconcileRecentPayouts('acct_1', 86400);
 
@@ -484,7 +493,7 @@ describe('PaymentsReconciliationService', () => {
   describe('ingestPayoutTransactions', () => {
     it('should skip when no stripe account', async () => {
       const payout = { id: 'po_1', destination: null };
-      const payoutRecord = { id: 'internal-1' };
+      const payoutRecord = { id: 'internal-1', campgroundId: 'cg-1' };
 
       await service.ingestPayoutTransactions(payout, payoutRecord);
 

@@ -245,7 +245,10 @@ export class AiEdgeCasesService {
                 where: { campgroundId },
                 select: { siteType: true, name: true },
             });
-            siteTypes = [...new Set(siteClasses.map(sc => sc.siteType?.toLowerCase()).filter(Boolean))] as string[];
+            const normalized = siteClasses
+                .map((sc) => sc.siteType?.toLowerCase())
+                .filter((value): value is string => typeof value === "string" && value.length > 0);
+            siteTypes = [...new Set(normalized)];
         }
 
         // Check what site type the user is asking for

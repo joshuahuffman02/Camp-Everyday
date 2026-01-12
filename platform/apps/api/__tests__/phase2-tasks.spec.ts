@@ -56,9 +56,9 @@ describe('TasksService', () => {
 
   describe('create', () => {
     it('creates a task with computed slaStatus', async () => {
-      const payload = {
+      const payload: Parameters<TasksService["create"]>[0] = {
         tenantId: 'tenant-1',
-        type: 'turnover' as const,
+        type: 'turnover',
         siteId: 'site-1',
         createdBy: 'user-1',
       };
@@ -145,4 +145,3 @@ describe('TasksService', () => {
     });
   });
 });
-

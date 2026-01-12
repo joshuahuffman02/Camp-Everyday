@@ -7,15 +7,56 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 
+interface SignatureRequest {
+  template?: { name?: string; content?: string };
+  subject?: string;
+  message?: string;
+  recipientName?: string;
+  recipientEmail?: string;
+  status?: string;
+  metadata?: { signerName?: string };
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const getString = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+const parseSignatureRequest = (value: unknown): SignatureRequest | null => {
+  if (!isRecord(value)) return null;
+  const template = isRecord(value.template)
+    ? {
+        name: getString(value.template.name),
+        content: getString(value.template.content),
+      }
+    : undefined;
+  const metadata = isRecord(value.metadata)
+    ? {
+        signerName: getString(value.metadata.signerName),
+      }
+    : undefined;
+
+  return {
+    template,
+    subject: getString(value.subject),
+    message: getString(value.message),
+    recipientName: getString(value.recipientName),
+    recipientEmail: getString(value.recipientEmail),
+    status: getString(value.status),
+    metadata,
+  };
+};
+
 export default function SignPage() {
-  const params = useParams();
-  const token = params.token as string;
+  const { token: tokenParam } = useParams<{ token?: string }>();
+  const token = tokenParam ?? "";
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [accepted, setAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingRequest, setLoadingRequest] = useState(true);
-  const [request, setRequest] = useState<any>(null);
+  const [request, setRequest] = useState<SignatureRequest | null>(null);
   const [result, setResult] = useState<"idle" | "signed" | "declined" | "error">("idle");
 
   useEffect(() => {
@@ -26,11 +67,12 @@ export default function SignPage() {
         const res = await fetch(`/api/signatures/requests/token/${token}`);
         if (!res.ok) throw new Error("Failed to load request");
         const data = await res.json();
-        setRequest(data);
-        setName(data?.recipientName || data?.metadata?.signerName || "");
-        setEmail(data?.recipientEmail || "");
-        if (data?.status === "signed") setResult("signed");
-        if (data?.status === "declined") setResult("declined");
+        const parsed = parseSignatureRequest(data);
+        setRequest(parsed);
+        setName(parsed?.recipientName || parsed?.metadata?.signerName || "");
+        setEmail(parsed?.recipientEmail || "");
+        if (parsed?.status === "signed") setResult("signed");
+        if (parsed?.status === "declined") setResult("declined");
       } catch {
         setRequest(null);
       } finally {

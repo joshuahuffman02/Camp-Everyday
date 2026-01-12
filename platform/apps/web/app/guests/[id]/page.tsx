@@ -44,29 +44,90 @@ const TIER_COLORS: Record<string, string> = {
     Platinum: "bg-foreground"
 };
 
-type GuestWithReservations = Guest & {
-    reservations?: Array<{
+type CommunicationsPage = Awaited<ReturnType<typeof apiClient.listCommunications>>;
+type CommunicationItem = CommunicationsPage["items"][number];
+type Playbook = Awaited<ReturnType<typeof apiClient.listPlaybooks>>[number];
+type PlaybookJob = Awaited<ReturnType<typeof apiClient.listPlaybookJobs>>[number];
+
+const formatPlaybookType = (type: Playbook["type"]) => {
+    const label = type.replace("_", " ");
+    return label.charAt(0).toUpperCase() + label.slice(1);
+};
+type FormSubmission = Awaited<ReturnType<typeof apiClient.getFormSubmissionsByGuest>>[number];
+
+type CreditScopeType = "campground" | "organization" | "global";
+type ComposeType = "email" | "sms" | "note" | "call";
+type ComposeDirection = "inbound" | "outbound";
+type CommTypeFilter = "all" | "automation" | ComposeType;
+type CommDirectionFilter = "all" | ComposeDirection;
+type TimelineItem =
+    | {
+        kind: "communication";
         id: string;
-        campgroundId?: string;
-        arrivalDate?: string;
-        departureDate?: string;
-        status?: string;
-        site?: { id: string; name: string; siteNumber?: string | null; siteClassId?: string | null } | null;
-    }>;
-    campgroundId?: string;
+        date?: string;
+        type: string;
+        direction?: string | null;
+        subject?: string | null;
+        body?: string | null;
+        status?: string | null;
+        provider?: string | null;
+        toAddress?: string | null;
+        fromAddress?: string | null;
+    }
+    | {
+        kind: "playbook";
+        id: string;
+        date?: string;
+        status?: string | null;
+        name: string;
+        attempts?: number | null;
+        lastError?: string | null;
+    };
+
+const creditScopeValues: CreditScopeType[] = ["campground", "organization", "global"];
+const composeTypeValues: ComposeType[] = ["email", "sms", "note", "call"];
+const composeDirectionValues: ComposeDirection[] = ["inbound", "outbound"];
+const commTypeFilterValues: CommTypeFilter[] = ["all", "automation", ...composeTypeValues];
+const commDirectionFilterValues: CommDirectionFilter[] = ["all", ...composeDirectionValues];
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null && !Array.isArray(value);
+
+const readString = (value: unknown): string | undefined =>
+    typeof value === "string" ? value : undefined;
+
+const isCreditScopeType = (value: string): value is CreditScopeType =>
+    creditScopeValues.some((scope) => scope === value);
+
+const isComposeType = (value: string): value is ComposeType =>
+    composeTypeValues.some((type) => type === value);
+
+const isComposeDirection = (value: string): value is ComposeDirection =>
+    composeDirectionValues.some((direction) => direction === value);
+
+const isCommTypeFilter = (value: string): value is CommTypeFilter =>
+    commTypeFilterValues.some((type) => type === value);
+
+const isCommDirectionFilter = (value: string): value is CommDirectionFilter =>
+    commDirectionFilterValues.some((direction) => direction === value);
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+    if (error instanceof Error) return error.message;
+    if (isRecord(error) && typeof error.message === "string") return error.message;
+    return fallback;
 };
 
 export default function GuestDetailPage() {
-    const params = useParams();
+    const params = useParams<{ id?: string }>();
     const router = useRouter();
-    const guestId = params.id as string;
+    const guestId = params.id ?? "";
     const { toast } = useToast();
     const queryClient = useQueryClient();
 
     // Use the global campground selector
     const { selectedCampground } = useCampground();
 
-    const guestQuery = useQuery({
+    const guestQuery = useQuery<Guest>({
         queryKey: ["guest", guestId],
         queryFn: () => apiClient.getGuest(guestId)
     });
@@ -76,30 +137,35 @@ export default function GuestDetailPage() {
         queryFn: () => apiClient.getLoyaltyProfile(guestId)
     });
 
-    const [commTypeFilter, setCommTypeFilter] = useState<string>("all");
-    const [commDirectionFilter, setCommDirectionFilter] = useState<string>("all");
+    const [commTypeFilter, setCommTypeFilter] = useState<CommTypeFilter>("all");
+    const [commDirectionFilter, setCommDirectionFilter] = useState<CommDirectionFilter>("all");
     const [commStatusFilter, setCommStatusFilter] = useState<string>("all");
-    const [composeType, setComposeType] = useState<"email" | "sms" | "note" | "call">("email");
-    const [composeDirection, setComposeDirection] = useState<"inbound" | "outbound">("outbound");
+    const [composeType, setComposeType] = useState<ComposeType>("email");
+    const [composeDirection, setComposeDirection] = useState<ComposeDirection>("outbound");
     const [composeSubject, setComposeSubject] = useState("");
     const [composeBody, setComposeBody] = useState("");
     const [composeTo, setComposeTo] = useState("");
     const [composeFrom, setComposeFrom] = useState("");
 
-    const guestWithReservations = guestQuery.data as GuestWithReservations | undefined;
+    const guest = guestQuery.data;
+
+    const guestCampgroundId = useMemo(() => {
+        if (!guest || !("campgroundId" in guest)) return undefined;
+        return readString(guest.campgroundId);
+    }, [guest]);
 
     const guestCampgroundIds = useMemo(() => {
-        const reservations = guestWithReservations?.reservations || [];
+        const reservations = guest?.reservations || [];
         const ids = new Set<string>();
         reservations.forEach((r) => {
             if (r.campgroundId) ids.add(r.campgroundId);
         });
         return Array.from(ids);
-    }, [guestWithReservations]);
+    }, [guest]);
 
     const campgroundIdForGuest = useMemo(
-        () => selectedCampground?.id || guestCampgroundIds[0] || guestWithReservations?.campgroundId || "",
-        [selectedCampground?.id, guestCampgroundIds, guestWithReservations]
+        () => selectedCampground?.id || guestCampgroundIds[0] || guestCampgroundId || "",
+        [selectedCampground?.id, guestCampgroundIds, guestCampgroundId]
     );
 
     // Wallet state and queries
@@ -139,7 +205,7 @@ export default function GuestDetailPage() {
     }, [selectedWalletId, wallets]);
 
     useEffect(() => {
-        if (selectedWallet?.scopeType) {
+        if (selectedWallet?.scopeType && isCreditScopeType(selectedWallet.scopeType)) {
             setCreditScopeType(selectedWallet.scopeType);
         }
     }, [selectedWallet?.walletId, selectedWallet?.scopeType]);
@@ -162,12 +228,10 @@ export default function GuestDetailPage() {
             setCreditReason("");
             toast({ title: "Credit added", description: "Wallet credit has been added successfully." });
         },
-        onError: (error: any) => {
-            toast({ title: "Error", description: error.message || "Failed to add credit", variant: "destructive" });
+        onError: (error: unknown) => {
+            toast({ title: "Error", description: getErrorMessage(error, "Failed to add credit"), variant: "destructive" });
         }
     });
-
-    type CommunicationsPage = { items: any[]; nextCursor?: string | null };
     const campgroundQuery = useQuery({
         queryKey: ["campground", campgroundIdForGuest],
         queryFn: () => apiClient.getCampground(campgroundIdForGuest),
@@ -178,35 +242,37 @@ export default function GuestDetailPage() {
 
     const commsQuery = useInfiniteQuery<CommunicationsPage>({
         queryKey: ["communications", "guest", guestId, commTypeFilter, commDirectionFilter],
-        queryFn: ({ pageParam }) =>
-            apiClient.listCommunications({
+        queryFn: ({ pageParam }) => {
+            const cursor = typeof pageParam === "string" ? pageParam : undefined;
+            return apiClient.listCommunications({
                 campgroundId: campgroundIdForGuest,
                 guestId: guestId,
                 limit: 20,
-                type: ["email", "sms", "note", "call"].includes(commTypeFilter) ? commTypeFilter : undefined,
+                type: isComposeType(commTypeFilter) ? commTypeFilter : undefined,
                 direction: commDirectionFilter === "all" ? undefined : commDirectionFilter,
-                cursor: pageParam as string | undefined
-            }),
+                cursor
+            });
+        },
         enabled: !!guestId && !!campgroundIdForGuest,
         initialPageParam: undefined,
         getNextPageParam: (lastPage) => lastPage?.nextCursor ?? undefined
     });
 
-    const commItems = commsQuery.data?.pages?.flatMap((p: any) => p.items) ?? [];
-    const overdueCount = commItems.filter((c: any) => {
-        const createdDate = c.createdAt ? new Date(c.createdAt) : null;
+    const commItems = commsQuery.data?.pages?.flatMap((page) => page.items) ?? [];
+    const overdueCount = commItems.filter((item) => {
+        const createdDate = item.createdAt ? new Date(item.createdAt) : null;
         const minutesSince = createdDate ? (Date.now() - createdDate.getTime()) / 60000 : 0;
-        const isInboundPending = c.direction === "inbound" && !(c.status || "").startsWith("delivered") && (c.status || "") !== "sent" && (c.status || "") !== "failed";
+        const isInboundPending = item.direction === "inbound" && !(item.status || "").startsWith("delivered") && (item.status || "") !== "sent" && (item.status || "") !== "failed";
         return isInboundPending && minutesSince > SLA_MINUTES;
     }).length;
 
-    const playbookJobsQuery = useQuery({
+    const playbookJobsQuery = useQuery<PlaybookJob[]>({
         queryKey: ["communications", "playbook-jobs", campgroundIdForGuest],
         queryFn: () => apiClient.listPlaybookJobs(campgroundIdForGuest),
         enabled: !!campgroundIdForGuest
     });
 
-    const playbooksQuery = useQuery({
+    const playbooksQuery = useQuery<Playbook[]>({
         queryKey: ["communications", "playbooks", campgroundIdForGuest],
         queryFn: () => apiClient.listPlaybooks(campgroundIdForGuest),
         enabled: !!campgroundIdForGuest
@@ -214,8 +280,8 @@ export default function GuestDetailPage() {
 
     const playbookNameById = useMemo(() => {
         const map: Record<string, string> = {};
-        (playbooksQuery.data || []).forEach((p: any) => {
-            map[p.id] = p.name || p.type || "Playbook";
+        (playbooksQuery.data || []).forEach((playbook) => {
+            map[playbook.id] = formatPlaybookType(playbook.type);
         });
         return map;
     }, [playbooksQuery.data]);
@@ -236,30 +302,30 @@ export default function GuestDetailPage() {
 
     const timelineItems = useMemo(() => {
         const normalizedStatus = commStatusFilter.toLowerCase();
-        const comms = commItems
-            .filter((c: any) => ["email", "sms"].includes(c.type))
-            .filter((c: any) => (commTypeFilter === "all" || commTypeFilter === "automation" ? true : c.type === commTypeFilter))
-            .filter((c: any) => (commStatusFilter === "all" ? true : (c.status || "").toLowerCase().includes(normalizedStatus)))
-            .map((c: any) => ({
-                kind: "communication" as const,
-                id: c.id,
-                date: c.createdAt,
-                type: c.type,
-                direction: c.direction,
-                subject: c.subject,
-                body: c.preview || c.body,
-                status: c.status,
-                provider: c.provider,
-                toAddress: c.toAddress,
-                fromAddress: c.fromAddress
+        const comms: TimelineItem[] = commItems
+            .filter((item) => ["email", "sms"].includes(item.type))
+            .filter((item) => (commTypeFilter === "all" || commTypeFilter === "automation" ? true : item.type === commTypeFilter))
+            .filter((item) => (commStatusFilter === "all" ? true : (item.status || "").toLowerCase().includes(normalizedStatus)))
+            .map((item) => ({
+                kind: "communication",
+                id: item.id,
+                date: item.createdAt,
+                type: item.type,
+                direction: item.direction,
+                subject: item.subject,
+                body: item.preview || item.body,
+                status: item.status,
+                provider: item.provider,
+                toAddress: item.toAddress,
+                fromAddress: item.fromAddress
             }));
 
-        const jobs = (playbookJobsQuery.data || [])
-            .filter((job: any) => !guestId || job.guestId === guestId)
-            .filter((job: any) => commStatusFilter === "all" ? true : (job.status || "").toLowerCase().includes(normalizedStatus))
-            .filter((job: any) => commTypeFilter === "all" || commTypeFilter === "automation")
-            .map((job: any) => ({
-                kind: "playbook" as const,
+        const jobs: TimelineItem[] = (playbookJobsQuery.data || [])
+            .filter((job) => !guestId || job.guestId === guestId)
+            .filter((job) => commStatusFilter === "all" ? true : (job.status || "").toLowerCase().includes(normalizedStatus))
+            .filter(() => commTypeFilter === "all" || commTypeFilter === "automation")
+            .map((job) => ({
+                kind: "playbook",
                 id: job.id,
                 date: job.updatedAt || job.scheduledAt || job.createdAt,
                 status: job.status,
@@ -308,8 +374,7 @@ export default function GuestDetailPage() {
         }
     });
 
-    const guest = guestQuery.data;
-    const formsQuery = useQuery({
+    const formsQuery = useQuery<FormSubmission[]>({
         queryKey: ["form-submissions-guest", guestId],
         queryFn: () => apiClient.getFormSubmissionsByGuest(guestId),
     });
@@ -425,8 +490,8 @@ export default function GuestDetailPage() {
                                 {formsQuery.isLoading ? (
                                     <span className="text-xs text-muted-foreground">Loading…</span>
                                 ) : (
-                                    <Badge variant={(formsQuery.data || []).some((f: any) => f.status === "pending") ? "destructive" : "secondary"}>
-                                        {(formsQuery.data || []).filter((f: any) => f.status === "pending").length} pending
+                                    <Badge variant={(formsQuery.data || []).some((form) => form.status === "pending") ? "destructive" : "secondary"}>
+                                        {(formsQuery.data || []).filter((form) => form.status === "pending").length} pending
                                     </Badge>
                                 )}
                             </CardHeader>
@@ -440,14 +505,14 @@ export default function GuestDetailPage() {
                                     <div className="text-xs text-muted-foreground">No forms for this guest.</div>
                                 )}
                                 <div className="space-y-1">
-                                    {(formsQuery.data || []).map((f: any) => (
-                                        <div key={f.id} className="flex items-center justify-between rounded border border-border px-2 py-1">
+                                    {(formsQuery.data || []).map((form) => (
+                                        <div key={form.id} className="flex items-center justify-between rounded border border-border px-2 py-1">
                                             <div>
-                                                <div className="font-medium text-foreground text-sm">{f.formTemplate?.title || "Form"}</div>
-                                                <div className="text-xs text-muted-foreground">{f.formTemplate?.type}</div>
+                                                <div className="font-medium text-foreground text-sm">{form.formTemplate?.title || "Form"}</div>
+                                                <div className="text-xs text-muted-foreground">{form.formTemplate?.type}</div>
                                             </div>
-                                            <Badge variant={f.status === "completed" ? "default" : f.status === "pending" ? "destructive" : "secondary"}>
-                                                {f.status}
+                                            <Badge variant={form.status === "completed" ? "default" : form.status === "pending" ? "destructive" : "secondary"}>
+                                                {form.status}
                                             </Badge>
                                         </div>
                                     ))}
@@ -478,7 +543,7 @@ export default function GuestDetailPage() {
                                 </Button>
                             </CardHeader>
                             <CardContent>
-                                {guestWithReservations?.reservations && guestWithReservations.reservations.length > 0 ? (
+                                {guest.reservations && guest.reservations.length > 0 ? (
                                     <Table>
                                         <TableHeader>
                                             <TableRow>
@@ -489,8 +554,8 @@ export default function GuestDetailPage() {
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            {guestWithReservations.reservations.map((res) => (
-                                                <TableRow key={res.id}>
+                                            {guest.reservations.map((res, index) => (
+                                                <TableRow key={res.id ?? `${res.campgroundId ?? "reservation"}-${index}`}>
                                                     <TableCell>
                                                         <div className="font-medium">
                                                             {res.arrivalDate ? new Date(res.arrivalDate).toLocaleDateString() : "—"} - {res.departureDate ? new Date(res.departureDate).toLocaleDateString() : "—"}
@@ -662,7 +727,14 @@ export default function GuestDetailPage() {
                                             <div className="grid grid-cols-4 items-center gap-4">
                                                 <Label htmlFor="credit-scope" className="text-right">Scope</Label>
                                                 <div className="col-span-3">
-                                                    <Select value={creditScopeType} onValueChange={(value) => setCreditScopeType(value as "campground" | "organization" | "global")}>
+                                                    <Select
+                                                        value={creditScopeType}
+                                                        onValueChange={(value) => {
+                                                            if (isCreditScopeType(value)) {
+                                                                setCreditScopeType(value);
+                                                            }
+                                                        }}
+                                                    >
                                                         <SelectTrigger id="credit-scope" aria-label="Credit scope">
                                                             <SelectValue placeholder="Select scope" />
                                                         </SelectTrigger>
@@ -951,11 +1023,13 @@ export default function GuestDetailPage() {
                                         <Select
                                             value={commTypeFilter}
                                             onValueChange={(value) => {
-                                                setCommTypeFilter(value);
-                                                queryClient.removeQueries({
-                                                    queryKey: ["communications", "guest", guestId, commDirectionFilter]
-                                                });
-                                                commsQuery.refetch();
+                                                if (isCommTypeFilter(value)) {
+                                                    setCommTypeFilter(value);
+                                                    queryClient.removeQueries({
+                                                        queryKey: ["communications", "guest", guestId, commDirectionFilter]
+                                                    });
+                                                    commsQuery.refetch();
+                                                }
                                             }}
                                         >
                                             <SelectTrigger id="comm-type-filter" className="h-9 bg-background" aria-label="Communication type">
@@ -991,11 +1065,13 @@ export default function GuestDetailPage() {
                                         <Select
                                             value={commDirectionFilter}
                                             onValueChange={(value) => {
-                                                setCommDirectionFilter(value);
-                                                queryClient.removeQueries({
-                                                    queryKey: ["communications", "guest", guestId, commTypeFilter]
-                                                });
-                                                commsQuery.refetch();
+                                                if (isCommDirectionFilter(value)) {
+                                                    setCommDirectionFilter(value);
+                                                    queryClient.removeQueries({
+                                                        queryKey: ["communications", "guest", guestId, commTypeFilter]
+                                                    });
+                                                    commsQuery.refetch();
+                                                }
                                             }}
                                         >
                                             <SelectTrigger id="comm-direction-filter" className="h-9 bg-background" aria-label="Communication direction">
@@ -1020,7 +1096,14 @@ export default function GuestDetailPage() {
                                         <div className="grid grid-cols-2 gap-3">
                                             <div className="space-y-1">
                                                 <Label htmlFor="compose-type" className="text-xs">Type</Label>
-                                                <Select value={composeType} onValueChange={(value) => setComposeType(value as "email" | "sms" | "note" | "call")}>
+                                                <Select
+                                                    value={composeType}
+                                                    onValueChange={(value) => {
+                                                        if (isComposeType(value)) {
+                                                            setComposeType(value);
+                                                        }
+                                                    }}
+                                                >
                                                     <SelectTrigger id="compose-type" className="h-9 bg-background" aria-label="Compose type">
                                                         <SelectValue />
                                                     </SelectTrigger>
@@ -1034,7 +1117,14 @@ export default function GuestDetailPage() {
                                             </div>
                                             <div className="space-y-1">
                                                 <Label htmlFor="compose-direction" className="text-xs">Direction</Label>
-                                                <Select value={composeDirection} onValueChange={(value) => setComposeDirection(value as "inbound" | "outbound")}>
+                                                <Select
+                                                    value={composeDirection}
+                                                    onValueChange={(value) => {
+                                                        if (isComposeDirection(value)) {
+                                                            setComposeDirection(value);
+                                                        }
+                                                    }}
+                                                >
                                                     <SelectTrigger id="compose-direction" className="h-9 bg-background" aria-label="Compose direction">
                                                         <SelectValue />
                                                     </SelectTrigger>
@@ -1120,7 +1210,7 @@ export default function GuestDetailPage() {
                                         <div className="text-sm text-muted-foreground">No communications yet.</div>
                                     )}
                                     <div className="relative pl-3 border-l border-border space-y-4">
-                                        {timelineItems.map((item: any) => {
+                                        {timelineItems.map((item) => {
                                             const createdDate = item.date ? new Date(item.date) : null;
                                             const getCommIcon = () => {
                                                 if (item.kind === "playbook") return GitBranch;

@@ -7,7 +7,7 @@ export type ExportFormat = 'csv' | 'xlsx';
 /**
  * Escapes special characters in CSV fields
  */
-function escapeCSVField(field: any): string {
+function escapeCSVField(field: unknown): string {
   if (field === null || field === undefined) {
     return '';
   }
@@ -26,7 +26,7 @@ function escapeCSVField(field: any): string {
 /**
  * Converts an array of objects to CSV format
  */
-export function convertToCSV(data: any[], headers?: string[]): string {
+export function convertToCSV(data: Array<Record<string, unknown>>, headers?: string[]): string {
   if (!data || data.length === 0) {
     return '';
   }
@@ -53,7 +53,7 @@ export function convertToCSV(data: any[], headers?: string[]): string {
  */
 export function convertToCSVWithSections(sections: Array<{
   title: string;
-  data: any[];
+  data: Array<Record<string, unknown>>;
   headers?: string[];
 }>): string {
   const csvParts: string[] = [];
@@ -131,7 +131,7 @@ export function generateExportFilename(reportName: string, format: ExportFormat 
 /**
  * Converts tabular data to Excel-compatible CSV (with proper encoding)
  */
-export function convertToExcelCSV(data: any[], headers?: string[]): string {
+export function convertToExcelCSV(data: Array<Record<string, unknown>>, headers?: string[]): string {
   const csv = convertToCSV(data, headers);
   // Add BOM for Excel to recognize UTF-8
   return '\uFEFF' + csv;

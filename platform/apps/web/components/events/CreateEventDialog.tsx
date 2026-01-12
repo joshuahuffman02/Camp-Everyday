@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { apiClient } from "@/lib/api-client";
-import { CreateEventSchema, EventTypeSchema } from "@keepr/shared";
+import { EventTypeSchema } from "@keepr/shared";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
 import { z } from "zod";
@@ -22,11 +22,39 @@ interface CreateEventDialogProps {
     campgroundId: string;
 }
 
+type EventType = z.infer<typeof EventTypeSchema>;
+
+type EventFormState = {
+    title: string;
+    description: string;
+    eventType: EventType;
+    startDate: string;
+    endDate: string;
+    startTime: string;
+    endTime: string;
+    location: string;
+    priceCents: number;
+    isGuestOnly: boolean;
+    isPublished: boolean;
+    isAllDay: boolean;
+    imageUrl: string;
+};
+
+const isEventType = (value: string): value is EventType =>
+    EventTypeSchema.safeParse(value).success;
+
 export function CreateEventDialog({ open, onOpenChange, onSuccess, campgroundId }: CreateEventDialogProps) {
     const { toast } = useToast();
     const [loading, setLoading] = useState(false);
-    const [formData, setFormData] = useState<Partial<z.infer<typeof CreateEventSchema>>>({
+    const [formData, setFormData] = useState<EventFormState>({
+        title: "",
+        description: "",
         eventType: "activity",
+        startDate: "",
+        endDate: "",
+        startTime: "",
+        endTime: "",
+        location: "",
         isAllDay: false,
         isGuestOnly: true,
         isPublished: true,
@@ -40,19 +68,17 @@ export function CreateEventDialog({ open, onOpenChange, onSuccess, campgroundId 
         setLoading(true);
 
         try {
-            type EventType = z.infer<typeof EventTypeSchema>;
-
             await apiClient.createEvent({
                 campgroundId,
-                title: formData.title!,
-                description: formData.description,
-                eventType: formData.eventType as EventType,
-                startDate: formData.startDate!,
-                endDate: formData.endDate,
-                startTime: formData.startTime,
-                endTime: formData.endTime,
-                location: formData.location,
-                priceCents: formData.priceCents,
+                title: formData.title,
+                description: formData.description || undefined,
+                eventType: formData.eventType,
+                startDate: formData.startDate,
+                endDate: formData.endDate || undefined,
+                startTime: formData.startTime || undefined,
+                endTime: formData.endTime || undefined,
+                location: formData.location || undefined,
+                priceCents: formData.priceCents || 0,
                 isGuestOnly: formData.isGuestOnly,
                 isPublished: formData.isPublished,
                 isAllDay: formData.isAllDay,
@@ -66,7 +92,14 @@ export function CreateEventDialog({ open, onOpenChange, onSuccess, campgroundId 
             onSuccess();
             onOpenChange(false);
             setFormData({
+                title: "",
+                description: "",
                 eventType: "activity",
+                startDate: "",
+                endDate: "",
+                startTime: "",
+                endTime: "",
+                location: "",
                 isAllDay: false,
                 isGuestOnly: true,
                 isPublished: true,
@@ -110,7 +143,11 @@ export function CreateEventDialog({ open, onOpenChange, onSuccess, campgroundId 
                             <Label htmlFor="type">Type</Label>
                             <Select
                                 value={formData.eventType}
-                                onValueChange={(val) => setFormData({ ...formData, eventType: val as z.infer<typeof EventTypeSchema> })}
+                                onValueChange={(value) => {
+                                    if (isEventType(value)) {
+                                        setFormData({ ...formData, eventType: value });
+                                    }
+                                }}
                             >
                                 <SelectTrigger>
                                     <SelectValue />
@@ -139,24 +176,24 @@ export function CreateEventDialog({ open, onOpenChange, onSuccess, campgroundId 
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="startDate">Start Date</Label>
-                            <Input
-                                id="startDate"
-                                type="date"
-                                required
-                                value={formData.startDate ? new Date(formData.startDate).toISOString().split('T')[0] : ""}
-                                onChange={(e) => setFormData({ ...formData, startDate: new Date(e.target.value).toISOString() })}
-                            />
+                                <Input
+                                    id="startDate"
+                                    type="date"
+                                    required
+                                    value={formData.startDate ? new Date(formData.startDate).toISOString().split('T')[0] : ""}
+                                    onChange={(e) => setFormData({ ...formData, startDate: new Date(e.target.value).toISOString() })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="endDate">End Date (Optional)</Label>
+                                <Input
+                                    id="endDate"
+                                    type="date"
+                                    value={formData.endDate ? new Date(formData.endDate).toISOString().split('T')[0] : ""}
+                                    onChange={(e) => setFormData({ ...formData, endDate: e.target.value ? new Date(e.target.value).toISOString() : "" })}
+                                />
+                            </div>
                         </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="endDate">End Date (Optional)</Label>
-                            <Input
-                                id="endDate"
-                                type="date"
-                                value={formData.endDate ? new Date(formData.endDate).toISOString().split('T')[0] : ""}
-                                onChange={(e) => setFormData({ ...formData, endDate: e.target.value ? new Date(e.target.value).toISOString() : undefined })}
-                            />
-                        </div>
-                    </div>
 
                     {!formData.isAllDay && (
                         <div className="grid grid-cols-2 gap-4">
@@ -222,7 +259,11 @@ export function CreateEventDialog({ open, onOpenChange, onSuccess, campgroundId 
                                         await fetch(signed.uploadUrl, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
                                         setFormData((s) => ({ ...s, imageUrl: signed.publicUrl }));
                                     } catch (err) {
-                                        toast({ title: "Upload failed", description: (err as Error).message, variant: "destructive" });
+                                        toast({
+                                            title: "Upload failed",
+                                            description: err instanceof Error ? err.message : "Upload failed",
+                                            variant: "destructive"
+                                        });
                                     } finally {
                                         setUploading(false);
                                     }

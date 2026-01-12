@@ -15,8 +15,8 @@ import { JwtAuthGuard } from "../auth/guards";
 import { AnalyticsType, ExportFormat, ShareAccessLevel } from "@prisma/client";
 
 class CreateExportDto {
-  analyticsType: AnalyticsType;
-  format: ExportFormat;
+  analyticsType!: AnalyticsType;
+  format!: ExportFormat;
   dateRange?: string;
   campgroundId?: string;
   organizationId?: string;
@@ -26,7 +26,7 @@ class CreateExportDto {
 }
 
 class CreateShareDto {
-  analyticsType: AnalyticsType;
+  analyticsType!: AnalyticsType;
   accessLevel?: ShareAccessLevel;
   campgroundId?: string;
   organizationId?: string;
@@ -47,6 +47,8 @@ class UpdateShareDto {
   accessLevel?: ShareAccessLevel;
 }
 
+type AuthRequest = Request & { user: { id: string; email: string } };
+
 @Controller("admin/analytics")
 @UseGuards(JwtAuthGuard)
 export class AnalyticsExportController {
@@ -58,12 +60,12 @@ export class AnalyticsExportController {
   // ==================== EXPORTS ====================
 
   @Post("export")
-  async createExport(@Body() dto: CreateExportDto, @Req() req: Request) {
+  async createExport(@Body() dto: CreateExportDto, @Req() req: AuthRequest) {
     return this.exportService.createExport(dto, req.user.id, req.user.email);
   }
 
   @Get("exports")
-  async listExports(@Req() req: Request, @Query("limit") limit?: number) {
+  async listExports(@Req() req: AuthRequest, @Query("limit") limit?: number) {
     return this.exportService.listExports(req.user.id, limit);
   }
 
@@ -80,22 +82,22 @@ export class AnalyticsExportController {
   // ==================== SHARING ====================
 
   @Post("share")
-  async createShareLink(@Body() dto: CreateShareDto, @Req() req: Request) {
+  async createShareLink(@Body() dto: CreateShareDto, @Req() req: AuthRequest) {
     return this.shareService.createShareLink(dto, req.user.id, req.user.email);
   }
 
   @Get("shares")
-  async listShareLinks(@Req() req: Request, @Query("limit") limit?: number) {
+  async listShareLinks(@Req() req: AuthRequest, @Query("limit") limit?: number) {
     return this.shareService.listShareLinks(req.user.id, limit);
   }
 
   @Get("shares/:id")
-  async getShareLink(@Param("id") id: string, @Req() req: Request) {
+  async getShareLink(@Param("id") id: string, @Req() req: AuthRequest) {
     return this.shareService.getShareLink(id, req.user.id);
   }
 
   @Post("shares/:id/revoke")
-  async revokeShareLink(@Param("id") id: string, @Req() req: Request) {
+  async revokeShareLink(@Param("id") id: string, @Req() req: AuthRequest) {
     return this.shareService.revokeShareLink(id, req.user.id);
   }
 
@@ -103,7 +105,7 @@ export class AnalyticsExportController {
   async updateShareLink(
     @Param("id") id: string,
     @Body() dto: UpdateShareDto,
-    @Req() req: Request
+    @Req() req: AuthRequest
   ) {
     return this.shareService.updateShareLink(id, req.user.id, dto);
   }

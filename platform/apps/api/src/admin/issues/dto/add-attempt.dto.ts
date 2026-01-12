@@ -4,8 +4,8 @@ import { AttemptOutcome } from "@prisma/client";
 export class AddAttemptDto {
   @IsString()
   @MaxLength(5000)
-  notes: string;
+  notes!: string;
 
   @IsEnum(AttemptOutcome)
-  outcome: AttemptOutcome;
+  outcome!: AttemptOutcome;
 }

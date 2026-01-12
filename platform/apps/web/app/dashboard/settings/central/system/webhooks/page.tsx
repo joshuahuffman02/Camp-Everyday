@@ -39,7 +39,7 @@ import { apiClient } from "@/lib/api-client";
 
 interface WebhookEndpoint {
   id: string;
-  campgroundId: string;
+  campgroundId?: string | null;
   url: string;
   eventTypes: string[];
   isActive: boolean;
@@ -126,8 +126,9 @@ export default function WebhooksPage() {
       setNewDescription("");
       setSelectedEvents([]);
       loadWebhooks(campgroundId);
-    } catch (err: any) {
-      setError(err.message || "Failed to create webhook");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to create webhook";
+      setError(message);
     } finally {
       setSaving(false);
     }

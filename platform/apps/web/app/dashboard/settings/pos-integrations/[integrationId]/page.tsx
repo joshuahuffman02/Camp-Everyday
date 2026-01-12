@@ -48,6 +48,15 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object";
+
+const isStringRecord = (value: unknown): value is Record<string, string> =>
+  isRecord(value) && Object.values(value).every((entry) => typeof entry === "string");
+
+const isBooleanRecord = (value: unknown): value is Record<string, boolean> =>
+  isRecord(value) && Object.values(value).every((entry) => typeof entry === "boolean");
+
 // Provider configurations with credential fields
 const PROVIDER_CONFIG: Record<
   string,
@@ -200,7 +209,7 @@ export default function PosIntegrationDetailPage() {
   const router = useRouter();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const integrationId = params.integrationId as string;
+  const integrationId = typeof params.integrationId === "string" ? params.integrationId : "";
 
   const [credentials, setCredentials] = useState<Record<string, string>>({});
   const [syncSettings, setSyncSettings] = useState<Record<string, boolean>>({});
@@ -216,11 +225,11 @@ export default function PosIntegrationDetailPage() {
 
   // Update credentials/settings state when integration loads
   useEffect(() => {
-    if (integration?.credentials) {
-      setCredentials(integration.credentials as Record<string, string>);
+    if (isStringRecord(integration?.credentials)) {
+      setCredentials(integration.credentials);
     }
-    if (integration?.settings) {
-      setSyncSettings(integration.settings as Record<string, boolean>);
+    if (isBooleanRecord(integration?.settings)) {
+      setSyncSettings(integration.settings);
     }
   }, [integration]);
 

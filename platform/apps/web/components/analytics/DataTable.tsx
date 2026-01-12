@@ -10,10 +10,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+type DataRow = Record<string, unknown>;
+
 interface Column {
   key: string;
   label: string;
-  format?: (value: any) => React.ReactNode;
+  format?: (value: unknown, row: DataRow) => React.ReactNode;
   align?: "left" | "center" | "right";
 }
 
@@ -21,7 +23,7 @@ interface DataTableProps {
   title: string;
   description?: string;
   columns: Column[];
-  data: any[];
+  data: DataRow[];
   loading?: boolean;
   maxRows?: number;
 }
@@ -35,6 +37,13 @@ export function DataTable({
   maxRows,
 }: DataTableProps) {
   const displayData = maxRows ? data.slice(0, maxRows) : data;
+  const renderValue = (value: unknown): React.ReactNode => {
+    if (value === null || value === undefined) return "—";
+    if (typeof value === "string" || typeof value === "number") return value;
+    if (typeof value === "boolean") return value ? "Yes" : "No";
+    if (value instanceof Date) return value.toLocaleDateString();
+    return JSON.stringify(value);
+  };
 
   if (loading) {
     return (
@@ -90,7 +99,7 @@ export function DataTable({
                         key={col.key}
                         className={`text-muted-foreground ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"}`}
                       >
-                        {col.format ? col.format(row[col.key]) : row[col.key]}
+                        {col.format ? col.format(row[col.key], row) : renderValue(row[col.key])}
                       </TableCell>
                     ))}
                   </TableRow>

@@ -29,7 +29,9 @@ export async function proxyToBackend(
   try {
     // Get session and API token
     const session = await auth();
-    const sessionWithToken = session as SessionWithToken | null;
+    const hasApiToken = (value: unknown): value is SessionWithToken =>
+      typeof value === "object" && value !== null && "apiToken" in value;
+    const sessionWithToken = hasApiToken(session) ? session : null;
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",

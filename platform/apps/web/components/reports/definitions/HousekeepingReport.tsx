@@ -9,8 +9,10 @@ interface HousekeepingReportProps {
     campgroundId: string;
 }
 
+type Site = Awaited<ReturnType<typeof apiClient.getSites>>[number];
+
 export function HousekeepingReport({ campgroundId }: HousekeepingReportProps) {
-    const { data: sites, isLoading } = useQuery({
+    const { data: sites, isLoading } = useQuery<Site[]>({
         queryKey: ["sites", campgroundId],
         queryFn: () => apiClient.getSites(campgroundId),
     });
@@ -18,10 +20,10 @@ export function HousekeepingReport({ campgroundId }: HousekeepingReportProps) {
     const reportData = useMemo(() => {
         if (!sites) return { clean: [], dirty: [], inspecting: [], other: [] };
 
-        const clean: any[] = [];
-        const dirty: any[] = [];
-        const inspecting: any[] = [];
-        const other: any[] = [];
+        const clean: Site[] = [];
+        const dirty: Site[] = [];
+        const inspecting: Site[] = [];
+        const other: Site[] = [];
 
         sites.forEach(site => {
             const status = (site.housekeepingStatus || 'clean').toLowerCase();

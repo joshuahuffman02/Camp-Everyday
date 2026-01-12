@@ -1,7 +1,7 @@
 import { INestApplication } from "@nestjs/common";
 import { DocumentBuilder, SwaggerModule, OpenAPIObject } from "@nestjs/swagger";
 import { API_VERSIONS, CURRENT_VERSION } from "./api-version.middleware";
-import type { Request } from "express";
+import type { Request, Response } from "express";
 
 /**
  * OpenAPI 3.1 Specification Configuration
@@ -20,8 +20,8 @@ export interface SwaggerOptions {
   version?: string;
   path?: string;
   jsonPath?: string;
-  includeModules?: any[];
-  excludeModules?: any[];
+  includeModules?: Array<Function>;
+  excludeModules?: Array<Function>;
 }
 
 const DEFAULT_DESCRIPTION = `
@@ -234,7 +234,7 @@ export function configureSwagger(
     .build();
 
   // Create document with module filtering if specified
-  const documentOptions: any = {
+  const documentOptions: { deepScanRoutes: boolean; include?: Array<Function> } = {
     deepScanRoutes: true,
   };
 
@@ -245,7 +245,7 @@ export function configureSwagger(
   const document = SwaggerModule.createDocument(app, config, documentOptions);
 
   // Add OpenAPI 3.1 specific extensions
-  (document as any).openapi = "3.1.0";
+  document.openapi = "3.1.0";
 
   // Add common response schemas
   addCommonSchemas(document);
@@ -274,7 +274,7 @@ export function configureSwagger(
 
   // Serve raw JSON spec
   const httpAdapter = app.getHttpAdapter();
-  httpAdapter.get(`/${jsonPath}`, (req: any, res: any) => {
+  httpAdapter.get(`/${jsonPath}`, (req: Request, res: Response) => {
     res.json(document);
   });
 

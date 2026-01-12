@@ -1,10 +1,16 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { TaxRuleType } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
+import type { PrismaService as PrismaServiceType } from '../prisma/prisma.service';
+import { randomUUID } from 'crypto';
+
+export type TaxRulesStore = {
+    taxRule: Pick<PrismaServiceType["taxRule"], "create" | "findMany" | "findFirst" | "update" | "delete">;
+};
 
 @Injectable()
 export class TaxRulesService {
-    constructor(private readonly prisma: PrismaService) { }
+    constructor(@Inject(PrismaService) private readonly prisma: TaxRulesStore) { }
 
     async create(data: {
         campgroundId: string;
@@ -18,6 +24,7 @@ export class TaxRulesService {
     }) {
         return this.prisma.taxRule.create({
             data: {
+                id: randomUUID(),
                 campgroundId: data.campgroundId,
                 name: data.name,
                 type: data.type,

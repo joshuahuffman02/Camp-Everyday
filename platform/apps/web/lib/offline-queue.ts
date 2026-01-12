@@ -5,6 +5,14 @@
 const DB_NAME = "campreserv-offline";
 const STORE = "queues";
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const hasSyncRegister = (
+  value: unknown
+): value is { register: (tag: string) => Promise<void> } =>
+  isRecord(value) && typeof value.register === "function";
+
 function hasIndexedDb() {
   return typeof indexedDB !== "undefined";
 }
@@ -13,9 +21,11 @@ export async function registerBackgroundSync(tag = "sync-queues") {
   if (typeof window === "undefined") return;
   try {
     const reg = await navigator.serviceWorker?.ready;
-    const syncReg = reg as (ServiceWorkerRegistration & { sync?: { register: (tag: string) => Promise<void> } }) | undefined;
-    if (syncReg?.sync?.register) {
-      await syncReg.sync.register(tag);
+    if (reg && "sync" in reg) {
+      const maybeSync = reg.sync;
+      if (hasSyncRegister(maybeSync)) {
+        await maybeSync.register(tag);
+      }
     }
   } catch {
     // background sync not available; ignore
@@ -107,4 +117,3 @@ export function clearOfflineAction(id: string) {
   const filtered = queue.filter((a) => a.id !== id);
   saveQueue(OFFLINE_ACTIONS_KEY, filtered);
 }
-

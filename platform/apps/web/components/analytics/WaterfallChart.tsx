@@ -1,48 +1,23 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import type { ComponentType } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+import {
+  Bar,
+  BarChart,
+  Cell,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "@/components/charts/recharts";
 
-// Dynamic import for Recharts
-const ResponsiveContainer = dynamic(
-  () => import("recharts").then((mod) => mod.ResponsiveContainer as unknown as ComponentType<any>),
-  { ssr: false }
-);
-const BarChart = dynamic(
-  () => import("recharts").then((mod) => mod.BarChart as unknown as ComponentType<any>),
-  { ssr: false }
-);
-const Bar = dynamic(
-  () => import("recharts").then((mod) => mod.Bar as unknown as ComponentType<any>),
-  { ssr: false }
-);
-const XAxis = dynamic(
-  () => import("recharts").then((mod) => mod.XAxis as unknown as ComponentType<any>),
-  { ssr: false }
-);
-const YAxis = dynamic(
-  () => import("recharts").then((mod) => mod.YAxis as unknown as ComponentType<any>),
-  { ssr: false }
-);
-const Tooltip = dynamic(
-  () => import("recharts").then((mod) => mod.Tooltip as unknown as ComponentType<any>),
-  { ssr: false }
-);
-const Cell = dynamic(
-  () => import("recharts").then((mod) => mod.Cell as unknown as ComponentType<any>),
-  { ssr: false }
-);
-const ReferenceLine = dynamic(
-  () => import("recharts").then((mod) => mod.ReferenceLine as unknown as ComponentType<any>),
-  { ssr: false }
-);
+type WaterfallType = "start" | "increase" | "decrease" | "total";
 
 interface WaterfallDataPoint {
   label: string;
   value: number;
-  type?: "start" | "increase" | "decrease" | "total";
+  type?: WaterfallType;
 }
 
 interface WaterfallChartProps {
@@ -55,7 +30,20 @@ interface WaterfallChartProps {
   yAxisLabel?: string;
 }
 
-function processWaterfallData(data: WaterfallDataPoint[]) {
+interface ProcessedWaterfallDataPoint extends WaterfallDataPoint {
+  type: WaterfallType;
+  start: number;
+  end: number;
+  displayValue: number;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const toStringValue = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+function processWaterfallData(data: WaterfallDataPoint[]): ProcessedWaterfallDataPoint[] {
   let runningTotal = 0;
 
   return data.map((item, index) => {
@@ -123,7 +111,7 @@ export function WaterfallChart({
     );
   }
 
-  const getBarColor = (type: string) => {
+  const getBarColor = (type: WaterfallType) => {
     switch (type) {
       case "start":
       case "total":
@@ -171,13 +159,17 @@ export function WaterfallChart({
                   padding: "12px",
                 }}
                 labelStyle={{ color: "#f8fafc", fontWeight: "bold", marginBottom: "4px" }}
-                formatter={(value: any, name: string, props: any) => {
-                  const item = props.payload;
-                  const prefix = item.type === "decrease" ? "-" : item.type === "increase" ? "+" : "";
-                  return [
-                    `${prefix}${formatValue(item.displayValue)}`,
-                    item.type === "start" ? "Starting" : item.type === "total" ? "Total" : "Change"
-                  ];
+                formatter={(value: number | string, name: string | number, item: { payload?: unknown }) => {
+                  const payload: unknown = item.payload;
+                  const payloadRecord = isRecord(payload) ? payload : {};
+                  const rawType = toStringValue(payloadRecord.type);
+                  const type = rawType === "start" || rawType === "total" || rawType === "decrease" || rawType === "increase"
+                    ? rawType
+                    : undefined;
+                  const displayValue = typeof payloadRecord.displayValue === "number" ? payloadRecord.displayValue : value;
+                  const prefix = type === "decrease" ? "-" : type === "increase" ? "+" : "";
+                  const label = type === "start" ? "Starting" : type === "total" ? "Total" : "Change";
+                  return [`${prefix}${formatValue(Number(displayValue))}`, label ?? name];
                 }}
               />
               <ReferenceLine y={0} stroke="#64748b" strokeOpacity={0.5} />

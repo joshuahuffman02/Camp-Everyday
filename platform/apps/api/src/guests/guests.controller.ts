@@ -21,7 +21,6 @@ export class GuestsController {
   private assertCampgroundAccess(campgroundId: string, user?: AuthUser | null): void {
     // Platform staff can access any campground
     const isPlatformStaff = user?.platformRole === 'platform_admin' ||
-                            user?.platformRole === 'platform_superadmin' ||
                             user?.platformRole === 'support_agent';
     if (isPlatformStaff) {
       return;

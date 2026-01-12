@@ -35,7 +35,36 @@ type TierContent = {
   benefits: (pricing: TierPricing) => string[];
 };
 
+type CompetitorFeatureKey =
+  | "onlineBooking"
+  | "dynamicPricing"
+  | "guestMessaging"
+  | "pos"
+  | "staffScheduling"
+  | "mobileApp"
+  | "aiFeatures"
+  | "multiProperty";
+
+type Competitor = {
+  name: string;
+  isUs: boolean;
+  monthlyBase: string;
+  perBooking: string;
+  marketplaceCommission: string;
+  setupFee: string;
+  paymentProcessing: string;
+  freeTrialDays: string;
+  support: string;
+  aiIncluded?: string;
+  features: Record<CompetitorFeatureKey, boolean>;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
 const tierOrder: EarlyAccessTierKey[] = ["founders_circle", "pioneer", "trailblazer"];
+const isEarlyAccessTierKey = (value: string): value is EarlyAccessTierKey =>
+  tierOrder.some((tier) => tier === value);
 
 const fallbackAvailability: Record<EarlyAccessTierKey, { totalSpots: number; pricing: TierPricing }> = {
   founders_circle: {
@@ -65,6 +94,29 @@ const fallbackAvailability: Record<EarlyAccessTierKey, { totalSpots: number; pri
       postPromoMonthlyFeeCents: 2900,
     },
   },
+};
+
+const isTierPricing = (value: unknown): value is TierPricing => {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.bookingFeeCents === "number" &&
+    typeof value.monthlyFeeCents === "number" &&
+    (value.monthlyDurationMonths === null || typeof value.monthlyDurationMonths === "number") &&
+    typeof value.postPromoMonthlyFeeCents === "number"
+  );
+};
+
+const isTierAvailability = (value: unknown): value is TierAvailability => {
+  if (!isRecord(value)) return false;
+  const tier = value.tier;
+  return (
+    typeof tier === "string" &&
+    isEarlyAccessTierKey(tier) &&
+    typeof value.totalSpots === "number" &&
+    typeof value.remainingSpots === "number" &&
+    typeof value.isSoldOut === "boolean" &&
+    isTierPricing(value.pricing)
+  );
 };
 
 const formatCurrency = (cents: number, options: { forceDecimals?: boolean } = {}) => {
@@ -161,7 +213,7 @@ const tierContent: Record<EarlyAccessTierKey, TierContent> = {
 };
 
 // Competitor comparison data
-const competitors = [
+const competitors: Competitor[] = [
   {
     name: "Keepr",
     isUs: true,
@@ -270,7 +322,7 @@ const competitors = [
   },
 ];
 
-const featureLabels: Record<string, string> = {
+const featureLabels: Record<CompetitorFeatureKey, string> = {
   onlineBooking: "Online Booking",
   dynamicPricing: "Dynamic Pricing",
   guestMessaging: "Guest Messaging",
@@ -280,6 +332,16 @@ const featureLabels: Record<string, string> = {
   aiFeatures: "AI Features",
   multiProperty: "Multi-Property",
 };
+const featureKeys: CompetitorFeatureKey[] = [
+  "onlineBooking",
+  "dynamicPricing",
+  "guestMessaging",
+  "pos",
+  "staffScheduling",
+  "mobileApp",
+  "aiFeatures",
+  "multiProperty",
+];
 
 type TierModel = {
   key: EarlyAccessTierKey;
@@ -308,9 +370,10 @@ export function PricingPreview() {
       try {
         const res = await fetch(`${API_BASE}/early-access/availability`);
         if (!res.ok) throw new Error("Failed to fetch early access availability");
-        const data = (await res.json()) as TierAvailability[];
+        const data = await res.json();
+        const parsed = Array.isArray(data) ? data.filter(isTierAvailability) : [];
         if (isMounted) {
-          setAvailability(data);
+          setAvailability(parsed);
           setAvailabilityStatus("ready");
         }
       } catch (err) {
@@ -867,12 +930,12 @@ export function PricingPreview() {
                 </tr>
 
                 {/* Feature rows */}
-                {Object.entries(featureLabels).map(([key, label]) => (
+                {featureKeys.map((key) => (
                   <tr key={key} className="border-b border-border/50">
-                    <td className="p-4 text-slate-300">{label}</td>
+                    <td className="p-4 text-slate-300">{featureLabels[key]}</td>
                     {competitors.map((c) => (
                       <td key={c.name} className={`p-4 text-center ${c.isUs ? "bg-keepr-evergreen/10" : ""}`}>
-                        {c.features[key as keyof typeof c.features] ? (
+                        {c.features[key] ? (
                           <Check className={`h-5 w-5 mx-auto ${c.isUs ? "text-keepr-clay" : "text-keepr-evergreen/70"}`} />
                         ) : (
                           <X className="h-5 w-5 mx-auto text-slate-400" />

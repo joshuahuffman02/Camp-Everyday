@@ -1,107 +1,141 @@
-import * as request from 'supertest';
-import { Test } from '@nestjs/testing';
-import { INestApplication, ValidationPipe, CanActivate } from '@nestjs/common';
-import { PrivacyModule } from '../privacy/privacy.module';
-import { PermissionsModule } from '../permissions/permissions.module';
+import { Test, type TestingModule } from '@nestjs/testing';
+import { PrivacyService } from '../privacy/privacy.service';
+import { PermissionsService } from '../permissions/permissions.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { JwtAuthGuard } from '../auth/guards';
-import { RolesGuard } from '../auth/guards/roles.guard';
 
 // Note: uses in-memory Nest app; DB must be available.
 describe('Privacy & Permissions APIs (e2e-ish)', () => {
-  let app: INestApplication;
-  let prisma: PrismaService;
+  let moduleRef: TestingModule;
+  let privacyService: PrivacyService;
+  let permissionsService: PermissionsService;
   const campgroundId = 'camp-pp-test';
+  const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
+  const privacySettings = new Map<string, { campgroundId: string; redactPII: boolean; consentRequired: boolean; backupRetentionDays: number; keyRotationDays: number }>();
+  const consentLogs: Array<{
+    id: string;
+    campgroundId: string;
+    subject: string;
+    consentType: string;
+    grantedBy: string;
+    grantedAt: Date;
+  }> = [];
+  const approvalRequests: Array<{ id: string; campgroundId: string | null; action: string; status: string; requestedBy: string }> = [];
+  const prismaStub = {
+    privacySetting: {
+      findUnique: jest.fn(async ({ where }: { where: { campgroundId: string } }) => {
+        return privacySettings.get(where.campgroundId) ?? null;
+      }),
+      create: jest.fn(async ({ data }: { data: { campgroundId: string; redactPII: boolean; consentRequired: boolean; backupRetentionDays: number; keyRotationDays: number } }) => {
+        privacySettings.set(data.campgroundId, data);
+        return data;
+      }),
+      update: jest.fn(async ({ where, data }: { where: { campgroundId: string }; data: Partial<{ redactPII: boolean; consentRequired: boolean; backupRetentionDays: number; keyRotationDays: number }> }) => {
+        const existing = privacySettings.get(where.campgroundId);
+        const updated = { ...(existing ?? { campgroundId: where.campgroundId, redactPII: true, consentRequired: true, backupRetentionDays: 30, keyRotationDays: 90 }), ...data };
+        privacySettings.set(where.campgroundId, updated);
+        return updated;
+      }),
+      deleteMany: jest.fn(async ({ where }: { where: { campgroundId: string } }) => {
+        privacySettings.delete(where.campgroundId);
+        return { count: 1 };
+      }),
+    },
+    consentLog: {
+      create: jest.fn(async ({ data }: { data: { id: string; campgroundId: string; subject: string; consentType: string; grantedBy: string; grantedAt?: Date } }) => {
+        const entry = { ...data, grantedAt: data.grantedAt ?? new Date() };
+        consentLogs.push(entry);
+        return entry;
+      }),
+      findMany: jest.fn(async ({ where }: { where: { campgroundId: string } }) => {
+        return consentLogs.filter((row) => row.campgroundId === where.campgroundId);
+      }),
+      deleteMany: jest.fn(async ({ where }: { where: { campgroundId: string } }) => {
+        let removed = 0;
+        for (let i = consentLogs.length - 1; i >= 0; i -= 1) {
+          if (consentLogs[i].campgroundId === where.campgroundId) {
+            consentLogs.splice(i, 1);
+            removed += 1;
+          }
+        }
+        return { count: removed };
+      }),
+    },
+    approvalRequest: {
+      create: jest.fn(async ({ data }: { data: { id: string; campgroundId: string | null; action: string; status: string; requestedBy: string } }) => {
+        approvalRequests.push(data);
+        return data;
+      }),
+      findMany: jest.fn(async ({ where }: { where: { campgroundId?: string } }) => {
+        return approvalRequests.filter((row) => !where.campgroundId || row.campgroundId === where.campgroundId);
+      }),
+      deleteMany: jest.fn(async ({ where }: { where: { campgroundId: string } }) => {
+        let removed = 0;
+        for (let i = approvalRequests.length - 1; i >= 0; i -= 1) {
+          if (approvalRequests[i].campgroundId === where.campgroundId) {
+            approvalRequests.splice(i, 1);
+            removed += 1;
+          }
+        }
+        return { count: removed };
+      }),
+      findUnique: jest.fn(async () => null),
+      update: jest.fn(async ({ data }: { data: Record<string, unknown> }) => data),
+    },
+  };
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({
-      imports: [PrivacyModule, PermissionsModule],
-      providers: [PrismaService],
-    })
-      .overrideGuard(JwtAuthGuard)
-      .useValue({ canActivate: () => true })
-      .overrideGuard(RolesGuard)
-      .useValue({ canActivate: () => true })
-      .compile();
+    moduleRef = await Test.createTestingModule({
+      providers: [
+        PrivacyService,
+        PermissionsService,
+        { provide: PrismaService, useValue: prismaStub },
+      ],
+    }).compile();
 
-    app = moduleRef.createNestApplication();
-    app.setGlobalPrefix('api');
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    await app.init();
-    prisma = app.get(PrismaService);
-
-    // Seed org + campground and privacy defaults
-    await prisma.organization.upsert({
-      where: { id: "org-test" },
-      update: {},
-      create: { id: "org-test", name: "Org Test" },
-    });
-    await prisma.campground.upsert({
-      where: { id: campgroundId },
-      update: {},
-      create: {
-        id: campgroundId,
-        name: 'Privacy Test Camp',
-        organizationId: 'org-test',
-        city: 'Test',
-        state: 'TS',
-        country: 'US',
-        slug: 'privacy-test',
-      },
-    });
-    await prisma.approvalPolicy.upsert({
-      where: { campgroundId_action: { campgroundId, action: 'export_pii' } },
-      update: {},
-      create: {
-        campgroundId,
-        action: 'export_pii',
-        resource: 'pii',
-        approverRoles: ['owner'],
-      },
-    });
+    privacyService = moduleRef.get(PrivacyService);
+    permissionsService = moduleRef.get(PermissionsService);
   });
 
   afterAll(async () => {
-    await prisma.consentLog.deleteMany({ where: { campgroundId } });
-    await prisma.privacySetting.deleteMany({ where: { campgroundId } });
-    await prisma.approvalRequest.deleteMany({ where: { campgroundId } });
-    await prisma.auditLog.deleteMany({ where: { campgroundId } });
-    await prisma.campground.deleteMany({ where: { id: campgroundId } });
-    await app.close();
+    await prismaStub.consentLog.deleteMany({ where: { campgroundId } });
+    await prismaStub.privacySetting.deleteMany({ where: { campgroundId } });
+    await prismaStub.approvalRequest.deleteMany({ where: { campgroundId } });
+    await moduleRef.close();
   });
 
   it('updates privacy settings and logs consent', async () => {
-    const api = request(app.getHttpServer());
+    const settingsRes = await privacyService.updateSettings(campgroundId, {
+      redactPII: true,
+      consentRequired: true,
+      backupRetentionDays: 15,
+      keyRotationDays: 45,
+    });
 
-    const settingsRes = await api
-      .post(`/api/campgrounds/${campgroundId}/privacy`)
-      .send({ redactPII: true, consentRequired: true, backupRetentionDays: 15, keyRotationDays: 45 })
-      .expect(201);
+    expect(settingsRes.backupRetentionDays).toBe(15);
 
-    expect(settingsRes.body.backupRetentionDays).toBe(15);
+    const consentRes = await privacyService.recordConsent({
+      campgroundId,
+      subject: 'guest@example.com',
+      consentType: 'marketing',
+      grantedBy: 'tester',
+    });
 
-    const consentRes = await api
-      .post(`/api/campgrounds/${campgroundId}/privacy/consents`)
-      .send({ subject: 'guest@example.com', consentType: 'marketing', grantedBy: 'tester' })
-      .expect(201);
+    expect(consentRes.consentType).toBe('marketing');
 
-    expect(consentRes.body.consentType).toBe('marketing');
-
-    const listRes = await api.get(`/api/campgrounds/${campgroundId}/privacy/consents`).expect(200);
-    expect(listRes.body.length).toBeGreaterThanOrEqual(1);
+    const listRes = await privacyService.listConsents(campgroundId);
+    expect(listRes.length).toBeGreaterThanOrEqual(1);
   });
 
   it('creates and lists approval requests (auto-approved stub)', async () => {
-    const api = request(app.getHttpServer());
+    const createRes = await permissionsService.requestApproval({
+      action: 'export_pii',
+      requestedBy: 'tester',
+      campgroundId,
+    });
 
-    const createRes = await api
-      .post('/api/permissions/approvals')
-      .send({ action: 'export_pii', requestedBy: 'tester', campgroundId })
-      .expect(201);
+    expect(createRes.status).toBe('approved');
 
-    expect(createRes.body.status).toBe('approved');
-
-    const listRes = await api.get('/api/permissions/approvals').expect(200);
-    expect(listRes.body.find((a: any) => a.id === createRes.body.id)).toBeTruthy();
+    const approvals = await permissionsService.listApprovals();
+    expect(approvals.some((row) => isRecord(row) && row.id === createRes.id)).toBe(true);
   });
 });

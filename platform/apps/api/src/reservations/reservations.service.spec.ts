@@ -1,36 +1,78 @@
 import { ReservationsService } from './reservations.service';
 import { BadRequestException } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
+import { PrismaService } from '../prisma/prisma.service';
+import { LockService } from '../redis/lock.service';
+import { PromotionsService } from '../promotions/promotions.service';
+import { EmailService } from '../email/email.service';
+import { WaitlistService } from '../waitlist/waitlist.service';
+import { LoyaltyService } from '../loyalty/loyalty.service';
+import { TaxRulesService } from '../tax-rules/tax-rules.service';
+import { MatchScoreService } from './match-score.service';
+import { GamificationService } from '../gamification/gamification.service';
+import { PricingV2Service } from '../pricing-v2/pricing-v2.service';
+import { DepositPoliciesService } from '../deposit-policies/deposit-policies.service';
+import { AccessControlService } from '../access-control/access-control.service';
+import { SignaturesService } from '../signatures/signatures.service';
+import { AuditService } from '../audit/audit.service';
+import { ApprovalsService } from '../approvals/approvals.service';
+import { UsageTrackerService } from '../org-billing/usage-tracker.service';
+import { RepeatChargesService } from '../repeat-charges/repeat-charges.service';
+import { PoliciesService } from '../policies/policies.service';
+import { GuestWalletService } from '../guest-wallet/guest-wallet.service';
+import { StripeService } from '../payments/stripe.service';
+import { RealtimeService } from '../realtime/realtime.service';
 
 describe('ReservationsService', () => {
   let service: ReservationsService;
+  let moduleRef: TestingModule;
 
-  beforeEach(() => {
-    // Create service with minimal mocked dependencies
-    service = new ReservationsService(
-      {} as any, // prisma
-      {} as any, // locks
-      {} as any, // promotionsService
-      {} as any, // emailService
-      {} as any, // waitlistService
-      {} as any, // loyaltyService
-      {} as any, // taxRulesService
-      {} as any, // matchScoreService
-      {} as any, // gamification
-      {} as any, // pricingV2Service
-      {} as any, // depositPoliciesService
-      {} as any, // accessControl
-      {} as any, // signaturesService
-      {} as any, // audit
-      {} as any, // approvals
-      {} as any, // usageTracker
-      {} as any, // repeatChargesService
-      {} as any  // policiesService
-    );
+  const callPrivate = (key: string, ...args: unknown[]) => {
+    const value = Reflect.get(service, key);
+    if (typeof value !== "function") {
+      throw new Error(`${key} is not a function`);
+    }
+    return value.call(service, ...args);
+  };
+
+  beforeEach(async () => {
+    moduleRef = await Test.createTestingModule({
+      providers: [
+        ReservationsService,
+        { provide: PrismaService, useValue: {} },
+        { provide: LockService, useValue: {} },
+        { provide: PromotionsService, useValue: {} },
+        { provide: EmailService, useValue: {} },
+        { provide: WaitlistService, useValue: {} },
+        { provide: LoyaltyService, useValue: {} },
+        { provide: TaxRulesService, useValue: {} },
+        { provide: MatchScoreService, useValue: {} },
+        { provide: GamificationService, useValue: {} },
+        { provide: PricingV2Service, useValue: {} },
+        { provide: DepositPoliciesService, useValue: {} },
+        { provide: AccessControlService, useValue: {} },
+        { provide: SignaturesService, useValue: {} },
+        { provide: AuditService, useValue: {} },
+        { provide: ApprovalsService, useValue: {} },
+        { provide: UsageTrackerService, useValue: {} },
+        { provide: RepeatChargesService, useValue: {} },
+        { provide: PoliciesService, useValue: {} },
+        { provide: GuestWalletService, useValue: {} },
+        { provide: StripeService, useValue: {} },
+        { provide: RealtimeService, useValue: {} }
+      ]
+    }).compile();
+
+    service = moduleRef.get(ReservationsService);
+  });
+
+  afterEach(async () => {
+    await moduleRef.close();
   });
 
   describe('computeNights', () => {
     const computeNights = (arrival: Date, departure: Date) => {
-      return (service as any).computeNights(arrival, departure);
+      return callPrivate("computeNights", arrival, departure);
     };
 
     it('should calculate 1 night for consecutive days', () => {
@@ -91,8 +133,8 @@ describe('ReservationsService', () => {
   });
 
   describe('computePaymentStatus', () => {
-    const computePaymentStatus = (total: number, paid: number) => {
-      return (service as any).computePaymentStatus(total, paid);
+    const computePaymentStatus = (total: number | null | undefined, paid: number) => {
+      return callPrivate("computePaymentStatus", total, paid);
     };
 
     it('should return "paid" when paid equals total', () => {
@@ -122,14 +164,14 @@ describe('ReservationsService', () => {
     });
 
     it('should return "unpaid" for null/undefined total', () => {
-      expect(computePaymentStatus(null as any, 0)).toBe('unpaid');
-      expect(computePaymentStatus(undefined as any, 0)).toBe('unpaid');
+      expect(computePaymentStatus(null, 0)).toBe('unpaid');
+      expect(computePaymentStatus(undefined, 0)).toBe('unpaid');
     });
   });
 
   describe('buildPaymentFields', () => {
     const buildPaymentFields = (totalAmount: number, paidAmount: number) => {
-      return (service as any).buildPaymentFields(totalAmount, paidAmount);
+      return callPrivate("buildPaymentFields", totalAmount, paidAmount);
     };
 
     it('should calculate correct balance when partially paid', () => {
@@ -169,7 +211,7 @@ describe('ReservationsService', () => {
       rigType?: string | null,
       rigLength?: number | null
     ) => {
-      return (service as any).isRigCompatible(site, rigType, rigLength);
+      return callPrivate("isRigCompatible", site, rigType, rigLength);
     };
 
     describe('non-RV types (always compatible)', () => {
@@ -244,8 +286,24 @@ describe('ReservationsService', () => {
   });
 
   describe('validateAssignmentConstraints', () => {
-    const validateAssignmentConstraints = (site: any, opts: any) => {
-      return (service as any).validateAssignmentConstraints(site, opts);
+    type AssignmentSite = {
+      siteType: string;
+      rigMaxLength?: number | null;
+      siteClassRigMaxLength?: number | null;
+      accessible?: boolean | null;
+      amenityTags?: string[] | null;
+      maxOccupancy?: number | null;
+    };
+    type AssignmentOptions = {
+      rigType?: string | null;
+      rigLength?: number | null;
+      requiresAccessible?: boolean | null;
+      requiredAmenities?: string[] | null;
+      adults?: number | null;
+      children?: number | null;
+    };
+    const validateAssignmentConstraints = (site: AssignmentSite, opts: AssignmentOptions) => {
+      return callPrivate("validateAssignmentConstraints", site, opts);
     };
 
     describe('occupancy constraints', () => {

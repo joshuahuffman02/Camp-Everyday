@@ -153,6 +153,7 @@ export type Campground = z.infer<typeof CampgroundSchema>;
 
 export const FormTemplateSchema = z.object({
   id: z.string().cuid(),
+  confirmationNumber: z.string().optional(),
   campgroundId: z.string().cuid(),
   title: z.string(),
   type: z.enum(["waiver", "vehicle", "intake", "custom"]),
@@ -326,6 +327,8 @@ export const ReservationSchema = z.object({
   siteId: z.string().cuid(),
   siteLocked: z.boolean().optional().default(false),
   guestId: z.string().cuid(),
+  groupId: z.string().nullish(),
+  groupRole: z.enum(["primary", "member"]).nullish(),
   arrivalDate: z.string(),
   departureDate: z.string(),
   adults: z.number().int().nonnegative(),
@@ -529,6 +532,8 @@ export const MaintenanceSchema = z.object({
   dueDate: z.string().nullish(),
   assignedTo: z.string().nullish(),
   isBlocking: z.boolean().optional().default(false),
+  outOfOrder: z.boolean().optional(),
+  outOfOrderReason: z.string().nullish(),
   resolvedAt: z.string().nullish(),
   siteName: z.string().nullish().optional(),
   siteNumber: z.string().nullish().optional(),
@@ -771,6 +776,7 @@ export const ProductCategorySchema = z.object({
   campgroundId: z.string().cuid(),
   name: z.string().min(1),
   description: z.string().nullish(),
+  color: z.string().nullish(),
   sortOrder: z.number().int().optional(),
   isActive: z.boolean().optional().default(true),
   createdAt: z.string().optional(),

@@ -324,7 +324,8 @@ export default function HelpPage() {
 
 function filteredByIds(topics: HelpTopic[], ids: string[]): HelpTopic[] {
   const idSet = new Set(ids);
-  return ids.map((id) => topics.find((t) => t.id === id)).filter(Boolean) as HelpTopic[];
+  const isHelpTopic = (topic: HelpTopic | undefined): topic is HelpTopic => Boolean(topic);
+  return ids.map((id) => topics.find((t) => t.id === id)).filter(isHelpTopic);
 }
 
 function HelpCard({

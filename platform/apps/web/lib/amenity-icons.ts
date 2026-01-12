@@ -81,10 +81,26 @@ export function getAmenityIconPath(amenity: string): string | null {
   return null;
 }
 
+export type ClayAmenityIcon =
+  | "wifi"
+  | "laundry"
+  | "store"
+  | "shower"
+  | "full-hookups"
+  | "electric-hookup"
+  | "water-hookup"
+  | "pool"
+  | "fishing"
+  | "hiking"
+  | "biking"
+  | "playground"
+  | "pet-friendly"
+  | "campfire";
+
 /**
  * List of all available clay amenity icons
  */
-export const AVAILABLE_CLAY_ICONS = [
+export const AVAILABLE_CLAY_ICONS: ClayAmenityIcon[] = [
   "wifi",
   "laundry",
   "store",
@@ -99,6 +115,4 @@ export const AVAILABLE_CLAY_ICONS = [
   "playground",
   "pet-friendly",
   "campfire",
-] as const;
-
-export type ClayAmenityIcon = typeof AVAILABLE_CLAY_ICONS[number];
+];

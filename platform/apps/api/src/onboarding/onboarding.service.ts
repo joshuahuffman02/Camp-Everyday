@@ -1,36 +1,94 @@
 import { BadRequestException, ConflictException, Injectable, Logger, UnauthorizedException } from "@nestjs/common";
-import { IdempotencyStatus, OnboardingStatus, OnboardingStep } from "@prisma/client";
+import { IdempotencyStatus, OnboardingStatus, OnboardingStep, Prisma, SiteType, UserRole } from "@prisma/client";
 import { instanceToPlain, plainToInstance } from "class-transformer";
 import { validateSync } from "class-validator";
-import crypto from "crypto";
+import { randomBytes, randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { EmailService } from "../email/email.service";
 import { IdempotencyService } from "../payments/idempotency.service";
 import { ONBOARDING_STEP_ORDER, ONBOARDING_TOTAL_STEPS, OnboardingStepKey } from "./onboarding.constants";
-import {
-  AccountProfileDto,
-  CommunicationsTemplatesDto,
-  CreateOnboardingInviteDto,
-  ImportsDto,
-  InventorySitesDto,
-  PaymentGatewayDto,
-  PoliciesDto,
-  RatesAndFeesDto,
-  StartOnboardingDto,
-  TaxesAndFeesDto
-} from "./dto";
+import { AccountProfileDto, CreateOnboardingInviteDto, StartOnboardingDto } from "./dto";
 
-type OnboardingPayload =
-  | AccountProfileDto
-  | PaymentGatewayDto
-  | TaxesAndFeesDto
-  | InventorySitesDto
-  | RatesAndFeesDto
-  | PoliciesDto
-  | CommunicationsTemplatesDto
-  | ImportsDto;
+type OnboardingPayload = Record<string, unknown>;
 
-const STEP_VALIDATORS: Partial<Record<OnboardingStepKey, any>> = {
+type StepValidator = new () => object;
+
+type OnboardingActor = { id?: string | null } | null;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const isString = (value: unknown): value is string => typeof value === "string";
+
+const isNumber = (value: unknown): value is number =>
+  typeof value === "number" && !Number.isNaN(value);
+
+const isBoolean = (value: unknown): value is boolean => typeof value === "boolean";
+
+const toRecord = (value: unknown): Record<string, unknown> => (isRecord(value) ? value : {});
+
+const toArray = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
+
+const toString = (value: unknown): string | undefined => (isString(value) ? value : undefined);
+
+const toNumber = (value: unknown): number | undefined => {
+  if (isNumber(value)) return value;
+  if (isString(value) && value.trim() !== "") {
+    const parsed = Number(value);
+    if (!Number.isNaN(parsed)) return parsed;
+  }
+  return undefined;
+};
+
+const toBoolean = (value: unknown): boolean | undefined => {
+  if (isBoolean(value)) return value;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  return undefined;
+};
+
+const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined => {
+  if (value === undefined || value === null) return undefined;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
+};
+
+const toNullableJsonInput = (
+  value: unknown
+): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined => {
+  if (value === undefined) return undefined;
+  if (value === null) return Prisma.JsonNull;
+  return toJsonValue(value) ?? Prisma.JsonNull;
+};
+
+const isSiteType = (value: string): value is SiteType =>
+  Object.values(SiteType).some((type) => type === value);
+
+const isUserRole = (value: string): value is UserRole =>
+  Object.values(UserRole).some((role) => role === value);
+
+const toStringArray = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isString);
+};
+
+const toNumberArray = (value: unknown): number[] => {
+  if (!Array.isArray(value)) return [];
+  const result: number[] = [];
+  for (const entry of value) {
+    const parsed = toNumber(entry);
+    if (typeof parsed === "number") {
+      result.push(parsed);
+    }
+  }
+  return result;
+};
+
+const STEP_VALIDATORS: Partial<Record<OnboardingStep, StepValidator | null>> = {
+  account_profile: AccountProfileDto,
   // All steps use lenient validation - service handles data transformation
   park_profile: null,
   operational_hours: null,
@@ -69,12 +127,13 @@ export class OnboardingService {
     private readonly idempotency: IdempotencyService,
   ) { }
 
-  async createInvite(dto: CreateOnboardingInviteDto, actor?: any) {
-    const token = crypto.randomBytes(24).toString("hex");
+  async createInvite(dto: CreateOnboardingInviteDto, actor?: OnboardingActor) {
+    const token = randomBytes(24).toString("hex");
     const expiresAt = new Date(Date.now() + ((dto.expiresInHours ?? 72) * 60 * 60 * 1000));
 
     const invite = await this.prisma.onboardingInvite.create({
       data: {
+        id: randomUUID(),
         email: dto.email,
         organizationId: dto.organizationId ?? null,
         campgroundId: dto.campgroundId ?? null,
@@ -90,11 +149,11 @@ export class OnboardingService {
     return { inviteId: invite.id, token, expiresAt };
   }
 
-  async resendInvite(inviteId: string, actor?: any) {
+  async resendInvite(inviteId: string, actor?: OnboardingActor) {
     const existing = await this.prisma.onboardingInvite.findUnique({ where: { id: inviteId } });
     if (!existing) throw new UnauthorizedException("Invite not found");
 
-    const token = crypto.randomBytes(24).toString("hex");
+    const token = randomBytes(24).toString("hex");
     const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000);
 
     const invite = await this.prisma.onboardingInvite.update({
@@ -114,8 +173,9 @@ export class OnboardingService {
   async startSession(input: StartOnboardingDto) {
     const invite = await this.requireInvite(input.token);
 
-    const session = invite.session ?? await this.prisma.onboardingSession.create({
+    const session = invite.OnboardingSession ?? await this.prisma.onboardingSession.create({
       data: {
+        id: randomUUID(),
         inviteId: invite.id,
         organizationId: invite.organizationId ?? null,
         campgroundId: invite.campgroundId ?? null,
@@ -123,6 +183,7 @@ export class OnboardingService {
         currentStep: OnboardingStep.account_profile,
         completedSteps: [],
         expiresAt: invite.expiresAt,
+        updatedAt: new Date(),
       },
     });
 
@@ -158,7 +219,7 @@ export class OnboardingService {
     sessionId: string,
     token: string,
     step: OnboardingStep,
-    payload: any,
+    payload: unknown,
     idempotencyKey?: string,
     sequence?: string | number | null,
   ) {
@@ -182,16 +243,20 @@ export class OnboardingService {
 
     try {
       const sanitized = this.validatePayload(step, payload);
-      const completed = new Set(session.completedSteps ?? []);
+      let sanitizedRecord = toRecord(sanitized);
+      const completed = new Set<OnboardingStep>(session.completedSteps ?? []);
       completed.add(step);
 
       // Create campground when park_profile is saved (needed for Stripe connect)
       let campgroundId = session.campgroundId;
       let campgroundSlug: string | null = null;
       if ((step === OnboardingStep.park_profile || step === OnboardingStep.account_profile) && !campgroundId) {
-        const profileData = sanitized as any;
-        const campgroundData = profileData.campground || profileData;
-        const campgroundName = campgroundData.name || campgroundData.campgroundName || "My Campground";
+        const profileData = sanitizedRecord;
+        const campgroundData = isRecord(profileData.campground) ? profileData.campground : profileData;
+        const campgroundName =
+          toString(campgroundData.name) ??
+          toString(campgroundData.campgroundName) ??
+          "My Campground";
 
         // Generate unique slug
         const baseSlug = campgroundName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -202,20 +267,26 @@ export class OnboardingService {
           counter++;
         }
 
+        const organizationId = session.organizationId;
+        if (!organizationId) {
+          throw new BadRequestException("Organization is required to create a campground");
+        }
+
         const campground = await this.prisma.campground.create({
           data: {
-            organizationId: session.organizationId || "",
+            id: randomUUID(),
+            Organization: { connect: { id: organizationId } },
             name: campgroundName,
             slug,
-            phone: campgroundData.phone,
-            email: campgroundData.email,
-            city: campgroundData.city,
-            state: campgroundData.state,
-            country: campgroundData.country || "US",
-            address1: campgroundData.address1,
-            postalCode: campgroundData.postalCode,
-            timezone: campgroundData.timezone || "America/New_York",
-            website: campgroundData.website,
+            phone: toString(campgroundData.phone) ?? null,
+            email: toString(campgroundData.email) ?? null,
+            city: toString(campgroundData.city) ?? null,
+            state: toString(campgroundData.state) ?? null,
+            country: toString(campgroundData.country) ?? "US",
+            address1: toString(campgroundData.address1) ?? null,
+            postalCode: toString(campgroundData.postalCode) ?? null,
+            timezone: toString(campgroundData.timezone) ?? "America/New_York",
+            website: toString(campgroundData.website) ?? null,
             isBookable: false, // Not bookable until onboarding complete
           }
         });
@@ -224,53 +295,79 @@ export class OnboardingService {
         this.logger.log(`Created campground ${campground.id} (${campground.name}) during onboarding`);
 
         // Add slug to the sanitized data so it's stored with the session
-        (sanitized as any).campground = {
-          ...(sanitized as any).campground || campgroundData,
-          slug: campground.slug,
-          id: campground.id,
+        sanitizedRecord = {
+          ...sanitizedRecord,
+          campground: {
+            ...(isRecord(sanitizedRecord.campground) ? sanitizedRecord.campground : campgroundData),
+            slug: campground.slug,
+            id: campground.id,
+          },
         };
       }
 
       // Create SiteClass records when site_classes step is saved
       if (step === OnboardingStep.site_classes && campgroundId) {
-        const siteClassesData = (sanitized as any).siteClasses || [];
+        const siteClassesData = toArray(sanitizedRecord.siteClasses);
         const createdIds: string[] = [];
 
         // Delete existing site classes for this campground (idempotent re-save)
         await this.prisma.siteClass.deleteMany({ where: { campgroundId } });
 
-        for (const sc of siteClassesData) {
+        for (const entry of siteClassesData) {
+          const sc = toRecord(entry);
+          const defaultRate = toNumber(sc.defaultRate) ?? 0;
+          const maxOccupancy = toNumber(sc.maxOccupancy) ?? 6;
+          const rigMaxLength = toNumber(sc.rigMaxLength);
+          const electricAmps = toNumberArray(sc.electricAmps);
+          const hookupsPower = toBoolean(sc.hookupsPower);
+          const hookupsWater = toBoolean(sc.hookupsWater) ?? false;
+          const hookupsSewer = toBoolean(sc.hookupsSewer) ?? false;
+          const extraAdultFee = toNumber(sc.extraAdultFee);
+          const extraChildFee = toNumber(sc.extraChildFee);
+          const weeklyRate = toNumber(sc.weeklyRate);
+          const monthlyRate = toNumber(sc.monthlyRate);
+          const petFee = toNumber(sc.petFee);
+          const bookingFee = toNumber(sc.bookingFee);
+          const siteLockFee = toNumber(sc.siteLockFee);
+          const siteTypeRaw = toString(sc.siteType);
+          const siteType = siteTypeRaw && isSiteType(siteTypeRaw) ? siteTypeRaw : SiteType.rv;
+          const slideOutsRaw = toString(sc.slideOutsAccepted);
+          const slideOutsFlag = toBoolean(sc.slideOutsAccepted);
+          const slideOutsAccepted =
+            slideOutsRaw ?? (slideOutsFlag !== undefined ? String(slideOutsFlag) : null);
+
           const created = await this.prisma.siteClass.create({
             data: {
+              id: randomUUID(),
               campgroundId,
-              name: sc.name,
-              siteType: sc.siteType || "rv",
-              description: sc.description || null,
-              defaultRate: Math.round((sc.defaultRate || 0) * 100), // Convert to cents
-              maxOccupancy: sc.maxOccupancy || 6,
-              rigMaxLength: sc.rigMaxLength || null,
-              hookupsPower: sc.hookupsPower ?? (sc.electricAmps?.length > 0),
-              hookupsWater: sc.hookupsWater ?? false,
-              hookupsSewer: sc.hookupsSewer ?? false,
-              electricAmps: sc.electricAmps || [],
-              rvOrientation: sc.rvOrientation || null,
-              petFriendly: sc.petFriendly ?? true,
-              accessible: sc.accessible ?? false,
-              photos: sc.photos || [],
-              tags: sc.amenityTags || [],
+              name: toString(sc.name) ?? "Site Class",
+              siteType,
+              description: toString(sc.description) ?? null,
+              defaultRate: Math.round(defaultRate * 100), // Convert to cents
+              maxOccupancy,
+              rigMaxLength: typeof rigMaxLength === "number" ? rigMaxLength : null,
+              hookupsPower: hookupsPower ?? (electricAmps.length > 0),
+              hookupsWater,
+              hookupsSewer,
+              electricAmps,
+              rvOrientation: toString(sc.rvOrientation) ?? null,
+              petFriendly: toBoolean(sc.petFriendly) ?? true,
+              accessible: toBoolean(sc.accessible) ?? false,
+              photos: toStringArray(sc.photos),
+              tags: toStringArray(sc.amenityTags),
               // New enhanced onboarding fields
-              rentalType: sc.rentalType || "transient",
-              equipmentTypes: sc.equipmentTypes || [],
-              slideOutsAccepted: sc.slideOutsAccepted ?? null,
-              occupantsIncluded: sc.occupantsIncluded ?? 2,
-              extraAdultFeeCents: sc.extraAdultFee ? Math.round(sc.extraAdultFee * 100) : null,
-              extraChildFeeCents: sc.extraChildFee ? Math.round(sc.extraChildFee * 100) : null,
-              weeklyRateCents: sc.weeklyRate ? Math.round(sc.weeklyRate * 100) : null,
-              monthlyRateCents: sc.monthlyRate ? Math.round(sc.monthlyRate * 100) : null,
-              petFeeEnabled: sc.petFeeEnabled ?? false,
-              petFeeCents: sc.petFee ? Math.round(sc.petFee * 100) : null,
-              bookingFeeCents: sc.bookingFee ? Math.round(sc.bookingFee * 100) : null,
-              siteLockFeeCents: sc.siteLockFee ? Math.round(sc.siteLockFee * 100) : null,
+              rentalType: toString(sc.rentalType) ?? "transient",
+              equipmentTypes: toStringArray(sc.equipmentTypes),
+              slideOutsAccepted,
+              occupantsIncluded: toNumber(sc.occupantsIncluded) ?? 2,
+              extraAdultFeeCents: typeof extraAdultFee === "number" ? Math.round(extraAdultFee * 100) : null,
+              extraChildFeeCents: typeof extraChildFee === "number" ? Math.round(extraChildFee * 100) : null,
+              weeklyRateCents: typeof weeklyRate === "number" ? Math.round(weeklyRate * 100) : null,
+              monthlyRateCents: typeof monthlyRate === "number" ? Math.round(monthlyRate * 100) : null,
+              petFeeEnabled: toBoolean(sc.petFeeEnabled) ?? false,
+              petFeeCents: typeof petFee === "number" ? Math.round(petFee * 100) : null,
+              bookingFeeCents: typeof bookingFee === "number" ? Math.round(bookingFee * 100) : null,
+              siteLockFeeCents: typeof siteLockFee === "number" ? Math.round(siteLockFee * 100) : null,
             },
           });
           createdIds.push(created.id);
@@ -278,87 +375,117 @@ export class OnboardingService {
         }
 
         // Store the created IDs in sanitized data
-        (sanitized as any).siteClassIds = createdIds;
+        sanitizedRecord = { ...sanitizedRecord, siteClassIds: createdIds };
       }
 
       // Create Site records when sites_builder step is saved
       if (step === OnboardingStep.sites_builder && campgroundId) {
-        const sitesData = (sanitized as any).sites || [];
-        const sessionData = session.data as any;
-        const siteClassIds = sessionData?.site_classes?.siteClassIds || [];
-        const siteClassesData = sessionData?.site_classes?.siteClasses || [];
+        const sitesData = toArray(sanitizedRecord.sites);
+        const sessionData = toRecord(session.data);
+        const siteClassesStep = toRecord(sessionData.site_classes);
+        const siteClassIds = toStringArray(siteClassesStep.siteClassIds);
+        const siteClassesData = toArray(siteClassesStep.siteClasses);
 
         // Delete existing sites for this campground (idempotent re-save)
         await this.prisma.site.deleteMany({ where: { campgroundId } });
 
-        for (const site of sitesData) {
+        for (const entry of sitesData) {
+          const site = toRecord(entry);
           // Map the temp siteClassId to actual database ID
-          const siteClassIndex = parseInt(site.siteClassId?.replace('temp-', '') || '0');
-          const actualSiteClassId = siteClassIds[siteClassIndex];
-          const siteClassInfo = siteClassesData[siteClassIndex] || {};
+          const rawSiteClassId = toString(site.siteClassId);
+          const siteClassIndex = rawSiteClassId && rawSiteClassId.startsWith("temp-")
+            ? Number(rawSiteClassId.replace("temp-", ""))
+            : null;
+          const actualSiteClassId = rawSiteClassId
+            ? (rawSiteClassId.startsWith("temp-")
+                ? (typeof siteClassIndex === "number" && Number.isFinite(siteClassIndex) ? siteClassIds[siteClassIndex] : undefined)
+                : rawSiteClassId)
+            : undefined;
+          const siteClassInfo = (typeof siteClassIndex === "number" && Number.isFinite(siteClassIndex))
+            ? toRecord(siteClassesData[siteClassIndex])
+            : {};
 
           if (actualSiteClassId) {
             // Get siteType from siteClass, default to 'rv'
-            const siteType = siteClassInfo.siteType || 'rv';
-            const maxOccupancy = siteClassInfo.maxOccupancy || 6;
+            const siteTypeRaw = toString(siteClassInfo.siteType);
+            const siteType = siteTypeRaw && isSiteType(siteTypeRaw) ? siteTypeRaw : SiteType.rv;
+            const maxOccupancy = toNumber(siteClassInfo.maxOccupancy) ?? 6;
+            const siteNumber = toString(site.siteNumber)
+              ?? (typeof site.siteNumber === "number" ? site.siteNumber.toString() : "");
+            const rigMaxLength = toNumber(site.rigMaxLength);
+            const powerAmps = Array.isArray(site.powerAmps)
+              ? toNumberArray(site.powerAmps)
+              : toNumberArray(site.powerAmps === undefined || site.powerAmps === null ? [] : [site.powerAmps]);
 
             await this.prisma.site.create({
               data: {
+                id: randomUUID(),
                 campgroundId,
                 siteClassId: actualSiteClassId,
-                name: site.name || `Site ${site.siteNumber}`,
-                siteNumber: site.siteNumber,
+                name: toString(site.name) ?? (siteNumber ? `Site ${siteNumber}` : "Site"),
+                siteNumber,
                 siteType,
                 maxOccupancy,
-                rigMaxLength: site.rigMaxLength || null,
-                powerAmps: site.powerAmps
-                  ? (Array.isArray(site.powerAmps) ? site.powerAmps : [site.powerAmps])
-                  : [],
+                rigMaxLength: typeof rigMaxLength === "number" ? rigMaxLength : null,
+                powerAmps,
                 status: "available",
               },
             });
-            this.logger.log(`Created Site ${site.siteNumber} for campground ${campgroundId}`);
+            this.logger.log(`Created Site ${siteNumber} for campground ${campgroundId}`);
           }
         }
       }
 
       // Update SiteClass rates when rates_setup step is saved
       if (step === OnboardingStep.rates_setup && campgroundId) {
-        const ratesData = (sanitized as any).rates || [];
-        const sessionData = session.data as any;
-        const siteClassIds = sessionData?.site_classes?.siteClassIds || [];
+        const ratesData = toArray(sanitizedRecord.rates);
+        const sessionData = toRecord(session.data);
+        const siteClassesStep = toRecord(sessionData.site_classes);
+        const siteClassIds = toStringArray(siteClassesStep.siteClassIds);
 
-        for (const rate of ratesData) {
+        for (const entry of ratesData) {
+          const rate = toRecord(entry);
           // Map temp IDs to actual database IDs
-          let actualSiteClassId = rate.siteClassId;
-          if (rate.siteClassId?.startsWith('temp-')) {
-            const index = parseInt(rate.siteClassId.replace('temp-', '') || '0');
-            actualSiteClassId = siteClassIds[index];
+          const rawSiteClassId = toString(rate.siteClassId);
+          let actualSiteClassId = rawSiteClassId;
+          if (rawSiteClassId && rawSiteClassId.startsWith("temp-")) {
+            const index = Number(rawSiteClassId.replace("temp-", ""));
+            if (Number.isFinite(index)) {
+              actualSiteClassId = siteClassIds[index];
+            }
           }
 
-          if (actualSiteClassId && rate.nightlyRate) {
+          const nightlyRate = toNumber(rate.nightlyRate);
+          if (actualSiteClassId && typeof nightlyRate === "number") {
             await this.prisma.siteClass.update({
               where: { id: actualSiteClassId },
               data: {
-                defaultRate: Math.round(rate.nightlyRate * 100), // Convert to cents
+                defaultRate: Math.round(nightlyRate * 100), // Convert to cents
               },
             });
-            this.logger.log(`Updated SiteClass ${actualSiteClassId} with rate $${rate.nightlyRate}`);
+            this.logger.log(`Updated SiteClass ${actualSiteClassId} with rate $${nightlyRate}`);
           }
         }
       }
 
       // Create team members when team_setup step is saved
       if (step === OnboardingStep.team_setup && campgroundId) {
-        const teamMembers = (sanitized as any).teamMembers || [];
+        const teamMembers = toArray(sanitizedRecord.teamMembers);
         const baseUrl = process.env.FRONTEND_URL || "https://app.campreserv.com";
 
-        for (const member of teamMembers) {
-          if (!member.email) continue;
+        for (const entry of teamMembers) {
+          const member = toRecord(entry);
+          const emailRaw = toString(member.email);
+          if (!emailRaw) continue;
+          const email = emailRaw.toLowerCase();
+          const firstName = toString(member.firstName) ?? "";
+          const lastName = toString(member.lastName) ?? "";
+          const roleRaw = toString(member.role);
+          const role = roleRaw && isUserRole(roleRaw) ? roleRaw : UserRole.front_desk;
 
           // Check if user already exists
           let user = await this.prisma.user.findUnique({
-            where: { email: member.email.toLowerCase() },
+            where: { email },
           });
 
           // Create user if doesn't exist
@@ -369,9 +496,10 @@ export class OnboardingService {
 
             user = await this.prisma.user.create({
               data: {
-                email: member.email.toLowerCase(),
-                firstName: member.firstName || '',
-                lastName: member.lastName || '',
+                id: randomUUID(),
+                email,
+                firstName,
+                lastName,
                 passwordHash,
                 isActive: false, // Requires invite acceptance
               },
@@ -388,12 +516,13 @@ export class OnboardingService {
             // Create campground membership
             await this.prisma.campgroundMembership.create({
               data: {
+                id: randomUUID(),
                 userId: user.id,
                 campgroundId,
-                role: member.role || 'front_desk',
+                role,
               },
             });
-            this.logger.log(`Created membership for ${user.email} with role ${member.role}`);
+            this.logger.log(`Created membership for ${user.email} with role ${role}`);
 
             // Create invite token
             const inviteToken = Math.random().toString(36).slice(-20) + Date.now().toString(36);
@@ -402,6 +531,7 @@ export class OnboardingService {
 
             await this.prisma.inviteToken.create({
               data: {
+                id: randomUUID(),
                 token: inviteToken,
                 userId: user.id,
                 campgroundId,
@@ -411,11 +541,11 @@ export class OnboardingService {
 
             // Send invite email (fire-and-forget)
             const inviteUrl = `${baseUrl}/invite?token=${inviteToken}`;
-            const name = [member.firstName, member.lastName].filter(Boolean).join(' ') || 'there';
-            const roleLabel = (member.role || 'front_desk').replace('_', ' ');
+            const name = [firstName, lastName].filter((value) => value.length > 0).join(" ") || "there";
+            const roleLabel = role.replace("_", " ");
 
             this.email.sendEmail({
-              to: member.email,
+              to: email,
               subject: `You've been invited to join a campground team`,
               html: `
                 <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 540px; margin: 0 auto; padding: 20px;">
@@ -445,14 +575,19 @@ export class OnboardingService {
 
       // Update campground with operational hours when operational_hours step is saved
       if (step === OnboardingStep.operational_hours && campgroundId) {
-        const hoursData = sanitized as any;
+        const hoursData = sanitizedRecord;
+        const checkInTime = toString(hoursData.checkInTime) ?? "15:00";
+        const checkOutTime = toString(hoursData.checkOutTime) ?? "11:00";
+        const quietHoursEnabled = toBoolean(hoursData.quietHoursEnabled) ?? false;
+        const quietHoursStart = toString(hoursData.quietHoursStart);
+        const quietHoursEnd = toString(hoursData.quietHoursEnd);
         await this.prisma.campground.update({
           where: { id: campgroundId },
           data: {
-            checkInTime: hoursData.checkInTime || "15:00",
-            checkOutTime: hoursData.checkOutTime || "11:00",
-            quietHoursStart: hoursData.quietHoursEnabled ? hoursData.quietHoursStart : null,
-            quietHoursEnd: hoursData.quietHoursEnabled ? hoursData.quietHoursEnd : null,
+            checkInTime,
+            checkOutTime,
+            quietHoursStart: quietHoursEnabled ? (quietHoursStart ?? null) : null,
+            quietHoursEnd: quietHoursEnabled ? (quietHoursEnd ?? null) : null,
           },
         });
         this.logger.log(`Updated operational hours for campground ${campgroundId}`);
@@ -460,19 +595,24 @@ export class OnboardingService {
 
       // Update campground with booking rules when booking_rules step is saved
       if (step === OnboardingStep.booking_rules && campgroundId) {
-        const rulesData = sanitized as any;
+        const rulesData = sanitizedRecord;
+        const longTermEnabled = toBoolean(rulesData.longTermEnabled) ?? false;
+        const longTermMinNights = toNumber(rulesData.longTermMinNights) ?? 28;
+        const longTermAutoApply = toBoolean(rulesData.longTermAutoApply) ?? true;
+        const officeClosesAt = toString(rulesData.officeClosesAt) ?? "17:00";
+        const sameDayCutoffEnabled = toBoolean(rulesData.sameDayCutoffEnabled);
         await this.prisma.campground.update({
           where: { id: campgroundId },
           data: {
-            longTermEnabled: rulesData.longTermEnabled ?? false,
-            longTermMinNights: rulesData.longTermMinNights || 28,
-            longTermAutoApply: rulesData.longTermAutoApply ?? true,
-            officeClosesAt: rulesData.officeClosesAt || "17:00",
+            longTermEnabled,
+            longTermMinNights,
+            longTermAutoApply,
+            officeClosesAt,
           },
         });
 
         // If same-day cutoff is disabled, set all site classes to have no cutoff
-        if (rulesData.sameDayCutoffEnabled === false) {
+        if (sameDayCutoffEnabled === false) {
           await this.prisma.siteClass.updateMany({
             where: { campgroundId },
             data: { sameDayBookingCutoffMinutes: 0 },
@@ -486,8 +626,11 @@ export class OnboardingService {
 
       // Create waiver template when waivers_documents step is saved
       if (step === OnboardingStep.waivers_documents && campgroundId) {
-        const waiverData = sanitized as any;
-        if (waiverData.requireWaiver && (waiverData.waiverContent || waiverData.useDefaultWaiver)) {
+        const waiverData = sanitizedRecord;
+        const requireWaiver = toBoolean(waiverData.requireWaiver) ?? false;
+        const waiverContent = toString(waiverData.waiverContent);
+        const useDefaultWaiver = toBoolean(waiverData.useDefaultWaiver) ?? false;
+        if (requireWaiver && (waiverContent || useDefaultWaiver)) {
           const defaultWaiverContent = `RELEASE AND WAIVER OF LIABILITY
 
 By signing this waiver, I acknowledge and agree to the following:
@@ -502,11 +645,12 @@ I have read and understand this waiver and agree to its terms.`;
 
           await this.prisma.waiverTemplate.create({
             data: {
+              id: randomUUID(),
               campgroundId,
               name: "Standard Liability Waiver",
-              content: waiverData.useDefaultWaiver ? defaultWaiverContent : waiverData.waiverContent,
+              content: useDefaultWaiver ? defaultWaiverContent : (waiverContent ?? defaultWaiverContent),
               isActive: true,
-              requiresSignature: true,
+              updatedAt: new Date(),
             },
           });
           this.logger.log(`Created waiver template for campground ${campgroundId}`);
@@ -515,13 +659,17 @@ I have read and understand this waiver and agree to its terms.`;
 
       // Update campground with communication settings when communication_setup step is saved
       if (step === OnboardingStep.communication_setup && campgroundId) {
-        const commData = sanitized as any;
+        const commData = sanitizedRecord;
+        const enableNpsSurvey = toBoolean(commData.enableNpsSurvey) ?? false;
+        const npsSendHour = toNumber(commData.npsSendHour) ?? 9;
+        const useCustomDomain = toBoolean(commData.useCustomDomain) ?? false;
+        const customDomain = toString(commData.customDomain);
         await this.prisma.campground.update({
           where: { id: campgroundId },
           data: {
-            npsAutoSendEnabled: commData.enableNpsSurvey ?? false,
-            npsSendHour: commData.npsSendHour || 9,
-            senderDomain: commData.useCustomDomain ? commData.customDomain : null,
+            npsAutoSendEnabled: enableNpsSurvey,
+            npsSendHour,
+            senderDomain: useCustomDomain ? (customDomain ?? null) : null,
           },
         });
         this.logger.log(`Updated communication settings for campground ${campgroundId}`);
@@ -529,28 +677,33 @@ I have read and understand this waiver and agree to its terms.`;
 
       // Save quiz response when smart_quiz step is saved
       if (step === OnboardingStep.smart_quiz) {
-        const quizData = sanitized as any;
+        const quizData = sanitizedRecord;
+        const answers = toRecord(quizData.answers);
+        const recommendations = toRecord(quizData.recommendations);
         // Create or update quiz response
         await this.prisma.onboardingQuizResponse.upsert({
           where: { onboardingSessionId: sessionId },
           create: {
+            id: randomUUID(),
             onboardingSessionId: sessionId,
-            parkType: quizData.answers?.parkType,
-            operations: quizData.answers?.operations || [],
-            teamSize: quizData.answers?.teamSize,
-            amenities: quizData.answers?.amenities || [],
-            techLevel: quizData.answers?.techLevel,
-            recommendedNow: quizData.recommendations?.setupNow || [],
-            recommendedLater: quizData.recommendations?.setupLater || [],
+            parkType: toString(answers.parkType) ?? null,
+            operations: toStringArray(answers.operations),
+            teamSize: toString(answers.teamSize) ?? null,
+            amenities: toStringArray(answers.amenities),
+            techLevel: toString(answers.techLevel) ?? null,
+            recommendedNow: toStringArray(recommendations.setupNow),
+            recommendedLater: toStringArray(recommendations.setupLater),
+            updatedAt: new Date(),
           },
           update: {
-            parkType: quizData.answers?.parkType,
-            operations: quizData.answers?.operations || [],
-            teamSize: quizData.answers?.teamSize,
-            amenities: quizData.answers?.amenities || [],
-            techLevel: quizData.answers?.techLevel,
-            recommendedNow: quizData.recommendations?.setupNow || [],
-            recommendedLater: quizData.recommendations?.setupLater || [],
+            parkType: toString(answers.parkType) ?? null,
+            operations: toStringArray(answers.operations),
+            teamSize: toString(answers.teamSize) ?? null,
+            amenities: toStringArray(answers.amenities),
+            techLevel: toString(answers.techLevel) ?? null,
+            recommendedNow: toStringArray(recommendations.setupNow),
+            recommendedLater: toStringArray(recommendations.setupLater),
+            updatedAt: new Date(),
           },
         });
         this.logger.log(`Saved quiz response for session ${sessionId}`);
@@ -558,35 +711,42 @@ I have read and understand this waiver and agree to its terms.`;
 
       // Create feature setup queue when feature_triage step is saved
       if (step === OnboardingStep.feature_triage && campgroundId) {
-        const triageData = sanitized as any;
-        const selections = triageData.selections || {};
+        const triageData = sanitizedRecord;
+        const selections = toRecord(triageData.selections);
 
         // Delete existing queue items for this campground (idempotent re-save)
         await this.prisma.featureSetupQueue.deleteMany({ where: { campgroundId } });
 
         // Create queue items for each feature based on triage selection
         const queueItems: Array<{
+          id: string;
           campgroundId: string;
           featureKey: string;
           status: 'setup_now' | 'setup_later' | 'skipped' | 'completed';
           priority: number;
+          updatedAt: Date;
         }> = [];
 
         let priority = 0;
-        for (const [featureKey, status] of Object.entries(selections)) {
-          if (status === 'setup_now' || status === 'setup_later') {
+        for (const [featureKey, statusValue] of Object.entries(selections)) {
+          const status = toString(statusValue);
+          if (status === "setup_now" || status === "setup_later") {
             queueItems.push({
+              id: randomUUID(),
               campgroundId,
               featureKey,
-              status: status as 'setup_now' | 'setup_later',
-              priority: status === 'setup_now' ? priority++ : priority + 1000, // setup_now items come first
+              status,
+              priority: status === "setup_now" ? priority++ : priority + 1000, // setup_now items come first
+              updatedAt: new Date(),
             });
-          } else if (status === 'skip') {
+          } else if (status === "skip") {
             queueItems.push({
+              id: randomUUID(),
               campgroundId,
               featureKey,
-              status: 'skipped',
+              status: "skipped",
               priority: 9999,
+              updatedAt: new Date(),
             });
           }
         }
@@ -600,11 +760,14 @@ I have read and understand this waiver and agree to its terms.`;
         }
       }
 
+      const sessionDataForSave = toRecord(session.data);
+      const updatedData = { ...sessionDataForSave, [step]: sanitizedRecord };
+      const completedSteps = Array.from(completed);
       const progress = this.buildProgress({
         ...session,
         currentStep: step,
-        completedSteps: Array.from(completed),
-        data: { ...(session.data as any ?? {}), [step]: sanitized },
+        completedSteps,
+        data: updatedData,
       });
 
       const nextStatus = progress.remainingSteps.length === 0 ? OnboardingStatus.completed : OnboardingStatus.in_progress;
@@ -614,10 +777,10 @@ I have read and understand this waiver and agree to its terms.`;
         data: {
           campgroundId, // Update with new campground if created
           currentStep: progress.nextStep ?? step,
-          completedSteps: Array.from(completed),
+          completedSteps,
           status: nextStatus,
-          data: { ...(session.data as any ?? {}), [step]: sanitized },
-          progress,
+          data: toNullableJsonInput(updatedData),
+          progress: toNullableJsonInput(progress),
         }
       });
 
@@ -631,7 +794,11 @@ I have read and understand this waiver and agree to its terms.`;
     }
   }
 
-  private buildProgress(session: any) {
+  private buildProgress(session: {
+    currentStep?: OnboardingStep | null;
+    completedSteps?: OnboardingStep[] | null;
+    data?: unknown;
+  }) {
     const completed = new Set<OnboardingStep>(session.completedSteps ?? []);
     const nextStep = ONBOARDING_STEP_ORDER.find((s) => !completed.has(s)) ?? null;
     const percentage = Math.round((completed.size / ONBOARDING_TOTAL_STEPS) * 100);
@@ -645,11 +812,14 @@ I have read and understand this waiver and agree to its terms.`;
     };
   }
 
-  private validatePayload(step: OnboardingStep, payload: any): OnboardingPayload {
+  private validatePayload(step: OnboardingStep, payload: unknown): OnboardingPayload {
     const dtoClass = STEP_VALIDATORS[step];
-    if (!dtoClass) return payload;
+    if (!dtoClass) {
+      return isRecord(payload) ? payload : {};
+    }
 
-    const instance = plainToInstance(dtoClass, payload ?? {}, { enableImplicitConversion: true });
+    const plainPayload = isRecord(payload) ? payload : {};
+    const instance = plainToInstance(dtoClass, plainPayload, { enableImplicitConversion: true });
     const errors = validateSync(instance, { whitelist: true, forbidUnknownValues: true });
     if (errors.length > 0) {
       const detail = errors
@@ -658,13 +828,14 @@ I have read and understand this waiver and agree to its terms.`;
         .join(", ");
       throw new BadRequestException(`Invalid payload for ${step}: ${detail || "validation failed"}`);
     }
-    return instanceToPlain(instance) as OnboardingPayload;
+    const plain = instanceToPlain(instance);
+    return isRecord(plain) ? plain : {};
   }
 
   private async requireInvite(token: string) {
     const invite = await this.prisma.onboardingInvite.findUnique({
       where: { token },
-      include: { session: true },
+      include: { OnboardingSession: true },
     });
     if (!invite || invite.expiresAt < new Date()) {
       throw new UnauthorizedException("Onboarding invite is invalid or expired");
@@ -674,7 +845,9 @@ I have read and understand this waiver and agree to its terms.`;
 
   private async requireSession(sessionId: string, token: string) {
     const invite = await this.requireInvite(token);
-    const session = await this.prisma.onboardingSession.findUnique({ where: { id: sessionId } }) ?? invite.session;
+    const session =
+      (await this.prisma.onboardingSession.findUnique({ where: { id: sessionId } })) ??
+      invite.OnboardingSession;
     if (!session || session.inviteId !== invite.id) {
       throw new UnauthorizedException("Onboarding session not found for token");
     }
@@ -707,7 +880,7 @@ I have read and understand this waiver and agree to its terms.`;
 
   private async guardIdempotency(
     key: string | undefined,
-    body: any,
+    body: unknown,
     scope: { campgroundId?: string | null; tenantId?: string | null },
     endpoint: string,
     sequence?: string | number | null
@@ -735,19 +908,22 @@ I have read and understand this waiver and agree to its terms.`;
     }
 
     // Get session data
-    const data = (session.data ?? {}) as Record<string, unknown>;
-    const accountProfile = data.account_profile ?? {};
+    const data = isRecord(session.data) ? session.data : {};
+    const accountProfile = toRecord(data.account_profile);
 
     // Get organization and check for early access enrollment
     const organization = session.organizationId
       ? await this.prisma.organization.findUnique({
           where: { id: session.organizationId },
-          include: { earlyAccessEnrollment: true }
+          include: { EarlyAccessEnrollment: true }
         })
       : null;
 
     // Generate slug from campground name
-    const campgroundName = accountProfile.campgroundName || accountProfile.name || "My Campground";
+    const campgroundName =
+      toString(accountProfile.campgroundName) ??
+      toString(accountProfile.name) ??
+      "My Campground";
     const baseSlug = campgroundName
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
@@ -762,20 +938,26 @@ I have read and understand this waiver and agree to its terms.`;
     }
 
     // Create campground
+    const organizationId = session.organizationId ?? organization?.id;
+    if (!organizationId) {
+      throw new BadRequestException("Organization is required to create a campground");
+    }
+
     const campground = await this.prisma.campground.create({
       data: {
-        organizationId: session.organizationId || organization?.id || "",
+        id: randomUUID(),
+        Organization: { connect: { id: organizationId } },
         name: campgroundName,
         slug,
-        phone: accountProfile.phone,
-        email: accountProfile.email,
-        city: accountProfile.city,
-        state: accountProfile.state,
-        country: accountProfile.country || "US",
-        address1: accountProfile.address1,
-        postalCode: accountProfile.postalCode,
-        timezone: accountProfile.timezone || "America/New_York",
-        website: accountProfile.website,
+        phone: toString(accountProfile.phone) ?? null,
+        email: toString(accountProfile.email) ?? null,
+        city: toString(accountProfile.city) ?? null,
+        state: toString(accountProfile.state) ?? null,
+        country: toString(accountProfile.country) ?? "US",
+        address1: toString(accountProfile.address1) ?? null,
+        postalCode: toString(accountProfile.postalCode) ?? null,
+        timezone: toString(accountProfile.timezone) ?? "America/New_York",
+        website: toString(accountProfile.website) ?? null,
         isBookable: true
       }
     });
@@ -783,9 +965,10 @@ I have read and understand this waiver and agree to its terms.`;
     // Create membership for user
     await this.prisma.campgroundMembership.create({
       data: {
+        id: randomUUID(),
         userId,
         campgroundId: campground.id,
-        role: "owner"
+        role: UserRole.owner
       }
     });
 
@@ -813,8 +996,8 @@ I have read and understand this waiver and agree to its terms.`;
           firstName: user.firstName || "there",
           campgroundName: campground.name,
           dashboardUrl,
-          tierName: organization?.earlyAccessEnrollment
-            ? this.getTierDisplayName(organization.earlyAccessEnrollment.tier)
+          tierName: organization?.EarlyAccessEnrollment
+            ? this.getTierDisplayName(organization.EarlyAccessEnrollment.tier)
             : null
         })
       });

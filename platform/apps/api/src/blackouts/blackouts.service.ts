@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateBlackoutDateDto, UpdateBlackoutDateDto } from "./dto/blackout.dto";
@@ -62,6 +63,7 @@ export class BlackoutsService {
 
         return this.prisma.blackoutDate.create({
             data: {
+                id: randomUUID(),
                 campgroundId: data.campgroundId,
                 siteId: siteId || null,
                 startDate: start,

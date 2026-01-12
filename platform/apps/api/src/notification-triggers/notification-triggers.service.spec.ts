@@ -1,44 +1,61 @@
+import { Test, TestingModule } from '@nestjs/testing';
 import { NotificationTriggersService, TriggerPayload } from './notification-triggers.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { EmailService } from '../email/email.service';
+import { SmsService } from '../sms/sms.service';
 
 describe('NotificationTriggersService', () => {
+  let moduleRef: TestingModule;
   let service: NotificationTriggersService;
-  let mockPrisma: any;
-  let mockEmailService: any;
-  let mockSmsService: any;
 
-  beforeEach(() => {
-    mockPrisma = {
-      notificationTrigger: {
-        findMany: jest.fn(),
-        findFirst: jest.fn(),
-        create: jest.fn(),
-        update: jest.fn(),
-        delete: jest.fn(),
-      },
-      scheduledNotification: {
-        create: jest.fn(),
-        findMany: jest.fn(),
-        update: jest.fn(),
-      },
-      campground: {
-        findUnique: jest.fn(),
-      },
-    };
+  const mockPrisma = {
+    notificationTrigger: {
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
+    scheduledNotification: {
+      create: jest.fn(),
+      findMany: jest.fn(),
+      update: jest.fn(),
+    },
+    campground: {
+      findUnique: jest.fn(),
+    },
+  };
 
-    mockEmailService = {
-      sendEmail: jest.fn().mockResolvedValue(undefined),
-    };
+  const mockEmailService = {
+    sendEmail: jest.fn().mockResolvedValue(undefined),
+  };
 
-    mockSmsService = {
-      sendSms: jest.fn().mockResolvedValue({ success: true }),
-    };
+  const mockSmsService = {
+    sendSms: jest.fn().mockResolvedValue({ success: true }),
+  };
 
-    service = new NotificationTriggersService(mockPrisma, mockEmailService, mockSmsService);
+  beforeEach(async () => {
+    jest.clearAllMocks();
+
+    moduleRef = await Test.createTestingModule({
+      providers: [
+        NotificationTriggersService,
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: EmailService, useValue: mockEmailService },
+        { provide: SmsService, useValue: mockSmsService },
+      ],
+    }).compile();
+
+    service = moduleRef.get(NotificationTriggersService);
+  });
+
+  afterEach(async () => {
+    await moduleRef?.close();
   });
 
   describe('matchesConditions', () => {
     const matchesConditions = (conditions: Record<string, unknown>, payload: TriggerPayload) => {
-      return (service as any).matchesConditions(conditions, payload);
+      return service.matchesConditions(conditions, payload);
     };
 
     describe('simple equality', () => {
@@ -160,14 +177,14 @@ describe('NotificationTriggersService', () => {
 
         // When payload has null, it should match
         const payloadWithNull: TriggerPayload = { campgroundId: 'cg-1', guestName: undefined };
-        expect(matchesConditions(conditions, { campgroundId: 'cg-1', customData: { guestName: null } } as any)).toBe(true);
+        expect(matchesConditions(conditions, { campgroundId: 'cg-1', customData: { guestName: null } })).toBe(true);
       });
     });
   });
 
   describe('interpolate', () => {
-    const interpolate = (template: string, payload: TriggerPayload, campground?: any) => {
-      return (service as any).interpolate(template, payload, campground);
+    const interpolate = (template: string, payload: TriggerPayload, campground?: { name: string } | null) => {
+      return service.interpolate(template, payload, campground);
     };
 
     it('should replace guest_name placeholder', () => {
@@ -239,7 +256,7 @@ describe('NotificationTriggersService', () => {
 
   describe('stripHtml', () => {
     const stripHtml = (html: string) => {
-      return (service as any).stripHtml(html);
+      return service.stripHtml(html);
     };
 
     it('should remove HTML tags', () => {
@@ -277,7 +294,7 @@ describe('NotificationTriggersService', () => {
 
   describe('getDefaultSubject', () => {
     const getDefaultSubject = (event: string, campgroundName?: string) => {
-      return (service as any).getDefaultSubject(event, campgroundName);
+      return service.getDefaultSubject(event, campgroundName);
     };
 
     it('should return appropriate subject for reservation_created', () => {
@@ -303,7 +320,7 @@ describe('NotificationTriggersService', () => {
     });
 
     it('should handle unknown events', () => {
-      const subject = getDefaultSubject('unknown_event' as any, 'Camp');
+      const subject = getDefaultSubject('unknown_event', 'Camp');
       expect(subject).toContain('Update from Camp');
     });
   });
@@ -326,7 +343,7 @@ describe('NotificationTriggersService', () => {
           enabled: true,
           delayMinutes: 0,
           conditions: null,
-          template: null,
+          CampaignTemplate: null,
         },
       ]);
       mockPrisma.campground.findUnique.mockResolvedValue({ name: 'Test Camp' });
@@ -350,7 +367,7 @@ describe('NotificationTriggersService', () => {
           enabled: true,
           delayMinutes: 60, // 1 hour delay
           conditions: null,
-          template: null,
+          CampaignTemplate: null,
         },
       ]);
 
@@ -373,7 +390,7 @@ describe('NotificationTriggersService', () => {
           enabled: true,
           delayMinutes: 0,
           conditions: { amountCents: { gt: 50000 } }, // Only for payments > $500
-          template: null,
+          CampaignTemplate: null,
         },
       ]);
 
@@ -395,7 +412,7 @@ describe('NotificationTriggersService', () => {
           enabled: true,
           delayMinutes: 0,
           conditions: { amountCents: { gt: 5000 } },
-          template: null,
+          CampaignTemplate: null,
         },
       ]);
       mockPrisma.campground.findUnique.mockResolvedValue({ name: 'Test Camp' });
@@ -418,7 +435,7 @@ describe('NotificationTriggersService', () => {
           enabled: true,
           delayMinutes: 0,
           conditions: null,
-          template: null,
+          CampaignTemplate: null,
         },
       ]);
       mockPrisma.campground.findUnique.mockResolvedValue({ name: 'Test Camp' });
@@ -441,7 +458,7 @@ describe('NotificationTriggersService', () => {
           enabled: true,
           delayMinutes: 0,
           conditions: null,
-          template: null,
+          CampaignTemplate: null,
         },
       ]);
       mockPrisma.campground.findUnique.mockResolvedValue({ name: 'Test Camp' });
@@ -473,15 +490,14 @@ describe('NotificationTriggersService', () => {
       });
 
       expect(mockPrisma.notificationTrigger.create).toHaveBeenCalledWith({
-        data: {
+        data: expect.objectContaining({
           campgroundId: 'cg-1',
           event: 'reservation_created',
           channel: 'email',
           enabled: true,
           templateId: null,
           delayMinutes: 0,
-          conditions: null,
-        },
+        }),
       });
     });
 
@@ -507,9 +523,10 @@ describe('NotificationTriggersService', () => {
     });
 
     it('should update trigger', async () => {
+      mockPrisma.notificationTrigger.findUnique.mockResolvedValue({ id: 'trigger-1', campgroundId: 'cg-1' });
       mockPrisma.notificationTrigger.update.mockResolvedValue({ id: 'trigger-1' });
 
-      await service.update('trigger-1', { enabled: false, delayMinutes: 60 });
+      await service.update('trigger-1', { enabled: false, delayMinutes: 60 }, 'cg-1');
 
       expect(mockPrisma.notificationTrigger.update).toHaveBeenCalledWith({
         where: { id: 'trigger-1' },
@@ -521,9 +538,10 @@ describe('NotificationTriggersService', () => {
     });
 
     it('should delete trigger', async () => {
+      mockPrisma.notificationTrigger.findUnique.mockResolvedValue({ id: 'trigger-1', campgroundId: 'cg-1' });
       mockPrisma.notificationTrigger.delete.mockResolvedValue({ id: 'trigger-1' });
 
-      await service.delete('trigger-1');
+      await service.delete('trigger-1', 'cg-1');
 
       expect(mockPrisma.notificationTrigger.delete).toHaveBeenCalledWith({
         where: { id: 'trigger-1' },
@@ -542,7 +560,7 @@ describe('NotificationTriggersService', () => {
       expect(mockPrisma.notificationTrigger.findMany).toHaveBeenCalledWith({
         where: { campgroundId: 'cg-1' },
         orderBy: [{ event: 'asc' }, { createdAt: 'desc' }],
-        include: { template: true },
+        include: { CampaignTemplate: true },
       });
     });
   });

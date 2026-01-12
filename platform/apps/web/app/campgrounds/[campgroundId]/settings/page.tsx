@@ -21,8 +21,8 @@ import {
     Loader2
 } from "lucide-react";
 
-const SPRING_CONFIG = {
-    type: "spring" as const,
+const SPRING_CONFIG: { type: "spring"; stiffness: number; damping: number } = {
+    type: "spring",
     stiffness: 200,
     damping: 20,
 };
@@ -72,7 +72,8 @@ const settingsLinks = [
 
 export default function CampgroundSettingsPage() {
     const params = useParams();
-    const campgroundId = params?.campgroundId as string;
+    const campgroundParam = params?.campgroundId;
+    const campgroundId = typeof campgroundParam === "string" ? campgroundParam : "";
 
     const campgroundQuery = useQuery({
         queryKey: ["campground", campgroundId],

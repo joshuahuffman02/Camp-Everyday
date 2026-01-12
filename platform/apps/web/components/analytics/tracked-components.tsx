@@ -367,7 +367,7 @@ export function useTrackedClick(
   const analytics = useAnalyticsContext();
 
   return useCallback(
-    <T extends (...args: any[]) => any>(handler?: T) => {
+    <T extends (...args: unknown[]) => unknown>(handler?: T) => {
       return (...args: Parameters<T>) => {
         analytics.trackAction({ actionType, actionTarget, metadata });
         return handler?.(...args);

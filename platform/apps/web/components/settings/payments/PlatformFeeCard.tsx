@@ -46,6 +46,12 @@ const PLAN_DEFAULTS: Record<BillingPlan, { fee: number; label: string; descripti
   },
 };
 
+const isBillingPlan = (value: string): value is BillingPlan =>
+  value === "ota_only" || value === "standard" || value === "enterprise";
+
+const isFeeMode = (value: string): value is FeeMode =>
+  value === "absorb" || value === "pass_through";
+
 export function PlatformFeeCard({
   initialFee,
   initialPlan = "ota_only",
@@ -122,7 +128,12 @@ export function PlatformFeeCard({
         {/* Plan selection */}
         <div className="space-y-2">
           <Label htmlFor="billing-plan">Billing plan</Label>
-          <Select value={plan} onValueChange={(v) => setPlan(v as BillingPlan)}>
+          <Select
+            value={plan}
+            onValueChange={(value) => {
+              if (isBillingPlan(value)) setPlan(value);
+            }}
+          >
             <SelectTrigger id="billing-plan" className="w-full">
               <SelectValue placeholder="Select plan" />
             </SelectTrigger>
@@ -167,7 +178,12 @@ export function PlatformFeeCard({
         {/* Fee mode */}
         <div className="space-y-2">
           <Label htmlFor="fee-mode">Who pays the fee?</Label>
-          <Select value={feeMode} onValueChange={(v) => setFeeMode(v as FeeMode)}>
+          <Select
+            value={feeMode}
+            onValueChange={(value) => {
+              if (isFeeMode(value)) setFeeMode(value);
+            }}
+          >
             <SelectTrigger id="fee-mode">
               <SelectValue placeholder="Select fee mode" />
             </SelectTrigger>

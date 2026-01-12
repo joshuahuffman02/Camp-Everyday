@@ -88,6 +88,17 @@ const dueTimingLabels: Record<string, string> = {
   before_arrival: "Before arrival",
 };
 
+const strategyOptions: FormData["strategy"][] = ["first_night", "percent", "fixed"];
+const applyToOptions: FormData["applyTo"][] = ["lodging_only", "lodging_and_fees"];
+const dueTimingOptions: FormData["dueTiming"][] = ["at_booking", "before_arrival"];
+
+const isStrategy = (value: string): value is FormData["strategy"] =>
+  strategyOptions.some((option) => option === value);
+const isApplyTo = (value: string): value is FormData["applyTo"] =>
+  applyToOptions.some((option) => option === value);
+const isDueTiming = (value: string): value is FormData["dueTiming"] =>
+  dueTimingOptions.some((option) => option === value);
+
 export default function DepositPoliciesPage() {
   const [campgroundId, setCampgroundId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -207,8 +218,9 @@ export default function DepositPoliciesPage() {
       } else {
         await createMutation.mutateAsync(payload);
       }
-    } catch (err: any) {
-      setError(err.message || "Failed to save");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to save";
+      setError(message);
       setSaving(false);
     }
   };
@@ -371,7 +383,11 @@ export default function DepositPoliciesPage() {
                       <button
                         key={key}
                         type="button"
-                        onClick={() => setFormData({ ...formData, strategy: key as FormData["strategy"] })}
+                        onClick={() => {
+                          if (isStrategy(key)) {
+                            setFormData({ ...formData, strategy: key });
+                          }
+                        }}
                         className={`p-3 rounded-lg border text-left transition-colors ${
                           formData.strategy === key
                             ? "border-blue-500 bg-blue-50 text-blue-700"
@@ -408,7 +424,11 @@ export default function DepositPoliciesPage() {
                   <Label className="block text-sm font-medium text-foreground mb-1">Apply To</Label>
                   <Select
                     value={formData.applyTo}
-                    onValueChange={(value) => setFormData({ ...formData, applyTo: value as FormData["applyTo"] })}
+                    onValueChange={(value) => {
+                      if (isApplyTo(value)) {
+                        setFormData({ ...formData, applyTo: value });
+                      }
+                    }}
                   >
                     <SelectTrigger className="w-full text-sm">
                       <SelectValue />
@@ -429,7 +449,11 @@ export default function DepositPoliciesPage() {
                   </div>
                   <Select
                     value={formData.dueTiming}
-                    onValueChange={(value) => setFormData({ ...formData, dueTiming: value as FormData["dueTiming"] })}
+                    onValueChange={(value) => {
+                      if (isDueTiming(value)) {
+                        setFormData({ ...formData, dueTiming: value });
+                      }
+                    }}
                   >
                     <SelectTrigger className="w-full text-sm">
                       <SelectValue />

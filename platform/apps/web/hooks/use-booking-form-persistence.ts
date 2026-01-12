@@ -133,7 +133,7 @@ export function useBookingFormPersistence(
         }
       }
 
-      const parsed = JSON.parse(storedData) as Partial<BookingFormData>;
+      const parsed: Partial<BookingFormData> = JSON.parse(storedData);
       setRestoredData(parsed);
       setIsExpired(false);
 

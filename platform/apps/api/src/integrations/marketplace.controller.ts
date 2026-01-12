@@ -1,4 +1,3 @@
-import type { Request } from "express";
 import {
   Controller,
   Get,
@@ -14,7 +13,8 @@ import {
   BadRequestException,
   NotFoundException,
 } from "@nestjs/common";
-import { Request, Response } from "express";
+import { Response } from "express";
+import type { Request } from "express";
 import { JwtAuthGuard } from "../auth/guards";
 import { RolesGuard, Roles } from "../auth/guards/roles.guard";
 import { ScopeGuard } from "../auth/guards/scope.guard";
@@ -22,6 +22,8 @@ import { CurrentUser } from "../auth/decorators/current-user.decorator";
 import { UserRole } from "@prisma/client";
 import { IntegrationRegistryService } from "./integration-registry.service";
 import { IntegrationFrameworkService } from "./framework/integration-framework.service";
+
+type RawBodyRequest = Request & { rawBody?: Buffer | string };
 
 /**
  * Marketplace Controller
@@ -310,15 +312,19 @@ export class MarketplaceController {
   async handleWebhook(
     @Param("slug") slug: string,
     @Body() body: unknown,
-    @Req() req: Request,
+    @Req() req: RawBodyRequest,
     @Headers("x-signature") signature?: string,
     @Headers("x-hub-signature") hubSignature?: string,
     @Headers("x-hmac-signature") hmacSignature?: string,
     @Headers("x-campground-id") campgroundId?: string
   ) {
-    const rawBody = req.rawBody
-      ? req.rawBody.toString()
-      : JSON.stringify(body);
+    const rawBodyValue = req.rawBody;
+    const rawBody =
+      rawBodyValue === undefined
+        ? JSON.stringify(body)
+        : typeof rawBodyValue === "string"
+          ? rawBodyValue
+          : rawBodyValue.toString();
 
     const providedSignature =
       signature || hubSignature || hmacSignature;

@@ -60,6 +60,8 @@ const roleLabels: Record<string, string> = {
   readonly: "Read Only",
 };
 
+type CampgroundMember = Awaited<ReturnType<typeof apiClient.getCampgroundMembers>>[number];
+
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,16 +77,17 @@ export default function UsersPage() {
     }
 
     apiClient.getCampgroundMembers(id)
-      .then((members: any[]) => {
-        const mappedUsers: User[] = members.map((m: any) => ({
-          id: m.id,
-          name: m.user ? `${m.user.firstName || ""} ${m.user.lastName || ""}`.trim() || m.user.email : "Pending",
-          email: m.user?.email || m.email || "",
-          role: m.role,
-          avatar: m.user?.avatar,
-          lastActive: m.lastInviteRedeemedAt || m.createdAt,
-          isActive: !m.inviteExpiresAt || new Date(m.inviteExpiresAt) > new Date(),
-          isPending: !!m.inviteExpiresAt && !m.lastInviteRedeemedAt,
+      .then((members: CampgroundMember[]) => {
+        const mappedUsers: User[] = members.map((member) => ({
+          id: member.id,
+          name: member.user
+            ? `${member.user.firstName || ""} ${member.user.lastName || ""}`.trim() || member.user.email
+            : "Pending",
+          email: member.user?.email || "",
+          role: member.role,
+          lastActive: member.lastInviteRedeemedAt || member.createdAt,
+          isActive: !member.inviteExpiresAt || new Date(member.inviteExpiresAt) > new Date(),
+          isPending: !!member.inviteExpiresAt && !member.lastInviteRedeemedAt,
         }));
         setUsers(mappedUsers);
         setLoading(false);

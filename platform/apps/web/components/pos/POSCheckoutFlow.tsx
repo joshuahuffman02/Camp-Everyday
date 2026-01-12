@@ -18,19 +18,21 @@ type ExtendedCartItem = CartItem & {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "";
 
-async function fetchJSON<T = any>(url: string, init?: RequestInit): Promise<T> {
+async function fetchJSON<T = unknown>(url: string, init?: RequestInit): Promise<T> {
     const res = await fetch(url, init);
     if (!res.ok) {
         const text = await res.text().catch(() => "");
         throw new Error(`Request failed ${res.status}: ${text}`);
     }
-    if (res.status === 204) return undefined as T;
-    return res.json() as Promise<T>;
+    return res.json();
 }
 
+type StoreOrderPayload = Parameters<typeof apiClient.createStoreOrder>[1];
+type StoreOrder = Awaited<ReturnType<typeof apiClient.createStoreOrder>>;
+
 const posApi = {
-    createStoreOrder: (campgroundId: string, payload: any, headers?: Record<string, string>) =>
-        fetchJSON(`${API_BASE}/campgrounds/${campgroundId}/store/orders`, {
+    createStoreOrder: (campgroundId: string, payload: StoreOrderPayload, headers?: Record<string, string>) =>
+        fetchJSON<StoreOrder>(`${API_BASE}/campgrounds/${campgroundId}/store/orders`, {
             method: "POST",
             headers: { "Content-Type": "application/json", ...(headers || {}) },
             body: JSON.stringify(payload)
@@ -43,10 +45,10 @@ interface POSCheckoutFlowProps {
     cart: ExtendedCartItem[];
     campgroundId: string;
     locationId?: string | null;
-    onSuccess: (order: any) => void;
+    onSuccess: (order: StoreOrder) => void;
     onQueued: () => void;
     isOnline: boolean;
-    queueOrder: (payload: any) => void;
+    queueOrder: (payload: StoreOrderPayload) => void;
     guestId?: string | null;
     guestName?: string | null;
     guestEmail?: string | null;
@@ -54,6 +56,9 @@ interface POSCheckoutFlowProps {
 }
 
 type FulfillmentType = "pickup" | "curbside" | "delivery" | "table_service";
+type PaymentResult = {
+    payments?: Array<{ method?: string; paymentId?: string }>;
+};
 
 export function POSCheckoutFlow({
     isOpen,
@@ -116,13 +121,13 @@ export function POSCheckoutFlow({
         setStep("payment");
     };
 
-    const handlePaymentSuccess = async (paymentResult: any) => {
+    const handlePaymentSuccess = async (paymentResult: PaymentResult) => {
         setLoading(true);
         setError(null);
 
         try {
             // Build order payload with payment result
-            const payload: any = {
+            const payload: StoreOrderPayload = {
                 items: cart.map(item => ({
                     productId: item.id,
                     qty: item.qty,
@@ -170,15 +175,16 @@ export function POSCheckoutFlow({
             });
 
             onSuccess(order);
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error(err);
-            setError(err.message || "Failed to create order");
+            const message = err instanceof Error ? err.message : "Failed to create order";
+            setError(message);
             recordTelemetry({
                 source: "pos",
                 type: "error",
                 status: "failed",
                 message: "Order creation failed after payment",
-                meta: { error: err?.message },
+                meta: { error: err instanceof Error ? err.message : undefined },
             });
         } finally {
             setLoading(false);
@@ -187,10 +193,10 @@ export function POSCheckoutFlow({
 
     // Handle offline/queued orders (cash, check, folio)
     const handleOfflinePayment = (method: string) => {
-        const payload: any = {
-            items: cart.map(item => ({
-                productId: item.id,
-                qty: item.qty,
+            const payload: StoreOrderPayload = {
+                items: cart.map(item => ({
+                    productId: item.id,
+                    qty: item.qty,
                 priceCents: item.effectivePriceCents ?? item.priceCents,
             })),
             paymentMethod: method,

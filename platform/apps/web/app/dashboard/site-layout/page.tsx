@@ -23,6 +23,17 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object";
+
+const isLayoutData = (value: unknown): value is LayoutData =>
+  isRecord(value) &&
+  Array.isArray(value.sites) &&
+  Array.isArray(value.elements) &&
+  typeof value.gridSize === "number" &&
+  typeof value.canvasWidth === "number" &&
+  typeof value.canvasHeight === "number";
+
 // Demo initial layout
 const DEMO_LAYOUT: Partial<LayoutData> = {
   sites: [
@@ -69,12 +80,17 @@ export default function SiteLayoutPage() {
     input.type = "file";
     input.accept = ".json";
     input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
+      const target = e.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      const file = target.files?.[0];
       if (!file) return;
 
       try {
         const text = await file.text();
-        const data = JSON.parse(text) as LayoutData;
+        const data = JSON.parse(text);
+        if (!isLayoutData(data)) {
+          throw new Error("Invalid layout file");
+        }
         setLayoutData(data);
         toast({
           title: "Layout imported",

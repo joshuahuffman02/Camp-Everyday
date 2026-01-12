@@ -2,6 +2,8 @@ import { Injectable, BadRequestException, NotFoundException, ForbiddenException,
 import { PrismaService } from "../prisma/prisma.service";
 import { StripeService } from "../payments/stripe.service";
 import { CustomerService } from "./customer.service";
+import type { GuestPaymentMethod } from "@prisma/client";
+import { randomUUID } from "crypto";
 
 export interface PaymentMethodInfo {
     id: string;
@@ -129,8 +131,8 @@ export class PaymentMethodService {
         } else if (pm.type === "us_bank_account" && pm.us_bank_account) {
             last4 = pm.us_bank_account.last4;
             bankName = pm.us_bank_account.bank_name;
-        } else if (pm.type === "card_present" && (pm as any).card_present) {
-            const cardPresent = (pm as any).card_present;
+        } else if (pm.type === "card_present" && pm.card_present) {
+            const cardPresent = pm.card_present;
             last4 = cardPresent.last4;
             brand = cardPresent.brand;
             expMonth = cardPresent.exp_month;
@@ -154,6 +156,7 @@ export class PaymentMethodService {
         // Store in database
         const paymentMethod = await this.prisma.guestPaymentMethod.create({
             data: {
+                id: randomUUID(),
                 stripeCustomerId: customer.id,
                 stripePaymentMethodId,
                 type: pm.type,
@@ -166,6 +169,7 @@ export class PaymentMethodService {
                 nickname,
                 addedBy,
                 addedByUserId,
+                updatedAt: new Date(),
             },
         });
 
@@ -213,7 +217,7 @@ export class PaymentMethodService {
         const customer = await this.prisma.stripeCustomer.findUnique({
             where: { campgroundId_guestId: { campgroundId, guestId } },
             include: {
-                paymentMethods: {
+                GuestPaymentMethod: {
                     orderBy: [{ isDefault: "desc" }, { createdAt: "desc" }],
                 },
             },
@@ -223,7 +227,7 @@ export class PaymentMethodService {
             return [];
         }
 
-        return customer.paymentMethods.map(pm => this.mapPaymentMethod(pm));
+        return customer.GuestPaymentMethod.map((pm) => this.mapPaymentMethod(pm));
     }
 
     /**
@@ -364,7 +368,7 @@ export class PaymentMethodService {
         return this.mapPaymentMethod(updated);
     }
 
-    private mapPaymentMethod(pm: any): PaymentMethodInfo {
+    private mapPaymentMethod(pm: GuestPaymentMethod): PaymentMethodInfo {
         return {
             id: pm.id,
             stripePaymentMethodId: pm.stripePaymentMethodId,

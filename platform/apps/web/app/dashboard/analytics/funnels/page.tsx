@@ -39,6 +39,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import Link from "next/link";
+import { z } from "zod";
 
 interface FunnelStats {
   funnelName: string;
@@ -56,6 +57,24 @@ interface FunnelStats {
   dropOffStep: string | null;
   dropOffRate: number | null;
 }
+
+const FunnelStatsSchema = z.object({
+  funnelName: z.string(),
+  totalStarted: z.number(),
+  step1: z.number(),
+  step2: z.number(),
+  step3: z.number(),
+  step4: z.number(),
+  step5: z.number(),
+  step6: z.number(),
+  completed: z.number(),
+  abandoned: z.number(),
+  avgCompletionTimeSecs: z.number().nullable(),
+  conversionRate: z.number(),
+  dropOffStep: z.string().nullable(),
+  dropOffRate: z.number().nullable(),
+});
+const FunnelStatsArraySchema = z.array(FunnelStatsSchema);
 
 interface FunnelDetail {
   id: string;
@@ -118,6 +137,7 @@ export default function FunnelAnalysisDashboard() {
     queryFn: async () => {
       const response = await apiClient.get<FunnelStats[]>(`/analytics/enhanced/reports/funnel`, {
         params: { campgroundId, days: parseInt(days) },
+        schema: FunnelStatsArraySchema,
       });
       return response.data;
     },

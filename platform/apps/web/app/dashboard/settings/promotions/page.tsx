@@ -53,6 +53,12 @@ const defaultFormData: PromotionFormData = {
     description: ""
 };
 
+const isPromotionType = (value: string): value is PromotionFormData["type"] =>
+    value === "percentage" || value === "flat";
+
+const getErrorMessage = (error: unknown, fallback: string) =>
+    error instanceof Error ? error.message : fallback;
+
 export default function PromotionsSettingsPage() {
     const [promotions, setPromotions] = useState<Promotion[]>([]);
     const [loading, setLoading] = useState(true);
@@ -142,8 +148,8 @@ export default function PromotionsSettingsPage() {
             }
             setIsModalOpen(false);
             loadPromotions(campgroundId);
-        } catch (err: any) {
-            setError(err.message || "Failed to save promotion");
+        } catch (err: unknown) {
+            setError(getErrorMessage(err, "Failed to save promotion"));
         } finally {
             setSaving(false);
         }
@@ -341,7 +347,11 @@ export default function PromotionsSettingsPage() {
                                 <Label>Discount Type</Label>
                                 <Select
                                     value={formData.type}
-                                    onValueChange={(val) => setFormData({ ...formData, type: val as "percentage" | "flat" })}
+                                    onValueChange={(val) => {
+                                        if (isPromotionType(val)) {
+                                            setFormData({ ...formData, type: val });
+                                        }
+                                    }}
                                 >
                                     <SelectTrigger>
                                         <SelectValue />

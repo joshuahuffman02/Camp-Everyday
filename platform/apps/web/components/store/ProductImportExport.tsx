@@ -5,11 +5,33 @@ import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../ui/dialog";
 import { Download, Upload, FileSpreadsheet, ArrowRight, Check, AlertCircle } from "lucide-react";
 import { apiClient } from "../../lib/api-client";
+import type { CreateProductDto } from "@keepr/shared";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface ProductImportExportProps {
     campgroundId: string;
 }
+
+type ProductPayload = Omit<CreateProductDto, "campgroundId">;
+type ProductColumnKey =
+    | "name"
+    | "description"
+    | "priceCents"
+    | "sku"
+    | "stockQty"
+    | "lowStockAlert"
+    | "trackInventory"
+    | "isActive"
+    | "categoryName"
+    | "glCode";
+type ProductColumn = {
+    key: ProductColumnKey;
+    label: string;
+    required: boolean;
+    example: string;
+};
+type ProductPayloadKey = Exclude<ProductColumnKey, "categoryName">;
+type ProductPreviewRow = { _rowNum: number } & Partial<Record<ProductColumnKey, string>>;
 
 // Template columns for CSV export/import
 const PRODUCT_COLUMNS = [
@@ -23,7 +45,7 @@ const PRODUCT_COLUMNS = [
     { key: "isActive", label: "Active (true/false)", required: false, example: "true" },
     { key: "categoryName", label: "Category Name", required: false, example: "Essentials" },
     { key: "glCode", label: "GL Code", required: false, example: "4100" },
-] as const;
+] satisfies ReadonlyArray<ProductColumn>;
 
 export function ProductImportExport({ campgroundId }: ProductImportExportProps) {
     const qc = useQueryClient();
@@ -32,8 +54,8 @@ export function ProductImportExport({ campgroundId }: ProductImportExportProps) 
     const [importStep, setImportStep] = useState<"upload" | "mapping" | "preview" | "importing" | "complete">("upload");
     const [rawData, setRawData] = useState<string[][]>([]);
     const [headers, setHeaders] = useState<string[]>([]);
-    const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
-    const [previewData, setPreviewData] = useState<any[]>([]);
+    const [columnMapping, setColumnMapping] = useState<Partial<Record<ProductColumnKey, string>>>({});
+    const [previewData, setPreviewData] = useState<ProductPreviewRow[]>([]);
     const [importResults, setImportResults] = useState<{ success: number; failed: number; errors: string[] }>({ success: 0, failed: 0, errors: [] });
 
     const categoriesQuery = useQuery({
@@ -109,8 +131,12 @@ export function ProductImportExport({ campgroundId }: ProductImportExportProps) 
 
         const reader = new FileReader();
         reader.onload = (event) => {
-            const text = event.target?.result as string;
-            const rows = parseCSV(text);
+            const result = event.target?.result;
+            if (typeof result !== "string") {
+                alert("Failed to read CSV file");
+                return;
+            }
+            const rows = parseCSV(result);
             if (rows.length < 2) {
                 alert("CSV must have at least a header row and one data row");
                 return;
@@ -120,7 +146,7 @@ export function ProductImportExport({ campgroundId }: ProductImportExportProps) 
             setRawData(rows.slice(1));
 
             // Auto-map columns
-            const autoMapping: Record<string, string> = {};
+            const autoMapping: Partial<Record<ProductColumnKey, string>> = {};
             rows[0].forEach((header, idx) => {
                 const normalizedHeader = header.toLowerCase().trim();
                 const matchedCol = PRODUCT_COLUMNS.find(c =>
@@ -182,10 +208,10 @@ export function ProductImportExport({ campgroundId }: ProductImportExportProps) 
 
     const generatePreview = () => {
         const preview = rawData.slice(0, 5).map((row, idx) => {
-            const product: any = { _rowNum: idx + 2 };
+            const product: ProductPreviewRow = { _rowNum: idx + 2 };
 
             PRODUCT_COLUMNS.forEach(col => {
-                const colIdx = parseInt(columnMapping[col.key] ?? "-1");
+                const colIdx = Number.parseInt(columnMapping[col.key] ?? "-1", 10);
                 if (colIdx >= 0 && colIdx < row.length) {
                     product[col.key] = row[colIdx];
                 }
@@ -206,39 +232,52 @@ export function ProductImportExport({ campgroundId }: ProductImportExportProps) 
         for (let i = 0; i < rawData.length; i++) {
             const row = rawData[i];
             try {
-                const product: any = {};
+                const product: Partial<ProductPayload> = {};
 
                 PRODUCT_COLUMNS.forEach(col => {
-                    const colIdx = parseInt(columnMapping[col.key] ?? "-1");
+                    const colIdx = Number.parseInt(columnMapping[col.key] ?? "-1", 10);
                     if (colIdx >= 0 && colIdx < row.length) {
                         const value = row[colIdx];
                         if (value) {
-                            if (col.key === "priceCents" || col.key === "stockQty" || col.key === "lowStockAlert") {
-                                product[col.key] = parseInt(value) || 0;
-                            } else if (col.key === "trackInventory" || col.key === "isActive") {
-                                product[col.key] = value.toLowerCase() === "true";
-                            } else if (col.key === "categoryName") {
+                            if (col.key === "categoryName") {
                                 const cat = categories.find(c => c.name.toLowerCase() === value.toLowerCase());
                                 if (cat) product.categoryId = cat.id;
+                            } else if (col.key === "priceCents" || col.key === "stockQty" || col.key === "lowStockAlert") {
+                                const payloadKey: ProductPayloadKey = col.key;
+                                product[payloadKey] = Number.parseInt(value, 10) || 0;
+                            } else if (col.key === "trackInventory" || col.key === "isActive") {
+                                const payloadKey: ProductPayloadKey = col.key;
+                                product[payloadKey] = value.toLowerCase() === "true";
                             } else {
-                                product[col.key] = value;
+                                const payloadKey: ProductPayloadKey = col.key;
+                                product[payloadKey] = value;
                             }
                         }
                     }
                 });
 
-                if (!product.name) {
+                const name = typeof product.name === "string" ? product.name.trim() : "";
+                if (!name) {
                     throw new Error("Name is required");
                 }
-                if (!product.priceCents && product.priceCents !== 0) {
+                const priceCents =
+                    typeof product.priceCents === "number" && Number.isFinite(product.priceCents)
+                        ? product.priceCents
+                        : undefined;
+                if (priceCents === undefined) {
                     throw new Error("Price is required");
                 }
 
-                await apiClient.createStoreProduct(campgroundId, product);
+                const isActive = typeof product.isActive === "boolean" ? product.isActive : true;
+                const channelInventoryMode =
+                    product.channelInventoryMode === "split" ? "split" : "shared";
+                const payload: ProductPayload = { ...product, name, priceCents, isActive, channelInventoryMode };
+                await apiClient.createStoreProduct(campgroundId, payload);
                 success++;
-            } catch (err: any) {
+            } catch (err: unknown) {
                 failed++;
-                errors.push(`Row ${i + 2}: ${err.message || "Unknown error"}`);
+                const message = err instanceof Error ? err.message : "Unknown error";
+                errors.push(`Row ${i + 2}: ${message}`);
             }
         }
 

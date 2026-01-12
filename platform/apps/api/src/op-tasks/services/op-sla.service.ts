@@ -7,6 +7,14 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { EmailService } from '../../email/email.service';
 import { OpSlaStatus, OpTask, OpTaskState } from '@prisma/client';
 
+type SlaTaskSummary = Pick<
+  OpTask,
+  "id" | "slaDueAt" | "slaStatus" | "campgroundId" | "assignedToUserId" | "assignedToTeamId"
+>;
+
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error && error.message ? error.message : "Unknown error";
+
 @Injectable()
 export class OpSlaService {
   private readonly logger = new Logger(OpSlaService.name);
@@ -88,20 +96,20 @@ export class OpSlaService {
   /**
    * Notify manager when a task SLA is breached
    */
-  private async notifyManagerSlaBreach(task: any) {
+  private async notifyManagerSlaBreach(task: SlaTaskSummary): Promise<void> {
     try {
       // Get the full task with details
       const fullTask = await this.prisma.opTask.findUnique({
         where: { id: task.id },
         include: {
-          template: { select: { name: true } },
-          assignedToUser: { select: { email: true, firstName: true, lastName: true } },
-          assignedToTeam: {
+          OpTaskTemplate: { select: { name: true } },
+          User_OpTask_assignedToUserIdToUser: { select: { email: true, firstName: true, lastName: true } },
+          OpTeam: {
             select: {
               name: true,
-              members: {
+              OpTeamMember: {
                 where: { role: 'manager' },
-                include: { user: { select: { email: true, firstName: true, lastName: true } } }
+                include: { User: { select: { email: true, firstName: true, lastName: true } } }
               }
             }
           },
@@ -114,10 +122,10 @@ export class OpSlaService {
       const managerEmails: string[] = [];
 
       // If assigned to a team, get team managers
-      if (fullTask.assignedToTeam?.members) {
-        for (const member of fullTask.assignedToTeam.members) {
-          if (member.user?.email) {
-            managerEmails.push(member.user.email);
+      if (fullTask.OpTeam?.OpTeamMember) {
+        for (const member of fullTask.OpTeam.OpTeamMember) {
+          if (member.User?.email) {
+            managerEmails.push(member.User.email);
           }
         }
       }
@@ -138,11 +146,11 @@ export class OpSlaService {
         return;
       }
 
-      const taskName = fullTask.template?.name || fullTask.title || 'Unnamed task';
+      const taskName = fullTask.OpTaskTemplate?.name || fullTask.title || 'Unnamed task';
       const dueAt = fullTask.slaDueAt ? new Date(fullTask.slaDueAt).toLocaleString() : 'Unknown';
-      const assigneeName = fullTask.assignedToUser
-        ? `${fullTask.assignedToUser.firstName} ${fullTask.assignedToUser.lastName}`
-        : fullTask.assignedToTeam?.name || 'Unassigned';
+      const assigneeName = fullTask.User_OpTask_assignedToUserIdToUser
+        ? `${fullTask.User_OpTask_assignedToUserIdToUser.firstName} ${fullTask.User_OpTask_assignedToUserIdToUser.lastName}`
+        : fullTask.OpTeam?.name || 'Unassigned';
 
       for (const email of managerEmails) {
         await this.emailService.sendEmail({
@@ -164,8 +172,8 @@ export class OpSlaService {
       }
 
       this.logger.log(`Sent SLA breach notification for task ${task.id} to ${managerEmails.length} manager(s)`);
-    } catch (error: any) {
-      this.logger.error(`Failed to send SLA breach notification: ${error.message}`);
+    } catch (error: unknown) {
+      this.logger.error(`Failed to send SLA breach notification: ${getErrorMessage(error)}`);
     }
   }
 
@@ -280,9 +288,9 @@ export class OpSlaService {
       orderBy: { slaDueAt: 'asc' },
       take: limit,
       include: {
-        site: true,
-        assignedToUser: { select: { id: true, firstName: true, lastName: true } },
-        assignedToTeam: true,
+        Site: true,
+        User_OpTask_assignedToUserIdToUser: { select: { id: true, firstName: true, lastName: true } },
+        OpTeam: true,
       },
     });
   }
@@ -299,9 +307,9 @@ export class OpSlaService {
       },
       orderBy: { slaDueAt: 'asc' },
       include: {
-        site: true,
-        assignedToUser: { select: { id: true, firstName: true, lastName: true } },
-        assignedToTeam: true,
+        Site: true,
+        User_OpTask_assignedToUserIdToUser: { select: { id: true, firstName: true, lastName: true } },
+        OpTeam: true,
       },
     });
   }
@@ -313,7 +321,7 @@ export class OpSlaService {
     const teams = await this.prisma.opTeam.findMany({
       where: { campgroundId, isActive: true },
       include: {
-        tasks: {
+        OpTask: {
           where: { state: OpTaskState.completed },
           select: { slaStatus: true, completedAt: true },
         },
@@ -321,8 +329,8 @@ export class OpSlaService {
     });
 
     return teams.map((team: typeof teams[number]) => {
-      const totalCompleted = team.tasks.length;
-      const onTime = team.tasks.filter((t: { slaStatus: string | null }) => t.slaStatus !== 'breached').length;
+      const totalCompleted = team.OpTask.length;
+      const onTime = team.OpTask.filter((t) => t.slaStatus !== 'breached').length;
       const complianceRate = totalCompleted > 0
         ? Math.round((onTime / totalCompleted) * 100)
         : 100;
@@ -359,7 +367,7 @@ export class OpSlaService {
         id: true,
         firstName: true,
         lastName: true,
-        opTasksCompleted: {
+        OpTask_OpTask_completedByIdToUser: {
           where: {
             campgroundId,
             ...(Object.keys(dateFilter).length > 0 && { completedAt: dateFilter }),
@@ -370,10 +378,10 @@ export class OpSlaService {
     });
 
     return staff
-      .filter((s: typeof staff[number]) => s.opTasksCompleted.length > 0)
+      .filter((s: typeof staff[number]) => s.OpTask_OpTask_completedByIdToUser.length > 0)
       .map((s: typeof staff[number]) => {
-        const totalCompleted = s.opTasksCompleted.length;
-        const onTime = s.opTasksCompleted.filter((t: { slaStatus: string | null }) => t.slaStatus !== 'breached').length;
+        const totalCompleted = s.OpTask_OpTask_completedByIdToUser.length;
+        const onTime = s.OpTask_OpTask_completedByIdToUser.filter((t: { slaStatus: string | null }) => t.slaStatus !== 'breached').length;
 
         return {
           userId: s.id,
@@ -398,7 +406,9 @@ export class OpSlaService {
         slaEscalatedToId: escalateToUserId,
       },
       include: {
-        slaEscalatedTo: { select: { id: true, firstName: true, lastName: true, email: true } },
+        User_OpTask_slaEscalatedToIdToUser: {
+          select: { id: true, firstName: true, lastName: true, email: true },
+        },
       },
     });
   }

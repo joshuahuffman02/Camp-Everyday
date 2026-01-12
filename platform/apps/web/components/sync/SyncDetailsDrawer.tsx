@@ -28,7 +28,7 @@ export function SyncDetailsDrawer({ open, onOpenChange }: SyncDetailsDrawerProps
     setSyncing(true);
     try {
       await manualSync();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Manual sync failed:", err);
     } finally {
       setSyncing(false);

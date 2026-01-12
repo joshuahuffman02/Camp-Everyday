@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { DashboardShell } from "../../components/ui/layout/DashboardShell";
 import { Badge } from "../../components/ui/badge";
 import { ProductGrid } from "../../components/pos/ProductGrid";
@@ -10,7 +10,6 @@ import { CartDrawer } from "../../components/pos/CartDrawer";
 import { FloatingCartButton } from "../../components/pos/FloatingCartButton";
 import { POSCheckoutFlow } from "../../components/pos/POSCheckoutFlow";
 import { ReceiptView } from "../../components/pos/ReceiptView";
-import { z } from "zod";
 import { recordTelemetry } from "../../lib/sync-telemetry";
 import { loadQueue as loadQueueGeneric, saveQueue as saveQueueGeneric, registerBackgroundSync } from "../../lib/offline-queue";
 import { Button } from "../../components/ui/button";
@@ -37,39 +36,67 @@ import { VoiceCommandIndicator } from "../../components/pos/VoiceCommandIndicato
 import { useVoiceCommands } from "../../hooks/use-voice-commands";
 import { haptic } from "../../hooks/use-haptic";
 import { AlertTriangle, Check, Receipt, Search, ShoppingBag, X } from "lucide-react";
+import type { Product as StoreProduct, ProductCategory as StoreProductCategory, StoreLocation as StoreLocationModel } from "@keepr/shared";
 
-const posApi = {
-    getProducts: (campgroundId: string, locationId?: string) =>
-        locationId
-            ? apiClient.getProductsForLocation(campgroundId, locationId)
-            : apiClient.getProducts(campgroundId),
-    getProductCategories: (campgroundId: string) => apiClient.getProductCategories(campgroundId),
-    createStoreOrder: (campgroundId: string, payload: any, headers?: Record<string, string>) =>
-        apiClient.createStoreOrder(campgroundId, payload),
-    getLocations: (campgroundId: string) => apiClient.getStoreLocations(campgroundId),
-};
-const EMPTY_SELECT_VALUE = "__empty";
-
-// Local types based on schemas
-type Product = {
-    id: string;
-    name: string;
-    description: string | null;
-    priceCents: number;
-    imageUrl: string | null;
-    categoryId: string;
+type Product = StoreProduct & {
     stock?: number;
     effectivePriceCents?: number;
     effectiveStock?: number | null;
 };
 
-type Category = {
+type Category = StoreProductCategory;
+
+type StoreLocation = StoreLocationModel;
+
+type StoreOrder = Awaited<ReturnType<typeof apiClient.getStoreOrders>>[number];
+type StoreOrderItem = StoreOrder["items"][number];
+type StoreOrderPayload = Parameters<typeof apiClient.createStoreOrder>[1];
+type QueuedOrder = {
     id: string;
-    name: string;
-    sortOrder: number;
+    campgroundId: string;
+    payload: StoreOrderPayload;
+    attempt: number;
+    nextAttemptAt: number;
+    createdAt: string;
+    idempotencyKey: string;
+    lastError?: string;
+    conflict?: boolean;
 };
 
-type StoreLocation = Awaited<ReturnType<typeof apiClient.getStoreLocations>>[0];
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null;
+
+const getErrorStatus = (error: unknown) => {
+    if (!isRecord(error)) return undefined;
+    const status = error.status;
+    if (typeof status === "number") return status;
+    if (typeof status === "string") {
+        const parsed = Number(status);
+        return Number.isNaN(parsed) ? undefined : parsed;
+    }
+    return undefined;
+};
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+    if (error instanceof Error) return error.message;
+    if (isRecord(error) && typeof error.message === "string") return error.message;
+    return fallback;
+};
+
+const getPayloadPaymentMethod = (payload: StoreOrderPayload) =>
+    typeof payload.paymentMethod === "string" ? payload.paymentMethod : undefined;
+
+const posApi = {
+    getProducts: (campgroundId: string, locationId?: string): Promise<Product[]> =>
+        locationId
+            ? apiClient.getProductsForLocation(campgroundId, locationId)
+            : apiClient.getProducts(campgroundId),
+    getProductCategories: (campgroundId: string): Promise<Category[]> => apiClient.getProductCategories(campgroundId),
+    createStoreOrder: (campgroundId: string, payload: StoreOrderPayload, headers?: Record<string, string>) =>
+        apiClient.createStoreOrder(campgroundId, payload, headers),
+    getLocations: (campgroundId: string): Promise<StoreLocation[]> => apiClient.getStoreLocations(campgroundId),
+};
+const EMPTY_SELECT_VALUE = "__empty";
 
 export type CartItem = Product & { qty: number; justAdded?: boolean };
 
@@ -89,7 +116,7 @@ function centsFromInput(value: string, fallback: number) {
 interface RefundExchangeDialogProps {
     open: boolean;
     onClose: () => void;
-    orders: any[];
+    orders: StoreOrder[];
     defaultOrderId?: string | null;
     onSubmit: (orderId: string, payload: OrderAdjustmentPayload) => Promise<void>;
     loading?: boolean;
@@ -118,7 +145,7 @@ function RefundExchangeDialog({ open, onClose, orders, defaultOrderId, onSubmit,
     useEffect(() => {
         if (activeOrder?.items?.length) {
             const defaults: Record<string, boolean> = {};
-            activeOrder.items.forEach((item: any) => (defaults[item.id] = true));
+            activeOrder.items.forEach((item: StoreOrderItem) => (defaults[item.id] = true));
             setSelectedItems(defaults);
         } else {
             setSelectedItems({});
@@ -126,8 +153,8 @@ function RefundExchangeDialog({ open, onClose, orders, defaultOrderId, onSubmit,
         setError(null);
     }, [orderId, activeOrder?.items?.length, open]);
 
-    const selectedLineItems = activeOrder?.items?.filter((i: any) => selectedItems[i.id]) ?? [];
-    const computedAmount = selectedLineItems.reduce((sum: number, item: any) => sum + (item.totalCents ?? 0), 0);
+    const selectedLineItems = activeOrder?.items?.filter((item: StoreOrderItem) => selectedItems[item.id]) ?? [];
+    const computedAmount = selectedLineItems.reduce((sum: number, item: StoreOrderItem) => sum + (item.totalCents ?? 0), 0);
     const amountCents = overrideAmount ? centsFromInput(overrideAmount, computedAmount) : computedAmount;
 
     const handleSubmit = async () => {
@@ -145,15 +172,15 @@ function RefundExchangeDialog({ open, onClose, orders, defaultOrderId, onSubmit,
             await onSubmit(orderId, {
                 type,
                 note: note || null,
-                items: selectedLineItems.map((i: any) => ({
-                    itemId: i.id,
-                    qty: i.qty,
-                    amountCents: i.totalCents ?? 0,
+                items: selectedLineItems.map((item: StoreOrderItem) => ({
+                    itemId: item.id,
+                    qty: item.qty,
+                    amountCents: item.totalCents ?? 0,
                 })),
                 amountCents,
             });
-        } catch (err: any) {
-            setError(err?.message || "Failed to record refund/exchange");
+        } catch (err: unknown) {
+            setError(getErrorMessage(err, "Failed to record refund/exchange"));
         }
     };
 
@@ -213,7 +240,7 @@ function RefundExchangeDialog({ open, onClose, orders, defaultOrderId, onSubmit,
                                 <p className="text-sm font-medium mb-2">Items</p>
                                 {activeOrder.items?.length ? (
                                     <div className="space-y-2">
-                                        {activeOrder.items.map((item: any) => (
+                                        {activeOrder.items.map((item: StoreOrderItem) => (
                                             <label key={item.id} className="flex items-center justify-between gap-3 text-sm">
                                                 <div className="flex items-center gap-2">
                                                     <Checkbox
@@ -294,15 +321,15 @@ export default function POSPage() {
     const [selectedCategory, setSelectedCategory] = useState<string>("all");
     const [cart, setCart] = useState<CartItem[]>([]);
     const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
-    const [lastOrder, setLastOrder] = useState<any>(null);
+    const [lastOrder, setLastOrder] = useState<StoreOrder | null>(null);
     const [loading, setLoading] = useState(true);
     const [locations, setLocations] = useState<StoreLocation[]>([]);
     const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null);
     const [isOnline, setIsOnline] = useState(true);
     const [queuedOrders, setQueuedOrders] = useState<number>(0);
-    const [conflicts, setConflicts] = useState<any[]>([]);
+    const [conflicts, setConflicts] = useState<QueuedOrder[]>([]);
     const [ordersLoading, setOrdersLoading] = useState(false);
-    const [recentOrders, setRecentOrders] = useState<any[]>([]);
+    const [recentOrders, setRecentOrders] = useState<StoreOrder[]>([]);
     const [ordersError, setOrdersError] = useState<string | null>(null);
     const [isRefundOpen, setIsRefundOpen] = useState(false);
     const [selectedOrderForRefund, setSelectedOrderForRefund] = useState<string | null>(null);
@@ -342,16 +369,17 @@ export default function POSPage() {
 
     const queueKey = "campreserv:pos:orderQueue";
 
-    const loadQueue = () => loadQueueGeneric<any>(queueKey);
+    const loadQueue = () => loadQueueGeneric<QueuedOrder>(queueKey);
 
-    const saveQueue = (items: any[]) => {
+    const saveQueue = (items: QueuedOrder[]) => {
         saveQueueGeneric(queueKey, items);
         setQueuedOrders(items.length);
-        setConflicts(items.filter((i) => i?.conflict));
+        setConflicts(items.filter((item) => item.conflict));
     };
 
-    const queueOrder = (payload: any) => {
-        const item = {
+    const queueOrder = (payload: StoreOrderPayload) => {
+        if (!campgroundId) return;
+        const item: QueuedOrder = {
             id: randomId(),
             campgroundId,
             payload,
@@ -370,7 +398,7 @@ export default function POSPage() {
         const now = Date.now();
         const items = loadQueue();
         if (!items.length) return;
-        const remaining: any[] = [];
+        const remaining: QueuedOrder[] = [];
         for (const item of items) {
             if (item.nextAttemptAt && item.nextAttemptAt > now) {
                 remaining.push(item);
@@ -379,18 +407,26 @@ export default function POSPage() {
             try {
                 const headers: Record<string, string> = item.idempotencyKey ? { "X-Idempotency-Key": item.idempotencyKey } : {};
                 await posApi.createStoreOrder(item.campgroundId, item.payload, headers);
-                recordTelemetry({ source: "pos", type: "sync", status: "success", message: "Queued order flushed", meta: { paymentMethod: item.payload.paymentMethod } });
-            } catch (err: any) {
+                recordTelemetry({
+                    source: "pos",
+                    type: "sync",
+                    status: "success",
+                    message: "Queued order flushed",
+                    meta: { paymentMethod: getPayloadPaymentMethod(item.payload) },
+                });
+            } catch (err: unknown) {
                 const attempt = (item.attempt ?? 0) + 1;
                 const delay = Math.min(300000, 1000 * 2 ** attempt) + Math.floor(Math.random() * 500);
-                const isConflict = err?.status === 409 || err?.status === 412 || /conflict/i.test(err?.message ?? "");
-                remaining.push({ ...item, attempt, nextAttemptAt: Date.now() + delay, lastError: err?.message, conflict: isConflict });
+                const status = getErrorStatus(err);
+                const message = getErrorMessage(err, "");
+                const isConflict = status === 409 || status === 412 || (message ? /conflict/i.test(message) : false);
+                remaining.push({ ...item, attempt, nextAttemptAt: Date.now() + delay, lastError: message || undefined, conflict: isConflict });
                 recordTelemetry({
                     source: "pos",
                     type: isConflict ? "conflict" : "error",
                     status: isConflict ? "conflict" : "failed",
                     message: isConflict ? "Order conflict, needs review" : "Flush failed, retry scheduled",
-                    meta: { error: err?.message },
+                    meta: { error: message },
                 });
             }
         }
@@ -410,7 +446,7 @@ export default function POSPage() {
             setIsOnline(navigator.onLine);
             const list = loadQueue();
             setQueuedOrders(list.length);
-            setConflicts(list.filter((i) => i?.conflict));
+            setConflicts(list.filter((item) => item.conflict));
             const handleOnline = () => {
                 setIsOnline(true);
                 void flushQueue();
@@ -436,7 +472,7 @@ export default function POSPage() {
     useEffect(() => {
         if (!campgroundId) return;
         posApi.getLocations(campgroundId).then((locs) => {
-            setLocations(locs as StoreLocation[]);
+            setLocations(locs);
             // Auto-select default location if none selected
             if (!selectedLocationId) {
                 const defaultLoc = locs.find((l) => l.isDefault);
@@ -453,8 +489,8 @@ export default function POSPage() {
             posApi.getProducts(campgroundId, selectedLocationId ?? undefined).catch(() => []),
             posApi.getProductCategories(campgroundId).catch(() => [])
         ]).then(([p, c]) => {
-            setProducts(p as Product[]);
-            setCategories(c as Category[]);
+            setProducts(p);
+            setCategories(c);
             setLoading(false);
         });
     }, [campgroundId, selectedLocationId]);
@@ -466,9 +502,9 @@ export default function POSPage() {
         try {
             const data = await apiClient.getStoreOrders(campgroundId, { status: "completed" });
             setRecentOrders(Array.isArray(data) ? data.slice(0, 10) : []);
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error(err);
-            setOrdersError("Failed to load recent POS orders");
+            setOrdersError(getErrorMessage(err, "Failed to load recent POS orders"));
         } finally {
             setOrdersLoading(false);
         }
@@ -523,6 +559,15 @@ export default function POSPage() {
         void flushQueue();
     };
 
+    const categoryTabs = useMemo(
+        () => categories.map((category) => ({
+            id: category.id,
+            name: category.name,
+            sortOrder: category.sortOrder ?? 0,
+        })),
+        [categories]
+    );
+
     const discardConflict = (id: string) => {
         const items = loadQueue().filter((i) => i.id !== id);
         saveQueue(items);
@@ -567,7 +612,7 @@ export default function POSPage() {
 
     const clearCart = () => setCart([]);
 
-    const handleCheckoutSuccess = (order: any) => {
+    const handleCheckoutSuccess = (order: StoreOrder) => {
         // Haptic success feedback
         haptic.success();
 
@@ -603,9 +648,9 @@ export default function POSPage() {
             await loadRecentOrders();
             setIsRefundOpen(false);
             setSelectedOrderForRefund(null);
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error(err);
-            setOrdersError(err?.message || "Unable to record refund/exchange");
+            setOrdersError(getErrorMessage(err, "Unable to record refund/exchange"));
             throw err;
         } finally {
             setSavingRefund(false);
@@ -794,7 +839,7 @@ export default function POSPage() {
                     {showContent ? (
                         <>
                             <CategoryTabs
-                                categories={categories}
+                                categories={categoryTabs}
                                 selected={selectedCategory}
                                 onSelect={handleSelectCategory}
                             />
@@ -929,7 +974,7 @@ export default function POSPage() {
                                         </div>
                                     </div>
                                     <div className="mt-3 space-y-1 text-xs text-muted-foreground">
-                                        {order.items?.slice(0, 3).map((item: any) => (
+                                        {order.items?.slice(0, 3).map((item: StoreOrderItem) => (
                                             <div key={item.id} className="flex justify-between">
                                                 <span className="truncate">{item.name} × {item.qty}</span>
                                                 <span className="font-mono">${((item.totalCents ?? 0) / 100).toFixed(2)}</span>
@@ -941,7 +986,7 @@ export default function POSPage() {
                                         <div className="text-[11px] font-semibold text-foreground mb-1">History</div>
                                         {order.adjustments && order.adjustments.length > 0 ? (
                                             <div className="space-y-1">
-                                                {order.adjustments.slice(0, 3).map((adj: any) => (
+                                                {order.adjustments.slice(0, 3).map((adj: StoreOrder["adjustments"][number]) => (
                                                     <div key={adj.id} className="flex items-center justify-between text-[11px]">
                                                         <span className="uppercase text-muted-foreground">{adj.type}</span>
                                                         <span className="font-mono text-foreground">${(adj.amountCents / 100).toFixed(2)}</span>

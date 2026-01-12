@@ -5,13 +5,17 @@ import {
   PosProviderCapability,
   PosProviderType,
   PosSyncStatus,
-  PosSyncTarget
+  PosSyncTarget,
+  Prisma,
+  type PosProviderIntegration
 } from "@prisma/client";
+import { randomUUID } from "crypto";
 import { AuditService } from "../audit/audit.service";
 import { IdempotencyService } from "../payments/idempotency.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { CloverAdapter, SquareAdapter, ToastAdapter } from "./pos-provider.adapters";
 import { PosProviderRegistry } from "./pos-provider.registry";
+import type { UpsertPosProviderDto, ValidatePosProviderDto } from "./pos-provider.dto";
 import {
   IntegrationRecord,
   PosProviderAdapter,
@@ -21,6 +25,80 @@ import {
   ProviderValidationResult,
   ProviderWebhookResult
 } from "./pos-provider.types";
+
+type AuthUser = { id?: string | null };
+
+type ValidatePosProviderPayload = ValidatePosProviderDto & {
+  id?: string;
+  locations?: Record<string, string>;
+  devices?: Record<string, string>;
+  webhookSecret?: string | null;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const toRecord = (value: unknown): Record<string, unknown> => (isRecord(value) ? value : {});
+
+const toStringRecord = (value: unknown): Record<string, string> => {
+  if (!isRecord(value)) return {};
+  const result: Record<string, string> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (typeof entry === "string") {
+      result[key] = entry;
+    }
+  }
+  return result;
+};
+
+const getString = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+const getBoolean = (value: unknown): boolean | undefined =>
+  typeof value === "boolean" ? value : undefined;
+
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  return "Unknown error";
+};
+
+const toNullableJsonInput = (
+  value: unknown
+): Prisma.InputJsonValue | Prisma.NullTypes.DbNull | undefined => {
+  if (value === undefined) return undefined;
+  if (value === null) return Prisma.DbNull;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
+};
+
+const isDbNull = (
+  value: Prisma.InputJsonValue | Prisma.NullTypes.DbNull | undefined
+): value is Prisma.NullTypes.DbNull => value === Prisma.DbNull;
+
+const toJsonInput = (value: unknown): Prisma.InputJsonValue => {
+  const normalized = toNullableJsonInput(value);
+  if (normalized === undefined || isDbNull(normalized)) {
+    return {};
+  }
+  return normalized;
+};
+
+const POS_PROVIDER_TYPES: Set<string> = new Set(Object.values(PosProviderType));
+const POS_PROVIDER_CAPABILITIES: Set<string> = new Set(Object.values(PosProviderCapability));
+const POS_SYNC_TARGETS: Set<string> = new Set(Object.values(PosSyncTarget));
+
+const isPosProviderType = (value: string): value is PosProviderType =>
+  POS_PROVIDER_TYPES.has(value);
+
+const isPosProviderCapability = (value: string): value is PosProviderCapability =>
+  POS_PROVIDER_CAPABILITIES.has(value);
+
+const isPosSyncTarget = (value: string): value is PosSyncTarget =>
+  POS_SYNC_TARGETS.has(value);
 
 @Injectable()
 export class PosProviderService {
@@ -40,8 +118,8 @@ export class PosProviderService {
   }
 
   private normalizeProvider(provider: string): PosProviderType {
-    const normalized = provider.toLowerCase() as PosProviderType;
-    if (!(Object.values(PosProviderType) as string[]).includes(normalized)) {
+    const normalized = provider.toLowerCase();
+    if (!isPosProviderType(normalized)) {
       throw new BadRequestException("Unsupported provider");
     }
     return normalized;
@@ -50,11 +128,26 @@ export class PosProviderService {
   private normalizeCapabilities(capabilities?: string[]): PosProviderCapability[] {
     if (!capabilities?.length) return [PosProviderCapability.payments];
     return capabilities
-      .map((c) => c.toLowerCase() as PosProviderCapability)
-      .filter((c) => (Object.values(PosProviderCapability) as string[]).includes(c));
+      .map((c) => c.toLowerCase())
+      .filter(isPosProviderCapability);
   }
 
-  private mapIntegration(record: any): IntegrationRecord {
+  private normalizeSyncTarget(target: PosSyncTarget | string): PosSyncTarget {
+    if (typeof target === "string") {
+      const normalized = target.toLowerCase();
+      if (isPosSyncTarget(normalized)) {
+        return normalized;
+      }
+    }
+    if (isPosSyncTarget(target)) {
+      return target;
+    }
+    throw new BadRequestException("Unsupported sync target");
+  }
+
+  private mapIntegration(record: PosProviderIntegration): IntegrationRecord {
+    const locations = toStringRecord(record.locations);
+    const devices = toStringRecord(record.devices);
     return {
       id: record.id,
       campgroundId: record.campgroundId,
@@ -62,9 +155,9 @@ export class PosProviderService {
       displayName: record.displayName,
       status: record.status,
       capabilities: record.capabilities ?? [],
-      credentials: record.credentials ?? {},
-      locations: record.locations ?? undefined,
-      devices: record.devices ?? undefined,
+      credentials: toRecord(record.credentials),
+      locations: Object.keys(locations).length > 0 ? locations : undefined,
+      devices: Object.keys(devices).length > 0 ? devices : undefined,
       webhookSecret: record.webhookSecret ?? null
     };
   }
@@ -77,10 +170,15 @@ export class PosProviderService {
 
   async listIntegrations(campgroundId: string) {
     const records = await this.prisma.posProviderIntegration.findMany({ where: { campgroundId } });
-    return records.map((r: any) => this.mapIntegration(r));
+    return records.map((record) => this.mapIntegration(record));
   }
 
-  async upsertIntegration(campgroundId: string, providerInput: string, dto: any, actor?: any) {
+  async upsertIntegration(
+    campgroundId: string,
+    providerInput: string,
+    dto: UpsertPosProviderDto,
+    actor?: AuthUser
+  ) {
     const provider = this.normalizeProvider(providerInput);
     const capabilities = this.normalizeCapabilities(dto.capabilities);
     const status =
@@ -89,23 +187,25 @@ export class PosProviderService {
     const integration = await this.prisma.posProviderIntegration.upsert({
       where: { campgroundId_provider: { campgroundId, provider } },
       create: {
+        id: randomUUID(),
         campgroundId,
         provider,
         displayName: dto.displayName ?? provider,
         capabilities,
-        credentials: dto.credentials ?? {},
-        locations: dto.locations ?? {},
-        devices: dto.devices ?? {},
+        credentials: toJsonInput(dto.credentials ?? {}),
+        locations: toJsonInput(dto.locations ?? {}),
+        devices: toJsonInput(dto.devices ?? {}),
         webhookSecret: dto.webhookSecret ?? null,
         status: status ?? PosIntegrationStatus.enabled,
-        lastValidatedAt: new Date()
+        lastValidatedAt: new Date(),
+        updatedAt: new Date()
       },
       update: {
         displayName: dto.displayName ?? undefined,
         capabilities,
-        credentials: dto.credentials ?? {},
-        locations: dto.locations ?? {},
-        devices: dto.devices ?? {},
+        credentials: toJsonInput(dto.credentials ?? {}),
+        locations: toJsonInput(dto.locations ?? {}),
+        devices: toJsonInput(dto.devices ?? {}),
         webhookSecret: dto.webhookSecret ?? undefined,
         status: status ?? undefined,
         lastValidatedAt: new Date()
@@ -124,7 +224,7 @@ export class PosProviderService {
     return this.mapIntegration(integration);
   }
 
-  async validateCredentials(campgroundId: string, providerInput: string, payload: any) {
+  async validateCredentials(campgroundId: string, providerInput: string, payload: ValidatePosProviderPayload) {
     const provider = this.normalizeProvider(providerInput);
     const adapter = this.getAdapter(provider);
     const capabilities = this.normalizeCapabilities(payload.capabilities);
@@ -134,8 +234,8 @@ export class PosProviderService {
       provider,
       capabilities,
       credentials: payload.credentials ?? {},
-      locations: payload.locations ?? {},
-      devices: payload.devices ?? {},
+      locations: payload.locations ?? undefined,
+      devices: payload.devices ?? undefined,
       webhookSecret: payload.webhookSecret ?? null
     };
 
@@ -152,8 +252,9 @@ export class PosProviderService {
     return result;
   }
 
-  async syncIntegration(campgroundId: string, providerInput: string, target: PosSyncTarget) {
+  async syncIntegration(campgroundId: string, providerInput: string, targetInput: PosSyncTarget | string) {
     const provider = this.normalizeProvider(providerInput);
+    const target = this.normalizeSyncTarget(targetInput);
     const integration = await this.prisma.posProviderIntegration.findUnique({
       where: { campgroundId_provider: { campgroundId, provider } }
     });
@@ -169,17 +270,19 @@ export class PosProviderService {
       status: syncStatus,
       lastRunAt: new Date(),
       lastError: syncStatus === PosSyncStatus.failed ? result.message ?? "sync_failed" : null,
-      metadata: result.metadata ?? null
+      metadata: toNullableJsonInput(result.metadata ?? null)
     };
 
     await this.prisma.posProviderSync.upsert({
       where: { integrationId_type: { integrationId: integration.id, type: target } },
       create: {
+        id: randomUUID(),
         integrationId: integration.id,
         type: target,
-        ...syncPayload
+        ...syncPayload,
+        updatedAt: new Date()
       },
-      update: syncPayload
+      update: { ...syncPayload, updatedAt: new Date() }
     });
 
     return { integration: record, result };
@@ -189,12 +292,12 @@ export class PosProviderService {
     const provider = providerInput ? this.normalizeProvider(providerInput) : null;
     return this.prisma.posProviderSync.findMany({
       where: {
-        integration: {
+        PosProviderIntegration: {
           campgroundId,
           provider: provider ?? undefined
         }
       },
-      include: { integration: true },
+      include: { PosProviderIntegration: true },
       orderBy: { updatedAt: "desc" },
       take: 20
     });
@@ -234,7 +337,7 @@ export class PosProviderService {
   async handleWebhook(
     providerInput: string,
     campgroundId: string,
-    body: any,
+    body: unknown,
     headers: Record<string, unknown> = {},
     rawBody?: string
   ): Promise<ProviderWebhookResult> {
@@ -247,24 +350,30 @@ export class PosProviderService {
     const integration = this.mapIntegration(integrationRecord);
     const adapter = this.getAdapter(provider);
     const signature =
-      headers["x-pos-signature"] ??
-      headers["x-square-signature"] ??
-      headers["x-clover-signature"] ??
-      headers["x-toast-signature"] ??
+      getString(headers["x-pos-signature"]) ??
+      getString(headers["x-square-signature"]) ??
+      getString(headers["x-clover-signature"]) ??
+      getString(headers["x-toast-signature"]) ??
       "";
 
     const raw = rawBody || JSON.stringify(body ?? {});
     const verified = await adapter.verifyWebhookSignature({
       signature,
       rawBody: raw,
-      secret: integration.webhookSecret ?? (integration.credentials as any)?.webhookSecret ?? null,
+      secret: integration.webhookSecret ?? getString(integration.credentials.webhookSecret) ?? null,
       integration
     });
     if (!verified) {
       throw new UnauthorizedException("Invalid webhook signature");
     }
 
-    const eventId = headers["x-event-id"] ?? (body?.eventId ?? body?.id ?? body?.data?.id);
+    const bodyRecord = isRecord(body) ? body : undefined;
+    const bodyData = bodyRecord && isRecord(bodyRecord.data) ? bodyRecord.data : undefined;
+    const eventId =
+      getString(headers["x-event-id"]) ??
+      getString(bodyRecord?.eventId) ??
+      getString(bodyRecord?.id) ??
+      getString(bodyData?.id);
     const idempotencyKey = eventId ? `pos-webhook-${provider}-${eventId}` : null;
     if (idempotencyKey) {
       const existing = await this.idempotency
@@ -273,12 +382,18 @@ export class PosProviderService {
           sequence: eventId ?? undefined,
           rateAction: "apply"
         })
-        .catch((err) => {
-          this.logger.warn(`Idempotency start failed: ${err?.message ?? err}`);
+        .catch((err: unknown) => {
+          this.logger.warn(`Idempotency start failed: ${getErrorMessage(err)}`);
           return null;
         });
       if (existing?.status === IdempotencyStatus.succeeded && existing.responseJson) {
-        return { ...(existing.responseJson as any), deduped: true };
+        const response = isRecord(existing.responseJson) ? existing.responseJson : {};
+        return {
+          acknowledged: getBoolean(response.acknowledged) ?? true,
+          deduped: true,
+          message: getString(response.message),
+          context: isRecord(response.context) ? response.context : undefined
+        };
       }
       if (existing?.status === IdempotencyStatus.inflight) {
         return { acknowledged: false, deduped: true, message: "webhook_inflight" };

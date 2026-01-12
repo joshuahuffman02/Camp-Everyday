@@ -7,6 +7,10 @@ import {
 import { PrismaService } from "../../prisma/prisma.service";
 import { BaseOtaProvider, OtaBooking, OtaSyncResult, OtaProviderConfig } from "./providers/base-ota.provider";
 import { ICalProvider } from "./providers/ical.provider";
+import { randomUUID } from "crypto";
+
+const normalizeDefaultStatus = (value?: string | null): "confirmed" | "pending" =>
+  value === "pending" ? "pending" : "confirmed";
 
 /**
  * OTA Sync Service
@@ -29,22 +33,31 @@ export class OtaSyncService {
    * Get all OTA channels for a campground
    */
   async getChannels(campgroundId: string) {
-    return this.prisma.otaChannel.findMany({
+    const channels = await this.prisma.otaChannel.findMany({
       where: { campgroundId },
       include: {
-        mappings: {
+        OtaListingMapping: {
           include: {
-            site: { select: { id: true, name: true } },
-            siteClass: { select: { id: true, name: true } },
+            Site: { select: { id: true, name: true } },
+            SiteClass: { select: { id: true, name: true } },
           },
         },
-        syncLogs: {
+        OtaSyncLog: {
           orderBy: { createdAt: "desc" },
           take: 5,
         },
       },
       orderBy: { name: "asc" },
     });
+    return channels.map(({ OtaListingMapping, OtaSyncLog, ...channel }) => ({
+      ...channel,
+      mappings: OtaListingMapping.map(({ Site, SiteClass, ...mapping }) => ({
+        ...mapping,
+        site: Site,
+        siteClass: SiteClass,
+      })),
+      syncLogs: OtaSyncLog,
+    }));
   }
 
   /**
@@ -54,21 +67,21 @@ export class OtaSyncService {
     const channel = await this.prisma.otaChannel.findUnique({
       where: { id: channelId },
       include: {
-        mappings: {
+        OtaListingMapping: {
           include: {
-            site: { select: { id: true, name: true } },
-            siteClass: { select: { id: true, name: true } },
+            Site: { select: { id: true, name: true } },
+            SiteClass: { select: { id: true, name: true } },
           },
         },
-        syncLogs: {
+        OtaSyncLog: {
           orderBy: { createdAt: "desc" },
           take: 20,
         },
-        imports: {
+        OtaReservationImport: {
           orderBy: { createdAt: "desc" },
           take: 50,
           include: {
-            reservation: {
+            Reservation: {
               select: { id: true, arrivalDate: true, departureDate: true, status: true },
             },
           },
@@ -80,7 +93,20 @@ export class OtaSyncService {
       throw new NotFoundException(`Channel ${channelId} not found`);
     }
 
-    return channel;
+    const { OtaListingMapping, OtaSyncLog, OtaReservationImport, ...rest } = channel;
+    return {
+      ...rest,
+      mappings: OtaListingMapping.map(({ Site, SiteClass, ...mapping }) => ({
+        ...mapping,
+        site: Site,
+        siteClass: SiteClass,
+      })),
+      syncLogs: OtaSyncLog,
+      imports: OtaReservationImport.map(({ Reservation, ...importItem }) => ({
+        ...importItem,
+        reservation: Reservation,
+      })),
+    };
   }
 
   /**
@@ -96,6 +122,8 @@ export class OtaSyncService {
   }) {
     return this.prisma.otaChannel.create({
       data: {
+        id: randomUUID(),
+        updatedAt: new Date(),
         campgroundId: data.campgroundId,
         name: data.name,
         provider: data.provider,
@@ -159,6 +187,8 @@ export class OtaSyncService {
         },
       },
       create: {
+        id: randomUUID(),
+        updatedAt: new Date(),
         channelId: data.channelId,
         externalId: data.externalId,
         siteId: data.siteId ?? null,
@@ -182,12 +212,12 @@ export class OtaSyncService {
     const channel = await this.prisma.otaChannel.findUnique({
       where: { id: channelId },
       include: {
-        campground: { select: { id: true, name: true, timezone: true } },
-        mappings: {
+        Campground: { select: { id: true, name: true, timezone: true } },
+        OtaListingMapping: {
           where: { status: "mapped" },
           include: {
-            site: { select: { id: true, name: true } },
-            siteClass: { select: { id: true, name: true } },
+            Site: { select: { id: true, name: true } },
+            SiteClass: { select: { id: true, name: true } },
           },
         },
       },
@@ -213,7 +243,7 @@ export class OtaSyncService {
     };
 
     // Process each mapping
-    for (const mapping of channel.mappings) {
+    for (const mapping of channel.OtaListingMapping) {
       if (!mapping.icalUrl) {
         this.logger.warn(`Mapping ${mapping.id} has no iCal URL, skipping`);
         continue;
@@ -226,7 +256,7 @@ export class OtaSyncService {
           provider: channel.provider,
           icalUrl: mapping.icalUrl,
           rateMultiplier: channel.rateMultiplier,
-          defaultStatus: channel.defaultStatus as "confirmed" | "pending",
+          defaultStatus: normalizeDefaultStatus(channel.defaultStatus),
         });
 
         const bookings = await provider.fetchBookings();
@@ -295,20 +325,20 @@ export class OtaSyncService {
         },
       },
       include: {
-        reservation: true,
+        Reservation: true,
       },
     });
 
     if (existingImport) {
       // Already imported - check if we need to update
-      if (existingImport.reservation) {
+      if (existingImport.Reservation) {
         const needsUpdate = this.bookingNeedsUpdate(
-          existingImport.reservation,
+          existingImport.Reservation,
           booking
         );
 
         if (needsUpdate) {
-          await this.updateReservation(existingImport.reservation.id, booking);
+          await this.updateReservation(existingImport.Reservation.id, booking);
           return "updated";
         }
       }
@@ -399,6 +429,7 @@ export class OtaSyncService {
     await this.prisma.$transaction(async (tx) => {
       const reservation = await tx.reservation.create({
         data: {
+          id: randomUUID(),
           campgroundId: channel.campgroundId,
           siteId,
           guestId: guest.id,
@@ -415,6 +446,7 @@ export class OtaSyncService {
 
       await tx.otaReservationImport.create({
         data: {
+          id: randomUUID(),
           channelId: channel.id,
           externalReservationId: booking.externalId,
           status: "imported",
@@ -433,12 +465,16 @@ export class OtaSyncService {
   ): Promise<{ id: string }> {
     const { firstName, lastName } = this.parseGuestName(booking.guestName);
     const email = booking.guestEmail?.toLowerCase().trim() || `guest-${booking.externalId}@ota.campreserv.com`;
+    const campgroundTag = `campground:${campgroundId}`;
 
     // Try to find existing guest by email
     const existing = await this.prisma.guest.findFirst({
       where: {
-        campgroundId,
         emailNormalized: email.toLowerCase(),
+        OR: [
+          { Reservation: { some: { campgroundId } } },
+          { tags: { has: campgroundTag } },
+        ],
       },
     });
 
@@ -449,7 +485,8 @@ export class OtaSyncService {
     // Create new guest
     const guest = await this.prisma.guest.create({
       data: {
-        campgroundId,
+        id: randomUUID(),
+        tags: [campgroundTag],
         primaryFirstName: firstName,
         primaryLastName: lastName,
         email,
@@ -491,6 +528,7 @@ export class OtaSyncService {
   private async logSync(channelId: string, result: OtaSyncResult): Promise<void> {
     await this.prisma.otaSyncLog.create({
       data: {
+        id: randomUUID(),
         channelId,
         direction: "pull",
         eventType: "reservation",
@@ -523,18 +561,18 @@ export class OtaSyncService {
    * Get import history for a channel
    */
   async getImports(channelId: string, limit = 50) {
-    return this.prisma.otaReservationImport.findMany({
+    const imports = await this.prisma.otaReservationImport.findMany({
       where: { channelId },
       orderBy: { createdAt: "desc" },
       take: limit,
       include: {
-        reservation: {
+        Reservation: {
           select: {
             id: true,
             arrivalDate: true,
             departureDate: true,
             status: true,
-            guest: {
+            Guest: {
               select: {
                 primaryFirstName: true,
                 primaryLastName: true,
@@ -544,6 +582,19 @@ export class OtaSyncService {
           },
         },
       },
+    });
+    return imports.map(({ Reservation, ...importItem }) => {
+      if (!Reservation) {
+        return { ...importItem, reservation: null };
+      }
+      const { Guest, ...reservation } = Reservation;
+      return {
+        ...importItem,
+        reservation: {
+          ...reservation,
+          guest: Guest,
+        },
+      };
     });
   }
 }

@@ -1,80 +1,62 @@
-// @ts-nocheck
-import * as request from 'supertest';
-import { Test } from '@nestjs/testing';
-import { ValidationPipe } from '@nestjs/common';
-import { AnalyticsController } from '../analytics/analytics.controller';
+import { Test, type TestingModule } from '@nestjs/testing';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { JwtAuthGuard } from '../auth/guards';
-import { RolesGuard } from '../auth/guards/roles.guard';
 
 describe('Analytics smoke', () => {
-  let app: any;
-  let prisma: PrismaService;
+  let moduleRef: TestingModule;
+  let service: AnalyticsService;
   const campgroundId = 'camp-analytics-test';
+  const prismaStub = {
+    analyticsEvent: {
+      create: jest.fn().mockResolvedValue({ id: 'evt-1' }),
+    },
+    analyticsDailyAggregate: {
+      upsert: jest.fn().mockResolvedValue({ id: 'agg-1', count: 1 }),
+      findMany: jest.fn().mockResolvedValue([]),
+      findFirst: jest.fn().mockResolvedValue(null),
+      create: jest.fn().mockResolvedValue({ id: 'agg-2', count: 1 }),
+      update: jest.fn().mockResolvedValue({ id: 'agg-2', count: 2 }),
+    },
+  };
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({
-      controllers: [AnalyticsController],
+    moduleRef = await Test.createTestingModule({
       providers: [
         AnalyticsService,
-        PrismaService,
         {
           provide: AuditService,
           useValue: {
             record: jest.fn(),
           },
         },
+        {
+          provide: PrismaService,
+          useValue: prismaStub,
+        },
       ],
-    })
-      .overrideGuard(JwtAuthGuard)
-      .useValue({ canActivate: () => true })
-      .overrideGuard(RolesGuard)
-      .useValue({ canActivate: () => true })
-      .compile();
-
-    app = moduleRef.createNestApplication();
-    app.setGlobalPrefix('api');
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    app.use((req: any, _res: any, next: any) => {
-      req.user = { id: 'analytics-user', role: 'owner' };
-      req.campgroundId = campgroundId;
-      next();
-    });
-    await app.init();
-    prisma = app.get(PrismaService);
-
-    await prisma.organization.upsert({ where: { id: 'org-analytics' }, update: {}, create: { id: 'org-analytics', name: 'Org Analytics' } });
-    await prisma.campground.upsert({
-      where: { id: campgroundId },
-      update: {},
-      create: { id: campgroundId, name: 'Analytics Camp', organizationId: 'org-analytics', city: 'X', state: 'Y', country: 'US', slug: 'analytics-camp' },
-    });
+    }).compile();
+    service = moduleRef.get(AnalyticsService);
   });
 
   afterAll(async () => {
-    await prisma.campground.deleteMany({ where: { id: campgroundId } });
-    await prisma.organization.deleteMany({ where: { id: 'org-analytics' } });
-    await app.close();
+    await moduleRef.close();
   });
 
   it('ingests an event and returns recommendations (stub)', async () => {
-    const api = request(app.getHttpServer());
-    await api
-      .post('/api/analytics/events')
-      .send({
+    await service.ingest(
+      {
         sessionId: 'sess-1',
         eventName: 'page_view',
         occurredAt: new Date().toISOString(),
         campgroundId,
         deviceType: 'desktop',
         metadata: { siteId: 'site-1' },
-      })
-      .expect(201);
+      },
+      { campgroundId, organizationId: null, userId: 'analytics-user' }
+    );
 
-    const recs = await api.get('/api/analytics/recommendations?campgroundId=' + campgroundId).expect(200);
-    expect(Array.isArray(recs.body?.recommendations || recs.body)).toBe(true);
+    const recs = await service.getRecommendations(campgroundId);
+    expect(Array.isArray(recs.recommendations)).toBe(true);
   });
 });
-

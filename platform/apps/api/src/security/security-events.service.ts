@@ -1,4 +1,15 @@
 import { Injectable, Logger } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
+import { randomUUID } from "crypto";
+
+const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined => {
+    if (value === undefined || value === null) return undefined;
+    try {
+        return JSON.parse(JSON.stringify(value));
+    } catch {
+        return undefined;
+    }
+};
 import { PrismaService } from "../prisma/prisma.service";
 
 /**
@@ -117,24 +128,29 @@ export class SecurityEventsService {
 
         // Store in audit log
         try {
-            await this.prisma.auditLog.create({
-                data: {
-                    action: `SECURITY:${event.type}`,
-                    tableName: "security_events",
-                    recordId: event.userId || "system",
-                    userId: event.userId,
-                    campgroundId: event.campgroundId,
-                    oldData: null,
-                    newData: {
-                        severity: event.severity,
-                        ipAddress: event.ipAddress,
-                        userAgent: event.userAgent,
-                        details: event.details,
-                    },
+            if (event.campgroundId) {
+                const after = toJsonValue({
+                    severity: event.severity,
                     ipAddress: event.ipAddress,
                     userAgent: event.userAgent,
-                },
-            });
+                    details: event.details,
+                }) ?? Prisma.JsonNull;
+
+                await this.prisma.auditLog.create({
+                    data: {
+                        id: randomUUID(),
+                        campgroundId: event.campgroundId,
+                        actorId: event.userId ?? null,
+                        action: `SECURITY:${event.type}`,
+                        entity: "security_event",
+                        entityId: event.userId || "system",
+                        before: Prisma.JsonNull,
+                        after,
+                        ip: event.ipAddress ?? null,
+                        userAgent: event.userAgent ?? null,
+                    },
+                });
+            }
         } catch (error) {
             this.logger.error("Failed to log security event", error);
         }

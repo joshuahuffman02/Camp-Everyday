@@ -20,11 +20,19 @@ const LOG_LEVELS: Record<LogLevel, number> = {
   error: 3,
 };
 
+const parseLogLevel = (value: string | undefined): LogLevel | undefined => {
+  if (!value) return undefined;
+  if (value === "debug" || value === "info" || value === "warn" || value === "error") {
+    return value;
+  }
+  return undefined;
+};
+
 /**
  * Get minimum log level from environment
  */
 function getMinLevel(): number {
-  const envLevel = process.env.NEXT_PUBLIC_LOG_LEVEL?.toLowerCase() as LogLevel;
+  const envLevel = parseLogLevel(process.env.NEXT_PUBLIC_LOG_LEVEL?.toLowerCase());
   if (envLevel && LOG_LEVELS[envLevel] !== undefined) {
     return LOG_LEVELS[envLevel];
   }
@@ -44,9 +52,9 @@ function isEnabled(level: LogLevel): boolean {
 /**
  * Format log entry for console output
  */
-function formatForConsole(entry: LogEntry): string[] {
+function formatForConsole(entry: LogEntry): Array<string | unknown> {
   const prefix = `[${entry.context || "app"}]`;
-  const parts: string[] = [prefix, entry.message];
+  const parts: Array<string | unknown> = [prefix, entry.message];
   return parts;
 }
 
@@ -108,7 +116,7 @@ function logToConsole(entry: LogEntry): void {
   const args = formatForConsole(entry);
 
   if (entry.data !== undefined) {
-    args.push(entry.data as string);
+    args.push(entry.data);
   }
 
   switch (entry.level) {

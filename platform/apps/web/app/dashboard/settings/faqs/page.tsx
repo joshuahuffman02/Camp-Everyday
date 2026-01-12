@@ -35,16 +35,20 @@ export default function FAQsPage() {
     const [faqs, setFaqs] = useState<FAQ[]>([]);
     const [hasChanges, setHasChanges] = useState(false);
 
-    const campgroundQuery = useQuery({
+    type CampgroundWithFaqs = Awaited<ReturnType<typeof apiClient.getCampground>> & {
+        faqs?: FAQ[];
+    };
+
+    const campgroundQuery = useQuery<CampgroundWithFaqs>({
         queryKey: ["campground", campgroundId],
         queryFn: () => apiClient.getCampground(campgroundId!),
         enabled: !!campgroundId,
     });
 
     useEffect(() => {
-        const cg: any = campgroundQuery.data;
+        const cg = campgroundQuery.data;
         if (!cg) return;
-        const existingFaqs = (cg.faqs as FAQ[]) || [];
+        const existingFaqs = cg.faqs ?? [];
         setFaqs(existingFaqs.sort((a, b) => a.order - b.order));
         setHasChanges(false);
     }, [campgroundQuery.data]);

@@ -33,7 +33,7 @@ export function CelebrationOverlay({
         transition={
           prefersReducedMotion
             ? { duration: 0.2 }
-            : { type: "spring" as const, stiffness: 200, damping: 15 }
+            : { type: "spring", stiffness: 200, damping: 15 }
         }
         className="text-center"
       >
@@ -43,7 +43,7 @@ export function CelebrationOverlay({
           transition={
             prefersReducedMotion
               ? {}
-              : { delay: 0.1, type: "spring" as const, stiffness: 200, damping: 15 }
+              : { delay: 0.1, type: "spring", stiffness: 200, damping: 15 }
           }
           className="mb-6"
         >

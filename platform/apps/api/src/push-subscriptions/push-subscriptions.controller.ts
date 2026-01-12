@@ -1,19 +1,22 @@
-import { Body, Controller, Post, Get, Delete, Req, UseGuards, HttpCode, HttpStatus } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Post, Get, Delete, Req, UseGuards, HttpCode, HttpStatus } from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/guards";
 import { PushSubscriptionsService } from "./push-subscriptions.service";
 import { MobilePushService } from "./mobile-push.service";
 import { RegisterDeviceDto, UnregisterDeviceDto } from "./dto/register-device.dto";
 import type { Request } from "express";
 
-type PushSubscriptionPayload = {
-  endpoint: string;
-  expirationTime?: string | number | null;
-  keys?: Record<string, string>;
-};
+type AuthRequest = Request & { user?: { id?: string; userId?: string } };
 
-type SubscribeRequest = {
-  campgroundId?: string;
-  subscription?: PushSubscriptionPayload;
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const getString = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+const getHeaderValue = (headers: Request["headers"], key: string): string | undefined => {
+  const value = headers[key];
+  if (Array.isArray(value)) return value[0];
+  return typeof value === "string" ? value : undefined;
 };
 
 @UseGuards(JwtAuthGuard)
@@ -29,15 +32,17 @@ export class PushSubscriptionsController {
   // =========================================================================
 
   @Post("subscribe")
-  async subscribe(@Body() body: SubscribeRequest, @Req() req: Request) {
-    const subscription = (body as any).subscription ?? (body as any);
-    const campgroundId = (body as any).campgroundId;
+  async subscribe(@Body() body: unknown, @Req() req: AuthRequest) {
+    const bodyRecord = isRecord(body) ? body : undefined;
+    const subscriptionCandidate = bodyRecord && "subscription" in bodyRecord ? bodyRecord.subscription : body;
+    const campgroundId = getString(bodyRecord?.campgroundId);
+    const userId = req.user?.userId ?? req.user?.id;
 
     return this.pushSubscriptions.upsertSubscription({
-      subscription,
+      subscription: subscriptionCandidate,
       campgroundId,
-      userId: req.user?.userId,
-      userAgent: req.headers["user-agent"] ?? null,
+      userId: userId ?? undefined,
+      userAgent: getHeaderValue(req.headers, "user-agent") ?? null,
     });
   }
 
@@ -46,8 +51,12 @@ export class PushSubscriptionsController {
   // =========================================================================
 
   @Post("mobile/register")
-  async registerMobileDevice(@Body() dto: RegisterDeviceDto, @Req() req: Request) {
-    return this.mobilePush.registerDevice(req.user.id, dto);
+  async registerMobileDevice(@Body() dto: RegisterDeviceDto, @Req() req: AuthRequest) {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new BadRequestException("User context is required");
+    }
+    return this.mobilePush.registerDevice(userId, dto);
   }
 
   @Post("mobile/unregister")
@@ -57,14 +66,21 @@ export class PushSubscriptionsController {
   }
 
   @Get("mobile/devices")
-  async getMobileDevices(@Req() req: Request) {
-    return this.mobilePush.getUserDevices(req.user.id);
+  async getMobileDevices(@Req() req: AuthRequest) {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new BadRequestException("User context is required");
+    }
+    return this.mobilePush.getUserDevices(userId);
   }
 
   @Delete("mobile/devices")
   @HttpCode(HttpStatus.OK)
-  async unregisterAllMobileDevices(@Req() req: Request) {
-    return this.mobilePush.unregisterAllDevices(req.user.id);
+  async unregisterAllMobileDevices(@Req() req: AuthRequest) {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new BadRequestException("User context is required");
+    }
+    return this.mobilePush.unregisterAllDevices(userId);
   }
 }
-

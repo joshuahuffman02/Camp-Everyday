@@ -12,12 +12,22 @@ import {
 } from 'lucide-react';
 import { useReducedMotionSafe } from '@/hooks/use-reduced-motion-safe';
 
-const features = [
+type FeatureColor = 'evergreen' | 'clay';
+
+type Feature = {
+  name: string;
+  description: string;
+  icon: React.ComponentType<{ className?: string }>;
+  color: FeatureColor;
+  features: string[];
+};
+
+const features: Feature[] = [
   {
     name: 'AI-Powered Intelligence',
     description: 'Predict demand, optimize pricing, and reduce no-shows with built-in AI.',
     icon: Brain,
-    color: 'evergreen' as const,
+    color: 'evergreen',
     features: [
       'AI demand forecasting',
       'AI pricing recommendations',
@@ -29,7 +39,7 @@ const features = [
     name: 'Loyalty & Gamification',
     description: 'Turn one-time guests into lifetime campers with XP, levels, and rewards.',
     icon: Sparkles,
-    color: 'clay' as const,
+    color: 'clay',
     features: [
       'XP system & leveling',
       'Rewards marketplace',
@@ -41,7 +51,7 @@ const features = [
     name: 'Staff Scheduling & Payroll',
     description: 'Schedule staff based on occupancy with integrated time tracking and payroll.',
     icon: Calendar,
-    color: 'evergreen' as const,
+    color: 'evergreen',
     features: [
       'Shift scheduling',
       'Time clock & tracking',
@@ -53,7 +63,7 @@ const features = [
     name: 'Reservations & Revenue',
     description: 'Maximize bookings with dynamic pricing and intelligent revenue management.',
     icon: TrendingUp,
-    color: 'clay' as const,
+    color: 'clay',
     features: [
       'Drag-and-drop calendar',
       'Dynamic pricing rules',
@@ -65,7 +75,7 @@ const features = [
     name: 'Guest Experience',
     description: 'Delight guests with seamless booking, check-in, and communication.',
     icon: Users,
-    color: 'evergreen' as const,
+    color: 'evergreen',
     features: [
       'Online booking engine',
       'Self-service portal',
@@ -77,7 +87,7 @@ const features = [
     name: 'Operations & Integrations',
     description: 'Run your entire park from one place. Connect to your favorite tools.',
     icon: Settings,
-    color: 'clay' as const,
+    color: 'clay',
     features: [
       'Housekeeping management',
       'Maintenance tickets',
@@ -87,7 +97,7 @@ const features = [
   },
 ];
 
-const colorClasses = {
+const colorClasses: Record<FeatureColor, { bg: string; icon: string; hover: string; check: string }> = {
   evergreen: {
     bg: 'bg-keepr-evergreen/10',
     icon: 'text-keepr-evergreen',
@@ -106,6 +116,7 @@ export function FeaturePillars() {
   const ref = useRef<HTMLElement>(null);
   const isInView = useInView(ref, { once: true, margin: '-50px' });
   const prefersReducedMotion = useReducedMotionSafe();
+  const ease: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
   const containerVariants = {
     hidden: { opacity: prefersReducedMotion ? 1 : 0 },
@@ -120,7 +131,7 @@ export function FeaturePillars() {
     visible: {
       opacity: 1,
       y: 0,
-      transition: prefersReducedMotion ? undefined : { duration: 0.5, ease: 'easeOut' as const },
+      transition: prefersReducedMotion ? undefined : { duration: 0.5, ease },
     },
   };
 

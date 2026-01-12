@@ -28,7 +28,7 @@ export class TasksController {
       reservationId?: string;
       priority?: string;
       slaDueAt?: string;
-      checklist?: any;
+      checklist?: unknown;
       assignedToUserId?: string;
       assignedToTeamId?: string;
       notes?: string;
@@ -72,8 +72,8 @@ export class TasksController {
       slaDueAt?: string;
       assignedToUserId?: string;
       assignedToTeamId?: string;
-      checklist?: any;
-      photos?: any;
+      checklist?: unknown;
+      photos?: unknown;
       notes?: string;
     },
   ) {
@@ -85,4 +85,3 @@ export class TasksController {
     return this.tasksService.remove(id);
   }
 }
-

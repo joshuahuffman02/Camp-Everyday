@@ -4,14 +4,14 @@ import { AiProviderService } from "./ai-provider.service";
 import { AiFeatureGateService } from "./ai-feature-gate.service";
 import { AiFeatureType } from "@prisma/client";
 
-interface SubjectLineOption {
+export interface SubjectLineOption {
   subject: string;
   tone: "professional" | "friendly" | "urgent" | "casual" | "promotional";
   reasoning: string;
   estimatedOpenRate?: string;
 }
 
-interface ContentSuggestion {
+export interface ContentSuggestion {
   headline: string;
   body: string;
   callToAction: string;

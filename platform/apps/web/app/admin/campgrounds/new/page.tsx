@@ -130,8 +130,8 @@ export default function CreateCampgroundPage() {
                 adminEmail: form.adminEmail,
                 adminPassword: tempPassword,
             });
-        } catch (err: any) {
-            setError(err.message || "Failed to create campground");
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : "Failed to create campground");
         } finally {
             setLoading(false);
         }

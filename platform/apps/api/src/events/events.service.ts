@@ -2,6 +2,30 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateEventSchema } from '@keepr/shared';
 import { z } from 'zod';
+import type { Prisma } from "@prisma/client";
+import { randomUUID } from "crypto";
+
+type EventWithChildren = Prisma.EventGetPayload<{
+    include: {
+        other_Event: true;
+    };
+}>;
+
+type PublicEventBase = Omit<EventWithChildren, "other_Event"> & {
+    children: EventWithChildren["other_Event"];
+};
+
+type RecurringEventInstance = PublicEventBase & {
+    originalEventId: string;
+    isRecurringInstance: true;
+};
+
+type PublicEvent = PublicEventBase | RecurringEventInstance;
+
+const mapEventChildren = (event: EventWithChildren): PublicEventBase => {
+    const { other_Event, ...rest } = event;
+    return { ...rest, children: other_Event };
+};
 
 @Injectable()
 export class EventsService {
@@ -14,6 +38,7 @@ export class EventsService {
     }) {
         return this.prisma.event.create({
             data: {
+                id: randomUUID(),
                 ...data,
                 startDate: new Date(data.startDate),
                 endDate: data.endDate ? new Date(data.endDate) : null,
@@ -24,7 +49,7 @@ export class EventsService {
     }
 
     async findAll(campgroundId: string, start?: string, end?: string) {
-        const where: any = { campgroundId };
+        const where: Prisma.EventWhereInput = { campgroundId };
 
         if (start && end) {
             where.startDate = {
@@ -33,16 +58,18 @@ export class EventsService {
             };
         }
 
-        return this.prisma.event.findMany({
+        const events = await this.prisma.event.findMany({
             where,
             include: {
-                children: {
+                other_Event: {
                     where: { isCancelled: false },
                     orderBy: { startDate: 'asc' }
                 }
             },
             orderBy: { startDate: 'asc' },
         });
+
+        return events.map(mapEventChildren);
     }
 
     // Get all events for a holiday/themed weekend
@@ -78,7 +105,7 @@ export class EventsService {
                 ]
             },
             include: {
-                children: {
+                other_Event: {
                     where: { isPublished: true, isCancelled: false },
                     orderBy: { startDate: 'asc' }
                 }
@@ -87,8 +114,8 @@ export class EventsService {
         });
 
         // Expand recurring events into individual instances
-        const result: any[] = [];
-        for (const event of events) {
+        const result: PublicEvent[] = [];
+        for (const event of events.map(mapEventChildren)) {
             if (event.isRecurring && event.recurrenceDays.length > 0) {
                 const instances = this.generateRecurringInstances(event, start, end);
                 result.push(...instances);
@@ -101,8 +128,8 @@ export class EventsService {
     }
 
     // Generate individual instances for recurring events
-    private generateRecurringInstances(event: any, start: Date, end: Date): any[] {
-        const instances: any[] = [];
+    private generateRecurringInstances(event: PublicEventBase, start: Date, end: Date): RecurringEventInstance[] {
+        const instances: RecurringEventInstance[] = [];
         const recurrenceEnd = event.recurrenceEndDate ? new Date(event.recurrenceEndDate) : end;
         const effectiveEnd = recurrenceEnd < end ? recurrenceEnd : end;
 
@@ -145,12 +172,13 @@ export class EventsService {
         const event = await this.prisma.event.findUnique({
             where: { id },
             include: {
-                children: { orderBy: { startDate: 'asc' } },
-                parent: true
+                other_Event: { orderBy: { startDate: 'asc' } },
+                Event: true
             }
         });
         if (!event) throw new NotFoundException(`Event with ID ${id} not found`);
-        return event;
+        const { other_Event, Event, ...rest } = event;
+        return { ...rest, children: other_Event, parent: Event };
     }
 
     async update(id: string, data: Partial<z.infer<typeof CreateEventSchema>> & {
@@ -158,11 +186,20 @@ export class EventsService {
         recurrenceDays?: number[];
         recurrenceEndDate?: string | null;
     }) {
-        const updateData: any = { ...data };
-        if (data.startDate) updateData.startDate = new Date(data.startDate);
-        if (data.endDate) updateData.endDate = new Date(data.endDate);
-        if (data.recurrenceEndDate) updateData.recurrenceEndDate = new Date(data.recurrenceEndDate);
-        if (data.recurrenceEndDate === null) updateData.recurrenceEndDate = null;
+        const updateData: Prisma.EventUpdateInput = {
+            ...data,
+            startDate: data.startDate ? new Date(data.startDate) : undefined,
+            endDate: data.endDate
+                ? new Date(data.endDate)
+                : data.endDate === null
+                    ? null
+                    : undefined,
+            recurrenceEndDate: data.recurrenceEndDate
+                ? new Date(data.recurrenceEndDate)
+                : data.recurrenceEndDate === null
+                    ? null
+                    : undefined,
+        };
 
         return this.prisma.event.update({
             where: { id },

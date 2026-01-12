@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import * as LucideIcons from "lucide-react";
+import { icons } from "lucide-react";
 import {
   roadmapPhases,
   getPhaseProgress,
@@ -10,19 +10,21 @@ import {
   statusLabels,
 } from "../../../lib/roadmap-data";
 
+const isLucideIconName = (value: string): value is keyof typeof icons =>
+  value in icons;
+
 // Helper to render a lucide icon from its name (kebab-case)
 function PhaseIcon({ name, className = "h-5 w-5" }: { name: string; className?: string }) {
   const iconName = name
     .split('-')
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join('') as keyof typeof LucideIcons;
+    .join('');
 
-  const IconComponent = LucideIcons[iconName] as React.ComponentType<{ className?: string }>;
-
-  if (!IconComponent) {
-    return <LucideIcons.Circle className={className} />;
+  if (!isLucideIconName(iconName)) {
+    return <icons.Circle className={className} />;
   }
 
+  const IconComponent = icons[iconName];
   return <IconComponent className={className} />;
 }
 

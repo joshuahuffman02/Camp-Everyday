@@ -13,9 +13,118 @@ import {
   WaterfallChart,
 } from "@/components/analytics";
 
+type RevenueOverview = {
+  totalRevenue: number;
+  totalReservations: number;
+  averageOrderValue: number;
+  revenuePerAvailableNight: number;
+  yoyGrowth?: number;
+};
+
+type MonthlyTrend = {
+  month: string;
+  revenue: number;
+  adr: number;
+};
+
+type AccommodationTypeBreakdown = {
+  type: string;
+  revenue: number;
+  reservations: number;
+  percentage: number;
+  adr: number;
+};
+
+type TopCampgroundRow = {
+  campground: {
+    name: string;
+    city: string;
+    state: string;
+  };
+  revenue: number;
+  reservations: number;
+};
+
+type RevenueAnalyticsData = {
+  overview: RevenueOverview;
+  monthlyTrends: MonthlyTrend[];
+  byAccommodationType: AccommodationTypeBreakdown[];
+  topCampgrounds: TopCampgroundRow[];
+};
+
+type WaterfallItem = {
+  label: string;
+  value: number;
+  type: "start" | "increase" | "decrease" | "total";
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const isNumber = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value);
+
+const parseOverview = (value: unknown): RevenueOverview | null => {
+  if (!isRecord(value)) return null;
+  if (
+    !isNumber(value.totalRevenue) ||
+    !isNumber(value.totalReservations) ||
+    !isNumber(value.averageOrderValue) ||
+    !isNumber(value.revenuePerAvailableNight)
+  ) {
+    return null;
+  }
+  return {
+    totalRevenue: value.totalRevenue,
+    totalReservations: value.totalReservations,
+    averageOrderValue: value.averageOrderValue,
+    revenuePerAvailableNight: value.revenuePerAvailableNight,
+    yoyGrowth: isNumber(value.yoyGrowth) ? value.yoyGrowth : undefined,
+  };
+};
+
+const isMonthlyTrend = (value: unknown): value is MonthlyTrend => {
+  if (!isRecord(value)) return false;
+  return typeof value.month === "string" && isNumber(value.revenue) && isNumber(value.adr);
+};
+
+const isAccommodationType = (value: unknown): value is AccommodationTypeBreakdown => {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.type === "string" &&
+    isNumber(value.revenue) &&
+    isNumber(value.reservations) &&
+    isNumber(value.percentage) &&
+    isNumber(value.adr)
+  );
+};
+
+const isTopCampground = (value: unknown): value is TopCampgroundRow => {
+  if (!isRecord(value) || !isRecord(value.campground)) return false;
+  return (
+    typeof value.campground.name === "string" &&
+    typeof value.campground.city === "string" &&
+    typeof value.campground.state === "string" &&
+    isNumber(value.revenue) &&
+    isNumber(value.reservations)
+  );
+};
+
+const parseRevenueData = (value: unknown): RevenueAnalyticsData | null => {
+  if (!isRecord(value)) return null;
+  const overview = parseOverview(value.overview);
+  if (!overview) return null;
+  const monthlyTrends = Array.isArray(value.monthlyTrends) ? value.monthlyTrends.filter(isMonthlyTrend) : [];
+  const byAccommodationType = Array.isArray(value.byAccommodationType)
+    ? value.byAccommodationType.filter(isAccommodationType)
+    : [];
+  const topCampgrounds = Array.isArray(value.topCampgrounds) ? value.topCampgrounds.filter(isTopCampground) : [];
+  return { overview, monthlyTrends, byAccommodationType, topCampgrounds };
+};
+
 export default function RevenueIntelligencePage() {
   const [dateRange, setDateRange] = useState("last_12_months");
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<RevenueAnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -25,7 +134,7 @@ export default function RevenueIntelligencePage() {
         const response = await fetch(`/api/admin/platform-analytics/revenue?range=${dateRange}`);
         if (response.ok) {
           const result = await response.json();
-          setData(result);
+          setData(parseRevenueData(result));
         }
       } catch (error) {
         console.error("Failed to fetch revenue data:", error);
@@ -36,7 +145,28 @@ export default function RevenueIntelligencePage() {
     fetchData();
   }, [dateRange]);
 
-  const pieData = data?.byAccommodationType?.map((item: any, idx: number) => ({
+  const formatCount = (value: unknown): string =>
+    isNumber(value) ? value.toLocaleString() : "—";
+  const formatMoney = (value: unknown): string =>
+    isNumber(value) ? formatCurrency(value) : "—";
+  const formatPercent = (value: unknown): string =>
+    isNumber(value) ? `${value.toFixed(1)}%` : "—";
+  const formatDollars = (value: unknown, decimals: number): string =>
+    isNumber(value) ? `$${value.toFixed(decimals)}` : "—";
+  const formatTypeName = (value: unknown): string =>
+    typeof value === "string" ? value.charAt(0).toUpperCase() + value.slice(1) : "—";
+  const formatCampgroundName = (value: unknown): string => {
+    if (isRecord(value) && typeof value.name === "string") return value.name;
+    return "—";
+  };
+  const formatCampgroundLocation = (value: unknown): string => {
+    if (isRecord(value) && typeof value.city === "string" && typeof value.state === "string") {
+      return `${value.city}, ${value.state}`;
+    }
+    return "—";
+  };
+
+  const pieData = data?.byAccommodationType?.map((item) => ({
     name: item.type.charAt(0).toUpperCase() + item.type.slice(1),
     value: item.percentage,
   })) || [];
@@ -44,14 +174,14 @@ export default function RevenueIntelligencePage() {
   const hasData = data && data.overview && data.overview.totalRevenue > 0;
 
   // Mock waterfall data for revenue bridge
-  const waterfallData = [
-    { label: "Prior Period", value: 425000, type: "start" as const },
-    { label: "New Bookings", value: 85000, type: "increase" as const },
-    { label: "Price Increases", value: 12500, type: "increase" as const },
-    { label: "Upsells & Add-ons", value: 8200, type: "increase" as const },
-    { label: "Cancellations", value: -15800, type: "decrease" as const },
-    { label: "Refunds", value: -6400, type: "decrease" as const },
-    { label: "Current Period", value: 508500, type: "total" as const },
+  const waterfallData: WaterfallItem[] = [
+    { label: "Prior Period", value: 425000, type: "start" },
+    { label: "New Bookings", value: 85000, type: "increase" },
+    { label: "Price Increases", value: 12500, type: "increase" },
+    { label: "Upsells & Add-ons", value: 8200, type: "increase" },
+    { label: "Cancellations", value: -15800, type: "decrease" },
+    { label: "Refunds", value: -6400, type: "decrease" },
+    { label: "Current Period", value: 508500, type: "total" },
   ];
 
   if (!loading && !hasData) {
@@ -195,31 +325,31 @@ export default function RevenueIntelligencePage() {
           {
             key: "type",
             label: "Type",
-            format: (v) => v.charAt(0).toUpperCase() + v.slice(1),
+            format: (v) => formatTypeName(v),
           },
           {
             key: "revenue",
             label: "Revenue",
             align: "right",
-            format: (v) => formatCurrency(v),
+            format: (v) => formatMoney(v),
           },
           {
             key: "reservations",
             label: "Reservations",
             align: "right",
-            format: (v) => v.toLocaleString(),
+            format: (v) => formatCount(v),
           },
           {
             key: "percentage",
             label: "% of Total",
             align: "right",
-            format: (v) => `${v.toFixed(1)}%`,
+            format: (v) => formatPercent(v),
           },
           {
             key: "adr",
             label: "ADR",
             align: "right",
-            format: (v) => `$${v.toFixed(2)}`,
+            format: (v) => formatDollars(v, 2),
           },
         ]}
         data={data?.byAccommodationType || []}
@@ -234,24 +364,24 @@ export default function RevenueIntelligencePage() {
           {
             key: "campground",
             label: "Campground",
-            format: (v) => v.name,
+            format: (v) => formatCampgroundName(v),
           },
           {
             key: "campground",
             label: "Location",
-            format: (v) => `${v.city}, ${v.state}`,
+            format: (v) => formatCampgroundLocation(v),
           },
           {
             key: "revenue",
             label: "Revenue",
             align: "right",
-            format: (v) => formatCurrency(v),
+            format: (v) => formatMoney(v),
           },
           {
             key: "reservations",
             label: "Reservations",
             align: "right",
-            format: (v) => v.toLocaleString(),
+            format: (v) => formatCount(v),
           },
         ]}
         data={data?.topCampgrounds || []}

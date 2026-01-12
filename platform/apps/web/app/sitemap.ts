@@ -28,7 +28,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const campgroundUrls: MetadataRoute.Sitemap = campgrounds.map((campground) => ({
       url: `${baseUrl}/park/${campground.slug}`,
       lastModified: now,
-      changeFrequency: "daily" as const,
+      changeFrequency: "daily",
       priority: 0.8,
     }));
 
@@ -36,7 +36,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const bookingUrls: MetadataRoute.Sitemap = campgrounds.map((campground) => ({
       url: `${baseUrl}/park/${campground.slug}/book`,
       lastModified: now,
-      changeFrequency: "daily" as const,
+      changeFrequency: "daily",
       priority: 0.7,
     }));
 
@@ -57,7 +57,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       .map(([state, data]) => ({
         url: `${baseUrl}/browse/${state.toLowerCase().replace(/\s+/g, "-")}`,
         lastModified: data.lastModified,
-        changeFrequency: "weekly" as const,
+        changeFrequency: "weekly",
         priority: 0.6,
       }));
 
@@ -83,7 +83,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         return {
           url: `${baseUrl}/browse/${slug}`,
           lastModified: data.lastModified,
-          changeFrequency: "weekly" as const,
+          changeFrequency: "weekly",
           priority: 0.5,
         };
       });

@@ -36,6 +36,7 @@ import {
   Download,
 } from "lucide-react";
 import Link from "next/link";
+import { z } from "zod";
 
 interface PageStats {
   id: string;
@@ -54,6 +55,25 @@ interface PageStats {
   formSubmits: number;
   date: string;
 }
+
+const PageStatsSchema = z.object({
+  id: z.string(),
+  path: z.string(),
+  pageTitle: z.string().nullable(),
+  featureArea: z.string().nullable(),
+  views: z.number(),
+  uniqueUsers: z.number(),
+  uniqueSessions: z.number(),
+  avgTimeOnPage: z.number().nullable(),
+  avgScrollDepth: z.number().nullable(),
+  bounceRate: z.number().nullable(),
+  actions: z.number(),
+  searches: z.number(),
+  errors: z.number(),
+  formSubmits: z.number(),
+  date: z.string(),
+});
+const PageStatsArraySchema = z.array(PageStatsSchema);
 
 function formatDuration(seconds: number | null): string {
   if (!seconds) return "-";
@@ -82,6 +102,7 @@ export default function PageUsageReport() {
     queryFn: async () => {
       const response = await apiClient.get<PageStats[]>(`/analytics/enhanced/reports/pages`, {
         params: { campgroundId, days: parseInt(days) },
+        schema: PageStatsArraySchema,
       });
       return response.data;
     },

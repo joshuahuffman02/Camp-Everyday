@@ -42,9 +42,13 @@ const AlertDialogTrigger = ({
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & { asChild?: boolean }) => {
     const { onOpenChange } = React.useContext(AlertDialogContext)
 
-    if (asChild && React.isValidElement(children)) {
-        return React.cloneElement(children as React.ReactElement<any>, {
-            onClick: () => onOpenChange(true)
+    if (asChild && React.isValidElement<{ onClick?: React.MouseEventHandler }>(children)) {
+        const handleClick: React.MouseEventHandler = (event) => {
+            children.props.onClick?.(event)
+            onOpenChange(true)
+        }
+        return React.cloneElement(children, {
+            onClick: handleClick
         })
     }
 
@@ -67,7 +71,8 @@ const AlertDialogContent = React.forwardRef<
     React.useEffect(() => {
         if (!open || !contentRef.current) return
 
-        previousActiveElement.current = document.activeElement as HTMLElement
+        const activeElement = document.activeElement
+        previousActiveElement.current = activeElement instanceof HTMLElement ? activeElement : null
 
         const firstFocusable = contentRef.current.querySelector<HTMLElement>(
             'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
@@ -99,9 +104,12 @@ const AlertDialogContent = React.forwardRef<
             />
             <div
                 ref={(node) => {
-                    if (typeof ref === 'function') ref(node)
-                    else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = node
-                    ;(contentRef as React.MutableRefObject<HTMLDivElement | null>).current = node
+                    contentRef.current = node
+                    if (typeof ref === 'function') {
+                        ref(node)
+                    } else if (ref) {
+                        ref.current = node
+                    }
                 }}
                 className={cn(
                     "z-50 grid w-full max-w-lg gap-4 border border-border bg-card p-6 shadow-lg duration-200 sm:rounded-lg md:w-full",

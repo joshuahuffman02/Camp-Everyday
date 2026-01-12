@@ -8,6 +8,8 @@ import { DashboardShell } from "../../../components/ui/layout/DashboardShell";
 import { Calendar as CalendarIcon, List, PlusCircle, RefreshCw } from "lucide-react";
 
 type ViewMode = "month" | "week" | "list";
+type Campground = Awaited<ReturnType<typeof apiClient.getCampgrounds>>[number];
+type SocialPost = Awaited<ReturnType<typeof apiClient.listSocialPosts>>[number];
 
 export default function SocialPlannerCalendar() {
   const qc = useQueryClient();
@@ -21,28 +23,36 @@ export default function SocialPlannerCalendar() {
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterCategory, setFilterCategory] = useState<string>("all");
 
-  const { data: campgrounds = [] } = useQuery({
+  const { data: campgrounds = [] } = useQuery<Campground[]>({
     queryKey: ["campgrounds"],
     queryFn: () => apiClient.getCampgrounds()
   });
   const campgroundId = campgrounds[0]?.id;
+  const requireCampgroundId = () => {
+    if (!campgroundId) {
+      throw new Error("Campground is required");
+    }
+    return campgroundId;
+  };
 
-  const postsQuery = useQuery({
+  const postsQuery = useQuery<SocialPost[]>({
     queryKey: ["social-posts", campgroundId],
-    queryFn: () => apiClient.listSocialPosts(campgroundId!),
+    queryFn: () => apiClient.listSocialPosts(requireCampgroundId()),
     enabled: !!campgroundId
   });
 
   const createPost = useMutation({
-    mutationFn: () =>
-      apiClient.createSocialPost({
-        campgroundId,
+    mutationFn: () => {
+      const payload: Parameters<typeof apiClient.createSocialPost>[0] = {
+        campgroundId: requireCampgroundId(),
         title: draftTitle || "Untitled post",
         platform,
         status,
         category,
         ideaParkingLot
-      }),
+      };
+      return apiClient.createSocialPost(payload);
+    },
     onSuccess: () => {
       setDraftTitle("");
       qc.invalidateQueries({ queryKey: ["social-posts", campgroundId] });
@@ -51,7 +61,7 @@ export default function SocialPlannerCalendar() {
 
   const autoSlots = useMutation({
     mutationFn: async () => {
-      if (!campgroundId) return;
+      const requiredCampgroundId = requireCampgroundId();
       const base = new Date();
       const slots = Array.from({ length: 3 }).map((_, idx) => {
         const slot = new Date(base);
@@ -61,7 +71,7 @@ export default function SocialPlannerCalendar() {
       await Promise.all(
         slots.map(date =>
           apiClient.createSocialPost({
-            campgroundId,
+            campgroundId: requiredCampgroundId,
             title: `Auto slot ${new Date(date).toLocaleDateString()}`,
             platform: "facebook",
             status: "scheduled",
@@ -76,29 +86,36 @@ export default function SocialPlannerCalendar() {
 
   const filtered = useMemo(() => {
     if (!postsQuery.data) return [];
-    return postsQuery.data.filter((p: any) => {
-      const platformOk = filterPlatform === "all" || p.platform === filterPlatform;
-      const statusOk = filterStatus === "all" || p.status === filterStatus;
-      const categoryOk = filterCategory === "all" || p.category === filterCategory;
+    return postsQuery.data.filter((post) => {
+      const platformOk = filterPlatform === "all" || post.platform === filterPlatform;
+      const statusOk = filterStatus === "all" || post.status === filterStatus;
+      const categoryOk = filterCategory === "all" || post.category === filterCategory;
       return platformOk && statusOk && categoryOk;
     });
   }, [postsQuery.data, filterPlatform, filterStatus, filterCategory]);
 
-  const parkingLot = useMemo(() => filtered.filter((p: any) => p.ideaParkingLot || !p.scheduledFor), [filtered]);
+  const parkingLot = useMemo(
+    () => filtered.filter((post) => post.ideaParkingLot || !post.scheduledFor),
+    [filtered]
+  );
+  const getPostSortTime = (post: SocialPost) => {
+    const dateValue = post.scheduledFor ?? post.publishedFor;
+    return dateValue ? new Date(dateValue).getTime() : 0;
+  };
   const scheduled = useMemo(
     () =>
       filtered
-        .filter((p: any) => !parkingLot.includes(p))
-        .sort((a: any, b: any) => new Date(a.scheduledFor || a.createdAt).getTime() - new Date(b.scheduledFor || b.createdAt).getTime()),
+        .filter((post) => !parkingLot.includes(post))
+        .sort((a, b) => getPostSortTime(a) - getPostSortTime(b)),
     [filtered, parkingLot]
   );
 
   const groupedByDate = useMemo(() => {
-    const groups: Record<string, any[]> = {};
-    scheduled.forEach((p: any) => {
-      const key = p.scheduledFor ? new Date(p.scheduledFor).toLocaleDateString() : "Unscheduled";
+    const groups: Record<string, SocialPost[]> = {};
+    scheduled.forEach((post) => {
+      const key = post.scheduledFor ? new Date(post.scheduledFor).toLocaleDateString() : "Unscheduled";
       if (!groups[key]) groups[key] = [];
-      groups[key].push(p);
+      groups[key].push(post);
     });
     return groups;
   }, [scheduled]);
@@ -107,8 +124,8 @@ export default function SocialPlannerCalendar() {
     const now = new Date();
     const weekAhead = new Date();
     weekAhead.setDate(now.getDate() + 7);
-    return scheduled.filter((p: any) => {
-      const date = p.scheduledFor ? new Date(p.scheduledFor) : null;
+    return scheduled.filter((post) => {
+      const date = post.scheduledFor ? new Date(post.scheduledFor) : null;
       return date && date >= now && date <= weekAhead;
     });
   }, [scheduled]);
@@ -269,7 +286,7 @@ export default function SocialPlannerCalendar() {
             <div className="col-span-2">Date</div>
             <div className="col-span-2">Category</div>
           </div>
-          {filtered.map((post: any) => (
+          {filtered.map((post) => (
             <div key={post.id} className="grid grid-cols-12 px-4 py-3 border-b border-border text-sm">
               <div className="col-span-4">
                 <div className="font-semibold text-foreground">{post.title}</div>
@@ -291,7 +308,7 @@ export default function SocialPlannerCalendar() {
 
       {view === "week" && (
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {upcomingWeek.map((post: any) => (
+          {upcomingWeek.map((post) => (
           <div key={post.id} className="card p-4">
             <div className="flex items-center justify-between">
               <div>
@@ -321,7 +338,7 @@ export default function SocialPlannerCalendar() {
                 <span className="text-xs text-muted-foreground">{posts.length} posts</span>
               </div>
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {posts.map((post: any) => (
+                {posts.map((post) => (
                   <div key={post.id} className="p-3 rounded border border-border bg-muted">
                     <div className="flex items-center justify-between">
                       <div>
@@ -352,7 +369,7 @@ export default function SocialPlannerCalendar() {
           <span className="text-xs text-muted-foreground">{parkingLot.length} items</span>
         </div>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {parkingLot.map((post: any) => (
+          {parkingLot.map((post) => (
             <div key={post.id} className="p-3 rounded border border-amber-200 bg-amber-50">
               <div className="flex items-center justify-between">
                 <div>
@@ -374,4 +391,3 @@ export default function SocialPlannerCalendar() {
     </DashboardShell>
   );
 }
-

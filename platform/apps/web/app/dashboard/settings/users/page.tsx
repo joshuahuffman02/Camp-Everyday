@@ -45,6 +45,9 @@ const roleLabels: Record<Role, string> = {
   readonly: "Read-only"
 };
 
+const isRole = (value: string): value is Role =>
+  Object.prototype.hasOwnProperty.call(roleLabels, value);
+
 // Form types
 type InviteMemberFormData = {
   email: string;
@@ -93,7 +96,7 @@ export default function UsersPage() {
     if (stored) setCampgroundId(stored);
   }, []);
 
-  const membersQuery = useQuery({
+  const membersQuery = useQuery<Member[]>({
     queryKey: ["campground-members", campgroundId],
     queryFn: () => apiClient.getCampgroundMembers(campgroundId!),
     enabled: !!campgroundId
@@ -136,7 +139,8 @@ export default function UsersPage() {
     onError: (err: Error) => toast({ title: "Failed to remove member", description: err.message || "Unable to remove member. Ensure at least one owner remains", variant: "destructive" })
   });
 
-  const memberCount = useMemo(() => membersQuery.data?.length ?? 0, [membersQuery.data]);
+  const members = membersQuery.data ?? [];
+  const memberCount = useMemo(() => members.length, [members.length]);
 
   const resendInvite = useMutation({
     mutationFn: async (membershipId: string) => {
@@ -226,7 +230,11 @@ export default function UsersPage() {
                   <Label>Role</Label>
                   <Select
                     value={inviteForm.watch("role")}
-                    onValueChange={(val) => inviteForm.setValue("role", val as Role, { shouldValidate: true })}
+                    onValueChange={(val) => {
+                      if (isRole(val)) {
+                        inviteForm.setValue("role", val, { shouldValidate: true });
+                      }
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -322,7 +330,7 @@ export default function UsersPage() {
               <div className="text-sm text-muted-foreground">No members yet. Invite your first teammate above.</div>
             ) : (
               <div className="space-y-3">
-                {(membersQuery.data as Member[]).map((member, index) => {
+                {members.map((member, index) => {
                   const invitePending = !!member.lastInviteSentAt && !member.lastInviteRedeemedAt;
                   return (
                     <StaggeredItem key={member.id} delay={index * 0.05} variant="fadeUp">
@@ -330,7 +338,7 @@ export default function UsersPage() {
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{member.user.firstName} {member.user.lastName}</span>
-                          <Badge variant="secondary">{roleLabels[member.role as Role] || member.role}</Badge>
+                          <Badge variant="secondary">{roleLabels[member.role] || member.role}</Badge>
                           {!member.user.isActive && (
                             <Badge variant="outline" className="text-amber-700 border-amber-200 bg-amber-50">Inactive</Badge>
                           )}
@@ -348,7 +356,11 @@ export default function UsersPage() {
                       <div className="flex items-center gap-3">
                         <Select
                           value={member.role}
-                          onValueChange={(val) => updateRole.mutate({ membershipId: member.id, role: val as Role })}
+                          onValueChange={(val) => {
+                            if (isRole(val)) {
+                              updateRole.mutate({ membershipId: member.id, role: val });
+                            }
+                          }}
                         >
                           <SelectTrigger className="w-44">
                             <SelectValue />

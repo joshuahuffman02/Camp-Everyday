@@ -46,6 +46,9 @@ interface Site {
   siteClass?: SiteClass;
 }
 
+type ApiSiteClass = Awaited<ReturnType<typeof apiClient.getSiteClasses>>[number];
+type ApiSite = Awaited<ReturnType<typeof apiClient.getSites>>[number];
+
 export default function SiteTypesPage() {
   const [campgroundId, setCampgroundId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -61,12 +64,11 @@ export default function SiteTypesPage() {
       return;
     }
 
-    Promise.all([
-      apiClient.getSiteClasses(id).catch(() => []),
-      apiClient.getSites(id).catch(() => [])
-    ]).then(([classes, siteList]) => {
-      const classesArray = Array.isArray(classes) ? classes : [];
-      const sitesArray = Array.isArray(siteList) ? siteList : [];
+    const emptyClasses: ApiSiteClass[] = [];
+    const emptySites: ApiSite[] = [];
+    const classesPromise: Promise<ApiSiteClass[]> = apiClient.getSiteClasses(id).catch(() => emptyClasses);
+    const sitesPromise: Promise<ApiSite[]> = apiClient.getSites(id).catch(() => emptySites);
+    Promise.all([classesPromise, sitesPromise]).then(([classesArray, sitesArray]) => {
 
       // Count sites per class
       const classCounts: Record<string, number> = {};
@@ -76,13 +78,25 @@ export default function SiteTypesPage() {
         }
       });
 
-      const classesWithCounts = classesArray.map((c) => ({
-        ...c,
+      const classesWithCounts: SiteClass[] = classesArray.map((c) => ({
+        id: c.id,
+        name: c.name,
+        description: c.description ?? null,
+        basePrice: c.defaultRate,
+        maxOccupancy: c.maxOccupancy ?? null,
+        amenities: c.amenityTags ?? [],
         siteCount: classCounts[c.id] || 0,
       }));
 
-      setSiteClasses(classesWithCounts as unknown as SiteClass[]);
-      setSites(sitesArray as unknown as Site[]);
+      const mappedSites: Site[] = sitesArray.map((site) => ({
+        id: site.id,
+        name: site.name,
+        siteClassId: site.siteClassId ?? "",
+        status: site.status ?? "unknown",
+      }));
+
+      setSiteClasses(classesWithCounts);
+      setSites(mappedSites);
       setLoading(false);
     });
   }, []);

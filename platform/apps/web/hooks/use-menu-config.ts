@@ -23,16 +23,6 @@ interface SessionWithToken {
   };
 }
 
-interface WhoamiResponse {
-  user?: {
-    id: string;
-    email?: string;
-    name?: string;
-    platformRole?: string | null;
-  };
-  allowed?: Record<string, boolean>;
-}
-
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000/api";
 
 async function fetchWithAuth<T>(
@@ -67,8 +57,10 @@ export function useMenuConfig() {
   const migrationAttempted = useRef(false);
 
   const token = isBrowser ? localStorage.getItem("campreserv:authToken") : null;
-  const sessionWithToken = session as SessionWithToken | null;
-  const sessionToken = sessionWithToken?.apiToken;
+  const hasApiToken = (value: unknown): value is SessionWithToken =>
+    typeof value === "object" && value !== null && "apiToken" in value;
+  const sessionToken =
+    hasApiToken(session) && typeof session.apiToken === "string" ? session.apiToken : undefined;
   const authToken = sessionToken || token || "";
   const hasAuth = Boolean(authToken);
 
@@ -78,9 +70,8 @@ export function useMenuConfig() {
     : null;
 
   // Infer user's role from permissions
-  const whoamiData = whoami as WhoamiResponse | undefined;
-  const permissions = whoamiData?.allowed || {};
-  const platformRole = whoamiData?.user?.platformRole || null;
+  const permissions = whoami?.allowed || {};
+  const platformRole = whoami?.user?.platformRole || null;
   const inferredRole = inferRoleFromPermissions(permissions, platformRole);
 
   // Fetch menu config from API
@@ -109,7 +100,7 @@ export function useMenuConfig() {
     if (!storedFavorites) return;
 
     try {
-      const favorites = JSON.parse(storedFavorites) as string[];
+      const favorites: string[] = JSON.parse(storedFavorites);
       if (favorites.length > 0) {
         // Migrate to server
         fetchWithAuth<MenuConfig>("/menu-config/migrate-local", authToken, {

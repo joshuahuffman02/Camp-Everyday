@@ -64,6 +64,29 @@ interface SiteClosure {
   isActive: boolean;
 }
 
+const closureReasons: SiteClosure["reason"][] = [
+  "maintenance",
+  "seasonal",
+  "event",
+  "emergency",
+  "other",
+];
+const closureReasonSet = new Set<string>(closureReasons);
+const isClosureReason = (value: string): value is SiteClosure["reason"] =>
+  closureReasonSet.has(value);
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const getString = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+const getStringArray = (value: unknown): string[] =>
+  Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+
+const getBoolean = (value: unknown): boolean | undefined =>
+  typeof value === "boolean" ? value : undefined;
+
 const reasonConfig = {
   maintenance: {
     label: "Maintenance",
@@ -101,17 +124,30 @@ async function fetchClosures(campgroundId: string): Promise<SiteClosure[]> {
   }
   // Transform blackout data to closure format
   const data = await response.json();
-  return data.map((blackout: any) => ({
-    id: blackout.id,
-    name: blackout.name || blackout.reason || "Site Closure",
-    reason: blackout.reason || "other",
-    sites: blackout.siteIds || [],
-    siteClasses: blackout.siteClassIds || [],
-    startDate: blackout.startDate,
-    endDate: blackout.endDate,
-    notes: blackout.notes || "",
-    isActive: blackout.isActive !== false,
-  }));
+  if (!Array.isArray(data)) return [];
+  return data
+    .map((blackout: unknown): SiteClosure | null => {
+      if (!isRecord(blackout)) return null;
+      const id = getString(blackout.id);
+      if (!id) return null;
+      const reasonValue = getString(blackout.reason);
+      const reason = reasonValue && isClosureReason(reasonValue) ? reasonValue : "other";
+      const name = getString(blackout.name) || reasonValue || "Site Closure";
+      const startDate = getString(blackout.startDate) ?? "";
+      const endDate = getString(blackout.endDate) ?? "";
+      return {
+        id,
+        name,
+        reason,
+        sites: getStringArray(blackout.siteIds),
+        siteClasses: getStringArray(blackout.siteClassIds),
+        startDate,
+        endDate,
+        notes: getString(blackout.notes) || "",
+        isActive: getBoolean(blackout.isActive) ?? true,
+      };
+    })
+    .filter((closure): closure is SiteClosure => Boolean(closure));
 }
 
 async function fetchSiteClasses(campgroundId: string): Promise<string[]> {
@@ -122,7 +158,10 @@ async function fetchSiteClasses(campgroundId: string): Promise<string[]> {
     throw new Error("Failed to fetch site classes");
   }
   const data = await response.json();
-  return data.map((sc: any) => sc.name);
+  if (!Array.isArray(data)) return [];
+  return data
+    .map((entry: unknown) => (isRecord(entry) ? getString(entry.name) : undefined))
+    .filter((name): name is string => Boolean(name));
 }
 
 async function deleteClosure(closureId: string): Promise<void> {
@@ -146,7 +185,7 @@ interface CreateClosureData {
   siteClassIds?: string[];
 }
 
-async function createClosure(data: CreateClosureData): Promise<any> {
+async function createClosure(data: CreateClosureData): Promise<unknown> {
   const response = await fetch(`${API_BASE}/blackouts`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -159,7 +198,7 @@ async function createClosure(data: CreateClosureData): Promise<any> {
   return response.json();
 }
 
-async function updateClosure(id: string, data: Partial<CreateClosureData>): Promise<any> {
+async function updateClosure(id: string, data: Partial<CreateClosureData>): Promise<unknown> {
   const response = await fetch(`${API_BASE}/blackouts/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
@@ -172,7 +211,7 @@ async function updateClosure(id: string, data: Partial<CreateClosureData>): Prom
   return response.json();
 }
 
-async function toggleClosure(id: string, isActive: boolean): Promise<any> {
+async function toggleClosure(id: string, isActive: boolean): Promise<unknown> {
   const response = await fetch(`${API_BASE}/blackouts/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
@@ -518,7 +557,14 @@ export default function SiteClosuresPage() {
 
             <div className="space-y-2">
               <Label htmlFor="reason">Reason</Label>
-              <Select value={formReason} onValueChange={(v) => setFormReason(v as SiteClosure["reason"])}>
+              <Select
+                value={formReason}
+                onValueChange={(value) => {
+                  if (isClosureReason(value)) {
+                    setFormReason(value);
+                  }
+                }}
+              >
                 <SelectTrigger id="reason">
                   <SelectValue />
                 </SelectTrigger>

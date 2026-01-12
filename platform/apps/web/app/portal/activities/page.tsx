@@ -24,6 +24,8 @@ import { PullToRefresh } from "@/components/ui/pull-to-refresh";
 import { ReservationSelector } from "@/components/portal/ReservationSelector";
 
 type GuestData = Awaited<ReturnType<typeof apiClient.getGuestMe>>;
+type Activity = Awaited<ReturnType<typeof apiClient.getActivities>>[number];
+type ActivitySession = Awaited<ReturnType<typeof apiClient.getSessions>>[number];
 
 type QueuedBooking = {
   id: string;
@@ -43,6 +45,91 @@ type QueuedBooking = {
 type BookingResponse = {
   queued?: boolean;
   [key: string]: unknown;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) return error.message;
+  if (isRecord(error) && typeof error.message === "string") return error.message;
+  return "";
+};
+
+const getErrorStatus = (error: unknown): number | undefined =>
+  isRecord(error) && typeof error.status === "number" ? error.status : undefined;
+
+const normalizeBookingResponse = (value: unknown): BookingResponse => {
+  if (!isRecord(value)) return {};
+  const queued = typeof value.queued === "boolean" ? value.queued : undefined;
+  return queued === undefined ? value : { ...value, queued };
+};
+
+const isActivity = (value: unknown): value is Activity => {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.id === "string" &&
+    typeof value.name === "string" &&
+    (typeof value.description === "string" || value.description === null) &&
+    typeof value.price === "number" &&
+    typeof value.duration === "number" &&
+    typeof value.capacity === "number" &&
+    Array.isArray(value.images) &&
+    value.images.every((image) => typeof image === "string") &&
+    typeof value.isActive === "boolean"
+  );
+};
+
+const isActivitySession = (value: unknown): value is ActivitySession => {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.id === "string" &&
+    typeof value.activityId === "string" &&
+    typeof value.startTime === "string" &&
+    typeof value.endTime === "string" &&
+    typeof value.capacity === "number" &&
+    typeof value.bookedCount === "number" &&
+    typeof value.status === "string"
+  );
+};
+
+const isQueuedBooking = (value: unknown): value is QueuedBooking => {
+  if (!isRecord(value)) return false;
+  if (!isRecord(value.payload)) return false;
+  return (
+    typeof value.id === "string" &&
+    typeof value.sessionId === "string" &&
+    typeof value.payload.guestId === "string" &&
+    typeof value.payload.quantity === "number" &&
+    typeof value.attempt === "number" &&
+    typeof value.nextAttemptAt === "number" &&
+    typeof value.createdAt === "string" &&
+    (typeof value.lastError === "string" || value.lastError === null) &&
+    typeof value.idempotencyKey === "string" &&
+    typeof value.conflict === "boolean"
+  );
+};
+
+const parseActivities = (raw: string | null): Activity[] | undefined => {
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return undefined;
+    return parsed.filter(isActivity);
+  } catch {
+    return undefined;
+  }
+};
+
+const parseSessions = (raw: string | null): ActivitySession[] | undefined => {
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return undefined;
+    return parsed.filter(isActivitySession);
+  } catch {
+    return undefined;
+  }
 };
 
 export default function GuestActivitiesPage() {
@@ -119,11 +206,9 @@ export default function GuestActivitiesPage() {
         window.addEventListener("offline", handleOffline);
         recordTelemetry({ source: "portal-activities", type: "sync", status: navigator.onLine ? "success" : "pending", message: navigator.onLine ? "Online" : "Offline" });
         try {
-            const raw = localStorage.getItem(activityQueueKey);
-            const parsed = raw ? JSON.parse(raw) : [];
-            const list = Array.isArray(parsed) ? parsed : [];
+            const list = loadQueue();
             setQueuedBookings(list.length);
-            setConflicts(list.filter((i) => i?.conflict));
+            setConflicts(list.filter((item) => item.conflict));
         } catch {
             setQueuedBookings(0);
         }
@@ -134,11 +219,11 @@ export default function GuestActivitiesPage() {
         };
     }, []);
 
-    const loadQueue = () => loadQueueGeneric<QueuedBooking>(activityQueueKey);
+    const loadQueue = () => loadQueueGeneric<QueuedBooking>(activityQueueKey).filter(isQueuedBooking);
     const saveQueue = (items: QueuedBooking[]) => {
         saveQueueGeneric(activityQueueKey, items);
         setQueuedBookings(items.length);
-        setConflicts(items.filter((i) => i?.conflict));
+        setConflicts(items.filter((item) => item.conflict));
     };
 
     const queueBooking = (sessionId: string, payload: { guestId: string; quantity: number }) => {
@@ -172,17 +257,25 @@ export default function GuestActivitiesPage() {
             try {
                 await apiClient.bookActivity(item.sessionId, item.payload);
                 recordTelemetry({ source: "portal-activities", type: "sync", status: "success", message: "Queued booking flushed", meta: { sessionId: item.sessionId } });
-            } catch (err: any) {
+            } catch (err) {
+                const errorMessage = getErrorMessage(err);
+                const errorStatus = getErrorStatus(err);
                 const attempt = (item.attempt ?? 0) + 1;
                 const delay = Math.min(300000, 1000 * 2 ** attempt) + Math.floor(Math.random() * 500);
-                const isConflict = err?.status === 409 || err?.status === 412 || /conflict/i.test(err?.message ?? "");
-                remaining.push({ ...item, attempt, nextAttemptAt: Date.now() + delay, lastError: err?.message, conflict: isConflict });
+                const isConflict = errorStatus === 409 || errorStatus === 412 || /conflict/i.test(errorMessage);
+                remaining.push({
+                    ...item,
+                    attempt,
+                    nextAttemptAt: Date.now() + delay,
+                    lastError: errorMessage || null,
+                    conflict: isConflict
+                });
                 recordTelemetry({
                     source: "portal-activities",
                     type: isConflict ? "conflict" : "error",
                     status: isConflict ? "conflict" : "failed",
                     message: isConflict ? "Booking conflict, needs review" : "Flush failed, retry scheduled",
-                    meta: { error: err?.message },
+                    meta: { error: errorMessage },
                 });
             }
         }
@@ -216,7 +309,7 @@ export default function GuestActivitiesPage() {
         saveQueue(items);
     };
 
-    const { data: activities, isLoading } = useQuery({
+    const { data: activities, isLoading } = useQuery<Activity[]>({
         queryKey: ["activities", campgroundId],
         queryFn: async () => {
             const data = await apiClient.getActivities(campgroundId);
@@ -233,17 +326,16 @@ export default function GuestActivitiesPage() {
         retry: isOnline ? 3 : false,
         initialData: () => {
             if (typeof window === "undefined") return undefined;
-            try {
-                const raw = localStorage.getItem(activitiesCacheKey);
-                return raw ? JSON.parse(raw) : undefined;
-            } catch {
+            const parsed = parseActivities(localStorage.getItem(activitiesCacheKey));
+            if (!parsed) {
                 recordTelemetry({ source: "portal-activities", type: "error", status: "failed", message: "Failed to load cached activities" });
                 return undefined;
             }
+            return parsed;
         }
     });
 
-    const { data: sessions } = useQuery({
+    const { data: sessions } = useQuery<ActivitySession[]>({
         queryKey: ["sessions", selectedActivity],
         queryFn: async () => {
             if (!selectedActivity) return [];
@@ -261,13 +353,12 @@ export default function GuestActivitiesPage() {
         retry: isOnline ? 2 : false,
         initialData: () => {
             if (!selectedActivity || typeof window === "undefined") return undefined;
-            try {
-                const raw = localStorage.getItem(sessionsCacheKey(selectedActivity));
-                return raw ? JSON.parse(raw) : undefined;
-            } catch {
+            const parsed = parseSessions(localStorage.getItem(sessionsCacheKey(selectedActivity)));
+            if (!parsed) {
                 recordTelemetry({ source: "portal-activities", type: "error", status: "failed", message: "Failed to load cached sessions", meta: { activityId: selectedActivity } });
                 return undefined;
             }
+            return parsed;
         }
     });
 
@@ -281,7 +372,7 @@ export default function GuestActivitiesPage() {
                 return { queued: true };
             }
             const result = await apiClient.bookActivity(selectedSession, payload);
-            return result as BookingResponse;
+            return normalizeBookingResponse(result);
         },
         onSuccess: (res: BookingResponse) => {
             if (!res.queued) {
@@ -300,7 +391,7 @@ export default function GuestActivitiesPage() {
             if (!selectedSession) return;
             queueBooking(selectedSession, { guestId, quantity });
             toast({ title: "Booking saved offline", description: "We'll retry shortly.", variant: "default" });
-            recordTelemetry({ source: "portal-activities", type: "error", status: "failed", message: "Booking failed, queued", meta: { error: (err as any)?.message } });
+            recordTelemetry({ source: "portal-activities", type: "error", status: "failed", message: "Booking failed, queued", meta: { error: getErrorMessage(err) } });
         }
     });
 
@@ -412,7 +503,7 @@ export default function GuestActivitiesPage() {
                 <div className="py-10">
                     <PortalLoadingState variant="spinner" message={`Loading activities from ${selectedReservation?.campground.name || 'campground'}...`} />
                 </div>
-            ) : !activities || activities.filter((a: any) => a.isActive).length === 0 ? (
+            ) : !activities || activities.filter((activity) => activity.isActive).length === 0 ? (
                 <EmptyState
                     icon={<Sparkles className="h-12 w-12" />}
                     title="No activities available"
@@ -420,7 +511,7 @@ export default function GuestActivitiesPage() {
                 />
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {activities.filter((a: any) => a.isActive).map((activity: any, index: number) => (
+                    {activities.filter((activity) => activity.isActive).map((activity, index) => (
                     <motion.div
                         key={activity.id}
                         initial={{ opacity: 0, y: 20 }}
@@ -471,7 +562,7 @@ export default function GuestActivitiesPage() {
                                         <div className="space-y-2">
                                             <Label>Select a Session</Label>
                                             <div className="grid gap-2 max-h-60 overflow-y-auto">
-                                                {sessions?.filter((s: any) => s.status === "scheduled").map((session: any) => (
+                                                {sessions?.filter((session) => session.status === "scheduled").map((session) => (
                                                     <button
                                                         key={session.id}
                                                         type="button"

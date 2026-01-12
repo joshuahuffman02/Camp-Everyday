@@ -3,14 +3,59 @@ import { Cron } from "@nestjs/schedule";
 import { PrismaService } from "../prisma/prisma.service";
 import { AiAutopilotConfigService } from "./ai-autopilot-config.service";
 import { EmailService } from "../email/email.service";
+import { randomUUID } from "crypto";
+import { ReservationStatus } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 
 interface RiskFactors {
   paymentStatusScore: number;
   leadTimeScore: number;
   guestHistoryScore: number;
   communicationScore: number;
-  bookingSourceScore: number;
+  bookingPatternScore: number;
 }
+
+type ReservationForRisk = Prisma.ReservationGetPayload<{
+  include: { Guest: true; Campground: true; Payment: true };
+}>;
+
+const isJsonObject = (value: Prisma.JsonValue | null): value is Prisma.JsonObject =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const getRiskReason = (factors: Prisma.JsonValue | null): string | undefined => {
+  if (!isJsonObject(factors)) return undefined;
+  const riskReason = factors.riskReason;
+  return typeof riskReason === "string" ? riskReason : undefined;
+};
+
+const toReservationSummary = (reservation: {
+  id: string;
+  arrivalDate: Date;
+  departureDate: Date;
+  status: ReservationStatus;
+  Guest: {
+    id: string;
+    primaryFirstName: string;
+    primaryLastName: string;
+    email: string;
+    phone: string | null;
+  };
+  Site: { id: string; name: string } | null;
+}) => ({
+  id: reservation.id,
+  confirmationNumber: reservation.id,
+  arrivalDate: reservation.arrivalDate,
+  departureDate: reservation.departureDate,
+  status: reservation.status,
+  guest: {
+    id: reservation.Guest.id,
+    primaryFirstName: reservation.Guest.primaryFirstName,
+    primaryLastName: reservation.Guest.primaryLastName,
+    email: reservation.Guest.email,
+    phone: reservation.Guest.phone ?? undefined,
+  },
+  site: reservation.Site ? { id: reservation.Site.id, name: reservation.Site.name } : undefined,
+});
 
 @Injectable()
 export class AiNoShowPredictionService {
@@ -32,8 +77,8 @@ export class AiNoShowPredictionService {
       ? new Date(Date.now() + daysAhead * 24 * 60 * 60 * 1000)
       : undefined;
 
-    const where: any = {
-      reservation: {
+    const where: Prisma.AiNoShowRiskWhereInput = {
+      Reservation: {
         campgroundId,
         status: "confirmed",
         arrivalDate: {
@@ -47,19 +92,16 @@ export class AiNoShowPredictionService {
       where.flagged = true;
     }
 
-    return this.prisma.aiNoShowRisk.findMany({
+    const risks = await this.prisma.aiNoShowRisk.findMany({
       where,
       include: {
-        reservation: {
+        Reservation: {
           select: {
             id: true,
-            confirmationNumber: true,
             arrivalDate: true,
             departureDate: true,
             status: true,
-            totalAmountCents: true,
-            balanceCents: true,
-            guest: {
+            Guest: {
               select: {
                 id: true,
                 primaryFirstName: true,
@@ -68,7 +110,7 @@ export class AiNoShowPredictionService {
                 phone: true,
               },
             },
-            site: {
+            Site: {
               select: { id: true, name: true },
             },
           },
@@ -76,6 +118,12 @@ export class AiNoShowPredictionService {
       },
       orderBy: { riskScore: "desc" },
     });
+    return risks.map(({ Reservation, guestConfirmedAt, factors, ...risk }) => ({
+      ...risk,
+      guestConfirmed: Boolean(guestConfirmedAt),
+      riskReason: getRiskReason(factors),
+      reservation: Reservation ? toReservationSummary(Reservation) : undefined,
+    }));
   }
 
   /**
@@ -85,10 +133,10 @@ export class AiNoShowPredictionService {
     const risk = await this.prisma.aiNoShowRisk.findUnique({
       where: { reservationId },
       include: {
-        reservation: {
+        Reservation: {
           include: {
-            guest: true,
-            site: true,
+            Guest: true,
+            Site: true,
           },
         },
       },
@@ -99,7 +147,13 @@ export class AiNoShowPredictionService {
       return this.calculateRisk(reservationId);
     }
 
-    return risk;
+    const { Reservation, ...rest } = risk;
+    return {
+      ...rest,
+      guestConfirmed: Boolean(risk.guestConfirmedAt),
+      riskReason: getRiskReason(risk.factors),
+      reservation: Reservation ? toReservationSummary(Reservation) : undefined,
+    };
   }
 
   // ==================== RISK CALCULATION ====================
@@ -111,9 +165,9 @@ export class AiNoShowPredictionService {
     const reservation = await this.prisma.reservation.findUnique({
       where: { id: reservationId },
       include: {
-        guest: true,
-        campground: true,
-        payments: true,
+        Guest: true,
+        Campground: true,
+        Payment: true,
       },
     });
 
@@ -137,7 +191,7 @@ export class AiNoShowPredictionService {
       leadTime: 0.15,
       guestHistory: 0.25,
       communication: 0.20,
-      bookingSource: 0.10,
+      bookingPattern: 0.10,
     };
 
     const riskScore =
@@ -145,7 +199,7 @@ export class AiNoShowPredictionService {
       (100 - factors.leadTimeScore) * weights.leadTime / 100 +
       (100 - factors.guestHistoryScore) * weights.guestHistory / 100 +
       (100 - factors.communicationScore) * weights.communication / 100 +
-      (100 - factors.bookingSourceScore) * weights.bookingSource / 100;
+      (100 - factors.bookingPatternScore) * weights.bookingPattern / 100;
 
     // Determine if flagged based on threshold
     const flagged = riskScore >= config.noShowThreshold;
@@ -156,23 +210,34 @@ export class AiNoShowPredictionService {
     if (factors.leadTimeScore < 40) reasons.push("Last-minute booking");
     if (factors.guestHistoryScore < 50) reasons.push("New guest or past no-shows");
     if (factors.communicationScore < 40) reasons.push("No communication received");
-    if (factors.bookingSourceScore < 50) reasons.push("Higher-risk booking source");
-
+    if (factors.bookingPatternScore < 50) reasons.push("Risky booking pattern");
     const riskReason = reasons.length > 0 ? reasons.join(", ") : "Multiple minor risk factors";
+    const factorsJson: Prisma.InputJsonValue = {
+      reasons,
+      riskReason,
+      paymentStatusScore: factors.paymentStatusScore,
+      leadTimeScore: factors.leadTimeScore,
+      guestHistoryScore: factors.guestHistoryScore,
+      communicationScore: factors.communicationScore,
+      bookingPatternScore: factors.bookingPatternScore,
+    };
 
     // Upsert the risk record
-    return this.prisma.aiNoShowRisk.upsert({
+    const updated = await this.prisma.aiNoShowRisk.upsert({
       where: { reservationId },
       create: {
+        id: randomUUID(),
+        campgroundId: reservation.campgroundId,
         reservationId,
         riskScore,
         paymentStatusScore: factors.paymentStatusScore,
         leadTimeScore: factors.leadTimeScore,
         guestHistoryScore: factors.guestHistoryScore,
         communicationScore: factors.communicationScore,
-        bookingSourceScore: factors.bookingSourceScore,
-        riskReason,
+        bookingPatternScore: factors.bookingPatternScore,
+        factors: factorsJson,
         flagged,
+        updatedAt: new Date(),
       },
       update: {
         riskScore,
@@ -180,30 +245,38 @@ export class AiNoShowPredictionService {
         leadTimeScore: factors.leadTimeScore,
         guestHistoryScore: factors.guestHistoryScore,
         communicationScore: factors.communicationScore,
-        bookingSourceScore: factors.bookingSourceScore,
-        riskReason,
+        bookingPatternScore: factors.bookingPatternScore,
+        factors: factorsJson,
         flagged,
         calculatedAt: new Date(),
+        updatedAt: new Date(),
       },
       include: {
-        reservation: {
+        Reservation: {
           select: {
             id: true,
-            confirmationNumber: true,
             arrivalDate: true,
-            guest: {
-              select: { primaryFirstName: true, primaryLastName: true, email: true },
-            },
+            departureDate: true,
+            status: true,
+            Guest: { select: { id: true, primaryFirstName: true, primaryLastName: true, email: true, phone: true } },
+            Site: { select: { id: true, name: true } },
           },
         },
       },
     });
+    const { Reservation, ...rest } = updated;
+    return {
+      ...rest,
+      guestConfirmed: Boolean(updated.guestConfirmedAt),
+      riskReason: getRiskReason(updated.factors),
+      reservation: Reservation ? toReservationSummary(Reservation) : undefined,
+    };
   }
 
   /**
    * Calculate all risk factors for a reservation
    */
-  private async calculateRiskFactors(reservation: any): Promise<RiskFactors> {
+  private async calculateRiskFactors(reservation: ReservationForRisk): Promise<RiskFactors> {
     const [paymentStatusScore, guestHistoryScore, communicationScore] = await Promise.all([
       this.calculatePaymentStatusScore(reservation),
       this.calculateGuestHistoryScore(reservation.guestId, reservation.campgroundId),
@@ -215,7 +288,7 @@ export class AiNoShowPredictionService {
       leadTimeScore: this.calculateLeadTimeScore(reservation),
       guestHistoryScore,
       communicationScore,
-      bookingSourceScore: this.calculateBookingSourceScore(reservation),
+      bookingPatternScore: this.calculateBookingPatternScore(reservation),
     };
   }
 
@@ -223,9 +296,9 @@ export class AiNoShowPredictionService {
    * Payment status score (0-100, higher = lower risk)
    * Paid in full = 100, partial = 60, unpaid = 20
    */
-  private async calculatePaymentStatusScore(reservation: any): Promise<number> {
-    const totalAmount = reservation.totalAmountCents || 0;
-    const balance = reservation.balanceCents || 0;
+  private async calculatePaymentStatusScore(reservation: ReservationForRisk): Promise<number> {
+    const totalAmount = reservation.totalAmount || 0;
+    const balance = reservation.balanceAmount || 0;
 
     if (totalAmount === 0) return 80; // Free booking, moderate confidence
 
@@ -242,7 +315,7 @@ export class AiNoShowPredictionService {
    * Lead time score (0-100, higher = lower risk)
    * Longer lead time = lower risk (more commitment)
    */
-  private calculateLeadTimeScore(reservation: any): number {
+  private calculateLeadTimeScore(reservation: ReservationForRisk): number {
     const now = new Date();
     const arrivalDate = new Date(reservation.arrivalDate);
     const createdAt = new Date(reservation.createdAt);
@@ -294,9 +367,9 @@ export class AiNoShowPredictionService {
       _count: true,
     });
 
-    const completed = history.find((h) => h.status === "checked_out")?._count || 0;
-    const noShows = history.find((h) => h.status === "no_show")?._count || 0;
-    const cancelled = history.find((h) => h.status === "cancelled")?._count || 0;
+    const completed = history.find((h) => h.status === ReservationStatus.checked_out)?._count || 0;
+    const cancelled = history.find((h) => h.status === ReservationStatus.cancelled)?._count || 0;
+    const noShows = 0;
     const total = completed + noShows + cancelled;
 
     if (total === 0) return 45; // New guest, slight risk
@@ -362,9 +435,9 @@ export class AiNoShowPredictionService {
   }
 
   /**
-   * Booking source score (0-100, higher = lower risk)
+   * Booking pattern score (0-100, higher = lower risk)
    */
-  private calculateBookingSourceScore(reservation: any): number {
+  private calculateBookingPatternScore(reservation: ReservationForRisk): number {
     const source = reservation.source || "unknown";
 
     const sourceScores: Record<string, number> = {
@@ -394,15 +467,23 @@ export class AiNoShowPredictionService {
       throw new NotFoundException("Risk record or reservation not found");
     }
 
-    const reservation = risk.reservation;
-    const guestEmail = (reservation as any).guest?.email;
+    const reservation = await this.prisma.reservation.findUnique({
+      where: { id: reservationId },
+      include: { Guest: true, Site: true },
+    });
+
+    if (!reservation) {
+      throw new NotFoundException("Reservation not found");
+    }
+
+    const guestEmail = reservation.Guest?.email;
 
     if (!guestEmail) {
       throw new BadRequestException("Guest has no email address");
     }
 
     const campground = await this.prisma.campground.findUnique({
-      where: { id: (reservation as any).campgroundId || "" },
+      where: { id: reservation.campgroundId },
       select: { name: true, phone: true },
     });
 
@@ -427,7 +508,7 @@ export class AiNoShowPredictionService {
 
         <div style="background: #f8fafc; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
           <p style="margin: 0; color: #334155; line-height: 1.6;">
-            Hi ${(reservation as any).guest?.primaryFirstName || "there"},
+            Hi ${reservation.Guest?.primaryFirstName || "there"},
           </p>
           <p style="margin: 16px 0 0 0; color: #334155; line-height: 1.6;">
             We're looking forward to hosting you at ${campground?.name}! To ensure your site is ready, please confirm that you'll be arriving as planned.
@@ -442,11 +523,11 @@ export class AiNoShowPredictionService {
           <table style="width: 100%; border-collapse: collapse;">
             <tr>
               <td style="padding: 8px 0; color: #64748b; border-bottom: 1px solid #f1f5f9;">Confirmation #</td>
-              <td style="padding: 8px 0; color: #0f172a; text-align: right; border-bottom: 1px solid #f1f5f9; font-weight: 500;">${reservation.confirmationNumber}</td>
+              <td style="padding: 8px 0; color: #0f172a; text-align: right; border-bottom: 1px solid #f1f5f9; font-weight: 500;">${reservation.id}</td>
             </tr>
             <tr>
               <td style="padding: 8px 0; color: #64748b; border-bottom: 1px solid #f1f5f9;">Site</td>
-              <td style="padding: 8px 0; color: #0f172a; text-align: right; border-bottom: 1px solid #f1f5f9;">${(reservation as any).site?.name || "Assigned at check-in"}</td>
+              <td style="padding: 8px 0; color: #0f172a; text-align: right; border-bottom: 1px solid #f1f5f9;">${reservation.Site?.name || "Assigned at check-in"}</td>
             </tr>
             <tr>
               <td style="padding: 8px 0; color: #64748b;">Arrival</td>
@@ -476,7 +557,7 @@ export class AiNoShowPredictionService {
       subject: `Please Confirm Your Stay - ${campground?.name}`,
       html,
       reservationId,
-      guestId: (reservation as any).guestId,
+      guestId: reservation.guestId,
     });
 
     // Update the risk record
@@ -503,12 +584,12 @@ export class AiNoShowPredictionService {
     return this.prisma.aiNoShowRisk.update({
       where: { reservationId },
       data: {
-        guestConfirmed: true,
         guestConfirmedAt: new Date(),
-        confirmationSource: source || "manual",
+        outcome: source ? `confirmed:${source}` : "confirmed",
         // Reduce risk score since guest confirmed
         riskScore: Math.max(0, risk.riskScore - 0.3),
         flagged: false,
+        updatedAt: new Date(),
       },
     });
   }
@@ -618,8 +699,8 @@ export class AiNoShowPredictionService {
           where: {
             flagged: true,
             reminderSentAt: null, // Haven't sent reminder yet
-            guestConfirmed: false,
-            reservation: {
+            guestConfirmedAt: null,
+            Reservation: {
               campgroundId: config.campgroundId,
               status: "confirmed",
               arrivalDate: {

@@ -2,7 +2,7 @@
  * Backfill AuditLog chainHash/prevHash/retentionAt for existing rows.
  * Usage: pnpm ts-node --project tsconfig.json platform/apps/api/scripts/backfill-audit-chain.ts
  */
-import { PrismaClient } from "@prisma/client";
+import { AuditLog, PrismaClient } from "@prisma/client";
 import { createHash } from "crypto";
 import { PrismaPg } from "@prisma/adapter-pg";
 
@@ -12,24 +12,7 @@ const adapter = new PrismaPg({
 // @ts-ignore Prisma 7 adapter signature
 const prisma = new PrismaClient({ adapter });
 
-type AuditRow = {
-  id: string;
-  campgroundId: string;
-  actorId: string | null;
-  action: string;
-  entity: string;
-  entityId: string;
-  before: any;
-  after: any;
-  ip: string | null;
-  userAgent: string | null;
-  createdAt: Date;
-  chainHash: string | null;
-  prevHash: string | null;
-  retentionAt: Date | null;
-};
-
-function computeHash(row: AuditRow, prevHash: string | null) {
+function computeHash(row: AuditLog, prevHash: string | null) {
   const payload = {
     campgroundId: row.campgroundId,
     actorId: row.actorId,
@@ -57,10 +40,10 @@ async function main() {
     });
 
     let prevHash: string | null = null;
-    for (const row of rows as AuditRow[]) {
+    for (const row of rows) {
       const shouldFill = !row.chainHash || row.prevHash !== prevHash;
       if (!shouldFill) {
-        prevHash = row.chainHash!;
+        prevHash = row.chainHash;
         continue;
       }
       const chainHash = computeHash(row, prevHash);
@@ -85,4 +68,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-

@@ -1,11 +1,11 @@
-import type { Request } from "express";
+import type { Request as ExpressRequest } from "express";
 import {
     Controller,
     Post,
     Get,
     Body,
     UseGuards,
-    Request,
+    Req,
     BadRequestException,
 } from "@nestjs/common";
 import { JwtAuthGuard } from "./guards";
@@ -34,6 +34,14 @@ class Disable2FADto {
     password!: string;
 }
 
+const requireUserId = (req: ExpressRequest): string => {
+    const id = req.user?.id;
+    if (!id) {
+        throw new BadRequestException("User not found");
+    }
+    return id;
+};
+
 @Controller("auth/2fa")
 @UseGuards(JwtAuthGuard)
 export class TwoFactorController {
@@ -47,9 +55,10 @@ export class TwoFactorController {
      * Get current 2FA status for the user
      */
     @Get("status")
-    async getStatus(@Request() req: Request) {
+    async getStatus(@Req() req: ExpressRequest) {
+        const userId = requireUserId(req);
         const user = await this.prisma.user.findUnique({
-            where: { id: req.user.id },
+            where: { id: userId },
             select: {
                 totpEnabled: true,
                 totpEnabledAt: true,
@@ -70,9 +79,10 @@ export class TwoFactorController {
      * Start 2FA setup - generates QR code and secret
      */
     @Post("setup")
-    async startSetup(@Request() req: Request) {
+    async startSetup(@Req() req: ExpressRequest) {
+        const userId = requireUserId(req);
         const user = await this.prisma.user.findUnique({
-            where: { id: req.user.id },
+            where: { id: userId },
             select: {
                 id: true,
                 email: true,
@@ -101,18 +111,20 @@ export class TwoFactorController {
      * Confirm 2FA setup with TOTP code
      */
     @Post("confirm")
-    async confirmSetup(@Request() req: Request, @Body() dto: Setup2FADto) {
+    async confirmSetup(@Req() req: ExpressRequest, @Body() dto: Setup2FADto) {
         if (!dto.code || dto.code.length !== 6) {
             throw new BadRequestException("Please provide a valid 6-digit code");
         }
 
+        const userId = requireUserId(req);
+
         try {
-            await this.totpService.confirmSetup(req.user.id, dto.code);
-            await this.securityEvents.logMfaEvent("enabled", req.user.id, req.ip);
+            await this.totpService.confirmSetup(userId, dto.code);
+            await this.securityEvents.logMfaEvent("enabled", userId, req.ip);
 
             // Get the backup codes that were generated during setup
             const user = await this.prisma.user.findUnique({
-                where: { id: req.user.id },
+                where: { id: userId },
                 select: { totpBackupCodes: true },
             });
 
@@ -121,7 +133,7 @@ export class TwoFactorController {
                 message: "2FA has been enabled successfully.",
             };
         } catch (error) {
-            await this.securityEvents.logMfaEvent("failed", req.user.id, req.ip);
+            await this.securityEvents.logMfaEvent("failed", userId, req.ip);
             throw error;
         }
     }
@@ -130,7 +142,7 @@ export class TwoFactorController {
      * Disable 2FA (requires current TOTP code and password)
      */
     @Post("disable")
-    async disable(@Request() req: Request, @Body() dto: Disable2FADto) {
+    async disable(@Req() req: ExpressRequest, @Body() dto: Disable2FADto) {
         if (!dto.code || dto.code.length !== 6) {
             throw new BadRequestException("Please provide a valid 6-digit code");
         }
@@ -139,9 +151,11 @@ export class TwoFactorController {
             throw new BadRequestException("Password is required to disable 2FA");
         }
 
+        const userId = requireUserId(req);
+
         // Verify password first
         const user = await this.prisma.user.findUnique({
-            where: { id: req.user.id },
+            where: { id: userId },
             select: { passwordHash: true },
         });
 
@@ -156,15 +170,15 @@ export class TwoFactorController {
         }
 
         try {
-            await this.totpService.disable(req.user.id, dto.code);
-            await this.securityEvents.logMfaEvent("disabled", req.user.id, req.ip);
+            await this.totpService.disable(userId, dto.code);
+            await this.securityEvents.logMfaEvent("disabled", userId, req.ip);
 
             return {
                 success: true,
                 message: "2FA has been disabled",
             };
         } catch (error) {
-            await this.securityEvents.logMfaEvent("failed", req.user.id, req.ip);
+            await this.securityEvents.logMfaEvent("failed", userId, req.ip);
             throw error;
         }
     }
@@ -173,18 +187,20 @@ export class TwoFactorController {
      * Regenerate backup codes (requires current TOTP code)
      */
     @Post("backup-codes")
-    async regenerateBackupCodes(@Request() req: Request, @Body() dto: Setup2FADto) {
+    async regenerateBackupCodes(@Req() req: ExpressRequest, @Body() dto: Setup2FADto) {
         if (!dto.code || dto.code.length !== 6) {
             throw new BadRequestException("Please provide a valid 6-digit code");
         }
 
+        const userId = requireUserId(req);
+
         try {
-            const backupCodes = await this.totpService.regenerateBackupCodes(req.user.id, dto.code);
+            const backupCodes = await this.totpService.regenerateBackupCodes(userId, dto.code);
 
             await this.securityEvents.logEvent({
                 type: SecurityEventType.BACKUP_CODE_USED,
                 severity: SecurityEventSeverity.INFO,
-                userId: req.user.id,
+                userId,
                 ipAddress: req.ip,
                 details: { action: "regenerated" },
             });

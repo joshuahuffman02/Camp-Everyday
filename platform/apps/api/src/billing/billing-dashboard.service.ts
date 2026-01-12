@@ -60,9 +60,9 @@ export class BillingDashboardService {
     const campground = await this.prisma.campground.findUnique({
       where: { id: campgroundId },
       include: {
-        organization: {
+        Organization: {
           include: {
-            earlyAccessEnrollment: true,
+            EarlyAccessEnrollment: true,
           },
         },
       },
@@ -84,7 +84,7 @@ export class BillingDashboardService {
         totalAmount: true,
         paidAmount: true,
         source: true,
-        site: {
+        Site: {
           select: { siteType: true },
         },
       },
@@ -114,28 +114,27 @@ export class BillingDashboardService {
     // Get payment fees (Stripe fees, refunds, disputes)
     const payments = await this.prisma.payment.findMany({
       where: {
-        reservation: { campgroundId },
+        Reservation: { campgroundId },
         createdAt: { gte: start, lte: end },
-        status: "succeeded",
+        direction: "charge",
       },
       select: {
         amountCents: true,
-        feeAmountCents: true,
-        metadata: true,
+        stripeFeeCents: true,
       },
     });
 
-    const stripeFeesCents = payments.reduce((sum, p) => sum + (p.feeAmountCents ?? 0), 0);
+    const stripeFeesCents = payments.reduce((sum, p) => sum + (p.stripeFeeCents ?? 0), 0);
 
     const refunds = await this.prisma.payment.aggregate({
       where: {
-        reservation: { campgroundId },
+        Reservation: { campgroundId },
         createdAt: { gte: start, lte: end },
-        status: "refunded",
+        refundedAt: { not: null },
       },
-      _sum: { amountCents: true },
+      _sum: { refundedAmountCents: true },
     });
-    const refundsCents = refunds._sum.amountCents ?? 0;
+    const refundsCents = refunds._sum?.refundedAmountCents ?? 0;
 
     const disputes = await this.prisma.dispute.aggregate({
       where: {
@@ -144,7 +143,7 @@ export class BillingDashboardService {
       },
       _sum: { amountCents: true },
     });
-    const disputesCents = disputes._sum.amountCents ?? 0;
+    const disputesCents = disputes._sum?.amountCents ?? 0;
 
     const totalPaymentFeesCents = stripeFeesCents + refundsCents + disputesCents;
 
@@ -157,7 +156,7 @@ export class BillingDashboardService {
       },
       _sum: { amountCents: true },
     });
-    const payoutsCents = payouts._sum.amountCents ?? 0;
+    const payoutsCents = payouts._sum?.amountCents ?? 0;
 
     const pendingPayouts = await this.prisma.payout.aggregate({
       where: {
@@ -166,7 +165,7 @@ export class BillingDashboardService {
       },
       _sum: { amountCents: true },
     });
-    const pendingPayoutCents = pendingPayouts._sum.amountCents ?? 0;
+    const pendingPayoutCents = pendingPayouts._sum?.amountCents ?? 0;
 
     const netRevenueCents = grossRevenueCents - totalPaymentFeesCents - totalPlatformFeesCents;
 
@@ -202,7 +201,7 @@ export class BillingDashboardService {
       campground: {
         id: campground.id,
         name: campground.name,
-        billingTier: campground.organization?.earlyAccessEnrollment?.tier ?? "standard",
+        billingTier: campground.Organization?.EarlyAccessEnrollment?.tier ?? "standard",
       },
       summary,
     };
@@ -226,7 +225,7 @@ export class BillingDashboardService {
         paidAmount: true,
         source: true,
         createdAt: true,
-        site: {
+        Site: {
           select: { siteType: true },
         },
       },
@@ -236,8 +235,8 @@ export class BillingDashboardService {
     const byChannel = { online: 0, kiosk: 0, staff: 0, api: 0 };
     for (const r of reservations) {
       const source = r.source?.toLowerCase() ?? "online";
-      if (source in byChannel) {
-        byChannel[source as keyof typeof byChannel] += r.paidAmount ?? 0;
+      if (source === "online" || source === "kiosk" || source === "staff" || source === "api") {
+        byChannel[source] += r.paidAmount ?? 0;
       } else if (source === "phone" || source === "walkin" || source === "walk_in") {
         byChannel.staff += r.paidAmount ?? 0;
       } else {
@@ -248,7 +247,7 @@ export class BillingDashboardService {
     // By site type
     const bySiteType: Record<string, number> = {};
     for (const r of reservations) {
-      const siteType = r.site?.siteType ?? "unknown";
+      const siteType = r.Site?.siteType ?? "unknown";
       bySiteType[siteType] = (bySiteType[siteType] ?? 0) + (r.paidAmount ?? 0);
     }
 
@@ -290,7 +289,7 @@ export class BillingDashboardService {
       orderBy: { periodStart: "desc" },
       take: limit,
       include: {
-        lineItems: true,
+        OrganizationBillingLineItem: true,
       },
     });
 
@@ -326,7 +325,7 @@ export class BillingDashboardService {
         status: p.status,
         totalCents: p.totalCents,
         paidAt: p.paidAt,
-        lineItems: p.lineItems,
+        lineItems: p.OrganizationBillingLineItem,
       })),
       campgroundBreakdown,
     };
@@ -341,7 +340,7 @@ export class BillingDashboardService {
       orderBy: { createdAt: "desc" },
       take: limit,
       include: {
-        lines: {
+        PayoutLine: {
           take: 50,
         },
       },
@@ -357,9 +356,9 @@ export class BillingDashboardService {
       paidAt: payout.paidAt,
       createdAt: payout.createdAt,
       summary: {
-        chargeCount: payout.lines.filter((l) => l.type === "charge").length,
-        refundCount: payout.lines.filter((l) => l.type === "refund").length,
-        feeCount: payout.lines.filter((l) => l.type === "fee").length,
+        chargeCount: payout.PayoutLine.filter((line) => line.type === "charge").length,
+        refundCount: payout.PayoutLine.filter((line) => line.type === "refund").length,
+        feeCount: payout.PayoutLine.filter((line) => line.type === "fee").length,
       },
     }));
   }
@@ -371,22 +370,20 @@ export class BillingDashboardService {
     // Get all payments in the period with fee details
     const payments = await this.prisma.payment.findMany({
       where: {
-        reservation: { campgroundId },
+        Reservation: { campgroundId },
         createdAt: { gte: periodStart, lte: periodEnd },
-        status: "succeeded",
+        direction: "charge",
       },
       select: {
         id: true,
         amountCents: true,
-        feeAmountCents: true,
-        metadata: true,
+        stripeFeeCents: true,
         createdAt: true,
-        reservation: {
+        Reservation: {
           select: {
             id: true,
-            confirmationCode: true,
             totalAmount: true,
-            guest: {
+            Guest: {
               select: { primaryFirstName: true, primaryLastName: true },
             },
           },
@@ -416,14 +413,13 @@ export class BillingDashboardService {
       periodEnd,
       payments: payments.map((p) => ({
         paymentId: p.id,
-        reservationId: p.reservation?.id,
-        confirmationCode: p.reservation?.confirmationCode,
-        guestName: p.reservation?.guest
-          ? `${p.reservation.guest.primaryFirstName} ${p.reservation.guest.primaryLastName}`
+        reservationId: p.Reservation?.id,
+        guestName: p.Reservation?.Guest
+          ? `${p.Reservation.Guest.primaryFirstName} ${p.Reservation.Guest.primaryLastName}`
           : null,
         grossAmountCents: p.amountCents,
-        stripeFeesCents: p.feeAmountCents ?? 0,
-        netAmountCents: (p.amountCents ?? 0) - (p.feeAmountCents ?? 0),
+        stripeFeesCents: p.stripeFeeCents ?? 0,
+        netAmountCents: (p.amountCents ?? 0) - (p.stripeFeeCents ?? 0),
         createdAt: p.createdAt,
       })),
       platformFees: usageEvents.map((e) => ({
@@ -438,7 +434,7 @@ export class BillingDashboardService {
       })),
       totals: {
         grossPaymentsCents: payments.reduce((sum, p) => sum + (p.amountCents ?? 0), 0),
-        stripeFeesTotalCents: payments.reduce((sum, p) => sum + (p.feeAmountCents ?? 0), 0),
+        stripeFeesTotalCents: payments.reduce((sum, p) => sum + (p.stripeFeeCents ?? 0), 0),
         platformFeesTotalCents: usageEvents.reduce((sum, e) => sum + (e.unitCents ?? 0), 0),
       },
     };

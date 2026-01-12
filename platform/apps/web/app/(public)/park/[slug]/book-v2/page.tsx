@@ -67,6 +67,20 @@ type AvailableSite = Awaited<
   ReturnType<typeof apiClient.getPublicAvailability>
 >[0];
 type Quote = Awaited<ReturnType<typeof apiClient.getPublicQuote>>;
+type PublicCampground = Awaited<ReturnType<typeof apiClient.getPublicCampground>>;
+type CampgroundSiteClass = PublicCampground["siteClasses"][number] & { photoUrl?: string | null };
+type Reservation = Awaited<ReturnType<typeof apiClient.createPublicReservation>> & {
+  confirmationNumber?: string | null;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof Error) return error.message;
+  if (isRecord(error) && typeof error.message === "string") return error.message;
+  return fallback;
+};
 
 // Types
 interface GuestFormData {
@@ -93,19 +107,7 @@ interface GuestFormData {
   petTypes: string[];
 }
 
-interface SiteClass {
-  id: string;
-  name: string;
-  siteType?: string | null;
-  description?: string | null;
-  defaultRate?: number | null;
-  maxOccupancy?: number | null;
-  hookupsPower?: boolean | null;
-  hookupsWater?: boolean | null;
-  hookupsSewer?: boolean | null;
-  petFriendly?: boolean | null;
-  photoUrl?: string | null;
-}
+type SiteClass = CampgroundSiteClass & { id: string; name: string };
 
 // Utility functions
 const formatDateInput = (date: Date) => date.toISOString().split("T")[0];
@@ -174,7 +176,7 @@ function AccommodationStep({
   onNext,
 }: {
   slug: string;
-  campground: any;
+  campground: PublicCampground | null;
   arrivalDate: string;
   departureDate: string;
   selectedSiteType: string;
@@ -194,17 +196,18 @@ function AccommodationStep({
   const prefersReducedMotion = useReducedMotion();
   const today = new Date().toISOString().split("T")[0];
   const nights = arrivalDate && departureDate ? getNightsBetween(arrivalDate, departureDate) : 0;
+  const heroImageUrl = typeof campground?.heroImageUrl === "string" ? campground.heroImageUrl : undefined;
 
   // Group sites by site class for availability count
   const availabilityBySiteClass = useMemo(() => {
     if (!availableSites) return {};
-    return availableSites.reduce((acc, site) => {
+    return availableSites.reduce<Record<string, number>>((acc, site) => {
       const classId = site.siteClass?.id;
       if (classId && site.status === "available") {
         acc[classId] = (acc[classId] || 0) + 1;
       }
       return acc;
-    }, {} as Record<string, number>);
+    }, {});
   }, [availableSites]);
 
   // Filter site classes by selected type
@@ -227,7 +230,7 @@ function AccommodationStep({
         id: site.id,
         name: site.name,
         siteNumber: site.siteNumber || site.name,
-        photoUrl: (site.siteClass as any)?.photoUrl || null,
+        photoUrl: site.siteClass?.photoUrl || null,
       }));
   }, [availableSites, selectedSiteClassId]);
 
@@ -421,7 +424,7 @@ function AccommodationStep({
                   nights={nights}
                   isSelected={selectedSiteClassId === siteClass.id}
                   onSelect={() => onSelectSiteClass(siteClass.id)}
-                  fallbackImage={campground?.heroImageUrl}
+                  fallbackImage={heroImageUrl}
                 />
               );
             })}
@@ -441,7 +444,8 @@ function AccommodationStep({
           }
           onSelectSite={(site) => onSelectSite(site)}
           siteClassPhoto={
-            siteClasses.find((sc) => sc.id === selectedSiteClassId)?.photoUrl
+            siteClasses.find((sc) => sc.id === selectedSiteClassId)?.photoUrl ||
+            heroImageUrl
           }
         />
       )}
@@ -570,7 +574,7 @@ function PaymentStep({
   isLoadingQuote: boolean;
   priceBreakdown: { label: string; amount: number; isDiscount?: boolean; isTax?: boolean }[];
   onBack: () => void;
-  onComplete: (reservation: any) => void;
+  onComplete: (reservation: Reservation) => void;
 }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -613,8 +617,8 @@ function PaymentStep({
     onSuccess: (reservation) => {
       onComplete(reservation);
     },
-    onError: (err: any) => {
-      setError(err?.message || "Failed to create reservation");
+    onError: (err: unknown) => {
+      setError(getErrorMessage(err, "Failed to create reservation"));
     },
   });
 
@@ -627,8 +631,8 @@ function PaymentStep({
       // 2. Confirm payment with Stripe
       // 3. Create reservation
       await createReservation.mutateAsync();
-    } catch (err: any) {
-      setError(err?.message || "Payment failed");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "Payment failed"));
     } finally {
       setIsProcessing(false);
     }
@@ -740,7 +744,7 @@ function SuccessScreen({
 }: {
   campgroundName: string;
   slug: string;
-  reservation: any;
+  reservation: Reservation;
 }) {
   return (
     <div className="text-center py-12 space-y-8">
@@ -791,7 +795,7 @@ function SuccessScreen({
 
 // Main Booking Page
 export default function BookingPageV2() {
-  const params = useParams();
+  const params = useParams<{ slug?: string }>();
   const router = useRouter();
   const searchParams = useSearchParams();
   const prefersReducedMotion = useReducedMotion();
@@ -804,7 +808,7 @@ export default function BookingPageV2() {
   const initialChildren = parseInt(searchParams.get("children") || "0");
   const previewToken = searchParams.get("token") || undefined;
 
-  const slug = params.slug as string;
+  const slug = typeof params.slug === "string" ? params.slug : "";
 
   // State
   const [step, setStep] = useState<BookingStepV2>(1);
@@ -819,7 +823,7 @@ export default function BookingPageV2() {
     siteNumber: string;
   } | null>(null);
   const [isComplete, setIsComplete] = useState(false);
-  const [confirmedReservation, setConfirmedReservation] = useState<any>(null);
+  const [confirmedReservation, setConfirmedReservation] = useState<Reservation | null>(null);
 
   const [guestInfo, setGuestInfo] = useState<GuestFormData>({
     firstName: "",
@@ -878,10 +882,24 @@ export default function BookingPageV2() {
     retry: 2,
   });
 
+  const siteClassesWithId = useMemo(
+    () =>
+      (campground?.siteClasses ?? []).filter(
+        (siteClass): siteClass is SiteClass =>
+          typeof siteClass.id === "string" &&
+          siteClass.id.length > 0 &&
+          typeof siteClass.name === "string" &&
+          siteClass.name.length > 0
+      ),
+    [campground]
+  );
+
   const siteSelectionFeeCents = useMemo(() => {
-    const fee = (campground as any)?.siteSelectionFeeCents;
+    const fee = campground?.siteSelectionFeeCents;
     return typeof fee === "number" ? fee : null;
   }, [campground]);
+
+  const heroImageUrl = typeof campground?.heroImageUrl === "string" ? campground.heroImageUrl : undefined;
 
   // Fetch availability
   const {
@@ -908,9 +926,7 @@ export default function BookingPageV2() {
 
   // Calculate pricing
   const nights = arrivalDate && departureDate ? getNightsBetween(arrivalDate, departureDate) : 0;
-  const selectedClass = campground?.siteClasses?.find(
-    (sc: any) => sc.id === selectedSiteClassId
-  );
+  const selectedClass = siteClassesWithId.find((sc) => sc.id === selectedSiteClassId);
   const pricePerNight = selectedClass?.defaultRate || 0;
 
   // Get a representative site for quoting (use selected site or first available from class)
@@ -1116,7 +1132,7 @@ export default function BookingPageV2() {
   const sidebar = selectedSiteClassId ? (
     <PriceSummary
       siteClassName={selectedClass?.name}
-      siteClassPhoto={selectedClass?.photoUrl || campground?.heroImageUrl}
+      siteClassPhoto={selectedClass?.photoUrl || heroImageUrl}
       arrivalDate={arrivalDate}
       departureDate={departureDate}
       nights={nights}
@@ -1199,7 +1215,7 @@ export default function BookingPageV2() {
               onArrivalChange={setArrivalDate}
               onDepartureChange={setDepartureDate}
               onSiteTypeChange={handleSiteTypeChange}
-              siteClasses={(campground?.siteClasses || []) as SiteClass[]}
+              siteClasses={siteClassesWithId}
               availableSites={availableSites}
               isLoadingSites={isLoadingSites}
               selectedSiteClassId={selectedSiteClassId}

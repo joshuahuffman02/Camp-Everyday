@@ -15,7 +15,7 @@ export const SKIP_RATE_LIMIT = "skipRateLimit";
  * Decorator to skip rate limiting on specific endpoints
  */
 export function SkipRateLimit() {
-  return (target: any, key?: string, descriptor?: PropertyDescriptor) => {
+  return (target: object, key?: string, descriptor?: PropertyDescriptor) => {
     if (descriptor) {
       Reflect.defineMetadata(SKIP_RATE_LIMIT, true, descriptor.value);
       return descriptor;

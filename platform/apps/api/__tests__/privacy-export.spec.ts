@@ -1,20 +1,9 @@
-import { CanActivate, INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
-import request from "supertest";
-import { PrivacyController } from "../src/privacy/privacy.controller";
 import { PrivacyService } from "../src/privacy/privacy.service";
 import { PrismaService } from "../src/prisma/prisma.service";
-import { JwtAuthGuard } from "../src/auth/guards";
-import { RolesGuard } from "../src/auth/guards/roles.guard";
-
-class AllowGuard implements CanActivate {
-  canActivate() {
-    return true;
-  }
-}
 
 describe("Privacy export API smoke", () => {
-  let app: INestApplication;
+  let privacy: PrivacyService;
   const prisma = {
     privacySetting: {
       findUnique: jest.fn(),
@@ -62,33 +51,19 @@ describe("Privacy export API smoke", () => {
     ]);
 
     const moduleRef = await Test.createTestingModule({
-      controllers: [PrivacyController],
       providers: [
         PrivacyService,
         { provide: PrismaService, useValue: prisma },
-        { provide: JwtAuthGuard, useClass: AllowGuard },
-        { provide: RolesGuard, useClass: AllowGuard },
       ],
-    })
-      .overrideGuard(JwtAuthGuard)
-      .useValue(new AllowGuard())
-      .overrideGuard(RolesGuard)
-      .useValue(new AllowGuard())
-      .compile();
+    }).compile();
 
-    app = moduleRef.createNestApplication();
-    await app.init();
-  });
-
-  afterAll(async () => {
-    await app.close();
+    privacy = moduleRef.get(PrivacyService);
   });
 
   it("returns JSON bundle with settings, consents, and tags", async () => {
-    const res = await request(app.getHttpServer()).get("/campgrounds/cg1/privacy/export");
+    const res = await privacy.exportConsentBundle("cg1");
 
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual(
+    expect(res).toEqual(
       expect.objectContaining({
         campgroundId: "cg1",
         settings: expect.objectContaining({
@@ -101,8 +76,8 @@ describe("Privacy export API smoke", () => {
         piiTags: expect.any(Array),
       }),
     );
-    expect(res.body.consents.length).toBeGreaterThan(0);
-    expect(res.body.piiTags[0]).toEqual(
+    expect(res.consents.length).toBeGreaterThan(0);
+    expect(res.piiTags[0]).toEqual(
       expect.objectContaining({
         resource: expect.any(String),
         field: expect.any(String),
@@ -111,16 +86,22 @@ describe("Privacy export API smoke", () => {
   });
 
   it("returns CSV export with download headers", async () => {
-    const res = await request(app.getHttpServer()).get("/campgrounds/cg1/privacy/export?format=csv");
+    const headers: Record<string, string> = {};
+    const res = {
+      set: (key: string, value: string) => {
+        headers[key] = value;
+        return res;
+      },
+      send: jest.fn((payload: string) => payload),
+    };
 
-    expect(res.status).toBe(200);
-    expect(res.headers["content-type"]).toContain("text/csv");
-    expect(res.headers["content-disposition"]).toContain("privacy-consent-export.csv");
-    const lines = res.text.split("\n").filter(Boolean);
+    const csv = await privacy.exportConsentCsv("cg1", res);
+
+    expect(headers["Content-Type"]).toContain("text/csv");
+    expect(headers["Content-Disposition"]).toContain("privacy-consent-export.csv");
+    const lines = csv.split("\n").filter(Boolean);
     expect(lines[0]).toContain("type,campgroundId");
     expect(lines.some((line) => line.startsWith("consent"))).toBe(true);
     expect(lines.some((line) => line.startsWith("pii_tag"))).toBe(true);
   });
 });
-
-

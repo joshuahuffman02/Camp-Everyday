@@ -83,8 +83,8 @@ function ACHPaymentForm({
 
         onSuccess?.(paymentIntent.id);
       }
-    } catch (err: any) {
-      const message = err.message || "Payment failed";
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Payment failed";
       setError(message);
       onError?.(message);
     } finally {

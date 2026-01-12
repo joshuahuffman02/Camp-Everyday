@@ -63,8 +63,8 @@ export default function AuditLogPage() {
             if (!res.ok) throw new Error(`Failed to load audit log (${res.status})`);
             const data = await res.json();
             setEntries(Array.isArray(data.items) ? data.items : []);
-        } catch (err: any) {
-            setError(err.message || "Failed to load audit log");
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : "Failed to load audit log");
         } finally {
             setLoading(false);
         }

@@ -9,7 +9,7 @@ export interface ExportOptions {
   includeAiSummary?: boolean;
 }
 
-interface ExportResult {
+export interface ExportResult {
   id: string;
   status: "pending" | "processing" | "completed" | "failed";
   format: "json" | "markdown";
@@ -21,7 +21,15 @@ interface ExportResult {
 @Injectable()
 export class AnalyticsExportService {
   private readonly logger = new Logger(AnalyticsExportService.name);
-  private exports: Map<string, { status: string; format: string; data?: string; createdAt: Date }> = new Map();
+  private exports: Map<
+    string,
+    {
+      status: ExportResult["status"];
+      format: ExportOptions["format"];
+      data?: string;
+      createdAt: Date;
+    }
+  > = new Map();
 
   constructor(
     private prisma: PrismaService,
@@ -67,8 +75,8 @@ export class AnalyticsExportService {
 
     return {
       id,
-      status: exp.status as ExportResult["status"],
-      format: exp.format as "json" | "markdown",
+      status: exp.status,
+      format: exp.format,
       createdAt: exp.createdAt,
       downloadUrl: exp.status === "completed" ? `/admin/platform-analytics/export/${id}/download` : undefined,
     };
@@ -114,14 +122,23 @@ export class AnalyticsExportService {
   /**
    * Generate JSON export
    */
-  private generateJsonExport(data: any, options: ExportOptions): string {
+  private generateJsonExport(
+    data: Awaited<ReturnType<PlatformAnalyticsService["getFullAnalytics"]>>,
+    options: ExportOptions
+  ): string {
+    const {
+      exportedAt: _ignoredExportedAt,
+      platform: _ignoredPlatform,
+      version: _ignoredVersion,
+      ...metadata
+    } = data.metadata ?? {};
     const exportData = {
       metadata: {
         exportedAt: new Date().toISOString(),
         platform: "Campreserv",
         version: "1.0",
         format: "json",
-        ...data.metadata,
+        ...metadata,
       },
       summary: this.generateSummary(data),
       modules: data.modules,
@@ -133,7 +150,10 @@ export class AnalyticsExportService {
   /**
    * Generate Markdown export
    */
-  private generateMarkdownExport(data: any, options: ExportOptions): string {
+  private generateMarkdownExport(
+    data: Awaited<ReturnType<PlatformAnalyticsService["getFullAnalytics"]>>,
+    options: ExportOptions
+  ): string {
     const lines: string[] = [];
 
     // Header
@@ -263,7 +283,9 @@ export class AnalyticsExportService {
   /**
    * Generate summary from analytics data
    */
-  private generateSummary(data: any): {
+  private generateSummary(
+    data: Awaited<ReturnType<PlatformAnalyticsService["getFullAnalytics"]>>
+  ): {
     totalRevenue: number;
     totalReservations: number;
     averageOrderValue: number;

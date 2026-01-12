@@ -67,6 +67,35 @@ type Notification = {
   createdAt: string;
 };
 
+type RawNotification = Awaited<ReturnType<typeof apiClient.getNotifications>>[number];
+
+const isNotificationType = (value: string): value is NotificationType =>
+  value === "arrival" ||
+  value === "departure" ||
+  value === "task_assigned" ||
+  value === "task_sla_warning" ||
+  value === "maintenance_urgent" ||
+  value === "payment_received" ||
+  value === "payment_failed" ||
+  value === "message_received" ||
+  value === "general";
+
+const normalizeNotification = (notification: RawNotification): Notification => ({
+  ...notification,
+  type: isNotificationType(notification.type) ? notification.type : "general"
+});
+
+const notificationTypes: NotificationType[] = [
+  "arrival",
+  "departure",
+  "payment_received",
+  "message_received",
+  "task_assigned"
+];
+
+const isTabValue = (value: string): value is "all" | "unread" =>
+  value === "all" || value === "unread";
+
 const typeConfig: Record<NotificationType, { icon: React.ReactNode; color: string; label: string; href?: (data: Record<string, unknown> | null) => string }> = {
   arrival: {
     icon: <LogIn className="h-4 w-4" />,
@@ -133,7 +162,7 @@ export default function NotificationsPage() {
 
   const userId = session?.user?.id;
 
-  const { data: notifications = [], isLoading, error } = useQuery({
+  const { data: rawNotifications = [], isLoading, error } = useQuery<RawNotification[]>({
     queryKey: ["notifications", userId],
     queryFn: () => apiClient.getNotifications(userId!, { limit: 100 }),
     enabled: !!userId,
@@ -153,6 +182,8 @@ export default function NotificationsPage() {
       queryClient.invalidateQueries({ queryKey: ["notifications", userId] });
     }
   });
+
+  const notifications = rawNotifications.map(normalizeNotification);
 
   const filteredNotifications = notifications.filter((n) => {
     if (activeTab === "unread" && n.readAt) return false;
@@ -289,7 +320,14 @@ export default function NotificationsPage() {
           {...animationVariants}
           transition={{ ...SPRING_CONFIG, delay: 0.15 }}
         >
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "all" | "unread")}>
+          <Tabs
+            value={activeTab}
+            onValueChange={(v) => {
+              if (isTabValue(v)) {
+                setActiveTab(v);
+              }
+            }}
+          >
             <TabsList>
               <TabsTrigger value="all">All</TabsTrigger>
               <TabsTrigger value="unread" className="gap-2">
@@ -311,7 +349,7 @@ export default function NotificationsPage() {
               >
                 All types
               </Button>
-              {(["arrival", "departure", "payment_received", "message_received", "task_assigned"] as NotificationType[]).map((type) => (
+              {notificationTypes.map((type) => (
                 <Button
                   key={type}
                   variant={typeFilter === type ? "secondary" : "ghost"}
@@ -359,7 +397,7 @@ export default function NotificationsPage() {
               ) : (
                 <div className="divide-y divide-border">
                   {filteredNotifications.map((notification, index) => {
-                    const config = typeConfig[notification.type as NotificationType] || typeConfig.general;
+                    const config = typeConfig[notification.type] || typeConfig.general;
                     const isUnread = !notification.readAt;
                     const href = config.href?.(notification.data);
 

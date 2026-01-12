@@ -8,12 +8,19 @@ import { JwtAuthGuard, RolesGuard, Roles } from "../auth/guards";
 import { ScopeGuard } from "../permissions/scope.guard";
 import type { Request } from "express";
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const firstHeader = (value: string | string[] | undefined): string | undefined =>
+  Array.isArray(value) ? value[0] : value;
+
 @Controller()
 export class AccessControlController {
   constructor(private readonly service: AccessControlService) {}
 
-  private requireCampgroundId(req: any, fallback?: string): string {
-    const campgroundId = fallback || req?.campgroundId || req?.headers?.["x-campground-id"];
+  private requireCampgroundId(req: Request & { campgroundId?: string }, fallback?: string): string {
+    const headerCampgroundId = firstHeader(req.headers["x-campground-id"]);
+    const campgroundId = fallback || req.campgroundId || headerCampgroundId;
     if (!campgroundId) {
       throw new BadRequestException("campgroundId is required");
     }
@@ -102,16 +109,18 @@ export class AccessControlController {
   @Post("/access/webhooks/:provider")
   async webhook(
     @Param("provider") provider: AccessProviderType,
-    @Body() body: any,
+    @Body() body: unknown,
     @Headers("x-signature") signature: string | undefined,
-    @Req() req: Request
+    @Req() req: Request & { rawBody?: string | Buffer }
   ) {
     const rawBody = req.rawBody ? req.rawBody.toString() : JSON.stringify(body ?? {});
+    const bodySignature = isRecord(body) && typeof body.signature === "string" ? body.signature : undefined;
+    const headerCampgroundId = firstHeader(req.headers["x-campground-id"]);
     const acknowledged = await this.service.verifyWebhook(
       provider,
-      signature ?? (body?.signature as string | undefined),
+      signature ?? bodySignature,
       rawBody,
-      req.headers["x-campground-id"] as string | undefined
+      headerCampgroundId
     );
     return { acknowledged, provider };
   }

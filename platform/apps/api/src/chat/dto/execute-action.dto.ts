@@ -6,7 +6,7 @@ export const executeActionSchema = z.object({
   conversationId: z.string(),
   actionId: z.string(),
   selectedOption: z.string().optional(),
-  formData: z.record(z.any()).optional(),
+  formData: z.record(z.unknown()).optional(),
 });
 
 export type ExecuteActionInput = z.infer<typeof executeActionSchema>;
@@ -15,10 +15,10 @@ export type ExecuteActionInput = z.infer<typeof executeActionSchema>;
 export class ExecuteActionDto {
   @IsString()
   @IsUUID()
-  conversationId: string;
+  conversationId!: string;
 
   @IsString()
-  actionId: string;
+  actionId!: string;
 
   @IsOptional()
   @IsString()
@@ -33,7 +33,7 @@ export class ExecuteActionDto {
 export interface ExecuteActionResponse {
   success: boolean;
   message: string;
-  result?: any;
+  result?: unknown;
   error?: string;
   nextAction?: {
     type: 'confirmation' | 'form' | 'selection';

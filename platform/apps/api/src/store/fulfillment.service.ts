@@ -1,10 +1,71 @@
 import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
-import { FulfillmentAssignmentStatus, OrderChannel } from "@prisma/client";
+import { FulfillmentAssignmentStatus, OrderChannel, OrderStatus } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 
 @Injectable()
 export class FulfillmentService {
     constructor(private readonly prisma: PrismaService) {}
+
+    private normalizeFulfillmentOrder(
+        order: Prisma.StoreOrderGetPayload<{
+            include: {
+                StoreOrderItem: { include: { Product: { select: { id: true; name: true; imageUrl: true } } } };
+                Guest: { select: { id: true; email: true; phone: true; primaryFirstName: true; primaryLastName: true } };
+                Reservation: { select: { id: true; siteId: true } };
+                StoreLocation: { select: { id: true; name: true; code: true } };
+                User_StoreOrder_assignedByIdToUser: { select: { id: true; email: true; firstName: true; lastName: true } };
+            };
+        }>
+    ) {
+        const {
+            StoreOrderItem,
+            Guest,
+            Reservation,
+            StoreLocation,
+            User_StoreOrder_assignedByIdToUser,
+            ...rest
+        } = order;
+
+        const items = StoreOrderItem.map((item) => {
+            const { Product, ...itemRest } = item;
+            return { ...itemRest, product: Product, Product: undefined };
+        });
+
+        const assignedBy = User_StoreOrder_assignedByIdToUser
+            ? {
+                  id: User_StoreOrder_assignedByIdToUser.id,
+                  name: `${User_StoreOrder_assignedByIdToUser.firstName} ${User_StoreOrder_assignedByIdToUser.lastName}`.trim() || null,
+                  email: User_StoreOrder_assignedByIdToUser.email
+              }
+            : null;
+
+        const guest = Guest
+            ? {
+                  id: Guest.id,
+                  firstName: Guest.primaryFirstName,
+                  lastName: Guest.primaryLastName,
+                  email: Guest.email,
+                  phone: Guest.phone
+              }
+            : null;
+
+        const reservation = Reservation ? { id: Reservation.id, siteId: Reservation.siteId } : null;
+
+        return {
+            ...rest,
+            items,
+            guest,
+            reservation,
+            fulfillmentLocation: StoreLocation,
+            assignedBy,
+            StoreOrderItem: undefined,
+            Guest: undefined,
+            Reservation: undefined,
+            StoreLocation: undefined,
+            User_StoreOrder_assignedByIdToUser: undefined
+        };
+    }
 
     /**
      * Get the fulfillment queue - online orders awaiting assignment or in progress
@@ -37,21 +98,21 @@ export class FulfillmentService {
                 ...(filters?.locationId && { fulfillmentLocationId: filters.locationId }),
             },
             include: {
-                items: {
+                StoreOrderItem: {
                     include: {
-                        product: { select: { id: true, name: true, imageUrl: true } },
+                        Product: { select: { id: true, name: true, imageUrl: true } },
                     },
                 },
-                guest: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
-                reservation: { select: { id: true, siteId: true } },
-                fulfillmentLocation: { select: { id: true, name: true, code: true } },
-                assignedBy: { select: { id: true, name: true, email: true } },
+                Guest: { select: { id: true, email: true, phone: true, primaryFirstName: true, primaryLastName: true } },
+                Reservation: { select: { id: true, siteId: true } },
+                StoreLocation: { select: { id: true, name: true, code: true } },
+                User_StoreOrder_assignedByIdToUser: { select: { id: true, email: true, firstName: true, lastName: true } },
             },
             orderBy: [{ promisedAt: "asc" }, { createdAt: "asc" }],
             take: filters?.limit || 50,
         });
 
-        return orders;
+        return orders.map((order) => this.normalizeFulfillmentOrder(order));
     }
 
     /**
@@ -91,7 +152,7 @@ export class FulfillmentService {
     ) {
         const order = await this.prisma.storeOrder.findFirst({
             where: { id: orderId, campgroundId },
-            include: { fulfillmentLocation: true },
+            include: { StoreLocation: true },
         });
 
         if (!order) {
@@ -124,12 +185,15 @@ export class FulfillmentService {
                 assignedById,
             },
             include: {
-                items: true,
-                fulfillmentLocation: { select: { id: true, name: true, code: true } },
+                StoreOrderItem: { include: { Product: { select: { id: true, name: true, imageUrl: true } } } },
+                Guest: { select: { id: true, email: true, phone: true, primaryFirstName: true, primaryLastName: true } },
+                Reservation: { select: { id: true, siteId: true } },
+                StoreLocation: { select: { id: true, name: true, code: true } },
+                User_StoreOrder_assignedByIdToUser: { select: { id: true, email: true, firstName: true, lastName: true } },
             },
         });
 
-        return updated;
+        return this.normalizeFulfillmentOrder(updated);
     }
 
     /**
@@ -171,7 +235,7 @@ export class FulfillmentService {
                       fulfillmentStatus: status,
                       completedAt: new Date(),
                       completedById: actorUserId,
-                      status: "completed",
+                      status: OrderStatus.completed,
                   }
                 : { fulfillmentStatus: status };
 
@@ -179,12 +243,15 @@ export class FulfillmentService {
             where: { id: orderId },
             data: updateData,
             include: {
-                items: true,
-                fulfillmentLocation: { select: { id: true, name: true, code: true } },
+                StoreOrderItem: { include: { Product: { select: { id: true, name: true, imageUrl: true } } } },
+                Guest: { select: { id: true, email: true, phone: true, primaryFirstName: true, primaryLastName: true } },
+                Reservation: { select: { id: true, siteId: true } },
+                StoreLocation: { select: { id: true, name: true, code: true } },
+                User_StoreOrder_assignedByIdToUser: { select: { id: true, email: true, firstName: true, lastName: true } },
             },
         });
 
-        return updated;
+        return this.normalizeFulfillmentOrder(updated);
     }
 
     /**
@@ -211,17 +278,20 @@ export class FulfillmentService {
                 fulfillmentStatus: includeCompleted ? undefined : { in: activeStatuses },
             },
             include: {
-                items: {
+                StoreOrderItem: {
                     include: {
-                        product: { select: { id: true, name: true, imageUrl: true } },
+                        Product: { select: { id: true, name: true, imageUrl: true } },
                     },
                 },
-                guest: { select: { id: true, firstName: true, lastName: true, phone: true } },
+                Guest: { select: { id: true, email: true, phone: true, primaryFirstName: true, primaryLastName: true } },
+                Reservation: { select: { id: true, siteId: true } },
+                StoreLocation: { select: { id: true, name: true, code: true } },
+                User_StoreOrder_assignedByIdToUser: { select: { id: true, email: true, firstName: true, lastName: true } },
             },
             orderBy: [{ promisedAt: "asc" }, { createdAt: "asc" }],
         });
 
-        return orders;
+        return orders.map((order) => this.normalizeFulfillmentOrder(order));
     }
 
     /**

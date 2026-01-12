@@ -21,6 +21,12 @@ interface FeeConfig {
     feeFlatCents?: number;
 }
 
+const isBillingPlan = (value: string | null | undefined): value is FeeConfig["billingPlan"] =>
+    value === "ota_only" || value === "standard" || value === "enterprise";
+
+const isFeeMode = (value: string | null | undefined): value is FeeConfig["feeMode"] =>
+    value === "absorb" || value === "pass_through";
+
 export function FinancialSummary({ reservation }: FinancialSummaryProps) {
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [isBreakdownOpen, setIsBreakdownOpen] = useState(true);
@@ -42,11 +48,6 @@ export function FinancialSummary({ reservation }: FinancialSummaryProps) {
     const taxCents = reservation.taxesAmount ?? 0;
     const feesCents = reservation.feesAmount ?? 0;
     const discountsCents = reservation.discountsAmount ?? 0;
-    const reservationExtended = reservation as Reservation & {
-        feeMode?: string | null;
-        metadata?: { feeMode?: string | null };
-    };
-    const feeMode = reservationExtended?.feeMode ?? reservationExtended?.metadata?.feeMode ?? null;
     const earlyCheckInCharge = reservation.earlyCheckInCharge ?? 0;
     const lateCheckoutCharge = reservation.lateCheckoutCharge ?? 0;
 
@@ -92,12 +93,13 @@ export function FinancialSummary({ reservation }: FinancialSummaryProps) {
             if (!reservation.campgroundId) return;
             try {
                 const settings = await apiClient.getCampgroundPaymentSettings(reservation.campgroundId);
-                const billingPlan = settings.billingPlan || "ota_only";
+                const billingPlan = isBillingPlan(settings.billingPlan) ? settings.billingPlan : "ota_only";
                 const defaultPlatformFee = billingPlan === "enterprise" ? 100 : billingPlan === "standard" ? 200 : 300;
+                const feeMode = isFeeMode(settings.feeMode) ? settings.feeMode : "absorb";
                 setFeeConfig({
                     perBookingFeeCents: settings.perBookingFeeCents ?? defaultPlatformFee,
-                    billingPlan: billingPlan as "ota_only" | "standard" | "enterprise",
-                    feeMode: (settings.feeMode || "absorb") as "absorb" | "pass_through",
+                    billingPlan,
+                    feeMode,
                 });
             } catch (err) {
                 console.error("Failed to fetch fee config:", err);

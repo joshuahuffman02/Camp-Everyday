@@ -1,19 +1,41 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import { randomUUID } from "crypto";
 import { PrismaService } from '../prisma/prisma.service';
 
-interface DashboardWidget {
+export interface DashboardWidget {
   type: 'occupancy' | 'revenue' | 'bookings' | 'adr' | 'revpar' | 'chart';
   position: { x: number; y: number; w: number; h: number };
-  config?: Record<string, unknown>;
+  config?: Record<string, Prisma.InputJsonValue>;
 }
 
-interface CreateDashboardDto {
+export interface CreateDashboardDto {
   orgId: string;
   name: string;
   layout: DashboardWidget[];
   isDefault?: boolean;
   createdById: string;
 }
+
+const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined => {
+  if (value === undefined || value === null) return undefined;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
+};
+
+const toJsonInput = (value: unknown): Prisma.InputJsonValue | typeof Prisma.JsonNull =>
+  toJsonValue(value) ?? Prisma.JsonNull;
+
+const toNullableJsonInput = (
+  value: unknown
+): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined => {
+  if (value === undefined) return undefined;
+  if (value === null) return Prisma.JsonNull;
+  return toJsonValue(value) ?? Prisma.JsonNull;
+};
 
 @Injectable()
 export class PortfolioService {
@@ -32,11 +54,13 @@ export class PortfolioService {
 
     return this.prisma.portfolioDashboard.create({
       data: {
+        id: randomUUID(),
         orgId: dto.orgId,
         name: dto.name,
-        layout: dto.layout as any,
+        layout: toJsonInput(dto.layout),
         isDefault: dto.isDefault ?? false,
         createdById: dto.createdById,
+        updatedAt: new Date(),
       },
     });
   }
@@ -45,7 +69,7 @@ export class PortfolioService {
     return this.prisma.portfolioDashboard.findMany({
       where: { orgId },
       include: {
-        createdBy: { select: { id: true, firstName: true, lastName: true } },
+        User: { select: { id: true, firstName: true, lastName: true } },
       },
       orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
     });
@@ -54,7 +78,7 @@ export class PortfolioService {
   async getDashboard(id: string) {
     const dashboard = await this.prisma.portfolioDashboard.findUnique({
       where: { id },
-      include: { organization: true },
+      include: { Organization: true },
     });
     if (!dashboard) throw new NotFoundException('Dashboard not found');
     return dashboard;
@@ -73,8 +97,9 @@ export class PortfolioService {
       where: { id },
       data: {
         name: dto.name,
-        layout: dto.layout as any,
+        layout: dto.layout === undefined ? undefined : toJsonInput(dto.layout),
         isDefault: dto.isDefault,
+        updatedAt: new Date(),
       },
     });
   }
@@ -124,6 +149,7 @@ export class PortfolioService {
           changePercent,
         },
         create: {
+          id: randomUUID(),
           orgId,
           campgroundId,
           metricDate: date,
@@ -162,7 +188,7 @@ export class PortfolioService {
           : {}),
       },
       include: {
-        campground: { select: { id: true, name: true } },
+        Campground: { select: { id: true, name: true } },
       },
       orderBy: { metricDate: 'desc' },
     });
@@ -219,12 +245,14 @@ export class PortfolioService {
   ) {
     return this.prisma.centralizedRatePush.create({
       data: {
+        id: randomUUID(),
         orgId,
         name,
-        rateConfig,
+        rateConfig: toJsonInput(rateConfig),
         targetCampIds,
         status: 'draft',
         createdBy,
+        updatedAt: new Date(),
       },
     });
   }
@@ -264,7 +292,8 @@ export class PortfolioService {
         status: allSuccess ? 'applied' : 'failed',
         appliedAt: new Date(),
         appliedBy,
-        results,
+        results: toNullableJsonInput(results),
+        updatedAt: new Date(),
       },
     });
   }
@@ -356,4 +385,3 @@ export class PortfolioService {
     );
   }
 }
-

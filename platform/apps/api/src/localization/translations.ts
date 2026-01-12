@@ -6,7 +6,7 @@
 export type TranslationKey = keyof typeof translations["en-US"];
 export type SupportedLocale = keyof typeof translations;
 
-export const translations = {
+export const translations: Record<string, Record<string, string>> = {
   "en-US": {
     // Navigation
     "nav.dashboard": "Dashboard",
@@ -631,27 +631,31 @@ export const translations = {
 
   "en-CA": {
     // Copy from en-US with Canadian spelling differences
-    ...null, // Will inherit from en-US mostly
   },
 
   "en-AU": {
     // Copy from en-US with Australian differences
-    ...null,
   },
 
   "en-GB": {
     // Copy from en-US with British differences
-    ...null,
   },
-} as const;
+};
+
+const isSupportedLocale = (value: string): value is SupportedLocale =>
+  Object.prototype.hasOwnProperty.call(translations, value);
+
+const isTranslationKey = (value: string): value is TranslationKey =>
+  Object.prototype.hasOwnProperty.call(translations["en-US"], value);
 
 // Helper function to get translation
 export function t(locale: string, key: string): string {
-  const localeTranslations = translations[locale as SupportedLocale];
-  if (!localeTranslations) {
-    return translations["en-US"][key as TranslationKey] || key;
+  const fallback = translations["en-US"];
+  const localeTranslations = isSupportedLocale(locale) ? translations[locale] : fallback;
+  if (!isTranslationKey(key)) {
+    return key;
   }
-  return (localeTranslations as any)[key] || translations["en-US"][key as TranslationKey] || key;
+  return localeTranslations[key] || fallback[key] || key;
 }
 
 // Get all supported locales

@@ -1,12 +1,12 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertCircle, FileText, Clock } from "lucide-react";
+import { AlertCircle, FileText, Clock, type LucideIcon } from "lucide-react";
 
 interface PlaceholderReportProps {
     campgroundId: string;
     dateRange: { start: string; end: string };
 }
 
-function PlaceholderCard({ title, description, icon: Icon }: { title: string; description: string; icon?: any }) {
+function PlaceholderCard({ title, description, icon: Icon }: { title: string; description: string; icon?: LucideIcon }) {
     return (
         <Card>
             <CardHeader className="flex flex-row items-center gap-3">

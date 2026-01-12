@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
-interface ParkRulesData {
+export interface ParkRulesData {
   useTemplate: boolean;
   templateId?: string;
   customRules?: string;
@@ -34,8 +34,8 @@ interface ParkRulesProps {
   isLoading?: boolean;
 }
 
-const SPRING_CONFIG = {
-  type: "spring" as const,
+const SPRING_CONFIG: { type: "spring"; stiffness: number; damping: number } = {
+  type: "spring",
   stiffness: 300,
   damping: 25,
 };
@@ -157,7 +157,11 @@ DEPARTURE
   },
 ];
 
-const ENFORCEMENT_OPTIONS = [
+const ENFORCEMENT_OPTIONS: Array<{
+  id: ParkRulesData["enforcement"];
+  label: string;
+  description: string;
+}> = [
   {
     id: "pre_booking",
     label: "Before Booking",
@@ -403,9 +407,7 @@ export function ParkRules({
             {ENFORCEMENT_OPTIONS.map((option) => (
               <button
                 key={option.id}
-                onClick={() =>
-                  setEnforcement(option.id as ParkRulesData["enforcement"])
-                }
+                onClick={() => setEnforcement(option.id)}
                 className={cn(
                   "p-3 rounded-lg border text-left transition-all",
                   enforcement === option.id

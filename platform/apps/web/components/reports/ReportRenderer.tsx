@@ -64,13 +64,14 @@ import {
     AuditLogReport, RateChangesReport, RoomMovesReport, UserActivityReport,
     PermissionsReport, AccessLogReport, NightAuditReport, SystemErrorsReport
 } from "./definitions/AllPlaceholderReports";
+import type { ReportFilters } from "@/lib/report-links";
 
 interface ReportRendererProps {
     tab: ReportTab;
     subTab: string | undefined;
     campgroundId: string;
     dateRange: { start: string; end: string };
-    reportFilters?: any;
+    reportFilters?: ReportFilters;
 }
 
 export function ReportRenderer({ tab, subTab, campgroundId, dateRange, reportFilters }: ReportRendererProps) {

@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
+import { randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateUpsellDto } from "./dto/create-upsell.dto";
 import { UpdateUpsellDto } from "./dto/update-upsell.dto";
@@ -21,12 +22,14 @@ export class UpsellsService {
   async create(campgroundId: string, dto: CreateUpsellDto, actorId?: string | null) {
     const item = await this.prisma.upsellItem.create({
       data: {
+        id: randomUUID(),
         ...dto,
         campgroundId,
         siteClassId: dto.siteClassId ?? null,
         description: dto.description ?? null,
         taxCode: dto.taxCode ?? null,
-        inventoryTracking: dto.inventoryTracking ?? false
+        inventoryTracking: dto.inventoryTracking ?? false,
+        updatedAt: new Date()
       }
     });
 
@@ -46,8 +49,7 @@ export class UpsellsService {
   async update(campgroundId: string, id: string, dto: UpdateUpsellDto, actorId?: string | null) {
     const existing = await this.prisma.upsellItem.findFirst({ where: { id, campgroundId } });
     if (!existing) throw new NotFoundException("Upsell item not found");
-    const { campgroundId: _campgroundId, siteClassId, description, taxCode, inventoryTracking, ...rest } =
-      dto as UpdateUpsellDto & { campgroundId?: string };
+    const { siteClassId, description, taxCode, inventoryTracking, ...rest } = dto;
     const updated = await this.prisma.upsellItem.update({
       where: { id },
       data: {

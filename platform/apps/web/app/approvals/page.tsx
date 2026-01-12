@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, type Transition } from "framer-motion";
 import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -62,15 +62,18 @@ const DEFAULT_PREFERENCES: QueuePreferences = {
   sortMode: "urgent"
 };
 
-const SPRING_CONFIG = { type: "spring" as const, stiffness: 300, damping: 25 };
+const SPRING_CONFIG: Transition = { type: "spring", stiffness: 300, damping: 25 };
 
-const ACTION_TYPES = ["refund", "payout", "config_change"] as const;
-const ROLE_OPTIONS = [
+type ActionType = "refund" | "payout" | "config_change";
+type ApproverRole = "owner" | "manager" | "finance" | "front_desk";
+
+const ACTION_TYPES: ActionType[] = ["refund", "payout", "config_change"];
+const ROLE_OPTIONS: Array<{ value: ApproverRole; label: string }> = [
   { value: "owner", label: "Owner" },
   { value: "manager", label: "Manager" },
   { value: "finance", label: "Finance" },
   { value: "front_desk", label: "Front Desk" },
-] as const;
+];
 
 type PolicyFormData = {
   name: string;
@@ -83,10 +86,8 @@ type PolicyFormData = {
   isActive: boolean;
 };
 
-type UserWithPlatformRole = {
-  platformRole?: string;
-  [key: string]: unknown;
-};
+type ApprovalList = Awaited<ReturnType<typeof apiClient.listApprovals>>;
+type ApprovalPolicy = ApprovalList["policies"][number];
 
 const DEFAULT_POLICY_FORM: PolicyFormData = {
   name: "",
@@ -97,6 +98,37 @@ const DEFAULT_POLICY_FORM: PolicyFormData = {
   description: "",
   approverRoles: ["owner", "manager"],
   isActive: true,
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof Error) return error.message;
+  if (isRecord(error) && typeof error.message === "string") return error.message;
+  return fallback;
+};
+
+const isSortMode = (value: unknown): value is QueuePreferences["sortMode"] =>
+  value === "urgent" || value === "newest" || value === "oldest";
+
+const mergePreferences = (prev: QueuePreferences, value: unknown): QueuePreferences => {
+  if (!isRecord(value)) return prev;
+  return {
+    ...prev,
+    urgentPendingSecond:
+      typeof value.urgentPendingSecond === "boolean" ? value.urgentPendingSecond : prev.urgentPendingSecond,
+    urgentAgeHours: typeof value.urgentAgeHours === "string" ? value.urgentAgeHours : prev.urgentAgeHours,
+    urgentPolicyThreshold:
+      typeof value.urgentPolicyThreshold === "boolean" ? value.urgentPolicyThreshold : prev.urgentPolicyThreshold,
+    urgentCustomAmountEnabled:
+      typeof value.urgentCustomAmountEnabled === "boolean"
+        ? value.urgentCustomAmountEnabled
+        : prev.urgentCustomAmountEnabled,
+    urgentCustomAmount:
+      typeof value.urgentCustomAmount === "string" ? value.urgentCustomAmount : prev.urgentCustomAmount,
+    sortMode: isSortMode(value.sortMode) ? value.sortMode : prev.sortMode,
+  };
 };
 
 function statusVariant(status: string) {
@@ -235,8 +267,8 @@ export default function ApprovalsPage() {
     const stored = localStorage.getItem(PREFERENCES_STORAGE_KEY);
     if (!stored) return;
     try {
-      const parsed = JSON.parse(stored) as Partial<QueuePreferences>;
-      setPreferences((prev) => ({ ...prev, ...parsed }));
+      const parsed = JSON.parse(stored);
+      setPreferences((prev) => mergePreferences(prev, parsed));
     } catch {
       // ignore malformed preferences
     }
@@ -249,7 +281,7 @@ export default function ApprovalsPage() {
 
   const memberships = whoami?.user?.memberships ?? [];
   const ownershipRoles = whoami?.user?.ownershipRoles ?? [];
-  const platformRole = (whoami?.user as UserWithPlatformRole)?.platformRole;
+  const platformRole = whoami?.user?.platformRole;
   const scopedMembership = memberships.find((m) => m.campgroundId === campgroundId) || null;
   const scopedRole = scopedMembership?.role ?? null;
   const approverId = whoami?.user?.email || whoami?.user?.id || "";
@@ -268,7 +300,7 @@ export default function ApprovalsPage() {
   const scopeReady = Boolean(campgroundId || orgId);
   const approvalsEnabled = scopeReady && !whoamiLoading && Boolean(whoami) && scopeAllowed;
 
-  const approvalsQuery = useQuery({
+  const approvalsQuery = useQuery<ApprovalList>({
     queryKey: ["approvals", campgroundId, orgId],
     queryFn: apiClient.listApprovals,
     enabled: approvalsEnabled,
@@ -290,15 +322,16 @@ export default function ApprovalsPage() {
       setProcessingId(null);
       // Focus next available action
       requestAnimationFrame(() => {
-        const nextButton = tableRef.current?.querySelector(
-          'tbody tr button:not(:disabled)'
-        ) as HTMLButtonElement;
+        const nextButton = tableRef.current?.querySelector<HTMLButtonElement>(
+          "tbody tr button:not(:disabled)"
+        );
         nextButton?.focus();
       });
     },
-    onError: (err: any) => {
-      toast({ title: "Approval failed", description: err?.message ?? "Try again", variant: "destructive" });
-      announce(`Approval failed: ${err?.message ?? "Please try again"}`);
+    onError: (err: unknown) => {
+      const message = getErrorMessage(err, "Please try again");
+      toast({ title: "Approval failed", description: message, variant: "destructive" });
+      announce(`Approval failed: ${message}`);
       setProcessingId(null);
     },
   });
@@ -322,9 +355,10 @@ export default function ApprovalsPage() {
       announce("Request rejected successfully");
       setProcessingId(null);
     },
-    onError: (err: any) => {
-      toast({ title: "Rejection failed", description: err?.message ?? "Try again", variant: "destructive" });
-      announce(`Rejection failed: ${err?.message ?? "Please try again"}`);
+    onError: (err: unknown) => {
+      const message = getErrorMessage(err, "Please try again");
+      toast({ title: "Rejection failed", description: message, variant: "destructive" });
+      announce(`Rejection failed: ${message}`);
       setProcessingId(null);
     },
   });
@@ -350,8 +384,8 @@ export default function ApprovalsPage() {
       setPolicyForm(DEFAULT_POLICY_FORM);
       announce("Policy created successfully");
     },
-    onError: (err: any) => {
-      toast({ title: "Failed to create policy", description: err?.message ?? "Try again", variant: "destructive" });
+    onError: (err: unknown) => {
+      toast({ title: "Failed to create policy", description: getErrorMessage(err, "Try again"), variant: "destructive" });
     },
   });
 
@@ -377,8 +411,8 @@ export default function ApprovalsPage() {
       setPolicyForm(DEFAULT_POLICY_FORM);
       announce("Policy updated successfully");
     },
-    onError: (err: any) => {
-      toast({ title: "Failed to update policy", description: err?.message ?? "Try again", variant: "destructive" });
+    onError: (err: unknown) => {
+      toast({ title: "Failed to update policy", description: getErrorMessage(err, "Try again"), variant: "destructive" });
     },
   });
 
@@ -390,12 +424,12 @@ export default function ApprovalsPage() {
       setDeleteConfirmId(null);
       announce("Policy deleted successfully");
     },
-    onError: (err: any) => {
-      toast({ title: "Failed to delete policy", description: err?.message ?? "Try again", variant: "destructive" });
+    onError: (err: unknown) => {
+      toast({ title: "Failed to delete policy", description: getErrorMessage(err, "Try again"), variant: "destructive" });
     },
   });
 
-  const openPolicyEdit = useCallback((policy: any) => {
+  const openPolicyEdit = useCallback((policy: ApprovalPolicy) => {
     setPolicyForm({
       name: policy.name,
       appliesTo: policy.appliesTo,
@@ -438,7 +472,9 @@ export default function ApprovalsPage() {
     preferences.urgentCustomAmountEnabled && Number.isFinite(customAmount) && customAmount > 0;
 
   const approverKeys = useMemo(() => {
-    return [approverId, whoami?.user?.id, whoami?.user?.email].filter(Boolean) as string[];
+    return [approverId, whoami?.user?.id, whoami?.user?.email].filter(
+      (value): value is string => Boolean(value)
+    );
   }, [approverId, whoami?.user?.id, whoami?.user?.email]);
 
   const enrichedRequests = useMemo(() => {
@@ -551,7 +587,7 @@ export default function ApprovalsPage() {
         : !scopeAllowed
           ? "You do not have access to this campground."
           : approvalsQuery.isError
-            ? (approvalsQuery.error as Error)?.message ?? "Failed to load approvals."
+            ? getErrorMessage(approvalsQuery.error, "Failed to load approvals.")
             : null;
 
   const policiesMessage = !scopeReady
@@ -1486,12 +1522,11 @@ export default function ApprovalsPage() {
               <Label htmlFor="sort-order">Sort order</Label>
               <Select
                 value={preferences.sortMode}
-                onValueChange={(value) =>
-                  setPreferences((prev) => ({
-                    ...prev,
-                    sortMode: value as QueuePreferences["sortMode"]
-                  }))
-                }
+                onValueChange={(value) => {
+                  if (isSortMode(value)) {
+                    setPreferences((prev) => ({ ...prev, sortMode: value }));
+                  }
+                }}
               >
                 <SelectTrigger id="sort-order" aria-label="Sort order for approvals queue">
                   <SelectValue placeholder="Choose sort" />

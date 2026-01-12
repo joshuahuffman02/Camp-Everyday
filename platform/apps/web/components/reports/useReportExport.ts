@@ -16,6 +16,9 @@ import {
 } from "@/lib/report-export";
 import { useToast } from "@/components/ui/use-toast";
 
+type Reservation = Awaited<ReturnType<typeof apiClient.getReservations>>[number];
+type Site = Awaited<ReturnType<typeof apiClient.getSites>>[number];
+
 export function useReportExport(
   campgroundId: string | null,
   dateRange: { start: string; end: string }
@@ -179,8 +182,8 @@ export function useReportExport(
  * Helper function to prepare daily summary data
  */
 function prepareDailySummaryData(
-  reservations: any[],
-  sites: any[],
+  reservations: Reservation[],
+  sites: Site[],
   dateRange: { start: string; end: string }
 ) {
   const start = new Date(dateRange.start);

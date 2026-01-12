@@ -17,6 +17,15 @@ import { useToast } from "@/components/ui/use-toast";
 import { ReportsNavBar } from "@/components/reports/ReportsNavBar";
 import { buildReportHref } from "@/lib/report-links";
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object";
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (typeof error === "string") return error;
+  if (isRecord(error) && typeof error.message === "string") return error.message;
+  return fallback;
+};
+
 export default function SavedReportsPage() {
   const pathname = usePathname();
   const { toast } = useToast();
@@ -44,7 +53,7 @@ export default function SavedReportsPage() {
       toast({ title: "Export queued" });
       qc.invalidateQueries({ queryKey: ["report-exports", campgroundId] });
     },
-    onError: (err: any) => toast({ title: "Queue failed", description: err?.message ?? "Unknown error", variant: "destructive" })
+    onError: (err: unknown) => toast({ title: "Queue failed", description: getErrorMessage(err, "Unknown error"), variant: "destructive" })
   });
 
   const rerunExport = useMutation({
@@ -53,7 +62,7 @@ export default function SavedReportsPage() {
       toast({ title: "Export re-run" });
       qc.invalidateQueries({ queryKey: ["report-exports", campgroundId] });
     },
-    onError: (err: any) => toast({ title: "Re-run failed", description: err?.message ?? "Unknown error", variant: "destructive" })
+    onError: (err: unknown) => toast({ title: "Re-run failed", description: getErrorMessage(err, "Unknown error"), variant: "destructive" })
   });
 
   const filtered = useMemo(() => {
@@ -210,7 +219,7 @@ export default function SavedReportsPage() {
                     <RotateCcw className="h-4 w-4" /> Re-run
                   </Button>
                 </div>
-                {exp.filters && (
+                {isRecord(exp.filters) && (
                   <pre className="bg-muted text-xs text-foreground rounded-md p-2 overflow-x-auto">
                     {JSON.stringify(exp.filters, null, 2)}
                   </pre>

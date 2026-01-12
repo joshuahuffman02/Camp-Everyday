@@ -104,6 +104,8 @@ const DENSITY_CONFIG: Record<DensityMode, {
   }
 };
 
+const DENSITY_MODES: DensityMode[] = ["compact", "standard", "expanded"];
+
 // Status configuration for legend and chips
 const STATUS_CONFIG: Record<string, {
   label: string;
@@ -182,7 +184,7 @@ export default function CalendarPage() {
     return sites.filter((site) => site.siteType === state.siteTypeFilter);
   }, [sites, state.siteTypeFilter]);
   const searchFilteredSiteIds = useMemo(
-    () => new Set(reservations.map((res) => res.siteId).filter(Boolean) as string[]),
+    () => new Set(reservations.map((res) => res.siteId)),
     [reservations]
   );
   const visibleSites = useMemo(() => {
@@ -196,7 +198,10 @@ export default function CalendarPage() {
   );
   const guestSearchStats = useMemo(() => {
     const search = state.guestSearch.trim().toLowerCase();
-    if (!search) return { count: 0, samples: [] as string[] };
+    if (!search) {
+      const emptySamples: string[] = [];
+      return { count: 0, samples: emptySamples };
+    }
     let count = 0;
     const samples: string[] = [];
     for (const guest of guests) {
@@ -217,14 +222,11 @@ export default function CalendarPage() {
   }, [guests, state.guestSearch]);
 
   // Get the selected reservation for the popup
-  interface ReservationWithId {
-    id: string;
-  }
   const selectedReservation = useMemo(() => {
     if (!state.selectedReservationId) return null;
     // Look in all reservations (not just filtered)
-    const allReservations = (queries.reservations.data || []) as ReservationWithId[];
-    return allReservations.find((r) => r.id === state.selectedReservationId) || null;
+    const allReservations = queries.reservations.data ?? [];
+    return allReservations.find((reservation) => reservation.id === state.selectedReservationId) || null;
   }, [state.selectedReservationId, queries.reservations.data]);
   const visibleSiteTypes = useMemo(() => {
     const types = new Set<string>();
@@ -278,14 +280,16 @@ export default function CalendarPage() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ignore if typing in an input
-      const target = e.target as HTMLElement;
-      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) {
-        // Only handle Escape in inputs
-        if (e.key === "Escape") {
-          (target as HTMLInputElement).blur();
+      const target = e.target;
+      if (target instanceof HTMLElement) {
+        if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) {
+          // Only handle Escape in inputs
+          if (e.key === "Escape" && target instanceof HTMLInputElement) {
+            target.blur();
+            return;
+          }
           return;
         }
-        return;
       }
 
       // Arrow keys: navigate days
@@ -495,7 +499,7 @@ export default function CalendarPage() {
 
               {/* Density Toggle */}
               <div className="flex items-center bg-card rounded-xl border border-border p-1">
-                {(Object.keys(DENSITY_CONFIG) as DensityMode[]).map((mode) => {
+                {DENSITY_MODES.map((mode) => {
                   const config = DENSITY_CONFIG[mode];
                   const Icon = config.icon;
                   return (
@@ -729,7 +733,7 @@ export default function CalendarPage() {
       <Dialog open={!!selectedReservation} onOpenChange={(open) => !open && actions.setSelectedReservationId(null)}>
         <DialogContent className="sm:max-w-md">
           {selectedReservation && (() => {
-            const res = selectedReservation as any;
+            const res = selectedReservation;
             const guestName = `${res.guest?.primaryFirstName || ""} ${res.guest?.primaryLastName || ""}`.trim() || "Guest";
             const nights = Math.ceil((new Date(res.departureDate).getTime() - new Date(res.arrivalDate).getTime()) / (1000 * 60 * 60 * 24));
             const total = res.totalAmount ?? 0;
@@ -960,7 +964,8 @@ interface StatusFilterChipsProps {
 }
 
 function StatusFilterChips({ activeFilter, onFilterChange, reservationCounts = {}, className }: StatusFilterChipsProps) {
-  const statuses = ["all", "confirmed", "checked_in", "pending", "cancelled"] as const;
+  type StatusFilter = "all" | keyof typeof STATUS_CONFIG;
+  const statuses: StatusFilter[] = ["all", "confirmed", "checked_in", "pending", "cancelled"];
 
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
@@ -1060,11 +1065,11 @@ function CalendarGrid({
 
       const elements = typeof document.elementsFromPoint === "function"
         ? document.elementsFromPoint(clientX, clientY)
-        : [document.elementFromPoint(clientX, clientY)].filter(Boolean);
+        : [document.elementFromPoint(clientX, clientY)].filter((el): el is Element => el !== null);
 
-      const cell = elements.find((el) =>
-        el instanceof HTMLElement && (el as HTMLElement).dataset.dayIdx !== undefined
-      ) as HTMLElement | undefined;
+      const cell = elements.find(
+        (el): el is HTMLElement => el instanceof HTMLElement && el.dataset.dayIdx !== undefined
+      );
 
       if (cell) {
         const dayIdx = Number(cell.dataset.dayIdx);
@@ -1122,8 +1127,8 @@ function CalendarGrid({
 
   const handleCellPointerDown = useCallback((siteId: string, dayIdx: number, e: React.PointerEvent) => {
     e.preventDefault();
-    const target = e.currentTarget as HTMLElement;
-    if (target.setPointerCapture) {
+    const target = e.currentTarget;
+    if (target instanceof HTMLElement && target.setPointerCapture) {
       try {
         target.setPointerCapture(e.pointerId);
       } catch {

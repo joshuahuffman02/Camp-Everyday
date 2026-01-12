@@ -17,6 +17,7 @@ import {
   AlertCircle,
   RefreshCw,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "";
 
@@ -50,6 +51,14 @@ interface PayoutReport {
   }>;
   total: number;
 }
+
+type TabId = "overview" | "donations" | "payouts";
+
+const tabs: Array<{ id: TabId; label: string; icon: LucideIcon }> = [
+  { id: "overview", label: "Overview", icon: TrendingUp },
+  { id: "donations", label: "Donations", icon: Heart },
+  { id: "payouts", label: "Payouts", icon: DollarSign },
+];
 
 interface PlatformStats {
   totalDonations: number;
@@ -238,11 +247,7 @@ export default function CharityReportsPage() {
       <div className="bg-card border-b border-border">
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex gap-6">
-            {([
-              { id: "overview" as const, label: "Overview", icon: TrendingUp },
-              { id: "donations" as const, label: "Donations", icon: Heart },
-              { id: "payouts" as const, label: "Payouts", icon: DollarSign },
-            ] as const).map((tab) => (
+            {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}

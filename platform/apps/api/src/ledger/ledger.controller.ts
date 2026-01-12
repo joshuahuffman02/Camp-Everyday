@@ -1,11 +1,12 @@
 import { BadRequestException, Body, Controller, Get, Param, Post, Query, Req, Res, UseGuards } from "@nestjs/common";
 import { LedgerService } from "./ledger.service";
-import type { Response } from "express";
+import type { Request, Response } from "express";
 import { JwtAuthGuard } from "../auth/guards";
 import { RolesGuard, Roles } from "../auth/guards/roles.guard";
 import { ScopeGuard } from "../permissions/scope.guard";
 import { UserRole } from "@prisma/client";
-import type { Request } from "express";
+
+type CampgroundRequest = Request & { campgroundId?: string };
 
 // SECURITY: Added ScopeGuard for tenant validation
 @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
@@ -13,7 +14,7 @@ import type { Request } from "express";
 export class LedgerController {
   constructor(private readonly ledger: LedgerService) { }
 
-  private requireCampgroundId(req: Request, fallback?: string): string {
+  private requireCampgroundId(req: CampgroundRequest, fallback?: string): string {
     const headerValue = req.headers["x-campground-id"];
     const headerCampgroundId = Array.isArray(headerValue) ? headerValue[0] : headerValue;
     const campgroundId = fallback ?? req.campgroundId ?? headerCampgroundId ?? undefined;
@@ -80,7 +81,7 @@ export class LedgerController {
   listByReservation(
     @Param("id") reservationId: string,
     @Query("campgroundId") campgroundId: string | undefined,
-    @Req() req: Request
+    @Req() req: CampgroundRequest
   ) {
     const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
     return this.ledger.listByReservation(reservationId, requiredCampgroundId);

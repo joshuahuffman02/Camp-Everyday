@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RateType } from '@prisma/client';
+import { randomUUID } from "crypto";
 
 @Injectable()
 export class SeasonalRatesService {
@@ -18,6 +19,7 @@ export class SeasonalRatesService {
     }) {
         return this.prisma.seasonalRate.create({
             data: {
+                id: randomUUID(),
                 campgroundId: data.campgroundId,
                 siteClassId: data.siteClassId,
                 name: data.name,
@@ -57,11 +59,9 @@ export class SeasonalRatesService {
         isActive: boolean;
     }>) {
         await this.findOne(campgroundId, id);
-        const { campgroundId: _campgroundId, ...rest } =
-            data as Partial<{ campgroundId?: string }>;
         return this.prisma.seasonalRate.update({
             where: { id },
-            data: rest,
+            data,
         });
     }
 

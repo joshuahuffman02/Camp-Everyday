@@ -252,9 +252,10 @@ export class DataImportService {
       job.completedAt = new Date();
 
       return { jobId, ...result };
-    } catch (err: any) {
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
       job.status = "failed";
-      job.errors = [{ row: 0, message: err.message }];
+      job.errors = [{ row: 0, message }];
       job.completedAt = new Date();
       throw err;
     }

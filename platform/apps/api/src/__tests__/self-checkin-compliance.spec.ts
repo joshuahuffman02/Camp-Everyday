@@ -1,14 +1,33 @@
 import { CheckInStatus } from "@prisma/client";
+import { Test, type TestingModule } from "@nestjs/testing";
 import { SelfCheckinService } from "../self-checkin/self-checkin.service";
+import { PrismaService } from "../prisma/prisma.service";
+import { SignaturesService } from "../signatures/signatures.service";
+import { AuditService } from "../audit/audit.service";
+import { AccessControlService } from "../access-control/access-control.service";
+import { StripeService } from "../payments/stripe.service";
+import { GatewayConfigService } from "../payments/gateway-config.service";
+import { PoliciesService } from "../policies/policies.service";
+
+type PrismaMock = {
+  reservation: { findUnique: jest.Mock; update: jest.Mock };
+  maintenanceTicket: { findFirst: jest.Mock };
+  communication: { create: jest.Mock };
+  signatureRequest: { findFirst: jest.Mock };
+  signatureArtifact: { findFirst: jest.Mock };
+  digitalWaiver: { findFirst: jest.Mock };
+  idVerification: { findFirst: jest.Mock };
+};
 
 describe("SelfCheckinService compliance enforcement", () => {
-  let prisma: any;
-  let signatures: any;
-  let audit: any;
-  let access: any;
-  let stripe: any;
-  let gatewayConfig: any;
-  let policies: any;
+  let moduleRef: TestingModule;
+  let prisma: PrismaMock;
+  let signatures: { autoSendForReservation: jest.Mock };
+  let audit: { record: jest.Mock };
+  let access: { autoGrantForReservation: jest.Mock; revokeAllForReservation: jest.Mock };
+  let stripe: { createPaymentIntent: jest.Mock; isConfigured: jest.Mock };
+  let gatewayConfig: { getConfig: jest.Mock };
+  let policies: { getPendingPolicyCompliance: jest.Mock };
   let service: SelfCheckinService;
 
   const baseReservation = {
@@ -24,21 +43,21 @@ describe("SelfCheckinService compliance enforcement", () => {
     status: "confirmed",
     guest: { id: "guest1", email: "guest@test.com" },
     campground: { id: "cg1", name: "Test Camp" },
-    site: { siteNumber: "A1" }
+    site: { siteNumber: "A1" },
   };
 
-  beforeEach(() => {
+  beforeEach(async () => {
     prisma = {
       reservation: {
         findUnique: jest.fn(),
-        update: jest.fn()
+        update: jest.fn(),
       },
       maintenanceTicket: { findFirst: jest.fn() },
       communication: { create: jest.fn() },
       signatureRequest: { findFirst: jest.fn() },
       signatureArtifact: { findFirst: jest.fn() },
       digitalWaiver: { findFirst: jest.fn() },
-      idVerification: { findFirst: jest.fn() }
+      idVerification: { findFirst: jest.fn() },
     };
     signatures = { autoSendForReservation: jest.fn() };
     audit = { record: jest.fn() };
@@ -46,7 +65,25 @@ describe("SelfCheckinService compliance enforcement", () => {
     stripe = { createPaymentIntent: jest.fn(), isConfigured: jest.fn() };
     gatewayConfig = { getConfig: jest.fn() };
     policies = { getPendingPolicyCompliance: jest.fn().mockResolvedValue({ ok: true }) };
-    service = new SelfCheckinService(prisma as any, signatures as any, audit as any, access as any, stripe as any, gatewayConfig as any, policies as any);
+
+    moduleRef = await Test.createTestingModule({
+      providers: [
+        SelfCheckinService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: SignaturesService, useValue: signatures },
+        { provide: AuditService, useValue: audit },
+        { provide: AccessControlService, useValue: access },
+        { provide: StripeService, useValue: stripe },
+        { provide: GatewayConfigService, useValue: gatewayConfig },
+        { provide: PoliciesService, useValue: policies },
+      ],
+    }).compile();
+
+    service = moduleRef.get(SelfCheckinService);
+  });
+
+  afterEach(async () => {
+    await moduleRef.close();
   });
 
   it("blocks check-in until waiver is signed and returns signing URL", async () => {
@@ -65,7 +102,7 @@ describe("SelfCheckinService compliance enforcement", () => {
     expect(result.signingUrl).toContain("/sign/");
     expect(prisma.reservation.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ checkInStatus: CheckInStatus.pending_waiver })
+        data: expect.objectContaining({ checkInStatus: CheckInStatus.pending_waiver }),
       })
     );
   });
@@ -80,10 +117,9 @@ describe("SelfCheckinService compliance enforcement", () => {
       ...baseReservation,
       status: "checked_in",
       checkInStatus: CheckInStatus.completed,
-      selfCheckInAt: new Date()
+      selfCheckInAt: new Date(),
     });
 
-    // Use the correct guest ID to pass validation
     const result = await service.selfCheckin("res1", { override: true, overrideReason: "staff override", actorId: "guest1" });
 
     expect(result.status).toBe("completed");
@@ -91,7 +127,7 @@ describe("SelfCheckinService compliance enforcement", () => {
       expect.objectContaining({
         action: "checkin.override",
         actorId: "guest1",
-        entityId: "res1"
+        entityId: "res1",
       })
     );
     expect(access.autoGrantForReservation).toHaveBeenCalledWith("res1", "guest1");

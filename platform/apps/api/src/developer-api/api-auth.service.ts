@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, UnauthorizedException, Logger, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { ApiScope, ApiClientTier, TIER_LIMITS, DEFAULT_TIER_SCOPES } from "./types";
-import { randomBytes, createHash } from "crypto";
+import { randomBytes, createHash, randomUUID } from "crypto";
 import * as bcrypt from "bcryptjs";
 
 const DEFAULT_SCOPES: ApiScope[] = [
@@ -52,6 +52,7 @@ export class ApiAuthService {
 
     await this.prisma.apiToken.create({
       data: {
+        id: randomUUID(),
         apiClientId,
         accessTokenHash: this.hashToken(accessToken),
         refreshTokenHash: this.hashToken(refreshToken),
@@ -82,12 +83,12 @@ export class ApiAuthService {
     const tokenHash = this.hashToken(refreshToken);
     const token = await this.prisma.apiToken.findFirst({
       where: { refreshTokenHash: tokenHash, revokedAt: null },
-      include: { apiClient: true }
+      include: { ApiClient: true }
     });
-    if (!token || !token.apiClient || !token.apiClient.isActive) {
+    if (!token || !token.ApiClient || !token.ApiClient.isActive) {
       throw new UnauthorizedException("Invalid refresh token");
     }
-    const scopes = token.scopes || token.apiClient.scopes || [];
+    const scopes = token.scopes || token.ApiClient.scopes || [];
     const tokens = await this.persistToken(token.apiClientId, scopes);
 
     return {
@@ -96,7 +97,7 @@ export class ApiAuthService {
       refresh_token: tokens.refreshToken,
       expires_in: this.accessTtlSeconds,
       scope: scopes.join(" "),
-      campground_id: token.apiClient.campgroundId
+      campground_id: token.ApiClient.campgroundId
     };
   }
 
@@ -116,20 +117,21 @@ export class ApiAuthService {
     const allowedTierScopes = DEFAULT_TIER_SCOPES[tier];
 
     // Use provided scopes if valid for tier, otherwise use tier defaults
-    let scopes: string[];
+    let scopes: ApiScope[];
     if (input.scopes && input.scopes.length) {
       // Filter scopes to only those allowed for the tier
-      const allowedSet = new Set(allowedTierScopes as string[]);
+      const allowedSet = new Set(allowedTierScopes);
       scopes = input.scopes.filter(s => allowedSet.has(s));
       if (scopes.length === 0) {
-        scopes = allowedTierScopes as string[];
+        scopes = allowedTierScopes;
       }
     } else {
-      scopes = allowedTierScopes as string[];
+      scopes = allowedTierScopes;
     }
 
     const client = await this.prisma.apiClient.create({
       data: {
+        id: randomUUID(),
         campgroundId: input.campgroundId,
         name: input.name,
         clientId,
@@ -137,6 +139,7 @@ export class ApiAuthService {
         scopes,
         tier,
         rateLimit: tierLimits.requestsPerHour,
+        updatedAt: new Date(),
       }
     });
 
@@ -160,7 +163,6 @@ export class ApiAuthService {
    */
   async updateClientTier(campgroundId: string, clientId: string, tier: ApiClientTier) {
     const tierLimits = TIER_LIMITS[tier];
-    const allowedScopes = DEFAULT_TIER_SCOPES[tier] as string[];
 
     await this.requireClient(campgroundId, clientId);
     const client = await this.prisma.apiClient.update({
@@ -218,7 +220,7 @@ export class ApiAuthService {
 
   async revokeToken(campgroundId: string, tokenId: string) {
     const token = await this.prisma.apiToken.findFirst({
-      where: { id: tokenId, apiClient: { campgroundId } },
+      where: { id: tokenId, ApiClient: { campgroundId } },
       select: { id: true }
     });
     if (!token) {

@@ -36,38 +36,207 @@ interface SharedAnalytics {
     name: string;
     slug: string;
   } | null;
-  data: any;
+  data: AnalyticsData;
   canDownload: boolean;
 }
+
+type ChartDatum = {
+  [key: string]: string | number | undefined;
+  percentage?: number;
+};
+
+type AnalyticsOverview = {
+  totalGuests?: number;
+  newGuestsThisMonth?: number;
+  repeatRate?: number;
+  repeatGuests?: number;
+  avgStayLength?: number;
+};
+
+type AnalyticsGeographic = {
+  byCountry?: ChartDatum[];
+  byState?: ChartDatum[];
+};
+
+type AnalyticsDemographics = {
+  rigTypes?: ChartDatum[];
+  avgRigLength?: number;
+  partyComposition?: { adultsOnly: number; withChildren: number };
+  petPercentage?: number;
+};
+
+type AnalyticsTravelBehavior = {
+  stayReasons?: ChartDatum[];
+  bookingSources?: ChartDatum[];
+};
+
+type AnalyticsInsight = {
+  type?: string;
+  title?: string;
+  metric?: string;
+  description?: string;
+};
+
+type AnalyticsData = {
+  overview?: AnalyticsOverview;
+  geographic?: AnalyticsGeographic;
+  demographics?: AnalyticsDemographics;
+  travelBehavior?: AnalyticsTravelBehavior;
+  insights?: AnalyticsInsight[];
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object";
+
+const getString = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+const getNumber = (value: unknown): number | undefined =>
+  typeof value === "number" ? value : undefined;
+
+const toChartDatum = (value: unknown): ChartDatum | null => {
+  if (!isRecord(value)) return null;
+  const output: ChartDatum = {};
+  Object.entries(value).forEach(([key, entry]) => {
+    if (typeof entry === "string" || typeof entry === "number") {
+      output[key] = entry;
+    }
+  });
+  return output;
+};
+
+const toChartDataArray = (value: unknown): ChartDatum[] | undefined => {
+  if (!Array.isArray(value)) return undefined;
+  return value
+    .map(toChartDatum)
+    .filter((item): item is ChartDatum => item !== null);
+};
+
+const toPartyComposition = (value: unknown): AnalyticsDemographics["partyComposition"] | undefined => {
+  if (!isRecord(value)) return undefined;
+  const adultsOnly = getNumber(value.adultsOnly);
+  const withChildren = getNumber(value.withChildren);
+  if (adultsOnly === undefined || withChildren === undefined) return undefined;
+  return { adultsOnly, withChildren };
+};
+
+const toInsights = (value: unknown): AnalyticsInsight[] | undefined => {
+  if (!Array.isArray(value)) return undefined;
+  return value.reduce<AnalyticsInsight[]>((acc, item) => {
+    if (!isRecord(item)) return acc;
+    acc.push({
+      type: getString(item.type),
+      title: getString(item.title),
+      metric: getString(item.metric),
+      description: getString(item.description),
+    });
+    return acc;
+  }, []);
+};
+
+const toAnalyticsData = (value: unknown): AnalyticsData => {
+  if (!isRecord(value)) return {};
+  const overview = isRecord(value.overview)
+    ? {
+        totalGuests: getNumber(value.overview.totalGuests),
+        newGuestsThisMonth: getNumber(value.overview.newGuestsThisMonth),
+        repeatRate: getNumber(value.overview.repeatRate),
+        repeatGuests: getNumber(value.overview.repeatGuests),
+        avgStayLength: getNumber(value.overview.avgStayLength),
+      }
+    : undefined;
+
+  const geographic = isRecord(value.geographic)
+    ? {
+        byCountry: toChartDataArray(value.geographic.byCountry),
+        byState: toChartDataArray(value.geographic.byState),
+      }
+    : undefined;
+
+  const demographics = isRecord(value.demographics)
+    ? {
+        rigTypes: toChartDataArray(value.demographics.rigTypes),
+        avgRigLength: getNumber(value.demographics.avgRigLength),
+        partyComposition: toPartyComposition(value.demographics.partyComposition),
+        petPercentage: getNumber(value.demographics.petPercentage),
+      }
+    : undefined;
+
+  const travelBehavior = isRecord(value.travelBehavior)
+    ? {
+        stayReasons: toChartDataArray(value.travelBehavior.stayReasons),
+        bookingSources: toChartDataArray(value.travelBehavior.bookingSources),
+      }
+    : undefined;
+
+  return {
+    overview,
+    geographic,
+    demographics,
+    travelBehavior,
+    insights: toInsights(value.insights),
+  };
+};
+
+const toCampground = (value: unknown): SharedAnalytics["campground"] => {
+  if (!isRecord(value)) return null;
+  const id = getString(value.id);
+  const name = getString(value.name);
+  const slug = getString(value.slug);
+  if (!id || !name || !slug) return null;
+  return { id, name, slug };
+};
+
+const toSharedAnalytics = (value: unknown): SharedAnalytics | null => {
+  if (!isRecord(value)) return null;
+  const analyticsType = getString(value.analyticsType);
+  const accessLevel = getString(value.accessLevel);
+  const dateRange = getString(value.dateRange);
+  if (!analyticsType || !accessLevel || !dateRange) return null;
+  return {
+    analyticsType,
+    accessLevel,
+    dateRange,
+    name: getString(value.name) ?? null,
+    description: getString(value.description) ?? null,
+    campground: toCampground(value.campground),
+    data: toAnalyticsData(value.data),
+    canDownload: typeof value.canDownload === "boolean" ? value.canDownload : false,
+  };
+};
 
 function BarChart({
   data,
   labelKey,
   valueKey,
 }: {
-  data: any[];
+  data: ChartDatum[];
   labelKey: string;
   valueKey: string;
 }) {
-  const max = Math.max(...data.map((d) => d[valueKey]));
+  const values = data.map((item) => {
+    const value = item[valueKey];
+    return typeof value === "number" ? value : Number(value) || 0;
+  });
+  const max = Math.max(0, ...values);
 
   return (
     <div className="space-y-2">
       {data.map((item, i) => (
         <div key={i} className="flex items-center gap-3">
           <div className="w-24 text-xs text-slate-400 truncate">
-            {item[labelKey]}
+            {item[labelKey] ?? "—"}
           </div>
           <div className="flex-1 h-6 bg-slate-800 rounded overflow-hidden">
             <div
               className="h-full bg-emerald-600 rounded transition-all"
-              style={{ width: `${(item[valueKey] / max) * 100}%` }}
+              style={{ width: `${max > 0 ? (Number(item[valueKey]) / max) * 100 : 0}%` }}
             />
           </div>
           <div className="w-16 text-xs text-slate-300 text-right">
             {item.percentage
               ? `${item.percentage}%`
-              : item[valueKey].toLocaleString()}
+              : Number(item[valueKey] ?? 0).toLocaleString()}
           </div>
         </div>
       ))}
@@ -76,8 +245,8 @@ function BarChart({
 }
 
 export default function SharedAnalyticsPage() {
-  const params = useParams();
-  const token = params.token as string;
+  const params = useParams<{ token?: string }>();
+  const token = params.token ?? "";
 
   const [analytics, setAnalytics] = useState<SharedAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
@@ -120,7 +289,11 @@ export default function SharedAnalyticsPage() {
       }
 
       const data = await res.json();
-      setAnalytics(data);
+      const parsed = toSharedAnalytics(data);
+      if (!parsed) {
+        throw new Error("Invalid analytics payload");
+      }
+      setAnalytics(parsed);
       setRequiresPassword(false);
     } catch (err) {
       console.error("Failed to fetch shared analytics:", err);
@@ -493,7 +666,7 @@ export default function SharedAnalyticsPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {data.insights.map((insight: any, i: number) => (
+                  {data.insights.map((insight, i) => (
                     <div
                       key={i}
                       className={`p-3 rounded-lg border ${

@@ -208,7 +208,10 @@ export function getCopy<
   if (typeof value === "function") {
     return value.toString();
   }
-  return (value as string) || String(key);
+  if (typeof value === "string") {
+    return value;
+  }
+  return String(key);
 }
 
 // Type-safe helper for getting loading messages
@@ -229,9 +232,10 @@ export function getErrorMessage(
 export function getEmptyState(
   type: keyof typeof conversationalCopy.empty
 ): { message: string; hint?: string } {
-  const message = conversationalCopy.empty[type] || conversationalCopy.empty.noResults;
-  const hintKey = `${type}Hint` as keyof typeof conversationalCopy.empty;
-  const hint = conversationalCopy.empty[hintKey] || conversationalCopy.empty.noResultsHint;
+  const emptyCopy: Record<string, string> = conversationalCopy.empty;
+  const message = emptyCopy[type] || emptyCopy.noResults;
+  const hintKey = `${type}Hint`;
+  const hint = emptyCopy[hintKey] || emptyCopy.noResultsHint;
   return { message, hint };
 }
 

@@ -62,14 +62,19 @@ import {
 } from "../../../../../lib/animations";
 import { SITE_CLASS_AMENITIES, CABIN_AMENITIES, getCabinAmenitiesByCategory } from "../../../../../lib/amenities";
 
+type SiteType = "rv" | "tent" | "cabin" | "group" | "glamping";
+
 // Site type configuration with icons
-const siteTypeConfig: Record<string, { icon: React.ReactNode; label: string; color: string }> = {
+const siteTypeConfig: Record<SiteType, { icon: React.ReactNode; label: string; color: string }> = {
   rv: { icon: <Truck className="h-4 w-4" />, label: "RV", color: "bg-status-info/15 text-status-info" },
   tent: { icon: <Tent className="h-4 w-4" />, label: "Tent", color: "bg-status-success/15 text-status-success" },
   cabin: { icon: <Home className="h-4 w-4" />, label: "Cabin", color: "bg-status-warning/15 text-status-warning" },
   group: { icon: <Users className="h-4 w-4" />, label: "Group", color: "bg-status-info/15 text-status-info" },
   glamping: { icon: <Sparkles className="h-4 w-4" />, label: "Glamping", color: "bg-status-warning/15 text-status-warning" },
 };
+
+const isSiteType = (value: string): value is SiteType =>
+  value === "rv" || value === "tent" || value === "cabin" || value === "group" || value === "glamping";
 
 // Rental type options
 const rentalTypeOptions = [
@@ -141,7 +146,7 @@ type EditFormState = {
   name: string;
   description: string;
   defaultRate: number;
-  siteType: string;
+  siteType: SiteType;
   maxOccupancy: number;
   rigMaxLength: number | "";
   hookupsPower: boolean;
@@ -168,36 +173,27 @@ type EditFormState = {
   amenityTags: string[];
 };
 
-type SiteClass = {
-  id: string;
-  name: string;
-  description?: string;
-  defaultRate: number;
-  siteType: "rv" | "tent" | "cabin" | "group" | "glamping";
-  maxOccupancy: number;
-  rigMaxLength?: number | null;
-  hookupsPower?: boolean;
-  hookupsWater?: boolean;
-  hookupsSewer?: boolean;
-  minNights?: number | null;
-  maxNights?: number | null;
-  sameDayBookingCutoffMinutes?: number | null;
-  petFriendly?: boolean;
-  accessible?: boolean;
-  isActive?: boolean;
+type SiteClass = Awaited<ReturnType<typeof apiClient.getSiteClass>> & {
   rentalType?: string;
-  rvOrientation?: string;
-  electricAmps?: number[];
   equipmentTypes?: string[];
   slideOutsAccepted?: string | null;
   occupantsIncluded?: number;
   extraAdultFee?: number | null;
   extraChildFee?: number | null;
-  meteredEnabled?: boolean;
-  meteredType?: string;
-  meteredBillingMode?: string;
-  amenityTags?: string[];
-  photos?: string[];
+  meteredBillingMode?: string | null;
+  sameDayBookingCutoffMinutes?: number | null;
+};
+
+type Site = Awaited<ReturnType<typeof apiClient.getSites>>[number];
+type SiteStatus = Awaited<ReturnType<typeof apiClient.getSitesWithStatus>>[number];
+type PricingRule = Awaited<ReturnType<typeof apiClient.getPricingRules>>[number];
+type AuditLog = Awaited<ReturnType<typeof apiClient.getAuditLogs>>[number];
+type ReservationWithClass = Awaited<ReturnType<typeof apiClient.getReservations>>[number] & {
+  siteClassId?: string | null;
+  site?: {
+    siteClassId?: string | null;
+    siteClass?: { id?: string | null; siteClassId?: string | null } | null;
+  } | null;
 };
 
 export default function SiteClassDetailPage() {
@@ -206,8 +202,10 @@ export default function SiteClassDetailPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const prefersReducedMotion = useReducedMotion();
-  const campgroundId = params.campgroundId as string;
-  const classId = params.classId as string;
+  const rawCampgroundId = params?.campgroundId;
+  const rawClassId = params?.classId;
+  const campgroundId = Array.isArray(rawCampgroundId) ? rawCampgroundId[0] : rawCampgroundId ?? "";
+  const classId = Array.isArray(rawClassId) ? rawClassId[0] : rawClassId ?? "";
 
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<EditFormState | null>(null);
@@ -216,19 +214,19 @@ export default function SiteClassDetailPage() {
   const todayIso = new Date().toISOString().slice(0, 10);
   const horizonIso = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
-  const classQuery = useQuery({
+  const classQuery = useQuery<SiteClass>({
     queryKey: ["site-class", classId],
     queryFn: () => apiClient.getSiteClass(classId),
     enabled: !!classId
   });
 
-  const sitesQuery = useQuery({
+  const sitesQuery = useQuery<Site[]>({
     queryKey: ["campground-sites", campgroundId],
     queryFn: () => apiClient.getSites(campgroundId),
     enabled: !!campgroundId
   });
 
-  const statusQuery = useQuery({
+  const statusQuery = useQuery<SiteStatus[]>({
     queryKey: ["site-class-status", classId, todayIso, horizonIso],
     queryFn: () =>
       apiClient.getSitesWithStatus(campgroundId, {
@@ -238,19 +236,19 @@ export default function SiteClassDetailPage() {
     enabled: !!campgroundId && !!classId
   });
 
-  const reservationsQuery = useQuery({
+  const reservationsQuery = useQuery<ReservationWithClass[]>({
     queryKey: ["campground-reservations", campgroundId],
     queryFn: () => apiClient.getReservations(campgroundId),
     enabled: !!campgroundId
   });
 
-  const pricingRulesQuery = useQuery({
+  const pricingRulesQuery = useQuery<PricingRule[]>({
     queryKey: ["pricing-rules", campgroundId],
     queryFn: () => apiClient.getPricingRules(campgroundId),
     enabled: !!campgroundId
   });
 
-  const auditLogsQuery = useQuery({
+  const auditLogsQuery = useQuery<AuditLog[]>({
     queryKey: ["audit-logs", campgroundId],
     queryFn: () => apiClient.getAuditLogs(campgroundId, { limit: 50 }),
     enabled: !!campgroundId
@@ -262,7 +260,7 @@ export default function SiteClassDetailPage() {
       const payload: Record<string, unknown> = {
         name: data.name,
         description: data.description,
-        siteType: data.siteType as "rv" | "tent" | "cabin" | "group" | "glamping",
+        siteType: data.siteType,
         defaultRate: data.defaultRate ? Math.round(data.defaultRate * 100) : undefined,
         maxOccupancy: data.maxOccupancy,
         rigMaxLength: data.rigMaxLength === "" ? null : data.rigMaxLength,
@@ -304,14 +302,14 @@ export default function SiteClassDetailPage() {
   });
 
   const classActivity = useMemo(() => {
-    const logs = auditLogsQuery.data || [];
-    return logs.filter((log: any) => log.entityId === classId).slice(0, 6);
+    const logs = auditLogsQuery.data ?? [];
+    return logs.filter((log) => log.entityId === classId).slice(0, 6);
   }, [auditLogsQuery.data, classId]);
 
   // Initialize edit form when entering edit mode
   const startEditing = () => {
     if (!classQuery.data) return;
-    const sc = classQuery.data as SiteClass;
+    const sc = classQuery.data;
     setEditForm({
       name: sc.name || "",
       description: sc.description || "",
@@ -399,7 +397,7 @@ export default function SiteClassDetailPage() {
     );
   }
 
-  const siteClass = classQuery.data as SiteClass;
+  const siteClass = classQuery.data;
 
   if (!siteClass) {
     return (
@@ -420,7 +418,7 @@ export default function SiteClassDetailPage() {
   const photoList = (siteClass.photos || []).filter(Boolean);
 
   const upcomingReservations = (reservationsQuery.data || [])
-    .filter((res: any) => {
+    .filter((res) => {
       const resClassId =
         res.siteClassId || res.site?.siteClassId || res.site?.siteClass?.id || res.site?.siteClass?.siteClassId;
       return resClassId === classId && new Date(res.departureDate) >= new Date();
@@ -429,7 +427,7 @@ export default function SiteClassDetailPage() {
     .slice(0, 6);
 
   const classPricingRules = (pricingRulesQuery.data || []).filter(
-    (rule: any) => !rule.siteClassId || rule.siteClassId === classId
+    (rule) => !rule.siteClassId || rule.siteClassId === classId
   );
 
   const typeConfig = siteTypeConfig[siteClass.siteType] || siteTypeConfig.rv;
@@ -546,7 +544,11 @@ export default function SiteClassDetailPage() {
                       <Label htmlFor="class-site-type">Site Type</Label>
                       <Select
                         value={editForm.siteType}
-                        onValueChange={(value) => setEditForm({ ...editForm, siteType: value })}
+                        onValueChange={(value) => {
+                          if (isSiteType(value)) {
+                            setEditForm({ ...editForm, siteType: value });
+                          }
+                        }}
                       >
                         <SelectTrigger id="class-site-type" className="bg-background">
                           <SelectValue />

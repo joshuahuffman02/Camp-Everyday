@@ -1,11 +1,14 @@
 import { Body, Controller, Delete, Get, Param, Post, Query, Req, UseGuards } from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/guards";
 import { RolesGuard, Roles } from "../auth/guards/roles.guard";
-import { UserRole } from "@prisma/client";
+import { PermissionEffect, UserRole } from "@prisma/client";
 import { PermissionsService } from "./permissions.service";
 import { ScopeGuard } from "./scope.guard";
 import { RequireScope } from "./scope.decorator";
 import type { Request } from "express";
+import type { AuthUser } from "../auth/auth.types";
+
+type AuthRequest = Request & { user: AuthUser };
 
 @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
 @Controller("permissions")
@@ -14,16 +17,16 @@ export class PermissionsController {
 
   @UseGuards(JwtAuthGuard)
   @Get("whoami")
-  async whoami(@Req() req: Request) {
-    const user = req.user ?? {};
+  async whoami(@Req() req: AuthRequest) {
+    const user = req.user;
     const memberships =
-      (user.memberships ?? []).map((m: any) => ({
-        campgroundId: m.campgroundId,
-        role: m.role,
-        campground: m.campground
-          ? { id: m.campground.id, name: m.campground.name, slug: m.campground.slug }
+      user.memberships.map((membership) => ({
+        campgroundId: membership.campgroundId,
+        role: membership.role,
+        campground: membership.campground
+          ? { id: membership.campground.id, name: membership.campground.name, slug: membership.campground.slug }
           : undefined
-      })) ?? [];
+      }));
 
     const [supportRead, supportAssign, supportAnalytics, operationsAccess] = await Promise.all([
       this.permissions.checkAccess({ user, campgroundId: null, resource: "support", action: "read" }),
@@ -76,7 +79,7 @@ export class PermissionsController {
       action: string;
       fields?: string[];
       regions?: string[];
-      effect?: any;
+      effect?: PermissionEffect;
       createdById?: string;
     }
   ) {
@@ -141,4 +144,3 @@ export class PermissionsController {
     return this.permissions.listApprovals(campgroundId ?? null);
   }
 }
-

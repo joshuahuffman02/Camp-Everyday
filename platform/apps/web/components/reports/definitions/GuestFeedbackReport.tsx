@@ -39,10 +39,12 @@ export function GuestFeedbackReport({ campgroundId, dateRange }: GuestFeedbackRe
         const avgRating = (totalRating / filtered.length).toFixed(1);
 
         // Rating distribution
-        const ratingCounts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+        const ratingCounts: Record<1 | 2 | 3 | 4 | 5, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+        const isRating = (value: number): value is 1 | 2 | 3 | 4 | 5 =>
+            value >= 1 && value <= 5;
         filtered.forEach(r => {
-            const rating = Math.round(r.rating) as 1 | 2 | 3 | 4 | 5;
-            if (rating >= 1 && rating <= 5) {
+            const rating = Math.round(r.rating);
+            if (isRating(rating)) {
                 ratingCounts[rating]++;
             }
         });

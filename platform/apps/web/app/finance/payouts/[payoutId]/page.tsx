@@ -20,7 +20,8 @@ const DRIFT_THRESHOLD_CENTS = 100;
 
 export default function PayoutDetailPage() {
   const params = useParams();
-  const payoutId = params?.payoutId as string;
+  const payoutParam = params?.payoutId;
+  const payoutId = typeof payoutParam === "string" ? payoutParam : "";
   const [campgroundId, setCampgroundId] = useState<string>("");
 
   useEffect(() => {
@@ -29,7 +30,7 @@ export default function PayoutDetailPage() {
     if (stored) setCampgroundId(stored);
   }, []);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useQuery<Awaited<ReturnType<typeof apiClient.getPayout>>>({
     queryKey: ["payout-detail", campgroundId, payoutId],
     queryFn: () => apiClient.getPayout(campgroundId, payoutId),
     enabled: !!campgroundId && !!payoutId,
@@ -131,14 +132,14 @@ export default function PayoutDetailPage() {
                     <TableCell colSpan={6} className="text-center text-muted-foreground">No lines.</TableCell>
                   </TableRow>
                 )}
-                {data?.lines?.map((l: any) => (
-                  <TableRow key={l.id}>
-                    <TableCell className="text-xs">{l.type}</TableCell>
-                    <TableCell className="text-xs">{formatMoney(l.amountCents, l.currency?.toUpperCase())}</TableCell>
-                    <TableCell className="text-xs font-mono">{l.reservationId ?? "—"}</TableCell>
-                    <TableCell className="text-xs">{l.description ?? "—"}</TableCell>
-                    <TableCell className="text-xs font-mono">{l.chargeId ?? "—"}</TableCell>
-                    <TableCell className="text-xs font-mono">{l.paymentIntentId ?? "—"}</TableCell>
+                {data?.lines?.map((line) => (
+                  <TableRow key={line.id}>
+                    <TableCell className="text-xs">{line.type}</TableCell>
+                    <TableCell className="text-xs">{formatMoney(line.amountCents, line.currency?.toUpperCase())}</TableCell>
+                    <TableCell className="text-xs font-mono">{line.reservationId ?? "—"}</TableCell>
+                    <TableCell className="text-xs">{line.description ?? "—"}</TableCell>
+                    <TableCell className="text-xs font-mono">{line.chargeId ?? "—"}</TableCell>
+                    <TableCell className="text-xs font-mono">{line.paymentIntentId ?? "—"}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

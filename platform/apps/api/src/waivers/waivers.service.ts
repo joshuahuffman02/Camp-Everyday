@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { randomUUID } from "crypto";
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -52,12 +53,14 @@ export class WaiversService {
 
     const verification = await this.prisma.idVerification.create({
       data: {
+        id: randomUUID(),
         guestId,
         reservationId: reservationId ?? null,
         campgroundId,
         status: chosenProvider === 'noop' ? 'pending' : 'pending',
         provider: chosenProvider,
         metadata: { startedAt: new Date().toISOString(), provider: chosenProvider },
+        updatedAt: new Date(),
       },
     });
 
@@ -90,4 +93,3 @@ export class WaiversService {
     return reservation?.campgroundId ?? null;
   }
 }
-

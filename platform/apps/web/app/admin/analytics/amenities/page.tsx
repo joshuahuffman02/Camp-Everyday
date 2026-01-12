@@ -87,6 +87,8 @@ export default function AmenitiesPage() {
     Pool: <Waves className="h-4 w-4" />,
     "Fire Pit": <Flame className="h-4 w-4" />,
   };
+  const toNumber = (value: unknown): number | undefined =>
+    typeof value === "number" ? value : undefined;
 
   return (
     <div className="space-y-6">
@@ -184,8 +186,11 @@ export default function AmenitiesPage() {
             xAxisKey="amenity"
             type="bar"
             height={250}
-            formatYAxis={(v) => `+${v}%`}
-            formatTooltip={(v) => `+${v.toFixed(1)}%`}
+            formatYAxis={(v) => `+${toNumber(v) ?? 0}%`}
+            formatTooltip={(v) => {
+              const numberValue = toNumber(v);
+              return numberValue !== undefined ? `+${numberValue.toFixed(1)}%` : "—";
+            }}
             loading={loading}
             showLegend={false}
           />
@@ -202,16 +207,50 @@ export default function AmenitiesPage() {
             label: "Amenity",
             format: (v) => (
               <div className="flex items-center gap-2">
-                {amenityIcons[v] || <div className="w-4 h-4" />}
-                <span>{v}</span>
+                {amenityIcons[typeof v === "string" ? v : ""] || <div className="w-4 h-4" />}
+                <span>{typeof v === "string" ? v : "Unknown"}</span>
               </div>
             ),
           },
-          { key: "siteCount", label: "Sites", align: "right", format: (v) => v.toLocaleString() },
-          { key: "reservations", label: "Reservations", align: "right", format: (v) => v.toLocaleString() },
-          { key: "revenue", label: "Revenue", align: "right", format: (v) => formatCurrency(v) },
-          { key: "averageRate", label: "Avg Rate", align: "right", format: (v) => formatCurrency(v) },
-          { key: "occupancyRate", label: "Occupancy", align: "right", format: (v) => `${v.toFixed(1)}%` },
+          {
+            key: "siteCount",
+            label: "Sites",
+            align: "right",
+            format: (v) => (toNumber(v) ?? 0).toLocaleString(),
+          },
+          {
+            key: "reservations",
+            label: "Reservations",
+            align: "right",
+            format: (v) => (toNumber(v) ?? 0).toLocaleString(),
+          },
+          {
+            key: "revenue",
+            label: "Revenue",
+            align: "right",
+            format: (v) => {
+              const numberValue = toNumber(v);
+              return numberValue !== undefined ? formatCurrency(numberValue) : "—";
+            },
+          },
+          {
+            key: "averageRate",
+            label: "Avg Rate",
+            align: "right",
+            format: (v) => {
+              const numberValue = toNumber(v);
+              return numberValue !== undefined ? formatCurrency(numberValue) : "—";
+            },
+          },
+          {
+            key: "occupancyRate",
+            label: "Occupancy",
+            align: "right",
+            format: (v) => {
+              const numberValue = toNumber(v);
+              return numberValue !== undefined ? `${numberValue.toFixed(1)}%` : "—";
+            },
+          },
         ]}
         data={data.topSiteAmenities}
         loading={loading}
@@ -223,9 +262,27 @@ export default function AmenitiesPage() {
         description="Facility-level amenities and their impact"
         columns={[
           { key: "amenity", label: "Amenity" },
-          { key: "campgroundCount", label: "Campgrounds", align: "right", format: (v) => v.toLocaleString() },
-          { key: "totalBookings", label: "Bookings", align: "right", format: (v) => v.toLocaleString() },
-          { key: "totalRevenue", label: "Revenue", align: "right", format: (v) => formatCurrency(v) },
+          {
+            key: "campgroundCount",
+            label: "Campgrounds",
+            align: "right",
+            format: (v) => (toNumber(v) ?? 0).toLocaleString(),
+          },
+          {
+            key: "totalBookings",
+            label: "Bookings",
+            align: "right",
+            format: (v) => (toNumber(v) ?? 0).toLocaleString(),
+          },
+          {
+            key: "totalRevenue",
+            label: "Revenue",
+            align: "right",
+            format: (v) => {
+              const numberValue = toNumber(v);
+              return numberValue !== undefined ? formatCurrency(numberValue) : "—";
+            },
+          },
         ]}
         data={data.campgroundAmenities}
         loading={loading}

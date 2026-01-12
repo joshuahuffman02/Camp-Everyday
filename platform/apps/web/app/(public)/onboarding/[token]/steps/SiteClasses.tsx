@@ -43,7 +43,7 @@ import {
 } from "@/components/ui/select";
 import { SITE_CLASS_AMENITIES } from "@/lib/amenities";
 
-interface SiteClassData {
+export interface SiteClassData {
   id?: string;
   name: string;
   siteType: SiteBaseType;
@@ -81,8 +81,8 @@ interface SiteClassesProps {
   isLoading?: boolean;
 }
 
-const SPRING_CONFIG = {
-  type: "spring" as const,
+const SPRING_CONFIG: { type: "spring"; stiffness: number; damping: number } = {
+  type: "spring",
   stiffness: 300,
   damping: 25,
 };
@@ -262,6 +262,42 @@ function SiteClassWizard({
     meteredBillingMode: null,
   });
 
+  const buildSiteClassData = (partial: Partial<SiteClassData>): SiteClassData | null => {
+    if (
+      !partial.siteType ||
+      !partial.name ||
+      !partial.rentalType ||
+      typeof partial.defaultRate !== "number" ||
+      typeof partial.maxOccupancy !== "number"
+    ) {
+      return null;
+    }
+
+    return {
+      id: partial.id,
+      name: partial.name,
+      siteType: partial.siteType,
+      rentalType: partial.rentalType,
+      rvOrientation: partial.rvOrientation,
+      electricAmps: partial.electricAmps ?? [],
+      equipmentTypes: partial.equipmentTypes ?? [],
+      slideOutsAccepted: partial.slideOutsAccepted ?? null,
+      hookupsWater: partial.hookupsWater ?? false,
+      hookupsSewer: partial.hookupsSewer ?? false,
+      defaultRate: partial.defaultRate,
+      maxOccupancy: partial.maxOccupancy,
+      petFriendly: partial.petFriendly ?? true,
+      occupantsIncluded: partial.occupantsIncluded ?? 2,
+      extraAdultFee: partial.extraAdultFee ?? null,
+      extraChildFee: partial.extraChildFee ?? null,
+      amenityTags: partial.amenityTags ?? [],
+      photos: partial.photos ?? [],
+      meteredEnabled: partial.meteredEnabled ?? false,
+      meteredType: partial.meteredType ?? null,
+      meteredBillingMode: partial.meteredBillingMode ?? null,
+    };
+  };
+
   const handleTypeSelect = (type: SiteBaseType) => {
     const defaults = getDefaultsForType(type);
     const newData = { ...data, siteType: type, ...defaults };
@@ -284,8 +320,9 @@ function SiteClassWizard({
   };
 
   const handleComplete = () => {
-    if (!data.siteType || !data.name || !data.rentalType) return;
-    onComplete(data as SiteClassData);
+    const completed = buildSiteClassData(data);
+    if (!completed) return;
+    onComplete(completed);
   };
 
   const canComplete = data.siteType && data.name && data.rentalType && data.maxOccupancy;

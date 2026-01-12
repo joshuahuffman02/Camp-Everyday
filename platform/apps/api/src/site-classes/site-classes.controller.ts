@@ -23,15 +23,15 @@ import { ScopeGuard } from "../permissions/scope.guard";
 export class SiteClassesController {
   constructor(private readonly siteClasses: SiteClassesService) { }
 
-  private requireCampgroundId(req: any, fallback?: string): string {
-    const campgroundId = fallback || req?.campgroundId || req?.headers?.["x-campground-id"];
+  private requireCampgroundId(req: AuthRequest, fallback?: string): string {
+    const campgroundId = fallback || req.campgroundId || getHeaderValue(req.headers, "x-campground-id");
     if (!campgroundId) {
       throw new BadRequestException("campgroundId is required");
     }
     return campgroundId;
   }
 
-  private assertCampgroundAccess(campgroundId: string, user: any): void {
+  private assertCampgroundAccess(campgroundId: string, user?: AuthUser): void {
     const isPlatformStaff = user?.platformRole === "platform_admin" ||
                             user?.platformRole === "platform_superadmin" ||
                             user?.platformRole === "support_agent";
@@ -39,14 +39,15 @@ export class SiteClassesController {
       return;
     }
 
-    const userCampgroundIds = user?.memberships?.map((m: any) => m.campgroundId) ?? [];
+    const userCampgroundIds = user?.memberships
+      ?.flatMap((membership) => (membership.campgroundId ? [membership.campgroundId] : [])) ?? [];
     if (!userCampgroundIds.includes(campgroundId)) {
       throw new BadRequestException("You do not have access to this campground");
     }
   }
 
   @Get("campgrounds/:campgroundId/site-classes")
-  list(@Param("campgroundId") campgroundId: string, @Req() req: Request) {
+  list(@Param("campgroundId") campgroundId: string, @Req() req: AuthRequest) {
     this.assertCampgroundAccess(campgroundId, req.user);
     return this.siteClasses.listByCampground(campgroundId);
   }
@@ -55,7 +56,7 @@ export class SiteClassesController {
   getById(
     @Param("id") id: string,
     @Query("campgroundId") campgroundId: string | undefined,
-    @Req() req: Request
+    @Req() req: AuthRequest
   ) {
     const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
     this.assertCampgroundAccess(requiredCampgroundId, req.user);
@@ -66,7 +67,7 @@ export class SiteClassesController {
   create(
     @Param("campgroundId") campgroundId: string,
     @Body() body: Omit<CreateSiteClassDto, "campgroundId">,
-    @Req() req: Request
+    @Req() req: AuthRequest
   ) {
     this.assertCampgroundAccess(campgroundId, req.user);
     return this.siteClasses.create({ campgroundId, ...body });
@@ -77,7 +78,7 @@ export class SiteClassesController {
     @Param("id") id: string,
     @Body() body: Partial<CreateSiteClassDto>,
     @Query("campgroundId") campgroundId: string | undefined,
-    @Req() req: Request
+    @Req() req: AuthRequest
   ) {
     const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
     this.assertCampgroundAccess(requiredCampgroundId, req.user);
@@ -88,10 +89,28 @@ export class SiteClassesController {
   remove(
     @Param("id") id: string,
     @Query("campgroundId") campgroundId: string | undefined,
-    @Req() req: Request
+    @Req() req: AuthRequest
   ) {
     const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
     this.assertCampgroundAccess(requiredCampgroundId, req.user);
     return this.siteClasses.remove(requiredCampgroundId, id);
   }
 }
+
+type Membership = { campgroundId?: string | null };
+
+type AuthUser = {
+  platformRole?: string | null;
+  memberships?: Membership[];
+};
+
+type AuthRequest = Request & {
+  campgroundId?: string;
+  user?: AuthUser;
+};
+
+const getHeaderValue = (headers: Request["headers"], key: string): string | undefined => {
+  const value = headers[key];
+  if (Array.isArray(value)) return value[0];
+  return typeof value === "string" ? value : undefined;
+};

@@ -287,6 +287,10 @@ export class PublicQuoteDto {
     stayReasonPreset?: StayReasonPreset;
 
     @IsOptional()
+    @IsString()
+    stayReasonOther?: string;
+
+    @IsOptional()
     @IsInt()
     @Min(1)
     adults?: number;

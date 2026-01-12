@@ -21,29 +21,46 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import type {
+  Map as MapLibreMapType,
+  Marker as MarkerType,
+  NavigationControl as NavigationControlType,
+  Popup as PopupType,
+  StyleSpecification,
+} from "maplibre-gl";
+
+type MapLibreModule = typeof import("maplibre-gl");
+
+type LoadedMapLibre = {
+  MapLibreMap: MapLibreModule["Map"];
+  NavigationControl: MapLibreModule["NavigationControl"];
+  Marker: MapLibreModule["Marker"];
+  Popup: MapLibreModule["Popup"];
+};
 
 // Dynamic import for maplibre-gl
-let maplibregl: any = null;
-let MapLibreMap: any = null;
-let NavigationControl: any = null;
-let Marker: any = null;
-let Popup: any = null;
+let MapLibreMap: MapLibreModule["Map"] | null = null;
+let NavigationControl: MapLibreModule["NavigationControl"] | null = null;
+let Marker: MapLibreModule["Marker"] | null = null;
+let Popup: MapLibreModule["Popup"] | null = null;
 
-const loadMapLibre = async () => {
-  if (!maplibregl) {
+const loadMapLibre = async (): Promise<LoadedMapLibre> => {
+  if (!MapLibreMap) {
     const mapLibreModule = await import("maplibre-gl");
     await import("maplibre-gl/dist/maplibre-gl.css");
-    maplibregl = mapLibreModule.default;
     MapLibreMap = mapLibreModule.Map;
     NavigationControl = mapLibreModule.NavigationControl;
     Marker = mapLibreModule.Marker;
     Popup = mapLibreModule.Popup;
   }
-  return { maplibregl, MapLibreMap, NavigationControl, Marker, Popup };
+  if (!MapLibreMap || !NavigationControl || !Marker || !Popup) {
+    throw new Error("Failed to load MapLibre modules");
+  }
+  return { MapLibreMap, NavigationControl, Marker, Popup };
 };
 
 // Free tile style - OpenFreeMap (no API key needed)
-const FREE_MAP_STYLE = {
+const FREE_MAP_STYLE: StyleSpecification = {
   version: 8,
   name: "OpenFreeMap Positron",
   sources: {
@@ -136,9 +153,9 @@ export function CampgroundSearchMap({
   className,
 }: CampgroundSearchMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<any>(null);
-  const markersRef = useRef<any[]>([]);
-  const popupRef = useRef<any>(null);
+  const mapRef = useRef<MapLibreMapType | null>(null);
+  const markersRef = useRef<MarkerType[]>([]);
+  const popupRef = useRef<PopupType | null>(null);
 
   const [isMapReady, setIsMapReady] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -185,16 +202,16 @@ export function CampgroundSearchMap({
       try {
         const map = new MapClass({
           container: containerRef.current,
-          style: FREE_MAP_STYLE as any,
+          style: FREE_MAP_STYLE,
           center: initialCenter,
           zoom: initialZoom,
-          attributionControl: true,
+          attributionControl: false,
         });
 
         map.addControl(new NavControl(), "top-right");
 
-        map.on("error", (e: any) => {
-          console.error("MapLibre error:", e);
+        map.on("error", (event) => {
+          console.error("MapLibre error:", event);
         });
 
         map.on("load", () => {
@@ -242,14 +259,17 @@ export function CampgroundSearchMap({
 
   // Update markers when campgrounds change
   useEffect(() => {
-    if (!mapRef.current || !isMapReady) return;
+    const mapInstance = mapRef.current;
+    if (!mapInstance || !isMapReady || !Marker || !Popup) return;
+    const MarkerClass = Marker;
+    const PopupClass = Popup;
 
     // Clear existing markers
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
 
     // Create clusters manually (simple grid-based clustering)
-    const zoom = mapRef.current.getZoom();
+    const zoom = mapInstance.getZoom();
     const shouldCluster = zoom < 10;
 
     if (shouldCluster) {
@@ -288,15 +308,15 @@ export function CampgroundSearchMap({
         el.textContent = count > 99 ? "99+" : String(count);
 
         el.addEventListener("click", () => {
-          mapRef.current?.flyTo({
+          mapInstance.flyTo({
             center: [avgLng, avgLat],
-            zoom: mapRef.current.getZoom() + 2,
+            zoom: mapInstance.getZoom() + 2,
           });
         });
 
-        const marker = new Marker({ element: el })
+        const marker = new MarkerClass({ element: el })
           .setLngLat([avgLng, avgLat])
-          .addTo(mapRef.current);
+          .addTo(mapInstance);
 
         markersRef.current.push(marker);
       });
@@ -339,15 +359,15 @@ export function CampgroundSearchMap({
             </div>
           `;
 
-          popupRef.current = new maplibregl.Popup({ offset: 25, closeButton: true })
+          popupRef.current = new PopupClass({ offset: 25, closeButton: true })
             .setLngLat([campground.longitude, campground.latitude])
             .setHTML(popupContent)
-            .addTo(mapRef.current);
+            .addTo(mapInstance);
         });
 
-        const marker = new Marker({ element: el })
+        const marker = new MarkerClass({ element: el })
           .setLngLat([campground.longitude, campground.latitude])
-          .addTo(mapRef.current);
+          .addTo(mapInstance);
 
         markersRef.current.push(marker);
       });
@@ -380,10 +400,15 @@ export function CampgroundSearchMap({
 
         if (mapRef.current) {
           // Add user marker
+          if (!Marker) {
+            setIsLocating(false);
+            return;
+          }
+          const MarkerClass = Marker;
           const el = document.createElement("div");
           el.className = "w-4 h-4 bg-blue-500 rounded-full border-2 border-white shadow-lg animate-pulse";
 
-          new Marker({ element: el })
+          new MarkerClass({ element: el })
             .setLngLat([longitude, latitude])
             .addTo(mapRef.current);
 

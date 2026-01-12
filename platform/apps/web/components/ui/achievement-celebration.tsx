@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion, type Transition } from "framer-motion";
 import {
   CheckCircle2,
   Shield,
@@ -197,10 +197,10 @@ const achievementConfigs: Record<AchievementType, AchievementConfig> = {
 };
 
 const SPRING_CONFIG = {
-  type: "spring" as const,
+  type: "spring",
   stiffness: 200,
   damping: 15,
-};
+} satisfies Transition;
 
 interface AchievementCelebrationProps {
   show: boolean;
@@ -465,65 +465,72 @@ export interface Achievement {
 }
 
 // Pre-defined achievements for easy use
+type AchievementDefinition = {
+  type: AchievementType;
+  title: string;
+  subtitle?: string;
+  badge?: string;
+};
+
 export const ACHIEVEMENTS = {
   FIRST_BOOKING: {
-    type: "first_booking" as const,
+    type: "first_booking",
     title: "First Booking!",
     subtitle: "Your campground journey has begun",
     badge: "Milestone",
   },
   FIRST_PAYMENT: {
-    type: "first_payment" as const,
+    type: "first_payment",
     title: "First Payment Received!",
     subtitle: "Ka-ching! Your first revenue is in",
     badge: "Revenue",
   },
   TEN_BOOKINGS: {
-    type: "milestone_10" as const,
+    type: "milestone_10",
     title: "10 Bookings!",
     subtitle: "You're building momentum",
     badge: "Milestone",
   },
   FIFTY_BOOKINGS: {
-    type: "milestone_50" as const,
+    type: "milestone_50",
     title: "50 Bookings!",
     subtitle: "Half a century of happy campers",
     badge: "Major Milestone",
   },
   HUNDRED_BOOKINGS: {
-    type: "milestone_100" as const,
+    type: "milestone_100",
     title: "100 Bookings!",
     subtitle: "Welcome to the century club",
     badge: "Elite",
   },
   FIVE_HUNDRED_BOOKINGS: {
-    type: "milestone_500" as const,
+    type: "milestone_500",
     title: "500 Bookings!",
     subtitle: "You're a camping legend",
     badge: "Legend",
   },
   FIVE_STAR_REVIEW: {
-    type: "five_star" as const,
+    type: "five_star",
     title: "5-Star Review!",
     subtitle: "A guest loved their stay",
     badge: "Excellence",
   },
   FULL_OCCUPANCY: {
-    type: "full_occupancy" as const,
+    type: "full_occupancy",
     title: "Full House!",
     subtitle: "Every site is booked",
     badge: "Achievement",
   },
   STRIPE_CONNECTED: {
-    type: "stripe_connected" as const,
+    type: "stripe_connected",
     title: "Payments Ready!",
     subtitle: "Stripe is connected and ready to go",
     badge: "Setup",
   },
   LAUNCH_READY: {
-    type: "launch" as const,
+    type: "launch",
     title: "Ready for Launch!",
     subtitle: "Your campground is live and accepting bookings",
     badge: "Launch",
   },
-};
+} satisfies Record<string, AchievementDefinition>;

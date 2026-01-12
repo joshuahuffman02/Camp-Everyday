@@ -19,6 +19,8 @@ interface OverviewReportProps {
     dateRange?: { start: string; end: string };
 }
 
+type Reservation = Awaited<ReturnType<typeof apiClient.getReservations>>[number];
+
 const formatCurrencyLocal = (value: number, decimals: number = 0) => {
     return new Intl.NumberFormat('en-US', {
         style: 'currency',
@@ -74,7 +76,7 @@ export function OverviewReport({ campgroundId, dateRange }: OverviewReportProps)
         const rangeNights = Math.max(1, differenceInCalendarDays(endExclusive, start));
         const rangeLabel = formatRangeLabel(dateRange);
 
-        const reservationsInRange = reservationsQuery.data.filter((r: any) => {
+        const reservationsInRange = reservationsQuery.data.filter((r: Reservation) => {
             if (r.status === "cancelled") return false;
             const arrival = startOfDay(new Date(r.arrivalDate));
             return arrival >= start && arrival <= end;
@@ -83,7 +85,7 @@ export function OverviewReport({ campgroundId, dateRange }: OverviewReportProps)
         let occupiedNights = 0;
         let revenue = 0;
 
-        reservationsQuery.data.forEach((r: any) => {
+        reservationsQuery.data.forEach((r: Reservation) => {
             if (r.status === "cancelled") return;
             const arrival = startOfDay(new Date(r.arrivalDate));
             const departure = startOfDay(new Date(r.departureDate));
@@ -146,20 +148,20 @@ export function OverviewReport({ campgroundId, dateRange }: OverviewReportProps)
         const prevStart = subYears(rangeStart, 1);
         const prevEnd = subYears(rangeEnd, 1);
 
-        const thisPeriod = reservationsQuery.data.filter((r: any) => {
+        const thisPeriod = reservationsQuery.data.filter((r: Reservation) => {
             if (r.status === "cancelled") return false;
             const arrival = new Date(r.arrivalDate);
             return arrival >= rangeStart && arrival <= rangeEnd;
         });
 
-        const lastPeriod = reservationsQuery.data.filter((r: any) => {
+        const lastPeriod = reservationsQuery.data.filter((r: Reservation) => {
             if (r.status === "cancelled") return false;
             const arrival = new Date(r.arrivalDate);
             return arrival >= prevStart && arrival <= prevEnd;
         });
 
-        const thisRevenue = thisPeriod.reduce((sum: number, r: any) => sum + (r.totalAmount || 0), 0) / 100;
-        const lastRevenue = lastPeriod.reduce((sum: number, r: any) => sum + (r.totalAmount || 0), 0) / 100;
+        const thisRevenue = thisPeriod.reduce((sum: number, r: Reservation) => sum + (r.totalAmount || 0), 0) / 100;
+        const lastRevenue = lastPeriod.reduce((sum: number, r: Reservation) => sum + (r.totalAmount || 0), 0) / 100;
 
         const revenueChange = lastRevenue > 0 ? (((thisRevenue - lastRevenue) / lastRevenue) * 100).toFixed(1) : "0";
 
@@ -193,7 +195,7 @@ export function OverviewReport({ campgroundId, dateRange }: OverviewReportProps)
             return 'Winter';
         };
 
-        reservations.forEach((r: any) => {
+        reservations.forEach((r: Reservation) => {
             if (r.status === 'cancelled') return;
             const arrival = new Date(r.arrivalDate);
             const departure = new Date(r.departureDate);
@@ -225,7 +227,7 @@ export function OverviewReport({ campgroundId, dateRange }: OverviewReportProps)
             const totals = new Map<string, number>();
             months.forEach((month) => totals.set(format(month, labelFormat), 0));
 
-            rangeContext.reservationsInRange.forEach((r: any) => {
+            rangeContext.reservationsInRange.forEach((r: Reservation) => {
                 if (r.status === "cancelled") return;
                 const arrival = new Date(r.arrivalDate);
                 if (arrival < rangeContext.start || arrival > rangeContext.end) return;
@@ -249,7 +251,7 @@ export function OverviewReport({ campgroundId, dateRange }: OverviewReportProps)
             months[key] = 0;
         }
 
-        reservationsQuery.data.forEach((r: any) => {
+        reservationsQuery.data.forEach((r: Reservation) => {
             if (r.status === 'cancelled') return;
             const arrival = new Date(r.arrivalDate);
             const key = arrival.toLocaleDateString('en-US', { month: 'short' });
@@ -267,7 +269,7 @@ export function OverviewReport({ campgroundId, dateRange }: OverviewReportProps)
         if (!reservations) return [];
 
         const statusCounts: Record<string, number> = {};
-        reservations.forEach((r: any) => {
+        reservations.forEach((r: Reservation) => {
             const status = r.status || 'unknown';
             statusCounts[status] = (statusCounts[status] || 0) + 1;
         });

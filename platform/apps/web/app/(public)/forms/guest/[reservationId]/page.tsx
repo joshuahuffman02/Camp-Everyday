@@ -30,9 +30,69 @@ interface FormTemplate {
   allowSkipWithNote?: boolean;
 }
 
+interface ReservationSummary {
+  campgroundId: string;
+  arrivalDate: string;
+  campground?: {
+    name?: string | null;
+  };
+  site?: {
+    siteNumber?: string | null;
+  };
+}
+
+interface FormSubmission {
+  formTemplateId: string;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const parseReservation = (value: unknown): ReservationSummary | null => {
+  if (
+    !isRecord(value) ||
+    typeof value.campgroundId !== "string" ||
+    typeof value.arrivalDate !== "string"
+  ) {
+    return null;
+  }
+  const campground = isRecord(value.campground)
+    ? {
+        name: typeof value.campground.name === "string" ? value.campground.name : undefined,
+      }
+    : undefined;
+  const site = isRecord(value.site)
+    ? {
+        siteNumber:
+          typeof value.site.siteNumber === "string" ? value.site.siteNumber : undefined,
+      }
+    : undefined;
+  return { campgroundId: value.campgroundId, arrivalDate: value.arrivalDate, campground, site };
+};
+
+const parseFormTemplates = (value: unknown): FormTemplate[] => {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is FormTemplate => {
+    if (!isRecord(item)) return false;
+    return (
+      typeof item.id === "string" &&
+      typeof item.title === "string" &&
+      typeof item.type === "string"
+    );
+  });
+};
+
+const parseFormSubmissions = (value: unknown): FormSubmission[] => {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!isRecord(item) || typeof item.formTemplateId !== "string") return [];
+    return [{ formTemplateId: item.formTemplateId }];
+  });
+};
+
 export default function GuestFormsPage() {
-  const params = useParams();
-  const reservationId = params.reservationId as string;
+  const { reservationId: reservationIdParam } = useParams<{ reservationId?: string }>();
+  const reservationId = reservationIdParam ?? "";
   const searchParams = useSearchParams();
   const token = searchParams.get("token") || "";
 
@@ -48,7 +108,8 @@ export default function GuestFormsPage() {
     queryFn: async () => {
       const res = await fetch(`/api/public/reservations/${reservationId}?token=${encodeURIComponent(token)}`);
       if (!res.ok) throw new Error("Reservation not found");
-      return res.json();
+      const data = await res.json();
+      return parseReservation(data);
     },
     enabled: !!reservationId && !!token
   });
@@ -57,9 +118,11 @@ export default function GuestFormsPage() {
   const { data: forms = [], isLoading: loadingForms } = useQuery({
     queryKey: ["guest-forms", reservation?.campgroundId],
     queryFn: async () => {
+      if (!reservation?.campgroundId) return [];
       const res = await fetch(`/api/public/campgrounds/${reservation.campgroundId}/forms?showAt=after_booking`);
       if (!res.ok) return [];
-      return res.json();
+      const data = await res.json();
+      return parseFormTemplates(data);
     },
     enabled: !!reservation?.campgroundId
   });
@@ -70,7 +133,8 @@ export default function GuestFormsPage() {
     queryFn: async () => {
       const res = await fetch(`/api/public/reservations/${reservationId}/form-submissions?token=${encodeURIComponent(token)}`);
       if (!res.ok) return [];
-      return res.json();
+      const data = await res.json();
+      return parseFormSubmissions(data);
     },
     enabled: !!reservationId && !!token
   });
@@ -78,7 +142,7 @@ export default function GuestFormsPage() {
   // Mark already-submitted forms as complete
   useEffect(() => {
     if (submissions.length > 0) {
-      const submittedIds = new Set<string>(submissions.map((s: any) => s.formTemplateId));
+      const submittedIds = new Set<string>(submissions.map((s) => s.formTemplateId));
       setCompletedForms(submittedIds);
     }
   }, [submissions]);
@@ -121,7 +185,7 @@ export default function GuestFormsPage() {
     );
   }
 
-  const handleInputChange = (formId: string, questionId: string, value: any) => {
+  const handleInputChange = (formId: string, questionId: string, value: string | boolean) => {
     setFormResponses(prev => ({
       ...prev,
       [formId]: {
@@ -158,8 +222,8 @@ export default function GuestFormsPage() {
   };
 
   // Calculate completion
-  const requiredForms = forms.filter((f: FormTemplate) => f.isRequired !== false);
-  const allRequiredComplete = requiredForms.every((f: FormTemplate) =>
+  const requiredForms = forms.filter((f) => f.isRequired !== false);
+  const allRequiredComplete = requiredForms.every((f) =>
     completedForms.has(f.id)
   );
 
@@ -318,7 +382,9 @@ export default function GuestFormsPage() {
                               <div className="flex items-center gap-2">
                                 <Checkbox
                                   checked={Boolean(formResponses[form.id]?.[q.id])}
-                                  onCheckedChange={(checked) => handleInputChange(form.id, q.id, checked)}
+                                  onCheckedChange={(checked) =>
+                                    handleInputChange(form.id, q.id, checked === true)
+                                  }
                                 />
                                 <span className="text-sm text-slate-600">I agree</span>
                               </div>

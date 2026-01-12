@@ -1,6 +1,15 @@
 import { Injectable, InternalServerErrorException, Logger } from "@nestjs/common";
 import * as crypto from "crypto";
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
+const getErrorStack = (error: unknown): string | undefined =>
+  error instanceof Error ? error.stack : undefined;
+
 /**
  * Credential Encryption Service
  *
@@ -45,7 +54,7 @@ export class CredentialEncryptionService {
       const combined = Buffer.concat([iv, authTag, encrypted]);
       return combined.toString("base64");
     } catch (error) {
-      this.logger.error("Encryption failed", (error as Error).stack);
+      this.logger.error("Encryption failed", getErrorStack(error) ?? getErrorMessage(error));
       throw new InternalServerErrorException("Failed to encrypt credentials");
     }
   }
@@ -73,7 +82,7 @@ export class CredentialEncryptionService {
 
       return JSON.parse(decrypted.toString("utf8"));
     } catch (error) {
-      this.logger.error("Decryption failed", (error as Error).stack);
+      this.logger.error("Decryption failed", getErrorStack(error) ?? getErrorMessage(error));
       throw new InternalServerErrorException("Failed to decrypt credentials");
     }
   }
@@ -120,13 +129,22 @@ export class CredentialEncryptionService {
   } | null {
     try {
       const data = JSON.parse(Buffer.from(state, "base64url").toString("utf8"));
-      if (Date.now() - data.timestamp > maxAgeMs) {
+      if (!isRecord(data)) {
+        return null;
+      }
+      const timestamp = typeof data.timestamp === "number" ? data.timestamp : null;
+      const campgroundId = typeof data.campgroundId === "string" ? data.campgroundId : null;
+      const provider = typeof data.provider === "string" ? data.provider : null;
+      if (!timestamp || !campgroundId || !provider) {
+        return null;
+      }
+      if (Date.now() - timestamp > maxAgeMs) {
         this.logger.warn("OAuth state expired");
         return null;
       }
-      return { campgroundId: data.campgroundId, provider: data.provider };
+      return { campgroundId, provider };
     } catch (error) {
-      this.logger.error("Failed to parse OAuth state", (error as Error).message);
+      this.logger.error("Failed to parse OAuth state", getErrorMessage(error));
       return null;
     }
   }

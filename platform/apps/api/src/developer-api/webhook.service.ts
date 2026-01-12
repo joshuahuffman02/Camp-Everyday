@@ -2,6 +2,8 @@ import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { WebhookSecurityService } from "../webhooks/webhook-security.service";
 import { WebhookEvent } from "../webhooks/event-catalog";
+import { Prisma } from "@prisma/client";
+import { randomUUID } from "crypto";
 
 // Re-export for backward compatibility
 export { WebhookEvent } from "../webhooks/event-catalog";
@@ -19,6 +21,15 @@ const RETRY_DELAYS_MS = [
 ];
 const MAX_RETRIES = 3;
 const DELIVERY_TIMEOUT_MS = 30_000;
+
+const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined => {
+  if (value === undefined || value === null) return undefined;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
+};
 
 /**
  * WebhookService - Legacy API with Webhook 2.0 features
@@ -72,12 +83,14 @@ export class WebhookService {
 
     const endpoint = await this.prisma.webhookEndpoint.create({
       data: {
+        id: randomUUID(),
         campgroundId: input.campgroundId,
         apiClientId: input.apiClientId || null,
         url: input.url,
         description: input.description,
         eventTypes: input.eventTypes,
         secret,
+        updatedAt: new Date()
       },
     });
 
@@ -155,6 +168,7 @@ export class WebhookService {
       data: payload,
       timestamp: new Date().toISOString(),
     });
+    const payloadJson = toJsonValue(payload) ?? Prisma.JsonNull;
 
     for (const ep of endpoints) {
       const timestamp = Date.now();
@@ -166,10 +180,11 @@ export class WebhookService {
 
       const delivery = await this.prisma.webhookDelivery.create({
         data: {
+          id: randomUUID(),
           webhookEndpointId: ep.id,
           eventType,
           status: "pending",
-          payload,
+          payload: payloadJson,
           signature, // Store legacy signature
           attempt: 1,
           nextRetryAt: null,
@@ -330,7 +345,7 @@ export class WebhookService {
         status: "retrying",
         nextRetryAt: { lte: new Date() },
       },
-      include: { webhookEndpoint: true },
+      include: { WebhookEndpoint: true },
       take: 100,
     });
 
@@ -338,7 +353,7 @@ export class WebhookService {
     let failed = 0;
 
     for (const delivery of pendingRetries) {
-      if (!delivery.webhookEndpoint || !delivery.webhookEndpoint.isActive) {
+      if (!delivery.WebhookEndpoint || !delivery.WebhookEndpoint.isActive) {
         await this.prisma.webhookDelivery.update({
           where: { id: delivery.id },
           data: {
@@ -359,8 +374,8 @@ export class WebhookService {
       try {
         await this.attemptDelivery(
           delivery.id,
-          delivery.webhookEndpoint.url,
-          delivery.webhookEndpoint.secret,
+          delivery.WebhookEndpoint.url,
+          delivery.WebhookEndpoint.secret,
           body
         );
 
@@ -387,19 +402,19 @@ export class WebhookService {
   async getStats(campgroundId: string) {
     const [total, delivered, failed, retrying, deadLetter] = await Promise.all([
       this.prisma.webhookDelivery.count({
-        where: { webhookEndpoint: { campgroundId } },
+        where: { WebhookEndpoint: { campgroundId } },
       }),
       this.prisma.webhookDelivery.count({
-        where: { webhookEndpoint: { campgroundId }, status: "delivered" },
+        where: { WebhookEndpoint: { campgroundId }, status: "delivered" },
       }),
       this.prisma.webhookDelivery.count({
-        where: { webhookEndpoint: { campgroundId }, status: "failed" },
+        where: { WebhookEndpoint: { campgroundId }, status: "failed" },
       }),
       this.prisma.webhookDelivery.count({
-        where: { webhookEndpoint: { campgroundId }, status: "retrying" },
+        where: { WebhookEndpoint: { campgroundId }, status: "retrying" },
       }),
       this.prisma.webhookDelivery.count({
-        where: { webhookEndpoint: { campgroundId }, status: "dead_letter" },
+        where: { WebhookEndpoint: { campgroundId }, status: "dead_letter" },
       }),
     ]);
 
@@ -413,10 +428,10 @@ export class WebhookService {
    */
   listDeliveries(campgroundId: string, limit = 50) {
     return this.prisma.webhookDelivery.findMany({
-      where: { webhookEndpoint: { campgroundId } },
+      where: { WebhookEndpoint: { campgroundId } },
       orderBy: { createdAt: "desc" },
       take: limit,
-      include: { webhookEndpoint: true },
+      include: { WebhookEndpoint: true },
     });
   }
 
@@ -427,11 +442,11 @@ export class WebhookService {
     return this.prisma.webhookDelivery.findMany({
       where: {
         status: "dead_letter",
-        webhookEndpoint: { campgroundId },
+        WebhookEndpoint: { campgroundId },
       },
       orderBy: { createdAt: "desc" },
       take: limit,
-      include: { webhookEndpoint: true },
+      include: { WebhookEndpoint: true },
     });
   }
 
@@ -440,11 +455,11 @@ export class WebhookService {
    */
   async replay(deliveryId: string, campgroundId: string) {
     const delivery = await this.prisma.webhookDelivery.findFirst({
-      where: { id: deliveryId, webhookEndpoint: { campgroundId } },
-      include: { webhookEndpoint: true },
+      where: { id: deliveryId, WebhookEndpoint: { campgroundId } },
+      include: { WebhookEndpoint: true },
     });
 
-    if (!delivery || !delivery.webhookEndpoint) {
+    if (!delivery || !delivery.WebhookEndpoint) {
       throw new NotFoundException("Delivery not found");
     }
 
@@ -456,16 +471,18 @@ export class WebhookService {
 
     const timestamp = Date.now();
     const signature = this.computeSignature(
-      delivery.webhookEndpoint.secret,
+      delivery.WebhookEndpoint.secret,
       body,
       timestamp
     );
+    const replayPayload = toJsonValue(delivery.payload) ?? Prisma.JsonNull;
 
     const replayLog = await this.prisma.webhookDelivery.create({
       data: {
+        id: randomUUID(),
         webhookEndpointId: delivery.webhookEndpointId,
         eventType: delivery.eventType,
-        payload: delivery.payload as object,
+        payload: replayPayload,
         signature,
         status: "pending",
         attempt: 1, // Reset attempt for replay
@@ -476,14 +493,14 @@ export class WebhookService {
     try {
       const { signature: v2Sig, timestamp: v2Ts } =
         this.securityService.generateSignature(
-          delivery.webhookEndpoint.secret,
+          delivery.WebhookEndpoint.secret,
           body
         );
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), DELIVERY_TIMEOUT_MS);
 
-      const res = await fetch(delivery.webhookEndpoint.url, {
+      const res = await fetch(delivery.WebhookEndpoint.url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -530,7 +547,7 @@ export class WebhookService {
    */
   async retryDeadLetter(deliveryId: string, campgroundId: string) {
     const delivery = await this.prisma.webhookDelivery.findFirst({
-      where: { id: deliveryId, webhookEndpoint: { campgroundId } },
+      where: { id: deliveryId, WebhookEndpoint: { campgroundId } },
     });
 
     if (!delivery) {

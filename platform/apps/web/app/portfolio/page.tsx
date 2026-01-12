@@ -12,6 +12,15 @@ import { Separator } from "@/components/ui/separator";
 import { apiClient } from "@/lib/api-client";
 import { useToast } from "@/components/ui/use-toast";
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object";
+
+const getString = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error ? error.message : fallback;
+
 function formatCurrency(value: number, currency: string, locale: string) {
   return new Intl.NumberFormat(locale, { style: "currency", currency, maximumFractionDigits: 0 }).format(value);
 }
@@ -57,18 +66,21 @@ export default function PortfolioPage() {
 
   const selectMutation = useMutation({
     mutationFn: apiClient.selectPortfolio,
-    onSuccess: (data: any) => {
+    onSuccess: (data: unknown) => {
       qc.invalidateQueries({ queryKey: ["portfolio-report"] });
       if (typeof window !== "undefined") {
-        if (data?.activePortfolioId) localStorage.setItem("campreserv:selectedPortfolio", data.activePortfolioId);
-        if (data?.activeParkId) {
-          localStorage.setItem("campreserv:selectedPark", data.activeParkId);
-          localStorage.setItem("campreserv:selectedCampground", data.activeParkId);
+        const record = isRecord(data) ? data : null;
+        const activePortfolioId = getString(record ? record["activePortfolioId"] : undefined);
+        const activeParkId = getString(record ? record["activeParkId"] : undefined);
+        if (activePortfolioId) localStorage.setItem("campreserv:selectedPortfolio", activePortfolioId);
+        if (activeParkId) {
+          localStorage.setItem("campreserv:selectedPark", activeParkId);
+          localStorage.setItem("campreserv:selectedCampground", activeParkId);
         }
       }
       toast({ title: "Portfolio context updated" });
     },
-    onError: (err: any) => toast({ title: "Unable to select portfolio", description: err?.message ?? "Try again", variant: "destructive" }),
+    onError: (err: unknown) => toast({ title: "Unable to select portfolio", description: getErrorMessage(err, "Try again"), variant: "destructive" }),
   });
 
   const activePortfolio = useMemo(() => {
@@ -313,4 +325,3 @@ export default function PortfolioPage() {
     </DashboardShell>
   );
 }
-

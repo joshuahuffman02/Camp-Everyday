@@ -429,7 +429,7 @@ export class StripeService {
         }
 
         if (couponId) {
-            params.coupon = couponId;
+            params.discounts = [{ coupon: couponId }];
         }
 
         return stripe.subscriptions.create(params);
@@ -466,7 +466,7 @@ export class StripeService {
         }
 
         if (couponId) {
-            params.coupon = couponId;
+            params.discounts = [{ coupon: couponId }];
         }
 
         return stripe.subscriptions.create(params);
@@ -1055,11 +1055,15 @@ export class StripeService {
         readerId: string
     ): Promise<Stripe.Terminal.Reader> {
         const stripe = this.assertConfigured("get terminal readers");
-        return stripe.terminal.readers.retrieve(
+        const reader = await stripe.terminal.readers.retrieve(
             readerId,
             {},
             { stripeAccount: stripeAccountId }
         );
+        if ("deleted" in reader && reader.deleted) {
+            throw new NotFoundException("Reader not found");
+        }
+        return reader;
     }
 
     /**
@@ -1086,11 +1090,15 @@ export class StripeService {
         label: string
     ): Promise<Stripe.Terminal.Reader> {
         const stripe = this.assertConfigured("update terminal readers");
-        return stripe.terminal.readers.update(
+        const reader = await stripe.terminal.readers.update(
             readerId,
             { label },
             { stripeAccount: stripeAccountId }
         );
+        if ("deleted" in reader && reader.deleted) {
+            throw new NotFoundException("Reader not found");
+        }
+        return reader;
     }
 
     /**

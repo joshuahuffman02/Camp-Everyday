@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { IntegrationExportJob, Prisma, ReferralProgram, ReservationStatus } from "@prisma/client";
 import { PrismaService } from '../prisma/prisma.service';
 import { ObservabilityService } from "../observability/observability.service";
 import { AlertingService } from "../observability/alerting.service";
@@ -11,6 +12,64 @@ import { EmailService } from "../email/email.service";
 import { ReportDimensionSpec, ReportQueryInput, ReportRunResult, ReportSpec } from "./report.types";
 import { getReportCatalog, getReportSpec, resolveDimension, resolveFilters, resolveMetric } from "./report.registry";
 import * as XLSX from "xlsx";
+import { randomUUID } from "crypto";
+
+type ExportSummary = {
+  revenue?: number;
+  adr?: number;
+  revpar?: number;
+  occupancy?: number;
+  liability?: number;
+  attachRate?: number;
+  [key: string]: unknown;
+};
+
+type LooseWhere<T> = T & Record<string, unknown>;
+
+type ReportWhereMap = {
+  reservation: Prisma.ReservationWhereInput;
+  payment: Prisma.PaymentWhereInput;
+  ledger: Prisma.LedgerEntryWhereInput;
+  payout: Prisma.PayoutWhereInput;
+  support: Prisma.SupportReportWhereInput;
+  task: Prisma.TaskWhereInput;
+  marketing: Prisma.AnalyticsEventWhereInput;
+  pos: Prisma.PosCartWhereInput;
+  till: Prisma.TillSessionWhereInput;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const isString = (value: unknown): value is string => typeof value === "string";
+
+const isBoolean = (value: unknown): value is boolean => typeof value === "boolean";
+
+const getStringArray = (value: unknown): string[] | undefined =>
+  Array.isArray(value) && value.every((entry) => typeof entry === "string") ? value : undefined;
+
+const toRecord = (value: unknown): Record<string, unknown> => (isRecord(value) ? value : {});
+
+const toDateValue = (value: unknown): Date | undefined => {
+  if (value instanceof Date) return value;
+  if (isString(value)) {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? undefined : date;
+  }
+  return undefined;
+};
+
+const toNullableJsonInput = (
+  value: unknown
+): Prisma.InputJsonValue | Prisma.NullTypes.DbNull | undefined => {
+  if (value === undefined) return undefined;
+  if (value === null) return Prisma.DbNull;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
+};
 
 @Injectable()
 export class ReportsService {
@@ -37,10 +96,11 @@ export class ReportsService {
       return Buffer.from(JSON.stringify(payload)).toString("base64url");
     }
 
-    private decodeToken<T>(token?: string): T | null {
+    private decodeToken(token?: string): Record<string, unknown> | null {
       if (!token) return null;
       try {
-        return JSON.parse(Buffer.from(token, "base64url").toString()) as T;
+        const parsed = JSON.parse(Buffer.from(token, "base64url").toString());
+        return isRecord(parsed) ? parsed : null;
       } catch (err) {
         return null;
       }
@@ -79,8 +139,8 @@ export class ReportsService {
         return { start: this.daysAgo(days), end: now, days, label: `last_${days}_days` };
       }
       if (filters?.startDate || filters?.endDate) {
-        const start = filters?.startDate ? new Date(filters.startDate) : undefined;
-        const end = filters?.endDate ? new Date(filters.endDate) : now;
+        const start = toDateValue(filters?.startDate);
+        const end = toDateValue(filters?.endDate) ?? now;
         const computedDays = start && end ? Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000)) : undefined;
         return { start, end, days: computedDays, label: "custom" };
       }
@@ -88,7 +148,7 @@ export class ReportsService {
       return { start: this.daysAgo(30), end: now, days: 30, label: "last_30_days" };
     }
 
-    private reservationDateWhere(range?: { start?: Date; end?: Date }) {
+    private reservationDateWhere(range?: { start?: Date; end?: Date }): Prisma.ReservationWhereInput {
       if (!range?.start && !range?.end) return {};
       const startDate = range.start;
       const endDate = range.end ?? new Date();
@@ -102,10 +162,10 @@ export class ReportsService {
     }
 
     private async computeAttachRate(campgroundId: string, range?: { start?: Date; end?: Date }) {
-      const where = {
+      const where: Prisma.ReservationWhereInput = {
         campgroundId,
-        status: { notIn: ["cancelled"] as any },
-        ...(this.reservationDateWhere(range) as any)
+        status: { notIn: [ReservationStatus.cancelled] },
+        ...this.reservationDateWhere(range)
       };
       const reservations = await this.prisma.reservation.findMany({
         where,
@@ -113,10 +173,11 @@ export class ReportsService {
       });
       if (!reservations.length) return 0;
       const reservationIds = reservations.map((r) => r.id);
-      const withUpsell = await this.prisma.reservationUpsell.count({
+      const upsells = await this.prisma.reservationUpsell.findMany({
         where: { reservationId: { in: reservationIds } },
-        distinct: ["reservationId"]
+        select: { reservationId: true }
       });
+      const withUpsell = new Set(upsells.map((u) => u.reservationId)).size;
       return Math.round((withUpsell / reservations.length) * 100);
     }
 
@@ -260,7 +321,7 @@ export class ReportsService {
                 },
             },
             include: {
-                guest: {
+                Guest: {
                     select: {
                         postalCode: true,
                         city: true,
@@ -276,7 +337,7 @@ export class ReportsService {
 
         reservations.forEach((res) => {
             const revenue = (res.totalAmount || 0) / 100;
-            const guest = res.guest;
+            const guest = res.Guest;
             if (!guest) return;
 
             // By Zip Code
@@ -342,18 +403,34 @@ export class ReportsService {
             }
         });
 
-        const programIds = Array.from(new Set(reservations.map((r: any) => r.referralProgramId).filter(Boolean)));
-        const programMap: Record<string, unknown> = {};
+        const programIds = Array.from(
+            new Set(
+                reservations
+                    .map((r) => r.referralProgramId)
+                    .filter((id): id is string => typeof id === "string" && id.length > 0)
+            )
+        );
+        const programMap: Record<string, ReferralProgram> = {};
         if (programIds.length) {
             const programs = await this.prisma.referralProgram.findMany({
                 where: { id: { in: programIds } }
             });
-            for (const p of programs as any[]) {
+            for (const p of programs) {
                 programMap[p.id] = p;
             }
         }
 
-        const byProgram: Record<string, unknown> = {};
+        type ReferralSummary = {
+            programId: string | null;
+            code: string;
+            source: string | null;
+            channel: string | null;
+            bookings: number;
+            revenueCents: number;
+            referralDiscountCents: number;
+        };
+
+        const byProgram: Record<string, ReferralSummary> = {};
         let totalRevenueCents = 0;
         let totalReferralDiscountCents = 0;
 
@@ -364,7 +441,7 @@ export class ReportsService {
 
             const key = res.referralProgramId || res.referralCode || "unmapped";
             if (!byProgram[key]) {
-                const program = res.referralProgramId ? programMap[res.referralProgramId] : null;
+                const program = res.referralProgramId ? programMap[res.referralProgramId] : undefined;
                 byProgram[key] = {
                     programId: res.referralProgramId ?? null,
                     code: program?.code ?? res.referralCode ?? "unknown",
@@ -437,16 +514,16 @@ export class ReportsService {
     return jobs.map((j) => this.decorateExport(j));
   }
 
-  private decorateExport(job: any) {
-    const filters = (job as any)?.filters ?? {};
-    const downloadUrl = (filters as any)?.downloadUrl ?? job.downloadUrl ?? null;
-    const summary = (filters as any)?.summary ?? null;
+  private decorateExport(job: IntegrationExportJob) {
+    const filters = toRecord(job.filters);
+    const downloadUrl = isString(filters.downloadUrl) ? filters.downloadUrl : job.location ?? null;
+    const summary = isRecord(filters.summary) ? filters.summary : null;
     return { ...job, downloadUrl, summary };
   }
 
   private async enforceCapacityGuard() {
     const depth = await this.prisma.integrationExportJob.count({
-      where: { resource: "reports", status: { in: ["queued", "processing"] as any } }
+      where: { resource: "reports", status: { in: ["queued", "processing"] } }
     });
     const threshold = this.capacityGuardThreshold();
     if (depth >= threshold) {
@@ -460,12 +537,12 @@ export class ReportsService {
         "reports-capacity-guard",
         payload
       ).catch(() => undefined);
-      const error = new ServiceUnavailableException({
+      const error: ServiceUnavailableException & { retryAfter?: number } = new ServiceUnavailableException({
         message: "Report exports temporarily limited due to capacity",
         retryAfter: this.capacityGuardRetryAfterSec(),
         reason: "capacity_guard"
       });
-      (error as any).retryAfter = this.capacityGuardRetryAfterSec();
+      error.retryAfter = this.capacityGuardRetryAfterSec();
       throw error;
     }
     return depth;
@@ -476,11 +553,12 @@ export class ReportsService {
     await this.enforceCapacityGuard();
     const exportFormat = (format ?? "csv").toLowerCase();
 
-    const recurring = (filters as any)?.recurring;
+    const filterRecord = toRecord(filters);
+    const recurring = isRecord(filterRecord.recurring) ? filterRecord.recurring : undefined;
     if (recurring) {
       await this.scheduleRecurringExport({
         campgroundId,
-        filters,
+        filters: filterRecord,
         format: exportFormat,
         requestedById,
         emailTo
@@ -489,12 +567,13 @@ export class ReportsService {
 
     const job = await this.prisma.integrationExportJob.create({
       data: {
+        id: randomUUID(),
         campgroundId,
         type: "api",
         resource: "reports",
         status: "queued",
         location: exportFormat,
-        filters: { ...(filters ?? {}), emailTo: emailTo ?? undefined, format: exportFormat },
+        filters: toNullableJsonInput({ ...filterRecord, emailTo: emailTo ?? undefined, format: exportFormat }),
         requestedById: requestedById ?? null
       }
     });
@@ -519,20 +598,24 @@ export class ReportsService {
       where: { campgroundId: params.campgroundId, resource: "reports", status: "scheduled" }
     });
     if (existing) return existing;
-    const recurring = (params.filters as any)?.recurring;
-    const nextRunAt = recurring?.nextRunAt ? new Date(recurring.nextRunAt) : this.computeNextRun(recurring?.cadence ?? "daily");
+    const filterRecord = toRecord(params.filters);
+    const recurring = isRecord(filterRecord.recurring) ? filterRecord.recurring : undefined;
+    const cadence = isString(recurring?.cadence) ? recurring.cadence : undefined;
+    const nextRunAtCandidate = toDateValue(recurring?.nextRunAt);
+    const nextRunAt = nextRunAtCandidate ?? this.computeNextRun(cadence ?? "daily");
     return this.prisma.integrationExportJob.create({
       data: {
+        id: randomUUID(),
         campgroundId: params.campgroundId,
         type: "api",
         resource: "reports",
         status: "scheduled",
         location: params.format ?? "csv",
-        filters: {
-          ...(params.filters ?? {}),
-          emailTo: params.emailTo ?? (params.filters as any)?.emailTo,
+        filters: toNullableJsonInput({
+          ...filterRecord,
+          emailTo: params.emailTo ?? filterRecord.emailTo,
           recurring: { ...(recurring ?? {}), nextRunAt: nextRunAt.toISOString() }
-        },
+        }),
         requestedById: params.requestedById ?? null
       }
     });
@@ -543,11 +626,15 @@ export class ReportsService {
     if (!previous || previous.campgroundId !== campgroundId) {
       throw new NotFoundException("Export not found for campground");
     }
+    const previousFilters = isRecord(previous.filters) ? previous.filters : undefined;
+    const emailTo =
+      getStringArray(previousFilters?.emailTo) ??
+      (isString(previousFilters?.emailTo) ? [previousFilters.emailTo] : undefined);
     return this.queueExport({
       campgroundId,
-      filters: previous.filters as Record<string, unknown> | undefined,
+      filters: previousFilters,
       format: previous.location ?? undefined,
-      emailTo: (previous.filters as any)?.emailTo ?? undefined,
+      emailTo,
       requestedById: requestedById ?? previous.requestedById ?? undefined
     });
   }
@@ -575,13 +662,14 @@ export class ReportsService {
       try {
         await this.processExportJob(job.id);
         processed += 1;
-      } catch (err: any) {
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to process export";
         await this.prisma.integrationExportJob.update({
           where: { id: job.id },
           data: {
             status: "failed",
             completedAt: new Date(),
-            lastError: err?.message ?? "Failed to process export"
+            lastError: message
           }
         }).catch(() => undefined);
       }
@@ -600,9 +688,10 @@ export class ReportsService {
     let triggered = 0;
 
     for (const sched of schedules) {
-      const filters = (sched.filters as any) ?? {};
-      const recurring = filters.recurring ?? {};
-      const nextRunAt = recurring?.nextRunAt ? new Date(recurring.nextRunAt) : this.computeNextRun(recurring?.cadence ?? "daily", now);
+      const filters = toRecord(sched.filters);
+      const recurring = isRecord(filters.recurring) ? filters.recurring : undefined;
+      const cadence = isString(recurring?.cadence) ? recurring.cadence : undefined;
+      const nextRunAt = toDateValue(recurring?.nextRunAt) ?? this.computeNextRun(cadence ?? "daily", now);
       if (nextRunAt > now) continue;
 
       const { recurring: _rec, ...restFilters } = filters;
@@ -612,9 +701,11 @@ export class ReportsService {
           filters: restFilters,
           format: sched.location ?? "csv",
           requestedById: sched.requestedById ?? undefined,
-          emailTo: filters.emailTo
+          emailTo:
+            getStringArray(filters.emailTo) ??
+            (isString(filters.emailTo) ? [filters.emailTo] : undefined)
         });
-      } catch (err: any) {
+      } catch (err) {
         this.alerting.dispatch(
           "Report export capacity guard",
           "Scheduled export skipped due to capacity guard",
@@ -625,14 +716,14 @@ export class ReportsService {
         continue;
       }
 
-      const updatedNext = this.computeNextRun(recurring?.cadence ?? "daily", now);
+      const updatedNext = this.computeNextRun(cadence ?? "daily", now);
       await this.prisma.integrationExportJob.update({
         where: { id: sched.id },
         data: {
-          filters: {
+          filters: toNullableJsonInput({
             ...filters,
             recurring: { ...(recurring ?? {}), nextRunAt: updatedNext.toISOString() }
-          }
+          })
         }
       });
       triggered += 1;
@@ -647,8 +738,9 @@ export class ReportsService {
 
     const started = Date.now();
     let success = false;
-    const filters = (job.filters as any) ?? {};
-    const exportFormat = (job.location ?? filters.format ?? "csv").toLowerCase();
+    const filters = toRecord(job.filters);
+    const formatFromFilters = isString(filters.format) ? filters.format : undefined;
+    const exportFormat = (job.location ?? formatFromFilters ?? "csv").toLowerCase();
 
     await this.prisma.integrationExportJob.update({
       where: { id: jobId },
@@ -662,7 +754,7 @@ export class ReportsService {
     try {
       const summary = await this.buildExportSummary(job.campgroundId!, filters);
 
-      const pages: any[] = [];
+      const pages: Array<Record<string, unknown>> = [];
       let token: string | null | undefined = undefined;
       do {
         const page = await this.generateExportPage({
@@ -682,7 +774,8 @@ export class ReportsService {
         const sheet = XLSX.utils.json_to_sheet(pages);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, sheet, "reports");
-        fileBuffer = XLSX.write(wb, { bookType: "xlsx", type: "buffer" }) as Buffer;
+        const output = XLSX.write(wb, { bookType: "xlsx", type: "buffer" });
+        fileBuffer = Buffer.isBuffer(output) ? output : Buffer.from(output);
       } else {
         fileBuffer = Buffer.from(csv, "utf8");
       }
@@ -699,30 +792,30 @@ export class ReportsService {
           status: "success",
           completedAt: new Date(),
           location: upload.url,
-          filters: {
+          filters: toNullableJsonInput({
             ...filters,
             downloadUrl: upload.url,
             summary,
             recordCount: pages.length,
             format: exportFormat
-          }
+          })
         }
       });
 
+      const auditFormat = exportFormat === "json" ? "json" : "csv";
       await this.audit.recordExport({
         campgroundId: job.campgroundId!,
         requestedById: job.requestedById ?? "system",
-        format: (exportFormat as any) ?? "csv",
+        format: auditFormat,
         filters,
         recordCount: pages.length
       });
 
-      const recipients: string[] = Array.isArray(filters?.emailTo)
-        ? filters.emailTo
-        : filters?.emailTo
-        ? [filters.emailTo]
-        : [];
-      if (filters?.email) recipients.push(filters.email as string);
+      const recipients: string[] =
+        getStringArray(filters.emailTo) ??
+        (isString(filters.emailTo) ? [filters.emailTo] : []);
+      const email = isString(filters.email) ? filters.email : undefined;
+      if (email) recipients.push(email);
       if (recipients.length) {
         await this.sendExportEmail(recipients, upload.url, job.campgroundId!, summary);
       }
@@ -730,16 +823,17 @@ export class ReportsService {
       success = true;
       this.observability.recordReportResult(true, Date.now() - started, { reason: "export_success", exportId: job.id, rows: pages.length, format: exportFormat });
       return this.decorateExport(updated);
-    } catch (err: any) {
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to process export";
       await this.prisma.integrationExportJob.update({
         where: { id: jobId },
         data: {
           status: "failed",
           completedAt: new Date(),
-          lastError: err?.message ?? "Failed to process export"
+          lastError: message
         }
       }).catch(() => undefined);
-      this.observability.recordReportResult(false, Date.now() - started, { reason: "export_failed", exportId: jobId, error: err?.message });
+      this.observability.recordReportResult(false, Date.now() - started, { reason: "export_failed", exportId: jobId, error: message });
       throw err;
     } finally {
       this.observability.recordJobRun({
@@ -751,7 +845,7 @@ export class ReportsService {
     }
   }
 
-  private async sendExportEmail(recipients: string[], downloadUrl: string, campgroundId: string, summary?: any) {
+  private async sendExportEmail(recipients: string[], downloadUrl: string, campgroundId: string, summary?: ExportSummary) {
     const uniqueRecipients = Array.from(new Set(recipients.filter((r) => typeof r === "string" && r.includes("@"))));
     if (!uniqueRecipients.length) return;
 
@@ -793,11 +887,12 @@ export class ReportsService {
     paginationToken?: string;
     pageSize?: number;
     filters?: Record<string, unknown>;
-    summary?: any;
+    summary?: ExportSummary;
   }) {
     const { campgroundId, paginationToken, pageSize, filters, summary } = params;
-    const decoded = this.decodeToken<{ lastId?: string; emitted?: number }>(paginationToken) || { emitted: 0 };
-    const emitted = decoded.emitted ?? 0;
+    const decoded = this.decodeToken(paginationToken);
+    const lastId = isString(decoded?.lastId) ? decoded.lastId : undefined;
+    const emitted = typeof decoded?.emitted === "number" ? decoded.emitted : 0;
     const maxRows = this.exportMaxRows();
     if (emitted >= maxRows) {
       return {
@@ -814,16 +909,18 @@ export class ReportsService {
       maxRows - emitted
     );
 
-    const range = this.resolveRangeFromFilters(filters);
+    const filterRecord = toRecord(filters);
+    const range = this.resolveRangeFromFilters(filterRecord);
     const dateWhere = this.reservationDateWhere({ start: range.start, end: range.end });
-    const filterWhere = { ...(filters ?? {}) };
-    // strip non-column filters
-    delete (filterWhere as any).range;
-    delete (filterWhere as any).days;
-    delete (filterWhere as any).startDate;
-    delete (filterWhere as any).endDate;
-    delete (filterWhere as any).emailTo;
-    delete (filterWhere as any).format;
+    const {
+      range: _range,
+      days: _days,
+      startDate: _startDate,
+      endDate: _endDate,
+      emailTo: _emailTo,
+      format: _format,
+      ...filterWhere
+    } = filterRecord;
 
     const rows = await this.prisma.reservation.findMany({
       where: {
@@ -833,7 +930,7 @@ export class ReportsService {
         ...(Object.keys(dateWhere).length ? { AND: [dateWhere] } : {})
       },
       orderBy: { createdAt: "asc" },
-      ...(decoded.lastId ? { cursor: { id: decoded.lastId }, skip: 1 } : {}),
+      ...(lastId ? { cursor: { id: lastId }, skip: 1 } : {}),
       take,
       select: {
         id: true,
@@ -859,11 +956,11 @@ export class ReportsService {
       nextToken,
       emitted: newEmitted,
       remaining: Math.max(0, maxRows - newEmitted),
-      summary: summary ?? await this.buildExportSummary(campgroundId, filters)
+      summary: summary ?? await this.buildExportSummary(campgroundId, filterRecord)
     };
   }
 
-  private async buildExportSummary(campgroundId: string, filters?: Record<string, unknown>) {
+  private async buildExportSummary(campgroundId: string, filters?: Record<string, unknown>): Promise<ExportSummary> {
     const range = this.resolveRangeFromFilters(filters);
     const metrics = await this.getDashboardMetrics(campgroundId, { start: range.start, end: range.end, days: range.days });
     const sources = await this.getBookingSources(campgroundId, range.start?.toISOString(), range.end?.toISOString());
@@ -1201,8 +1298,9 @@ export class ReportsService {
       const result = await this.executeReportQuery(campgroundId, spec, input);
       this.observability.recordReportResult(true, Date.now() - started, { reportId: spec.id, rows: result.rows.length });
       return result;
-    } catch (err: any) {
-      this.observability.recordReportResult(false, Date.now() - started, { reportId: spec.id, error: err?.message });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Report run failed";
+      this.observability.recordReportResult(false, Date.now() - started, { reportId: spec.id, error: message });
       throw err;
     } finally {
       this.releaseCapacity(!!spec.heavy);
@@ -1223,24 +1321,45 @@ export class ReportsService {
     if (!metricDefs.length) throw new BadRequestException("No metrics resolved for report");
 
     const range = this.resolveRange(input.timeRange ?? spec.defaultTimeRange);
-    const where = this.buildWhereFromFilters(spec, campgroundId, input.filters ?? {}, range);
+    const filterRecord = input.filters ?? {};
     const take = Math.min(
       Math.max(Math.round((spec.sampling?.limit ?? this.defaultSampleLimit) * (input.sample ? spec.sampling?.rate ?? 1 : 1)), 50),
       20000
     );
 
-    const rows = await this.fetchSourceRows(spec, campgroundId, where, take);
+    const rows = await this.fetchSourceRows(spec, campgroundId, filterRecord, range, take);
     const reduced = this.reduceRows(rows, spec, dimensions, metricDefs);
     const pageSize = Math.min(Math.max(input.limit ?? 50, 1), 200);
     const offset = Math.max(input.offset ?? 0, 0);
     const paged = reduced.slice(offset, offset + pageSize);
     const nextToken = reduced.length > offset + pageSize ? this.encodeToken({ offset: offset + pageSize }) : null;
 
+    const sampling =
+      spec.sampling || input.sample
+        ? {
+            limit: spec.sampling?.limit ?? this.defaultSampleLimit,
+            rate: spec.sampling?.rate,
+            applied: !!input.sample
+          }
+        : undefined;
+
+    const toSeriesLabel = (value: unknown): string => {
+      if (value === null || value === undefined) return "total";
+      if (value instanceof Date) return value.toISOString();
+      if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+        return String(value);
+      }
+      return "total";
+    };
+
     const series = metricDefs.map((metric) => ({
       label: metric.label,
       chart: spec.defaultChart ?? spec.chartTypes[0] ?? "table",
       points: paged.map((row) => ({
-        x: dimensions.length === 1 ? row[dimensions[0]] ?? "total" : dimensions.map((d) => row[d] ?? "total").join(" · "),
+        x:
+          dimensions.length === 1
+            ? toSeriesLabel(row[dimensions[0]])
+            : dimensions.map((d) => toSeriesLabel(row[d])).join(" · "),
         y: Number(row[metric.id] ?? 0),
       })),
     }));
@@ -1254,7 +1373,7 @@ export class ReportsService {
         metrics: metricDefs.map((m) => m.id),
         defaultChart: spec.defaultChart,
         cacheHint: spec.cacheTtlSec ?? this.defaultCacheTtlSec,
-        sampling: { ...(spec.sampling ?? {}), applied: !!input.sample },
+        sampling,
       },
       rows: paged,
       series,
@@ -1265,9 +1384,17 @@ export class ReportsService {
     };
   }
 
-  private async fetchSourceRows(spec: ReportSpec, campgroundId: string, where: any, take: number) {
+  private async fetchSourceRows(
+    spec: ReportSpec,
+    campgroundId: string,
+    filters: Record<string, unknown>,
+    range: { gte?: Date; lte?: Date },
+    take: number
+  ): Promise<Array<Record<string, unknown>>> {
+    const timeField = spec.timeField ?? this.defaultTimeField(spec.source);
     switch (spec.source) {
       case "reservation": {
+        const where = this.buildWhereFromFilters("reservation", campgroundId, filters, range, timeField);
         const rows = await this.prisma.reservation.findMany({
           where,
           orderBy: { createdAt: "desc" },
@@ -1295,6 +1422,8 @@ export class ReportsService {
         }));
       }
       case "payment":
+        {
+        const where = this.buildWhereFromFilters("payment", campgroundId, filters, range, timeField);
         return this.prisma.payment.findMany({
           where,
           orderBy: { createdAt: "desc" },
@@ -1308,35 +1437,49 @@ export class ReportsService {
             stripeFeeCents: true,
           },
         });
+        }
       case "ledger":
+        {
+        const where = this.buildWhereFromFilters("ledger", campgroundId, filters, range, timeField);
         return this.prisma.ledgerEntry.findMany({
           where,
           orderBy: { occurredAt: "desc" },
           take,
           select: { id: true, occurredAt: true, amountCents: true, glCode: true, direction: true },
         });
+        }
       case "payout":
+        {
+        const where = this.buildWhereFromFilters("payout", campgroundId, filters, range, timeField);
         return this.prisma.payout.findMany({
           where,
           orderBy: { arrivalDate: "desc" },
           take,
           select: { id: true, arrivalDate: true, status: true, amountCents: true, feeCents: true, currency: true },
         });
+        }
       case "support":
+        {
+        const where = this.buildWhereFromFilters("support", campgroundId, filters, range, timeField);
         return this.prisma.supportReport.findMany({
           where,
           orderBy: { createdAt: "desc" },
           take,
           select: { id: true, createdAt: true, status: true, path: true, language: true },
         });
+        }
       case "task":
+        {
+        const where = this.buildWhereFromFilters("task", campgroundId, filters, range, timeField);
         return this.prisma.task.findMany({
           where,
           orderBy: { createdAt: "desc" },
           take,
           select: { id: true, createdAt: true, state: true, slaStatus: true, type: true },
         });
+        }
       case "marketing": {
+        const where = this.buildWhereFromFilters("marketing", campgroundId, filters, range, timeField);
         const events = await this.prisma.analyticsEvent.findMany({
           where,
           orderBy: { occurredAt: "desc" },
@@ -1353,24 +1496,27 @@ export class ReportsService {
         }));
       }
       case "pos": {
+        const where = this.buildWhereFromFilters("pos", campgroundId, filters, range, timeField);
         const carts = await this.prisma.posCart.findMany({
           where: { ...where, status: "checked_out" },
           orderBy: { createdAt: "desc" },
           take,
           include: {
-            items: {
+            PosCartItem: {
               include: {
-                product: {
-                  include: { category: true }
+                Product: {
+                  include: { ProductCategory: true }
                 }
               }
             },
-            payments: true
+            PosPayment: true
           }
         });
         // Flatten for item-level and payment-level analysis
-        const rows: any[] = [];
+        const rows: Array<Record<string, unknown>> = [];
         carts.forEach((cart) => {
+          const items = cart.PosCartItem ?? [];
+          const payments = cart.PosPayment ?? [];
           const baseRow = {
             id: cart.id,
             createdAt: cart.createdAt,
@@ -1380,29 +1526,29 @@ export class ReportsService {
             netCents: cart.netCents,
             taxCents: cart.taxCents,
             feeCents: cart.feeCents,
-            itemCount: cart.items.length,
+            itemCount: items.length,
           };
           // For payment method analysis
-          if (cart.payments.length) {
-            cart.payments.forEach((p) => {
+          if (payments.length) {
+            payments.forEach((payment) => {
               rows.push({
                 ...baseRow,
-                method: p.method,
-                paymentAmountCents: p.amountCents,
+                method: payment.method,
+                paymentAmountCents: payment.amountCents,
               });
             });
           } else {
             rows.push({ ...baseRow, method: "unknown", paymentAmountCents: 0 });
           }
           // For product/category analysis, also emit item rows
-          cart.items.forEach((item) => {
+          items.forEach((item) => {
             rows.push({
               id: `${cart.id}-${item.id}`,
               createdAt: cart.createdAt,
               status: cart.status,
               terminalId: cart.terminalId,
-              productName: item.product?.name ?? "unknown",
-              categoryName: item.product?.category?.name ?? "uncategorized",
+              productName: item.Product?.name ?? "unknown",
+              categoryName: item.Product?.ProductCategory?.name ?? "uncategorized",
               qty: item.qty,
               discountCents: item.discountCents,
               totalCents: item.totalCents,
@@ -1413,6 +1559,7 @@ export class ReportsService {
         return rows;
       }
       case "till": {
+        const where = this.buildWhereFromFilters("till", campgroundId, filters, range, timeField);
         // For session-based reports
         const sessions = await this.prisma.tillSession.findMany({
           where,
@@ -1433,10 +1580,10 @@ export class ReportsService {
         });
         // For movement-based reports, also fetch movements
         const movements = await this.prisma.tillMovement.findMany({
-          where: { session: where },
+          where: { TillSession: where },
           orderBy: { createdAt: "desc" },
           take,
-          include: { session: { select: { terminalId: true } } },
+          include: { TillSession: { select: { terminalId: true } } },
         });
         // Combine both for flexible reporting
         const sessionRows = sessions.map((s) => ({
@@ -1448,7 +1595,7 @@ export class ReportsService {
           createdAt: m.createdAt,
           type: m.type,
           amountCents: m.amountCents,
-          terminalId: m.session?.terminalId,
+          terminalId: m.TillSession?.terminalId,
           sessionId: m.sessionId,
         }));
         return [...sessionRows, ...movementRows];
@@ -1458,17 +1605,20 @@ export class ReportsService {
     }
   }
 
-  private buildWhereFromFilters(spec: ReportSpec, campgroundId: string, filters: Record<string, unknown>, range: { gte?: Date; lte?: Date }) {
-    const allowedFilters = resolveFilters(spec.source);
-    const timeField = spec.timeField ?? this.defaultTimeField(spec.source);
-    const base: any =
-      spec.source === "task"
+  private buildWhereFromFilters<T extends keyof ReportWhereMap>(
+    source: T,
+    campgroundId: string,
+    filters: Record<string, unknown>,
+    range: { gte?: Date; lte?: Date },
+    timeField: string
+  ): LooseWhere<ReportWhereMap[T]> {
+    const allowedFilters = resolveFilters(source);
+    const base =
+      source === "task"
         ? { tenantId: campgroundId }
-        : spec.source === "marketing"
-        ? { campgroundId }
         : { campgroundId };
 
-    const where: any = { ...base };
+    const where: LooseWhere<ReportWhereMap[T]> = { ...base };
     if (range.gte || range.lte) {
       where[timeField] = { ...(range.gte ? { gte: range.gte } : {}), ...(range.lte ? { lte: range.lte } : {}) };
     }
@@ -1512,15 +1662,20 @@ export class ReportsService {
     return { gte: new Date(range.from), lte: range.to ? new Date(range.to) : undefined };
   }
 
-  private reduceRows(rows: any[], spec: ReportSpec, dimensions: string[], metrics: Array<{ id: string; field: string; aggregation: string }>) {
+  private reduceRows(
+    rows: Array<Record<string, unknown>>,
+    spec: ReportSpec,
+    dimensions: string[],
+    metrics: Array<{ id: string; field: string; aggregation: string }>
+  ) {
     const dimSpecs = dimensions.map((d) => resolveDimension(spec.source, d));
-    const grouped = new Map<string, any>();
+    const grouped = new Map<string, Record<string, unknown>>();
 
     rows.forEach((row) => {
       const dimValues = dimSpecs.map((dim) => this.formatDimValue(row, dim));
       const key = dimValues.join("|");
       if (!grouped.has(key)) {
-        const initial: any = {};
+        const initial: Record<string, unknown> = {};
         dimSpecs.forEach((dim, idx) => (initial[dim.id] = dimValues[idx]));
         metrics.forEach((metric) => {
           initial[metric.id] = 0;
@@ -1529,13 +1684,20 @@ export class ReportsService {
         grouped.set(key, initial);
       }
       const target = grouped.get(key);
-      target.__count = (target.__count ?? 0) + 1;
+      if (target) {
+        const currentCount = typeof target.__count === "number" ? target.__count : 0;
+        target.__count = currentCount + 1;
+      }
       metrics.forEach((metric) => {
+        if (!target) return;
         const raw = row[metric.field] ?? 0;
+        const existingValue = target[metric.id];
+        const currentValue =
+          typeof existingValue === "number" ? existingValue : Number(existingValue ?? 0);
         if (metric.aggregation === "count") {
-          target[metric.id] += 1;
+          target[metric.id] = currentValue + 1;
         } else {
-          target[metric.id] += Number(raw || 0);
+          target[metric.id] = currentValue + Number(raw || 0);
         }
       });
     });
@@ -1544,8 +1706,16 @@ export class ReportsService {
     metrics.forEach((metric) => {
       if (metric.aggregation === "avg") {
         grouped.forEach((value) => {
-          const count = value.__count ?? value.count ?? (rows.length || 1);
-          value[metric.id] = count ? Math.round((value[metric.id] / count) * 100) / 100 : 0;
+          const count =
+            typeof value.__count === "number"
+              ? value.__count
+              : typeof value.count === "number"
+                ? value.count
+                : rows.length || 1;
+          const metricValue = value[metric.id];
+          const sumValue =
+            typeof metricValue === "number" ? metricValue : Number(metricValue ?? 0);
+          value[metric.id] = count ? Math.round((sumValue / count) * 100) / 100 : 0;
         });
       }
     });
@@ -1553,13 +1723,13 @@ export class ReportsService {
     return Array.from(grouped.values());
   }
 
-  private toCsv(rows: any[]) {
+  private toCsv(rows: Array<Record<string, unknown>>) {
     if (!rows.length) return "";
     const headers = Object.keys(rows[0]);
     const lines = [headers.join(",")];
     rows.forEach((row) => {
       const values = headers.map((h) => {
-        const val = (row as any)[h];
+        const val = row[h];
         if (val === null || val === undefined) return "";
         const str = String(val).replace(/"/g, '""');
         return str.includes(",") ? `"${str}"` : str;
@@ -1569,11 +1739,14 @@ export class ReportsService {
     return lines.join("\n");
   }
 
-  private formatDimValue(row: any, dim?: ReportDimensionSpec | undefined) {
+  private formatDimValue(row: Record<string, unknown>, dim?: ReportDimensionSpec | undefined) {
     if (!dim) return "total";
     const value = row[dim.field];
-    if (dim.kind === "date" && value) {
-      return this.dateBucket(value, dim.timeGrain ?? "day");
+    if (dim.kind === "date") {
+      const dateValue = toDateValue(value);
+      if (dateValue) {
+        return this.dateBucket(dateValue, dim.timeGrain ?? "day");
+      }
     }
     if (dim.id === "lead_time_bucket") {
       const days = typeof value === "number" ? value : 0;
@@ -1655,12 +1828,12 @@ export class ReportsService {
   private async withCapacityGuard(isHeavy: boolean) {
     if (isHeavy) {
       if (this.heavyRuns >= this.heavyQueryLimit) {
-        const error = new ServiceUnavailableException({
+        const error: ServiceUnavailableException & { retryAfter?: number } = new ServiceUnavailableException({
           message: "Report queries temporarily limited (heavy)",
           retryAfter: this.capacityGuardRetryAfterSec(),
           reason: "capacity_guard",
         });
-        (error as any).retryAfter = this.capacityGuardRetryAfterSec();
+        error.retryAfter = this.capacityGuardRetryAfterSec();
         this.observability.recordReportResult(false, undefined, { reason: "capacity_guard", kind: "heavy_query" });
         this.alerting.dispatch(
           "Report query capacity guard (heavy)",
@@ -1674,12 +1847,12 @@ export class ReportsService {
       this.heavyRuns += 1;
     }
     if (this.activeRuns >= this.queryLimit) {
-      const error = new ServiceUnavailableException({
+      const error: ServiceUnavailableException & { retryAfter?: number } = new ServiceUnavailableException({
         message: "Report queries temporarily limited",
         retryAfter: this.capacityGuardRetryAfterSec(),
         reason: "capacity_guard",
       });
-      (error as any).retryAfter = this.capacityGuardRetryAfterSec();
+      error.retryAfter = this.capacityGuardRetryAfterSec();
       this.observability.recordReportResult(false, undefined, { reason: "capacity_guard", kind: "query_limit" });
       this.alerting.dispatch(
         "Report query capacity guard",

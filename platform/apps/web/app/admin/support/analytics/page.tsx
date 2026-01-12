@@ -48,19 +48,6 @@ type AnalyticsResponse = {
   needsAttention: AttentionRow[];
 };
 
-interface UserWithPlatformRole {
-  memberships?: Array<{ campgroundId: string; role?: string | null }>;
-  platformRole?: string | null;
-  platformRegion?: string | null;
-  region?: string | null;
-}
-
-interface WhoamiAllowed {
-  supportRead?: boolean;
-  supportAssign?: boolean;
-  supportAnalytics?: boolean;
-}
-
 const percent = (value: number) => Math.round((value || 0) * 100);
 
 export default function SupportAnalyticsPage() {
@@ -73,13 +60,13 @@ export default function SupportAnalyticsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const user = whoami?.user as UserWithPlatformRole | undefined;
+  const user = whoami?.user;
   const hasMembership = (user?.memberships?.length ?? 0) > 0;
   const platformRole = user?.platformRole;
   const supportAllowed =
-    (whoami?.allowed as WhoamiAllowed | undefined)?.supportRead ||
-    (whoami?.allowed as WhoamiAllowed | undefined)?.supportAssign ||
-    (whoami?.allowed as WhoamiAllowed | undefined)?.supportAnalytics;
+    whoami?.allowed?.supportRead ||
+    whoami?.allowed?.supportAssign ||
+    whoami?.allowed?.supportAnalytics;
   const allowSupport = !!supportAllowed && (!!platformRole || hasMembership);
   const viewerRegion = user?.platformRegion ?? user?.region ?? null;
   const regionAllowed = regionFilter === "all" || !viewerRegion || viewerRegion === regionFilter;
@@ -106,12 +93,13 @@ export default function SupportAnalyticsPage() {
       if (campgroundId) qs.set("campgroundId", campgroundId);
       const res = await fetch(`/api/support/analytics${qs.toString() ? `?${qs.toString()}` : ""}`);
       if (!res.ok) throw new Error(`Failed to load analytics (${res.status})`);
-      const data = (await res.json()) as AnalyticsResponse;
+      const data: AnalyticsResponse = await res.json();
       setPayload(data);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setPayload(null);
-      setError(err?.message || "Failed to load analytics");
-      toast({ title: "Support analytics unavailable", description: err?.message || "Try again later", variant: "destructive" });
+      const message = err instanceof Error ? err.message : "Failed to load analytics";
+      setError(message);
+      toast({ title: "Support analytics unavailable", description: message || "Try again later", variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -370,4 +358,3 @@ export default function SupportAnalyticsPage() {
     </div>
   );
 }
-

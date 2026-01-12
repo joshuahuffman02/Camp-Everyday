@@ -2,7 +2,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
 import { PrismaService } from "../prisma/prisma.service";
 
-interface SlowMovingProduct {
+export interface SlowMovingProduct {
     productId: string;
     productName: string;
     sku: string | null;
@@ -38,7 +38,7 @@ export class SlowMovingInventoryService {
             // Get all campgrounds with inventory tracking
             const campgrounds = await this.prisma.campground.findMany({
                 where: {
-                    products: {
+                    Product: {
                         some: { trackInventory: true },
                     },
                 },
@@ -85,15 +85,15 @@ export class SlowMovingInventoryService {
                 ...(options?.categoryId ? { categoryId: options.categoryId } : {}),
             },
             include: {
-                category: {
+                ProductCategory: {
                     select: {
                         id: true,
                         name: true,
                         defaultSlowMovingDays: true,
-                        expirationConfigs: { where: { campgroundId } },
+                        CategoryExpirationConfig: { where: { campgroundId } },
                     },
                 },
-                expirationConfigs: { where: { campgroundId } },
+                ProductExpirationConfig: { where: { campgroundId } },
             },
         });
 
@@ -101,13 +101,13 @@ export class SlowMovingInventoryService {
 
         for (const product of products) {
             // Determine the slow-moving threshold
-            const productConfig = product.expirationConfigs?.[0];
-            const categoryConfig = product.category?.expirationConfigs?.[0];
+            const productConfig = product.ProductExpirationConfig?.[0];
+            const categoryConfig = product.ProductCategory?.CategoryExpirationConfig?.[0];
 
             const threshold =
                 productConfig?.slowMovingDays ??
                 categoryConfig?.slowMovingDays ??
-                product.category?.defaultSlowMovingDays ??
+                product.ProductCategory?.defaultSlowMovingDays ??
                 30;
 
             // Calculate days since last sale
@@ -146,7 +146,7 @@ export class SlowMovingInventoryService {
                 productName: product.name,
                 sku: product.sku,
                 categoryId: product.categoryId,
-                categoryName: product.category?.name ?? null,
+                categoryName: product.ProductCategory?.name ?? null,
                 lastSaleDate: product.lastSaleDate,
                 daysSinceLastSale,
                 qtyOnHand: product.stockQty,
@@ -176,19 +176,16 @@ export class SlowMovingInventoryService {
         const totalValue = slowMoving.reduce((sum, p) => sum + p.valueCents, 0);
 
         // Group by category
-        const byCategory = slowMoving.reduce(
-            (acc, p) => {
-                const key = p.categoryName ?? "Uncategorized";
-                if (!acc[key]) {
-                    acc[key] = { count: 0, qty: 0, valueCents: 0 };
-                }
-                acc[key].count++;
-                acc[key].qty += p.qtyOnHand;
-                acc[key].valueCents += p.valueCents;
-                return acc;
-            },
-            {} as Record<string, { count: number; qty: number; valueCents: number }>
-        );
+        const byCategory: Record<string, { count: number; qty: number; valueCents: number }> = {};
+        for (const product of slowMoving) {
+            const key = product.categoryName ?? "Uncategorized";
+            if (!byCategory[key]) {
+                byCategory[key] = { count: 0, qty: 0, valueCents: 0 };
+            }
+            byCategory[key].count++;
+            byCategory[key].qty += product.qtyOnHand;
+            byCategory[key].valueCents += product.valueCents;
+        }
 
         // Top 10 by value
         const topByValue = slowMoving

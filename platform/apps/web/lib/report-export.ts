@@ -323,7 +323,7 @@ export function exportCancellationsReport(
  * Generic export function that handles unknown report types
  */
 export function exportGenericReport(
-  data: any[],
+  data: Record<string, unknown>[],
   reportName: string,
   format: ExportFormat = 'csv'
 ) {

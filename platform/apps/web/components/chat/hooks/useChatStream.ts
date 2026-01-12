@@ -14,6 +14,17 @@ interface ActionOption {
   variant?: "default" | "destructive" | "outline";
 }
 
+type ToolCall = {
+  id: string;
+  name: string;
+  args: Record<string, unknown>;
+};
+
+type ToolResult = {
+  toolCallId: string;
+  result: unknown;
+};
+
 interface ActionRequired {
   type: "confirmation" | "form" | "selection";
   actionId: string;
@@ -28,8 +39,8 @@ interface ChatMessage {
   conversationId: string;
   role: "user" | "assistant" | "tool" | "system";
   content: string;
-  toolCalls?: any[];
-  toolResults?: any[];
+  toolCalls?: ToolCall[];
+  toolResults?: ToolResult[];
   actionRequired?: ActionRequired;
   createdAt: string;
   isStreaming?: boolean;
@@ -38,14 +49,10 @@ interface ChatMessage {
 interface StreamToken {
   token: string;
   isComplete: boolean;
-  toolCall?: {
-    id: string;
-    name: string;
-    args: Record<string, unknown>;
-  };
+  toolCall?: ToolCall;
   toolResult?: {
     toolCallId: string;
-    result: any;
+    result: unknown;
   };
   actionRequired?: ActionRequired;
   timestamp: string;
@@ -54,9 +61,49 @@ interface StreamToken {
 interface ExecuteActionResponse {
   success: boolean;
   message: string;
-  result?: any;
+  result?: unknown;
   error?: string;
 }
+
+interface CompleteEvent {
+  messageId: string;
+  content: string;
+  toolCalls?: ToolCall[];
+  toolResults?: ToolResult[];
+  actionRequired?: ActionRequired;
+  timestamp: string;
+}
+
+type SendMessageResponse = {
+  status: string;
+  conversationId?: string;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const getString = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+const toSendMessageResponse = (value: unknown): SendMessageResponse => {
+  if (!isRecord(value)) return { status: "ok" };
+  return {
+    status: getString(value.status) ?? "ok",
+    conversationId: getString(value.conversationId),
+  };
+};
+
+const toExecuteActionResponse = (value: unknown): ExecuteActionResponse => {
+  if (!isRecord(value)) {
+    return { success: false, message: "Action failed", error: "Invalid response" };
+  }
+  return {
+    success: typeof value.success === "boolean" ? value.success : false,
+    message: getString(value.message) ?? "Action completed",
+    result: value.result,
+    error: getString(value.error),
+  };
+};
 
 interface UseChatStreamOptions {
   campgroundId: string;
@@ -104,11 +151,11 @@ export function useChatStream({ campgroundId, isGuest, guestId, authToken }: Use
       setIsConnected(false);
     };
 
-    const handleConnected = (data: any) => {
+    const handleConnected = (data: unknown) => {
       console.log("Chat connected:", data);
     };
 
-    const handleError = (error: any) => {
+    const handleError = (error: unknown) => {
       console.error("Chat error:", error);
       setIsConnected(false);
     };
@@ -122,7 +169,8 @@ export function useChatStream({ campgroundId, isGuest, guestId, authToken }: Use
         setStreamingContent(prev => prev + data.token);
       }
 
-      if (data.toolCall) {
+      const toolCall = data.toolCall;
+      if (toolCall) {
         // Handle tool call notification with immutable update
         setMessages(prev => {
           const lastIndex = prev.length - 1;
@@ -130,13 +178,14 @@ export function useChatStream({ campgroundId, isGuest, guestId, authToken }: Use
 
           return prev.map((msg, idx) =>
             idx === lastIndex
-              ? { ...msg, toolCalls: [...(msg.toolCalls || []), data.toolCall] }
+              ? { ...msg, toolCalls: [...(msg.toolCalls || []), toolCall] }
               : msg
           );
         });
       }
 
-      if (data.toolResult) {
+      const toolResult = data.toolResult;
+      if (toolResult) {
         // Handle tool result notification with immutable update
         setMessages(prev => {
           const lastIndex = prev.length - 1;
@@ -144,7 +193,7 @@ export function useChatStream({ campgroundId, isGuest, guestId, authToken }: Use
 
           return prev.map((msg, idx) =>
             idx === lastIndex
-              ? { ...msg, toolResults: [...(msg.toolResults || []), data.toolResult] }
+              ? { ...msg, toolResults: [...(msg.toolResults || []), toolResult] }
               : msg
           );
         });
@@ -165,14 +214,7 @@ export function useChatStream({ campgroundId, isGuest, guestId, authToken }: Use
       }
     };
 
-    const handleComplete = (data: {
-      messageId: string;
-      content: string;
-      toolCalls?: any[];
-      toolResults?: any[];
-      actionRequired?: ActionRequired;
-      timestamp: string;
-    }) => {
+    const handleComplete = (data: CompleteEvent) => {
       // Finalize the streaming message with immutable update
       setMessages(prev => {
         const lastIndex = prev.length - 1;
@@ -275,7 +317,7 @@ export function useChatStream({ campgroundId, isGuest, guestId, authToken }: Use
   }, [authToken, guestId]);
 
   const sendMessageMutation = useMutation({
-    mutationFn: async (message: string): Promise<{ status: string; conversationId?: string }> => {
+    mutationFn: async (message: string): Promise<SendMessageResponse> => {
       // Use streaming endpoint
       const endpoint = isGuest
         ? `${API_BASE}/chat/portal/${campgroundId}/message/stream`
@@ -296,7 +338,8 @@ export function useChatStream({ campgroundId, isGuest, guestId, authToken }: Use
         throw new Error(error || "Failed to send message");
       }
 
-      return res.json();
+      const data: unknown = await res.json();
+      return toSendMessageResponse(data);
     },
     onMutate: (message) => {
       const currentConversationId = conversationIdRef.current;
@@ -383,7 +426,8 @@ export function useChatStream({ campgroundId, isGuest, guestId, authToken }: Use
         throw new Error(error || "Failed to execute action");
       }
 
-      return res.json();
+      const data: unknown = await res.json();
+      return toExecuteActionResponse(data);
     },
     onSuccess: (data) => {
       const resultMessage: ChatMessage = {

@@ -1,10 +1,24 @@
-import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
-import { PrismaService } from "../prisma/prisma.service";
+import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { Promotion } from "@prisma/client";
 import { CreatePromotionDto, UpdatePromotionDto, ValidatePromotionDto } from "./dto/promotions.dto";
+import { PrismaService } from "../prisma/prisma.service";
+
+type AsyncResult<T> = (...args: unknown[]) => Promise<T>;
+
+export type PromotionsStore = {
+    promotion: {
+        create: AsyncResult<Promotion>;
+        findMany: AsyncResult<Promotion[]>;
+        findFirst: AsyncResult<Promotion | null>;
+        findUnique: AsyncResult<Promotion | null>;
+        update: AsyncResult<Promotion>;
+        delete: AsyncResult<Promotion>;
+    };
+};
 
 @Injectable()
 export class PromotionsService {
-    constructor(private readonly prisma: PrismaService) { }
+    constructor(@Inject(PrismaService) private readonly prisma: PromotionsStore) { }
 
     async create(data: CreatePromotionDto) {
         // Normalize code to uppercase

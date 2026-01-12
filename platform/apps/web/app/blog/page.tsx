@@ -1,6 +1,19 @@
 import { Metadata } from "next";
 import Link from "next/link";
-import { BookOpen, ArrowRight, Tent, Map, Caravan, Users, Wrench, TreePine, Calendar, Clock, ChevronRight } from "lucide-react";
+import {
+  BookOpen,
+  ArrowRight,
+  Tent,
+  Map,
+  Caravan,
+  Users,
+  Wrench,
+  TreePine,
+  Calendar,
+  Clock,
+  ChevronRight,
+  type LucideIcon,
+} from "lucide-react";
 import { PublicHeader } from "../../components/public/PublicHeader";
 import { getAllPosts, getCategories, getDebugInfo } from "../../lib/blog";
 
@@ -10,7 +23,7 @@ export const metadata: Metadata = {
 };
 
 // Map categories to icons/labels
-const categoryConfig: Record<string, { label: string; icon: any; color: string }> = {
+const categoryConfig: Record<string, { label: string; icon: LucideIcon; color: string }> = {
   "camper-tips": { label: "Camper Tips", icon: Tent, color: "text-keepr-evergreen" },
   "growth": { label: "Growth Strategies", icon: TreePine, color: "text-keepr-clay" },
   "industry": { label: "Industry Trends", icon: Map, color: "text-keepr-charcoal" },

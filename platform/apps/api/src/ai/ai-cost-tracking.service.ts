@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { AiFeatureType } from '@prisma/client';
+import { AiFeatureType, type Prisma } from '@prisma/client';
 
 /**
  * Cost per 1000 tokens in cents (multiply by 100 to get per-token cost in microcents)
@@ -27,7 +27,7 @@ const MODEL_COSTS: Record<string, { input: number; output: number }> = {
     'ollama': { input: 0, output: 0 },
 };
 
-interface DailyCostSummary {
+export interface DailyCostSummary {
     date: string;
     totalCostCents: number;
     totalInputTokens: number;
@@ -46,7 +46,7 @@ interface DailyCostSummary {
     }>;
 }
 
-interface MonthlyCostSummary {
+export interface MonthlyCostSummary {
     month: string; // YYYY-MM
     totalCostCents: number;
     totalInputTokens: number;
@@ -58,7 +58,7 @@ interface MonthlyCostSummary {
     budgetUsedPercent?: number;
 }
 
-interface FeatureCostSummary {
+export interface FeatureCostSummary {
     feature: AiFeatureType;
     totalCostCents: number;
     totalRequests: number;
@@ -69,7 +69,7 @@ interface FeatureCostSummary {
     trendPercent: number;
 }
 
-interface LatencyMetrics {
+export interface LatencyMetrics {
     p50Ms: number;
     p90Ms: number;
     p95Ms: number;
@@ -117,7 +117,7 @@ export class AiCostTrackingService {
         endDate: Date,
         campgroundId?: string
     ): Promise<DailyCostSummary[]> {
-        const where: any = {
+        const where: Prisma.AiInteractionLogWhereInput = {
             createdAt: {
                 gte: startDate,
                 lte: endDate,
@@ -254,7 +254,7 @@ export class AiCostTrackingService {
         endDate: Date,
         campgroundId?: string
     ): Promise<FeatureCostSummary[]> {
-        const where: any = {
+        const where: Prisma.AiInteractionLogWhereInput = {
             createdAt: {
                 gte: startDate,
                 lte: endDate,
@@ -338,6 +338,8 @@ export class AiCostTrackingService {
             const currentCost = log._sum.costCents || 0;
             const prevCost = prevMap.get(log.featureType) || 0;
             const trendPercent = prevCost > 0 ? ((currentCost - prevCost) / prevCost) * 100 : 0;
+            const trend: FeatureCostSummary["trend"] =
+                trendPercent > 5 ? "up" : trendPercent < -5 ? "down" : "stable";
 
             return {
                 feature: log.featureType,
@@ -346,7 +348,7 @@ export class AiCostTrackingService {
                 avgCostPerRequest: log._count.id > 0 ? currentCost / log._count.id : 0,
                 avgLatencyMs: log._avg.latencyMs || 0,
                 successRate: successRateMap.get(log.featureType) || 0,
-                trend: trendPercent > 5 ? 'up' : trendPercent < -5 ? 'down' : 'stable',
+                trend,
                 trendPercent: Math.round(trendPercent * 100) / 100,
             };
         }).sort((a, b) => b.totalCostCents - a.totalCostCents);
@@ -360,7 +362,7 @@ export class AiCostTrackingService {
         endDate: Date,
         campgroundId?: string
     ): Promise<LatencyMetrics> {
-        const where: any = {
+        const where: Prisma.AiInteractionLogWhereInput = {
             createdAt: {
                 gte: startDate,
                 lte: endDate,

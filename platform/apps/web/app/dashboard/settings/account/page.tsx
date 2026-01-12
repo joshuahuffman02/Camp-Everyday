@@ -9,45 +9,34 @@ import { PageHeader } from "@/components/ui/layout/PageHeader";
 import { useWhoami } from "@/hooks/use-whoami";
 import { User, Shield, Users } from "lucide-react";
 
-type Membership = {
-  campgroundId?: string;
-  role?: string;
-  campground?: {
-    name?: string;
-  };
-};
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const getString = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
 
 export default function AccountSettingsPage() {
   const { data: session } = useSession();
   const { data: whoami } = useWhoami();
 
-  const sessionUser = session?.user as {
-    name?: string | null;
-    email?: string | null;
-    firstName?: string | null;
-    lastName?: string | null;
-  } | undefined;
-
-  const whoamiUser = (whoami as { user?: Record<string, unknown> })?.user as {
-    name?: string | null;
-    email?: string | null;
-    firstName?: string | null;
-    lastName?: string | null;
-    platformRole?: string | null;
-    memberships?: Membership[];
-  } | undefined;
+  const sessionUser = isRecord(session?.user) ? session.user : undefined;
+  const whoamiUser = whoami?.user;
+  const sessionName = getString(sessionUser?.name);
+  const sessionEmail = getString(sessionUser?.email);
+  const sessionFirstName = getString(sessionUser?.firstName);
+  const sessionLastName = getString(sessionUser?.lastName);
 
   const displayName =
-    whoamiUser?.name ||
-    sessionUser?.name ||
-    [sessionUser?.firstName, sessionUser?.lastName].filter(Boolean).join(" ") ||
+    [whoamiUser?.firstName, whoamiUser?.lastName].filter(Boolean).join(" ") ||
+    sessionName ||
+    [sessionFirstName, sessionLastName].filter(Boolean).join(" ") ||
     whoamiUser?.email ||
-    sessionUser?.email ||
+    sessionEmail ||
     "Signed in";
 
-  const displayEmail = whoamiUser?.email || sessionUser?.email || "";
+  const displayEmail = whoamiUser?.email || sessionEmail || "";
   const platformRole = whoamiUser?.platformRole || null;
-  const memberships = (whoamiUser?.memberships ?? []) as Membership[];
+  const memberships = whoamiUser?.memberships ?? [];
   const isAuthenticated = Boolean(displayEmail || displayName !== "Signed in");
 
   if (!isAuthenticated) {

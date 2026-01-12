@@ -87,6 +87,103 @@ interface Contract {
   } | null;
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object";
+
+const isNullableString = (value: unknown): value is string | null =>
+  value === null || typeof value === "string";
+
+const isNullableNumber = (value: unknown): value is number | null =>
+  value === null || typeof value === "number";
+
+const isContractGuest = (value: unknown): value is Contract["guest"] => {
+  if (value === null) return true;
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.id === "string" &&
+    typeof value.primaryFirstName === "string" &&
+    typeof value.primaryLastName === "string" &&
+    isNullableString(value.email) &&
+    isNullableString(value.phone)
+  );
+};
+
+const isContractTemplate = (value: unknown): value is Contract["template"] => {
+  if (value === null) return true;
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.id === "string" &&
+    typeof value.name === "string" &&
+    typeof value.type === "string"
+  );
+};
+
+const isContractArtifact = (value: unknown): value is Contract["artifact"] => {
+  if (value === null) return true;
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.id === "string" &&
+    typeof value.pdfUrl === "string" &&
+    isNullableString(value.completedAt)
+  );
+};
+
+const isContractReservation = (value: unknown): value is Contract["reservation"] => {
+  if (value === null) return true;
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.id === "string" &&
+    typeof value.arrivalDate === "string" &&
+    typeof value.departureDate === "string" &&
+    isNullableString(value.siteId)
+  );
+};
+
+const isContract = (value: unknown): value is Contract =>
+  isRecord(value) &&
+  typeof value.id === "string" &&
+  typeof value.status === "string" &&
+  typeof value.documentType === "string" &&
+  isNullableString(value.recipientName) &&
+  isNullableString(value.recipientEmail) &&
+  typeof value.signatureMethod === "string" &&
+  isNullableNumber(value.seasonYear) &&
+  typeof value.createdAt === "string" &&
+  isNullableString(value.sentAt) &&
+  isNullableString(value.signedAt) &&
+  isNullableString(value.paperSignedAt) &&
+  isNullableString(value.waivedAt) &&
+  isNullableString(value.expiresAt) &&
+  isNullableString(value.waiverReason) &&
+  isNullableString(value.waiverNotes) &&
+  isContractGuest(value.guest) &&
+  isContractTemplate(value.template) &&
+  isContractArtifact(value.artifact) &&
+  isContractReservation(value.reservation);
+
+const isContractStats = (value: unknown): value is ContractStats =>
+  isRecord(value) &&
+  typeof value.total === "number" &&
+  typeof value.preview === "number" &&
+  typeof value.draft === "number" &&
+  typeof value.sent === "number" &&
+  typeof value.viewed === "number" &&
+  typeof value.signed === "number" &&
+  typeof value.signedPaper === "number" &&
+  typeof value.waived === "number" &&
+  typeof value.declined === "number" &&
+  typeof value.expired === "number" &&
+  typeof value.voided === "number" &&
+  typeof value.completionRate === "number" &&
+  typeof value.pendingCount === "number" &&
+  (value.daysUntilDeadline === undefined || typeof value.daysUntilDeadline === "number");
+
+const isContractsResponse = (value: unknown): value is { contracts: Contract[]; total: number } =>
+  isRecord(value) &&
+  Array.isArray(value.contracts) &&
+  value.contracts.every(isContract) &&
+  typeof value.total === "number";
+
 const statusConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   preview: { label: "Preview", color: "bg-purple-100 text-purple-700", icon: <Eye className="h-3 w-3" /> },
   draft: { label: "Draft", color: "bg-muted text-muted-foreground", icon: <FileText className="h-3 w-3" /> },
@@ -579,7 +676,11 @@ export function ContractsTab({ campgroundId }: { campgroundId: string | null }) 
       if (seasonFilter !== "all") params.append("seasonYear", seasonFilter);
       const res = await fetch(`/api/signatures/contracts/stats?${params}`);
       if (!res.ok) throw new Error("Failed to fetch stats");
-      return res.json() as Promise<ContractStats>;
+      const data = await res.json();
+      if (!isContractStats(data)) {
+        throw new Error("Invalid stats response");
+      }
+      return data;
     },
     enabled: !!campgroundId,
   });
@@ -594,7 +695,10 @@ export function ContractsTab({ campgroundId }: { campgroundId: string | null }) 
       const res = await fetch(`/api/signatures/contracts?${params}`);
       if (!res.ok) throw new Error("Failed to fetch contracts");
       const data = await res.json();
-      return data as { contracts: Contract[]; total: number };
+      if (!isContractsResponse(data)) {
+        throw new Error("Invalid contracts response");
+      }
+      return data;
     },
     enabled: !!campgroundId,
   });

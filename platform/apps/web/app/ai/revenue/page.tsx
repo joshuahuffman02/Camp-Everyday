@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, type Transition } from "framer-motion";
 import { apiClient } from "@/lib/api-client";
 import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -31,28 +31,22 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 
-const SPRING_CONFIG = {
-  type: "spring" as const,
+type Campground = Awaited<ReturnType<typeof apiClient.getCampgrounds>>[number];
+type RevenueInsight = Awaited<ReturnType<typeof apiClient.getRevenueInsights>>[number] & {
+  createdAt?: string | null;
+};
+type InsightStatusFilter = "all" | "new" | "in_progress" | "completed";
+
+const FILTER_OPTIONS: InsightStatusFilter[] = ["new", "in_progress", "completed", "all"];
+
+const SPRING_CONFIG: Transition = {
+  type: "spring",
   stiffness: 300,
   damping: 25,
 };
 
-type RevenueInsight = {
-  id: string;
-  insightType: "revenue_gap" | "underutilized_site" | "missed_upsell" | "pricing_opportunity" | string;
-  title: string;
-  summary: string;
-  impactCents: number;
-  difficulty: "easy" | "medium" | "hard" | string;
-  priority?: number;
-  recommendations: Array<{
-    action: string;
-    detail?: string;
-    details?: string;
-  }>;
-  status: "new" | "in_progress" | "completed" | "dismissed" | string;
-  createdAt?: string;
-};
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error && error.message ? error.message : "Something went wrong";
 
 function getInsightIcon(type: string) {
   switch (type) {
@@ -98,22 +92,29 @@ function getDifficultyBadge(difficulty: string) {
 }
 
 export default function AIRevenuePage() {
-  const [filter, setFilter] = useState<"all" | "new" | "in_progress" | "completed">("new");
+  const [filter, setFilter] = useState<InsightStatusFilter>("new");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   // Get campground
-  const { data: campgrounds = [] } = useQuery({
+  const { data: campgrounds = [] } = useQuery<Campground[]>({
     queryKey: ["campgrounds"],
     queryFn: () => apiClient.getCampgrounds(),
   });
   const campground = campgrounds[0];
+  const campgroundId = campground?.id;
+  const requireCampgroundId = () => {
+    if (!campgroundId) {
+      throw new Error("Campground is required");
+    }
+    return campgroundId;
+  };
 
   // Get revenue insights
-  const { data: insights = [], isLoading, refetch } = useQuery({
-    queryKey: ["revenue-insights", campground?.id],
-    queryFn: () => apiClient.getRevenueInsights(campground!.id),
-    enabled: !!campground?.id,
+  const { data: insights = [], isLoading, refetch } = useQuery<RevenueInsight[]>({
+    queryKey: ["revenue-insights", campgroundId],
+    queryFn: () => apiClient.getRevenueInsights(requireCampgroundId()),
+    enabled: !!campgroundId,
   });
 
   // Start working on insight
@@ -124,8 +125,8 @@ export default function AIRevenuePage() {
       toast({ title: "Started", description: "Insight marked as in progress." });
       refetch();
     },
-    onError: (error: any) => {
-      toast({ title: "Failed", description: error.message, variant: "destructive" });
+    onError: (error) => {
+      toast({ title: "Failed", description: getErrorMessage(error), variant: "destructive" });
     },
   });
 
@@ -137,21 +138,21 @@ export default function AIRevenuePage() {
       toast({ title: "Completed", description: "Insight marked as completed." });
       refetch();
     },
-    onError: (error: any) => {
-      toast({ title: "Failed", description: error.message, variant: "destructive" });
+    onError: (error) => {
+      toast({ title: "Failed", description: getErrorMessage(error), variant: "destructive" });
     },
   });
 
-  const filteredInsights = (insights as RevenueInsight[]).filter(i =>
+  const filteredInsights = insights.filter(i =>
     filter === "all" ? true : i.status === filter
   );
 
-  const totalOpportunity = (insights as RevenueInsight[])
+  const totalOpportunity = insights
     .filter(i => i.status !== "completed" && i.status !== "dismissed")
     .reduce((acc, i) => acc + i.impactCents, 0);
 
-  const newCount = (insights as RevenueInsight[]).filter(i => i.status === "new").length;
-  const easyWins = (insights as RevenueInsight[]).filter(i => i.difficulty === "easy" && i.status === "new");
+  const newCount = insights.filter(i => i.status === "new").length;
+  const easyWins = insights.filter(i => i.difficulty === "easy" && i.status === "new");
 
   if (!campground) {
     return (
@@ -263,7 +264,7 @@ export default function AIRevenuePage() {
                 <Play className="h-5 w-5 text-status-info-text" />
               </div>
               <div className="text-2xl font-bold text-foreground">
-                {(insights as RevenueInsight[]).filter(i => i.status === "in_progress").length}
+                {insights.filter(i => i.status === "in_progress").length}
               </div>
               <p className="text-xs text-muted-foreground">In Progress</p>
             </CardContent>
@@ -275,7 +276,7 @@ export default function AIRevenuePage() {
                 <CheckCircle2 className="h-5 w-5 text-status-success-text" />
               </div>
               <div className="text-2xl font-bold text-foreground">
-                {(insights as RevenueInsight[]).filter(i => i.status === "completed").length}
+                {insights.filter(i => i.status === "completed").length}
               </div>
               <p className="text-xs text-muted-foreground">Completed</p>
             </CardContent>
@@ -294,7 +295,7 @@ export default function AIRevenuePage() {
 
         {/* Filter Tabs */}
         <div className="flex gap-2">
-          {(["new", "in_progress", "completed", "all"] as const).map((f) => (
+          {FILTER_OPTIONS.map((f) => (
             <Button
               key={f}
               variant={filter === f ? "default" : "outline"}
@@ -384,8 +385,8 @@ export default function AIRevenuePage() {
                                       <ChevronRight className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
                                       <div>
                                         <span className="font-medium text-foreground">{rec.action}</span>
-                                        {(rec.detail || rec.details) && (
-                                          <span className="text-muted-foreground"> - {rec.detail || rec.details}</span>
+                                        {rec.details && (
+                                          <span className="text-muted-foreground"> - {rec.details}</span>
                                         )}
                                       </div>
                                     </div>

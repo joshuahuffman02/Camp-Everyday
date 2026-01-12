@@ -3,18 +3,40 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { resolvePoints, RawPoint } from "./heatmap-utils";
 
-// Dynamic import for maplibre-gl to reduce initial bundle size
-let maplibregl: any = null;
-let MapLibreMap: any = null;
+type GeoJSONFeature = {
+  type: "Feature";
+  properties: {
+    weight: number;
+    normalized: number;
+    label: string;
+  };
+  geometry: {
+    type: "Point";
+    coordinates: [number, number];
+  };
+};
 
-const loadMapLibre = async () => {
-  if (!maplibregl) {
-    const mapLibreModule = await import("maplibre-gl");
-    await import("maplibre-gl/dist/maplibre-gl.css");
-    maplibregl = mapLibreModule.default;
-    MapLibreMap = mapLibreModule.Map;
-  }
-  return { maplibregl, MapLibreMap };
+type GeoJSONFeatureCollection = {
+  type: "FeatureCollection";
+  features: GeoJSONFeature[];
+};
+
+type GeoJSONSource = {
+  setData: (data: GeoJSONFeatureCollection) => void;
+};
+
+type MapLibreGl = typeof import("maplibre-gl");
+type MapLibreMap = InstanceType<MapLibreGl["Map"]>;
+
+// Dynamic import for maplibre-gl to reduce initial bundle size
+let maplibregl: MapLibreGl | null = null;
+
+const loadMapLibre = async (): Promise<MapLibreGl> => {
+  if (maplibregl) return maplibregl;
+  const mapLibreModule = await import("maplibre-gl");
+  await import("maplibre-gl/dist/maplibre-gl.css");
+  maplibregl = mapLibreModule;
+  return mapLibreModule;
 };
 
 type HeatmapCardProps = {
@@ -28,7 +50,7 @@ type HeatmapCardProps = {
 
 export function HeatmapCard({ title, subtitle, points, center, maxValue, isLoading }: HeatmapCardProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<any>(null);
+  const mapRef = useRef<MapLibreMap | null>(null);
   const [isMapLibreLoaded, setIsMapLibreLoaded] = useState(false);
 
   useEffect(() => {
@@ -36,19 +58,19 @@ export function HeatmapCard({ title, subtitle, points, center, maxValue, isLoadi
   }, []);
 
   const resolvedPoints = useMemo(() => resolvePoints(points, center), [points, center]);
-  const data = useMemo(() => {
+  const data = useMemo<GeoJSONFeatureCollection>(() => {
     const max = maxValue ?? Math.max(...resolvedPoints.map(p => p.value), 1);
     return {
-      type: "FeatureCollection" as const,
+      type: "FeatureCollection",
       features: resolvedPoints.map(p => ({
-        type: "Feature" as const,
+        type: "Feature",
         properties: {
           weight: p.value,
           normalized: max > 0 ? p.value / max : 0,
           label: p.label || p.id
         },
         geometry: {
-          type: "Point" as const,
+          type: "Point",
           coordinates: [p.longitude, p.latitude]
         }
       }))
@@ -56,30 +78,28 @@ export function HeatmapCard({ title, subtitle, points, center, maxValue, isLoadi
   }, [resolvedPoints, maxValue]);
 
   useEffect(() => {
-    if (!isMapLibreLoaded || typeof window === "undefined" || !containerRef.current || mapRef.current) return;
+    if (!isMapLibreLoaded || typeof window === "undefined" || !containerRef.current || mapRef.current || !maplibregl) return;
 
-    mapRef.current = new maplibregl.Map({
+    const map = new maplibregl.Map({
       container: containerRef.current,
       style: "https://demotiles.maplibre.org/style.json",
       center: [center.longitude, center.latitude],
       zoom: 14,
       attributionControl: false
     });
-
-    mapRef.current.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
+    map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
+    mapRef.current = map;
   }, [isMapLibreLoaded, center]);
 
   useEffect(() => {
     if (!mapRef.current) return;
 
-    interface GeoJSONSource {
-      setData: (data: unknown) => void;
-    }
-
     const map = mapRef.current;
-    if (map.getSource("heatmap")) {
-      const source = map.getSource("heatmap") as GeoJSONSource;
-      source.setData(data);
+    const existingSource = map.getSource("heatmap");
+    const hasSetData = (value: unknown): value is GeoJSONSource =>
+      typeof value === "object" && value !== null && "setData" in value;
+    if (existingSource && hasSetData(existingSource)) {
+      existingSource.setData(data);
     } else {
       map.addSource("heatmap", {
         type: "geojson",

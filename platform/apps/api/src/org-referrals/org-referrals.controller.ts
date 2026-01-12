@@ -69,7 +69,7 @@ export class OrgReferralsController {
     @Req() req: Request
   ) {
     // Extract and validate client IP to prevent spoofing via x-forwarded-for
-    const ipAddress = extractClientIpFromRequestreq || req.ip;
+    const ipAddress = extractClientIpFromRequest(req) || req.ip;
 
     return this.referrals.trackClick(body.referralCode, {
       utmSource: body.utmSource,

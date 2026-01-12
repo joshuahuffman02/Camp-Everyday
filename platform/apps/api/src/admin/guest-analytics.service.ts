@@ -1,12 +1,12 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 
-interface DateRange {
+export interface DateRange {
     start: Date;
     end: Date;
 }
 
-interface GuestAnalyticsOverview {
+export interface GuestAnalyticsOverview {
     totalGuests: number;
     newGuestsThisMonth: number;
     newGuestsLastMonth: number;
@@ -17,7 +17,7 @@ interface GuestAnalyticsOverview {
     avgLeadTime: number;
 }
 
-interface GeographicData {
+export interface GeographicData {
     byCountry: { country: string; count: number; percentage: number }[];
     byState: { state: string; country: string; count: number; percentage: number }[];
     topCities: { city: string; state: string; count: number }[];
@@ -28,7 +28,7 @@ interface GeographicData {
     };
 }
 
-interface DemographicsData {
+export interface DemographicsData {
     partyComposition: {
         adultsOnly: number;
         withChildren: number;
@@ -41,21 +41,21 @@ interface DemographicsData {
     petPercentage: number;
 }
 
-interface SeasonalTrends {
+export interface SeasonalTrends {
     byMonth: { month: string; reservations: number; revenue: number; avgStayLength: number }[];
     peakSeason: string;
     shoulderSeason: string;
     offSeason: string;
 }
 
-interface TravelBehavior {
+export interface TravelBehavior {
     stayReasons: { reason: string; count: number; percentage: number }[];
     bookingSources: { source: string; count: number; percentage: number }[];
     avgBookingWindow: number;
     weekdayVsWeekend: { weekday: number; weekend: number };
 }
 
-interface Insight {
+export interface Insight {
     title: string;
     description: string;
     type: "info" | "warning" | "success";
@@ -261,7 +261,7 @@ export class GuestAnalyticsService {
                     gte: new Date(new Date().getFullYear(), 9, 1), // October
                     lte: new Date(new Date().getFullYear() + 1, 2, 31), // March
                 },
-                guest: {
+                Guest: {
                     OR: [
                         { state: { in: northernStates } },
                         { state: { in: northernProvinces } },
@@ -373,7 +373,7 @@ export class GuestAnalyticsService {
 
         // Get monthly aggregations
         const monthlyData = await this.prisma.$queryRaw<
-            { month: number; year: number; count: bigint; revenue: any; avg_stay: number }[]
+            { month: number; year: number; count: bigint; revenue: bigint | number | null; avg_stay: number | null }[]
         >`
             SELECT
                 EXTRACT(MONTH FROM "arrivalDate") as month,
@@ -398,8 +398,8 @@ export class GuestAnalyticsService {
             const monthName = monthNames[Number(row.month) - 1];
             const existing = monthlyAggregates.get(monthName) || { reservations: 0, revenue: 0, stayLength: 0, count: 0 };
             existing.reservations += Number(row.count);
-            existing.revenue += Number(row.revenue || 0);
-            existing.stayLength += Number(row.avg_stay || 0);
+            existing.revenue += Number(row.revenue ?? 0);
+            existing.stayLength += Number(row.avg_stay ?? 0);
             existing.count += 1;
             monthlyAggregates.set(monthName, existing);
         }

@@ -12,6 +12,7 @@ import { Throttle } from "@nestjs/throttler";
 import { TicketsService } from "./tickets.service";
 import { CreateTicketDto, UpdateTicketDto } from "./dto";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
+import type { TicketData } from "./tickets.service";
 
 @Controller("tickets")
 export class TicketsController {
@@ -49,7 +50,7 @@ export class TicketsController {
     // Migration endpoint
     @Post("migrate")
     @UseGuards(JwtAuthGuard)
-    async migrate(@Body() body: { tickets: any[] }) {
+    async migrate(@Body() body: { tickets: TicketData[] }) {
         const results = await this.ticketsService.bulkCreate(body.tickets || []);
         return { ok: true, results };
     }

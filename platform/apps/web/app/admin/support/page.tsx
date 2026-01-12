@@ -35,19 +35,6 @@ type Staff = {
   memberships?: { campgroundId: string; role?: string | null }[];
 };
 
-interface UserWithPlatformRole {
-  memberships?: Array<{ campgroundId: string; role?: string | null }>;
-  platformRole?: string | null;
-  platformRegion?: string | null;
-  region?: string | null;
-}
-
-interface WhoamiAllowed {
-  supportRead?: boolean;
-  supportAssign?: boolean;
-  supportAnalytics?: boolean;
-}
-
 type Report = {
   id: string;
   createdAt: string;
@@ -75,6 +62,44 @@ const statusColor: Record<string, string> = {
   closed: "bg-muted text-muted-foreground border-border"
 };
 
+const STATUS_FILTERS: Array<"all" | "new" | "triage" | "in_progress" | "resolved" | "closed"> = [
+  "all",
+  "new",
+  "triage",
+  "in_progress",
+  "resolved",
+  "closed"
+];
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const isString = (value: unknown): value is string => typeof value === "string";
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof Error) return error.message;
+  if (isRecord(error) && isString(error.message)) return error.message;
+  return fallback;
+};
+
+const isMember = (value: unknown): value is Member =>
+  isRecord(value) &&
+  isString(value.id) &&
+  isString(value.role) &&
+  isRecord(value.user) &&
+  isString(value.user.id) &&
+  isString(value.user.email);
+
+const isStaff = (value: unknown): value is Staff =>
+  isRecord(value) && isString(value.id) && isString(value.email);
+
+const isReport = (value: unknown): value is Report =>
+  isRecord(value) &&
+  isString(value.id) &&
+  isString(value.createdAt) &&
+  isString(value.description) &&
+  isString(value.status);
+
 export default function SupportAdminPage() {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
@@ -91,12 +116,12 @@ export default function SupportAdminPage() {
   const { toast } = useToast();
   const { data: session } = useSession();
   const { data: whoami, isLoading: whoamiLoading, error: whoamiError } = useWhoami();
-  const hasMembership = ((whoami?.user as UserWithPlatformRole | undefined)?.memberships?.length ?? 0) > 0;
-  const platformRole = (whoami?.user as UserWithPlatformRole | undefined)?.platformRole;
+  const hasMembership = (whoami?.user?.memberships?.length ?? 0) > 0;
+  const platformRole = whoami?.user?.platformRole;
   const supportAllowed =
-    (whoami?.allowed as WhoamiAllowed | undefined)?.supportRead ||
-    (whoami?.allowed as WhoamiAllowed | undefined)?.supportAssign ||
-    (whoami?.allowed as WhoamiAllowed | undefined)?.supportAnalytics;
+    whoami?.allowed?.supportRead ||
+    whoami?.allowed?.supportAssign ||
+    whoami?.allowed?.supportAnalytics;
   const allowSupport = !!supportAllowed && (!!platformRole || hasMembership);
 
   useEffect(() => {
@@ -119,9 +144,10 @@ export default function SupportAdminPage() {
         });
         if (!res.ok) throw new Error(`Failed to load members (${res.status})`);
         const data = await res.json();
-        setMembers(data as Member[]);
-      } catch (err: any) {
-        setMembersError(err?.message || "Failed to load members");
+        const membersList = Array.isArray(data) ? data.filter(isMember) : [];
+        setMembers(membersList);
+      } catch (err: unknown) {
+        setMembersError(getErrorMessage(err, "Failed to load members"));
       } finally {
         setMembersLoading(false);
       }
@@ -136,7 +162,7 @@ export default function SupportAdminPage() {
 
   useEffect(() => {
     if (whoamiLoading) return;
-    const user = whoami?.user as UserWithPlatformRole | undefined;
+    const user = whoami?.user;
     const viewerRegion = user?.platformRegion ?? user?.region ?? null;
     const regionAllowed = regionFilter === "all" || !viewerRegion || viewerRegion === regionFilter;
     const campgroundAllowed =
@@ -161,9 +187,10 @@ export default function SupportAdminPage() {
         });
         if (!res.ok) throw new Error(`Failed to load reports (${res.status})`);
         const data = await res.json();
-        setReports(data);
-      } catch (err: any) {
-        setError(err?.message || "Failed to load reports");
+        const reportList = Array.isArray(data) ? data.filter(isReport) : [];
+        setReports(reportList);
+      } catch (err: unknown) {
+        setError(getErrorMessage(err, "Failed to load reports"));
       } finally {
         setLoading(false);
       }
@@ -173,7 +200,7 @@ export default function SupportAdminPage() {
 
   useEffect(() => {
     if (whoamiLoading) return;
-    const user = whoami?.user as UserWithPlatformRole | undefined;
+    const user = whoami?.user;
     const viewerRegion = user?.platformRegion ?? user?.region ?? null;
     const regionAllowed = regionFilter === "all" || !viewerRegion || viewerRegion === regionFilter;
     const campgroundAllowed =
@@ -199,8 +226,10 @@ export default function SupportAdminPage() {
         });
         if (!res.ok) throw new Error(`Failed to load staff (${res.status})`);
         const data = await res.json();
-        setStaff(data);
-      } catch {
+        const staffList = Array.isArray(data) ? data.filter(isStaff) : [];
+        setStaff(staffList);
+      } catch (err: unknown) {
+        console.error("Failed to load staff:", getErrorMessage(err, "Unknown error"));
         setStaff([]);
       } finally {
         setStaffLoading(false);
@@ -216,7 +245,7 @@ export default function SupportAdminPage() {
   const resolvedCount = reports.filter((r) => r.status === "resolved" || r.status === "closed").length;
 
   // Permission checks
-  const user = whoami?.user as UserWithPlatformRole | undefined;
+  const user = whoami?.user;
   const regionAllowed = regionFilter === "all" || !user?.region || user?.region === regionFilter;
   const campgroundAllowed =
     !campgroundId || platformRole || user?.memberships?.some((m) => m.campgroundId === campgroundId);
@@ -258,8 +287,8 @@ export default function SupportAdminPage() {
       if (!res.ok) throw new Error(`Failed to update (${res.status})`);
       setReports((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)));
       toast({ title: "Updated", description: `Status set to ${status}` });
-    } catch (err: any) {
-      toast({ title: "Update failed", description: err?.message || "Try again", variant: "destructive" });
+    } catch (err: unknown) {
+      toast({ title: "Update failed", description: getErrorMessage(err, "Try again"), variant: "destructive" });
     }
   };
 
@@ -296,8 +325,8 @@ export default function SupportAdminPage() {
         )
       );
       toast({ title: assigneeId ? "Assigned" : "Unassigned", description: assigneeId ? "Assigned to user" : "Cleared" });
-    } catch (err: any) {
-      toast({ title: "Update failed", description: err?.message || "Try again", variant: "destructive" });
+    } catch (err: unknown) {
+      toast({ title: "Update failed", description: getErrorMessage(err, "Try again"), variant: "destructive" });
     }
   };
 
@@ -319,7 +348,7 @@ export default function SupportAdminPage() {
             <div className="flex flex-wrap gap-2 justify-end">
               {/* Status Filter Pills */}
               <div className="flex items-center gap-1 rounded-full border border-border bg-card p-1 shadow-sm">
-                {(["all", "new", "triage", "in_progress", "resolved", "closed"] as const).map((key) => (
+                {STATUS_FILTERS.map((key) => (
                   <Button
                     key={key}
                     size="sm"
@@ -398,7 +427,11 @@ export default function SupportAdminPage() {
         </div>
 
         {/* Permissions / Loading Errors */}
-        {whoamiError && <div className="p-4 text-rose-600 bg-rose-50 rounded border border-rose-100">Scope fetch failed: {(whoamiError as Error)?.message}</div>}
+        {whoamiError && (
+          <div className="p-4 text-rose-600 bg-rose-50 rounded border border-rose-100">
+            Scope fetch failed: {getErrorMessage(whoamiError, "Unknown error")}
+          </div>
+        )}
         {loading && <div className="p-12 text-center text-muted-foreground">Loading reports...</div>}
         {error && <div className="p-4 text-rose-600 bg-rose-50 rounded border border-rose-100">{error}</div>}
 
@@ -652,4 +685,3 @@ export default function SupportAdminPage() {
     </div>
   );
 }
-

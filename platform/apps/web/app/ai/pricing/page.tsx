@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, type Transition } from "framer-motion";
 import { apiClient } from "@/lib/api-client";
 import { DashboardShell } from "@/components/ui/layout/DashboardShell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -30,30 +30,24 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 
-const SPRING_CONFIG = {
-  type: "spring" as const,
+type Campground = Awaited<ReturnType<typeof apiClient.getCampgrounds>>[number];
+type PricingRecommendation = Awaited<ReturnType<typeof apiClient.getPricingRecommendations>>[number] & {
+  siteClassName?: string | null;
+  createdAt?: string | null;
+  expiresAt?: string | null;
+};
+type RecommendationStatusFilter = "all" | "pending" | "applied" | "dismissed";
+
+const FILTER_OPTIONS: RecommendationStatusFilter[] = ["pending", "all", "applied", "dismissed"];
+
+const SPRING_CONFIG: Transition = {
+  type: "spring",
   stiffness: 300,
   damping: 25,
 };
 
-type PricingRecommendation = {
-  id: string;
-  siteClassId?: string;
-  siteClassName?: string;
-  dateStart: string;
-  dateEnd: string;
-  recommendationType: "underpriced" | "overpriced" | "event_opportunity";
-  currentPriceCents: number;
-  suggestedPriceCents: number;
-  adjustmentPercent: number;
-  confidence: number;
-  reasoning: string;
-  factors: Record<string, unknown>;
-  status: "pending" | "applied" | "dismissed";
-  estimatedRevenueDelta?: number;
-  expiresAt: string;
-  createdAt: string;
-};
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error && error.message ? error.message : "Something went wrong";
 
 function getRecommendationIcon(type: string) {
   switch (type) {
@@ -82,22 +76,29 @@ function getRecommendationColor(type: string) {
 }
 
 export default function AIPricingPage() {
-  const [filter, setFilter] = useState<"all" | "pending" | "applied" | "dismissed">("pending");
+  const [filter, setFilter] = useState<RecommendationStatusFilter>("pending");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   // Get campground
-  const { data: campgrounds = [] } = useQuery({
+  const { data: campgrounds = [] } = useQuery<Campground[]>({
     queryKey: ["campgrounds"],
     queryFn: () => apiClient.getCampgrounds(),
   });
   const campground = campgrounds[0];
+  const campgroundId = campground?.id;
+  const requireCampgroundId = () => {
+    if (!campgroundId) {
+      throw new Error("Campground is required");
+    }
+    return campgroundId;
+  };
 
   // Get pricing recommendations
-  const { data: recommendations = [], isLoading, refetch } = useQuery({
-    queryKey: ["pricing-recommendations", campground?.id, filter],
-    queryFn: () => apiClient.getPricingRecommendations(campground!.id, filter === "all" ? undefined : filter),
-    enabled: !!campground?.id,
+  const { data: recommendations = [], isLoading, refetch } = useQuery<PricingRecommendation[]>({
+    queryKey: ["pricing-recommendations", campgroundId, filter],
+    queryFn: () => apiClient.getPricingRecommendations(requireCampgroundId(), filter === "all" ? undefined : filter),
+    enabled: !!campgroundId,
   });
 
   // Apply recommendation mutation
@@ -109,8 +110,8 @@ export default function AIPricingPage() {
       refetch();
       queryClient.invalidateQueries({ queryKey: ["pricing-recommendations"] });
     },
-    onError: (error: any) => {
-      toast({ title: "Failed to apply", description: error.message, variant: "destructive" });
+    onError: (error) => {
+      toast({ title: "Failed to apply", description: getErrorMessage(error), variant: "destructive" });
     },
   });
 
@@ -123,13 +124,13 @@ export default function AIPricingPage() {
       refetch();
       queryClient.invalidateQueries({ queryKey: ["pricing-recommendations"] });
     },
-    onError: (error: any) => {
-      toast({ title: "Failed to dismiss", description: error.message, variant: "destructive" });
+    onError: (error) => {
+      toast({ title: "Failed to dismiss", description: getErrorMessage(error), variant: "destructive" });
     },
   });
 
-  const pendingCount = (recommendations as PricingRecommendation[]).filter(r => r.status === "pending").length;
-  const totalPotentialRevenue = (recommendations as PricingRecommendation[])
+  const pendingCount = recommendations.filter(r => r.status === "pending").length;
+  const totalPotentialRevenue = recommendations
     .filter(r => r.status === "pending")
     .reduce((acc, r) => acc + (r.estimatedRevenueDelta || 0), 0);
 
@@ -214,7 +215,7 @@ export default function AIPricingPage() {
                 <Check className="h-5 w-5 text-status-info-text" />
               </div>
               <div className="text-2xl font-bold text-foreground">
-                {(recommendations as PricingRecommendation[]).filter(r => r.status === "applied").length}
+                {recommendations.filter(r => r.status === "applied").length}
               </div>
               <p className="text-xs text-muted-foreground">Applied This Month</p>
             </CardContent>
@@ -226,10 +227,10 @@ export default function AIPricingPage() {
                 <BarChart3 className="h-5 w-5 text-primary" />
               </div>
               <div className="text-2xl font-bold text-foreground">
-                {(recommendations as PricingRecommendation[]).length > 0
+                {recommendations.length > 0
                   ? Math.round(
-                      (recommendations as PricingRecommendation[]).reduce((acc, r) => acc + r.confidence, 0) /
-                        (recommendations as PricingRecommendation[]).length * 100
+                      recommendations.reduce((acc, r) => acc + r.confidence, 0) /
+                        recommendations.length * 100
                     )
                   : 0}%
               </div>
@@ -240,7 +241,7 @@ export default function AIPricingPage() {
 
         {/* Filter Tabs */}
         <div className="flex gap-2">
-          {(["pending", "all", "applied", "dismissed"] as const).map((f) => (
+          {FILTER_OPTIONS.map((f) => (
             <Button
               key={f}
               variant={filter === f ? "default" : "outline"}
@@ -268,7 +269,7 @@ export default function AIPricingPage() {
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
-          ) : (recommendations as PricingRecommendation[]).length === 0 ? (
+          ) : recommendations.length === 0 ? (
             <Card>
               <CardContent className="py-12">
                 <div className="text-center">
@@ -285,7 +286,7 @@ export default function AIPricingPage() {
           ) : (
             <div className="space-y-4">
               <AnimatePresence mode="popLayout">
-                {(recommendations as PricingRecommendation[]).map((rec, index) => {
+                {recommendations.map((rec, index) => {
                   const Icon = getRecommendationIcon(rec.recommendationType);
                   const colorClass = getRecommendationColor(rec.recommendationType);
                   const priceChange = rec.suggestedPriceCents - rec.currentPriceCents;
@@ -400,11 +401,13 @@ export default function AIPricingPage() {
                           </div>
 
                           <div className="flex items-center gap-4 mt-4 pt-4 border-t text-xs text-muted-foreground">
-                            <div className="flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              Created {formatDistanceToNow(new Date(rec.createdAt), { addSuffix: true })}
-                            </div>
-                            {rec.status === "pending" && (
+                            {rec.createdAt && (
+                              <div className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                Created {formatDistanceToNow(new Date(rec.createdAt), { addSuffix: true })}
+                              </div>
+                            )}
+                            {rec.status === "pending" && rec.expiresAt && (
                               <div className="flex items-center gap-1">
                                 <AlertCircle className="h-3 w-3" />
                                 Expires {formatDistanceToNow(new Date(rec.expiresAt), { addSuffix: true })}

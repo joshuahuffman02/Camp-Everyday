@@ -50,6 +50,122 @@ import {
 
 type PublicCampgroundDetail = Awaited<ReturnType<typeof apiClient.getPublicCampground>>;
 
+type SiteClassWithType = {
+  id: string;
+  name: string;
+  siteType?: string | null;
+  description?: string | null;
+  defaultRate?: number | null;
+  maxOccupancy?: number | null;
+  hookupsPower?: boolean | null;
+  hookupsWater?: boolean | null;
+  hookupsSewer?: boolean | null;
+  petFriendly?: boolean | null;
+  photoUrl?: string | null;
+};
+
+type Review = {
+  id: string;
+  rating: number;
+  comment: string;
+  reviewerName?: string;
+  stayDate?: string;
+};
+
+type CampgroundEvent = {
+  id: string;
+  title: string;
+  startDate?: string;
+  endDate?: string;
+  description?: string;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const readString = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+const readNumber = (value: unknown): number | undefined =>
+  typeof value === "number" ? value : undefined;
+
+const readBoolean = (value: unknown): boolean | undefined =>
+  typeof value === "boolean" ? value : undefined;
+
+const isStringArray = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((item) => typeof item === "string");
+
+const parseSiteClasses = (value: unknown): SiteClassWithType[] => {
+  if (!Array.isArray(value)) return [];
+  return value.reduce<SiteClassWithType[]>((acc, item) => {
+    if (!isRecord(item)) return acc;
+    const id = readString(item.id);
+    const name = readString(item.name);
+    if (!id || !name) return acc;
+    const entry: SiteClassWithType = { id, name };
+    const siteType = readString(item.siteType);
+    if (siteType !== undefined) entry.siteType = siteType;
+    const description = readString(item.description);
+    if (description !== undefined) entry.description = description;
+    const defaultRate = readNumber(item.defaultRate);
+    if (defaultRate !== undefined) entry.defaultRate = defaultRate;
+    const maxOccupancy = readNumber(item.maxOccupancy);
+    if (maxOccupancy !== undefined) entry.maxOccupancy = maxOccupancy;
+    const hookupsPower = readBoolean(item.hookupsPower);
+    if (hookupsPower !== undefined) entry.hookupsPower = hookupsPower;
+    const hookupsWater = readBoolean(item.hookupsWater);
+    if (hookupsWater !== undefined) entry.hookupsWater = hookupsWater;
+    const hookupsSewer = readBoolean(item.hookupsSewer);
+    if (hookupsSewer !== undefined) entry.hookupsSewer = hookupsSewer;
+    const petFriendly = readBoolean(item.petFriendly);
+    if (petFriendly !== undefined) entry.petFriendly = petFriendly;
+    const photoUrl = readString(item.photoUrl);
+    if (photoUrl !== undefined) entry.photoUrl = photoUrl;
+    acc.push(entry);
+    return acc;
+  }, []);
+};
+
+const parseReviews = (value: unknown): Review[] => {
+  if (!Array.isArray(value)) return [];
+  return value.reduce<Review[]>((acc, item) => {
+    if (!isRecord(item)) return acc;
+    const id = readString(item.id);
+    const rating = readNumber(item.rating);
+    const comment = readString(item.comment);
+    if (!id || rating === undefined || !comment) return acc;
+    const review: Review = { id, rating, comment };
+    const reviewerName = readString(item.reviewerName);
+    if (reviewerName) review.reviewerName = reviewerName;
+    const stayDate = readString(item.stayDate);
+    if (stayDate) review.stayDate = stayDate;
+    acc.push(review);
+    return acc;
+  }, []);
+};
+
+const parseAmenities = (value: unknown): string[] =>
+  isStringArray(value) ? value : [];
+
+const parseEvents = (value: unknown): CampgroundEvent[] => {
+  if (!Array.isArray(value)) return [];
+  return value.reduce<CampgroundEvent[]>((acc, item) => {
+    if (!isRecord(item)) return acc;
+    const id = readString(item.id);
+    const title = readString(item.title);
+    if (!id || !title) return acc;
+    const event: CampgroundEvent = { id, title };
+    const startDate = readString(item.startDate);
+    if (startDate) event.startDate = startDate;
+    const endDate = readString(item.endDate);
+    if (endDate) event.endDate = endDate;
+    const description = readString(item.description);
+    if (description) event.description = description;
+    acc.push(event);
+    return acc;
+  }, []);
+};
+
 function nextWeekendRange() {
   const today = new Date();
   const day = today.getDay();
@@ -121,45 +237,22 @@ export function CampgroundV2Client({
     }
   }, [campground?.id, slug]);
 
-  // Type definitions
-  type SiteClassWithType = {
-    id: string;
-    name: string;
-    siteType?: string | null;
-    description?: string | null;
-    defaultRate?: number | null;
-    maxOccupancy?: number | null;
-    hookupsPower?: boolean | null;
-    hookupsWater?: boolean | null;
-    hookupsSewer?: boolean | null;
-    petFriendly?: boolean | null;
-    photoUrl?: string | null;
-  };
-
-  type Review = {
-    id: string;
-    rating: number;
-    comment: string;
-    reviewerName?: string;
-    stayDate?: string;
-  };
-
   // Extract data with proper typing
-  const siteClasses = (campground?.siteClasses ?? []) as SiteClassWithType[];
+  const campgroundExtras = isRecord(campground) ? campground : null;
+  const siteClasses = parseSiteClasses(campground?.siteClasses);
   const photos = campground?.photos ?? [];
   const hero = campground?.heroImageUrl || photos[0];
-  const events = campground?.events ?? [];
-  const promotions = campground?.promotions ?? [];
-  const reviews = ((campground as any)?.reviews ?? []) as Review[];
-  const amenities = ((campground as any)?.amenities ?? []) as string[];
+  const events = parseEvents(campground?.events);
+  const reviews = parseReviews(campgroundExtras?.reviews);
+  const amenities = parseAmenities(campgroundExtras?.amenities);
 
   // Check if external (RIDB imported)
-  const isExternal = (campground as any)?.isExternal ?? false;
-  const isClaimable = (campground as any)?.isClaimable ?? false;
-  const externalUrl = (campground as any)?.externalUrl as string | null;
-  const seededDataSource = (campground as any)?.seededDataSource as
-    | string
-    | null;
+  const isExternal = readBoolean(campgroundExtras?.isExternal) ?? false;
+  const isClaimable = readBoolean(campgroundExtras?.isClaimable) ?? false;
+  const externalUrl = readString(campgroundExtras?.externalUrl) ?? null;
+  const seededDataSource = readString(campgroundExtras?.seededDataSource) ?? null;
+  const phone = readString(campgroundExtras?.phone) ?? campground?.phone ?? undefined;
+  const website = readString(campgroundExtras?.website) ?? campground?.website ?? undefined;
 
   // Navigate to booking
   const handleBookClick = () => {
@@ -523,7 +616,7 @@ export function CampgroundV2Client({
                             </div>
                           </div>
                         </div>
-                        {(campground as any)?.phone && (
+                        {phone && (
                           <div className="flex items-center gap-3">
                             <Phone className="h-5 w-5 text-slate-400" />
                             <div>
@@ -531,17 +624,17 @@ export function CampgroundV2Client({
                                 Phone
                               </div>
                               <a
-                                href={`tel:${(campground as any).phone}`}
+                                href={`tel:${phone}`}
                                 className="text-sm text-emerald-600 hover:underline"
                               >
-                                {(campground as any).phone}
+                                {phone}
                               </a>
                             </div>
                           </div>
                         )}
                       </div>
                       <div className="space-y-3">
-                        {(campground as any)?.website && (
+                        {website && (
                           <div className="flex items-center gap-3">
                             <Globe className="h-5 w-5 text-slate-400" />
                             <div>
@@ -549,7 +642,7 @@ export function CampgroundV2Client({
                                 Website
                               </div>
                               <a
-                                href={(campground as any).website}
+                                href={website}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-sm text-emerald-600 hover:underline"

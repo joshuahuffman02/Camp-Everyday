@@ -1,9 +1,21 @@
+import {
+    Prisma,
+    SocialAlertCategory,
+    SocialAssetType,
+    SocialContentCategory,
+    SocialPlatform,
+    SocialPostStatus,
+    SocialSuggestionStatus,
+    SocialSuggestionType,
+    SocialTemplateStyle,
+} from '@prisma/client';
+
 export interface CreatePostDto {
     campgroundId: string;
     title: string;
-    platform: string;
-    status?: string;
-    category?: string;
+    platform: SocialPlatform;
+    status?: SocialPostStatus;
+    category?: SocialContentCategory;
     scheduledFor?: Date | string | null;
     publishedFor?: Date | string | null;
     caption?: string | null;
@@ -23,8 +35,8 @@ export interface CreateTemplateDto {
     campgroundId: string;
     name: string;
     summary?: string | null;
-    category?: string | null;
-    style?: string | null;
+    category?: SocialContentCategory | null;
+    style?: SocialTemplateStyle | null;
     defaultCaption?: string | null;
     captionFillIns?: string | null;
     imageGuidance?: string | null;
@@ -37,7 +49,7 @@ export type UpdateTemplateDto = Partial<CreateTemplateDto>;
 export interface CreateAssetDto {
     campgroundId: string;
     title: string;
-    type: string;
+    type: SocialAssetType;
     url: string;
     tags?: string[];
     notes?: string | null;
@@ -48,11 +60,11 @@ export type UpdateAssetDto = Partial<CreateAssetDto>;
 
 export interface CreateSuggestionDto {
     campgroundId: string;
-    type: string;
+    type: SocialSuggestionType;
     message: string;
-    status?: string;
-    category?: string | null;
-    platform?: string | null;
+    status?: SocialSuggestionStatus;
+    category?: SocialContentCategory | null;
+    platform?: SocialPlatform | null;
     proposedDate?: Date | string | null;
     opportunityAt?: Date | string | null;
     postId?: string | null;
@@ -60,7 +72,7 @@ export interface CreateSuggestionDto {
 }
 
 export interface UpdateSuggestionStatusDto {
-    status: string;
+    status: SocialSuggestionStatus;
     postId?: string | null;
 }
 
@@ -68,12 +80,12 @@ export interface CreateStrategyDto {
     campgroundId: string;
     month: Date | string;
     annual?: boolean;
-    plan: Record<string, unknown>;
+    plan: Prisma.InputJsonValue;
 }
 
 export interface CreateAlertDto {
     campgroundId: string;
-    category: string;
+    category: SocialAlertCategory;
     message: string;
     startsAt?: Date | string | null;
     endsAt?: Date | string | null;
@@ -90,4 +102,3 @@ export interface PerformanceInputDto {
     notes?: string | null;
     recordedAt?: Date | string | null;
 }
-

@@ -14,7 +14,8 @@ export function KeyboardSequenceIndicator() {
     let timer: ReturnType<typeof setTimeout> | null = null;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
+      const target = e.target;
+      if (!(target instanceof HTMLElement)) return;
       const isTyping =
         target.tagName === "INPUT" ||
         target.tagName === "TEXTAREA" ||

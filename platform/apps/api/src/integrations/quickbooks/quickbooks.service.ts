@@ -1,4 +1,6 @@
 import { Injectable, Logger, BadRequestException, NotFoundException } from "@nestjs/common";
+import { Prisma, type IntegrationConnection } from "@prisma/client";
+import { randomUUID } from "crypto";
 import { PrismaService } from "../../prisma/prisma.service";
 
 export interface QuickBooksConfig {
@@ -34,6 +36,23 @@ export interface SyncResult {
   quickbooksId?: string;
   error?: string;
 }
+
+type GuestRef = { id: string } | null | undefined;
+
+type QuickbooksSyncLog = {
+  status?: string;
+  quickbooksId?: string | null;
+};
+
+type QuickbooksSyncLogClient = {
+  findFirst?: (args: Record<string, unknown>) => Promise<QuickbooksSyncLog | null>;
+  findMany?: (args: Record<string, unknown>) => Promise<QuickbooksSyncLog[]>;
+};
+
+const hasQuickbooksSyncLog = (
+  prisma: PrismaService
+): prisma is PrismaService & { quickbooksSyncLog: QuickbooksSyncLogClient } =>
+  "quickbooksSyncLog" in prisma;
 
 @Injectable()
 export class QuickBooksService {
@@ -85,7 +104,7 @@ export class QuickBooksService {
    */
   async isConnected(campgroundId: string): Promise<boolean> {
     const integration = await this.getIntegration(campgroundId);
-    return !!integration && integration.isActive;
+    return !!integration && integration.status === "connected";
   }
 
   /**
@@ -93,16 +112,16 @@ export class QuickBooksService {
    */
   async syncReservationToInvoice(campgroundId: string, reservationId: string): Promise<SyncResult> {
     const integration = await this.getIntegration(campgroundId);
-    if (!integration || !integration.isActive) {
+    if (!integration || integration.status !== "connected") {
       return { success: false, error: "QuickBooks not connected" };
     }
 
     const reservation = await this.prisma.reservation.findUnique({
       where: { id: reservationId },
       include: {
-        guest: true,
-        site: true,
-        campground: true,
+        Guest: true,
+        Site: true,
+        Campground: true,
       },
     });
 
@@ -111,25 +130,28 @@ export class QuickBooksService {
     }
 
     // Check if already synced
-    const existingSync = await this.prisma.quickbooksSyncLog?.findFirst?.({
-      where: { reservationId, entityType: "invoice", status: "success" },
-    });
+    const syncLogClient = this.getSyncLogClient();
+    const existingSync = syncLogClient?.findFirst
+      ? await syncLogClient.findFirst({
+          where: { reservationId, entityType: "invoice", status: "success" },
+        })
+      : null;
 
     if (existingSync) {
-      return { success: true, quickbooksId: existingSync.quickbooksId };
+      return { success: true, quickbooksId: existingSync.quickbooksId ?? undefined };
     }
 
     // Build invoice data
     const invoice: QuickBooksInvoice = {
-      customerRef: await this.getOrCreateCustomer(campgroundId, reservation.guest),
+      customerRef: await this.getOrCreateCustomer(campgroundId, reservation.Guest),
       lineItems: [
         {
-          description: `Reservation at ${reservation.site?.name || "Site"} (${reservation.arrivalDate.toLocaleDateString()} - ${reservation.departureDate.toLocaleDateString()})`,
+          description: `Reservation at ${reservation.Site?.name || "Site"} (${reservation.arrivalDate.toLocaleDateString()} - ${reservation.departureDate.toLocaleDateString()})`,
           amount: reservation.totalAmount / 100, // Convert cents to dollars
           quantity: 1,
         },
       ],
-      memo: `Confirmation: ${reservation.confirmationCode}`,
+      memo: `Confirmation: ${reservation.id}`,
     };
 
     // In production, make API call to QuickBooks
@@ -152,14 +174,14 @@ export class QuickBooksService {
    */
   async syncPayment(campgroundId: string, paymentId: string): Promise<SyncResult> {
     const integration = await this.getIntegration(campgroundId);
-    if (!integration || !integration.isActive) {
+    if (!integration || integration.status !== "connected") {
       return { success: false, error: "QuickBooks not connected" };
     }
 
     const payment = await this.prisma.payment.findUnique({
       where: { id: paymentId },
       include: {
-        reservation: {
+        Reservation: {
           include: { Guest: true },
         },
       },
@@ -170,20 +192,23 @@ export class QuickBooksService {
     }
 
     // Check if already synced
-    const existingSync = await this.prisma.quickbooksSyncLog?.findFirst?.({
-      where: { paymentId, entityType: "payment", status: "success" },
-    });
+    const syncLogClient = this.getSyncLogClient();
+    const existingSync = syncLogClient?.findFirst
+      ? await syncLogClient.findFirst({
+          where: { paymentId, entityType: "payment", status: "success" },
+        })
+      : null;
 
     if (existingSync) {
-      return { success: true, quickbooksId: existingSync.quickbooksId };
+      return { success: true, quickbooksId: existingSync.quickbooksId ?? undefined };
     }
 
     // Build payment data
     const qbPayment: QuickBooksPayment = {
-      customerRef: await this.getOrCreateCustomer(campgroundId, payment.reservation?.guest),
+      customerRef: await this.getOrCreateCustomer(campgroundId, payment.Reservation?.Guest),
       totalAmount: (payment.amountCents ?? 0) / 100,
-      paymentMethod: this.mapPaymentMethod(payment.paymentMethod ?? "card"),
-      memo: `Reservation ${payment.reservation?.confirmationCode}`,
+      paymentMethod: this.mapPaymentMethod(payment.method ?? "card"),
+      memo: `Reservation ${payment.Reservation?.id ?? payment.reservationId}`,
     };
 
     this.logger.log(`Would sync payment to QuickBooks: ${JSON.stringify(qbPayment)}`);
@@ -202,22 +227,25 @@ export class QuickBooksService {
    * Get sync status and history
    */
   async getSyncStatus(campgroundId: string, startDate?: Date, endDate?: Date) {
-    const where: any = { campgroundId };
+    const where: Record<string, unknown> = { campgroundId };
     if (startDate && endDate) {
       where.createdAt = { gte: startDate, lte: endDate };
     }
 
-    const syncs = await this.prisma.quickbooksSyncLog?.findMany?.({
-      where,
-      orderBy: { createdAt: "desc" },
-      take: 100,
-    }) ?? [];
+    const syncLogClient = this.getSyncLogClient();
+    const syncs = syncLogClient?.findMany
+      ? await syncLogClient.findMany({
+          where,
+          orderBy: { createdAt: "desc" },
+          take: 100,
+        })
+      : [];
 
     const summary = {
       total: syncs.length,
-      success: syncs.filter((s: any) => s.status === "success").length,
-      pending: syncs.filter((s: any) => s.status === "pending").length,
-      failed: syncs.filter((s: any) => s.status === "failed").length,
+      success: syncs.filter((sync) => sync.status === "success").length,
+      pending: syncs.filter((sync) => sync.status === "pending").length,
+      failed: syncs.filter((sync) => sync.status === "failed").length,
     };
 
     return { summary, recentSyncs: syncs.slice(0, 20) };
@@ -232,9 +260,9 @@ export class QuickBooksService {
       return { success: true };
     }
 
-    await this.prisma.integration.update({
+    await this.prisma.integrationConnection.update({
       where: { id: integration.id },
-      data: { isActive: false, config: {} },
+      data: { status: "disconnected", credentials: Prisma.DbNull, settings: Prisma.DbNull },
     });
 
     return { success: true };
@@ -242,9 +270,13 @@ export class QuickBooksService {
 
   // Private helper methods
 
-  private async getIntegration(campgroundId: string) {
-    return this.prisma.integration.findFirst({
-      where: { campgroundId, type: "quickbooks" },
+  private getSyncLogClient(): QuickbooksSyncLogClient | null {
+    return hasQuickbooksSyncLog(this.prisma) ? this.prisma.quickbooksSyncLog : null;
+  }
+
+  private async getIntegration(campgroundId: string): Promise<IntegrationConnection | null> {
+    return this.prisma.integrationConnection.findFirst({
+      where: { campgroundId, type: "quickbooks", provider: "quickbooks" },
     });
   }
 
@@ -257,11 +289,11 @@ export class QuickBooksService {
     const existing = await this.getIntegration(campgroundId);
 
     if (existing) {
-      return this.prisma.integration.update({
+      return this.prisma.integrationConnection.update({
         where: { id: existing.id },
         data: {
-          isActive: true,
-          config: {
+          status: "connected",
+          settings: {
             realmId: config.realmId,
             tokenExpiresAt: config.expiresAt.toISOString(),
           },
@@ -273,13 +305,15 @@ export class QuickBooksService {
       });
     }
 
-    return this.prisma.integration.create({
+    return this.prisma.integrationConnection.create({
       data: {
+        id: randomUUID(),
+        updatedAt: new Date(),
         campgroundId,
         type: "quickbooks",
-        name: "QuickBooks Online",
-        isActive: true,
-        config: {
+        provider: "quickbooks",
+        status: "connected",
+        settings: {
           realmId: config.realmId,
           tokenExpiresAt: config.expiresAt.toISOString(),
         },
@@ -291,7 +325,7 @@ export class QuickBooksService {
     });
   }
 
-  private async getOrCreateCustomer(campgroundId: string, guest: any): Promise<string> {
+  private async getOrCreateCustomer(campgroundId: string, guest: GuestRef): Promise<string> {
     if (!guest) return "WALK_IN";
 
     // In production, check if customer exists in QuickBooks mapping
@@ -314,8 +348,8 @@ export class QuickBooksService {
     entityType: string;
     entityId: string;
     status: string;
-    requestData?: any;
-    responseData?: any;
+    requestData?: unknown;
+    responseData?: unknown;
     error?: string;
   }) {
     // In production, save to a quickbooksSyncLog table

@@ -21,6 +21,9 @@ type LocalizationSettings = {
   orgCurrency?: string;
 };
 
+const isTranslationLocale = (value: string): value is keyof typeof translations =>
+  Object.prototype.hasOwnProperty.call(translations, value);
+
 @Injectable()
 export class LocalizationService {
   private readonly locales: LocaleOption[] = [
@@ -274,11 +277,8 @@ export class LocalizationService {
    * Get all translations for a locale (for frontend hydration)
    */
   getAllTranslations(locale: string): Record<string, string> {
-    const localeData = translations[locale as keyof typeof translations];
-    if (!localeData) {
-      return translations["en-US"] as Record<string, string>;
-    }
-    return localeData as Record<string, string>;
+    const localeData = isTranslationLocale(locale) ? translations[locale] : translations["en-US"];
+    return localeData;
   }
 
   /**
@@ -302,4 +302,3 @@ export class LocalizationService {
     return byRegion;
   }
 }
-

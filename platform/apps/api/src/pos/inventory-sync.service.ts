@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
-import { PosProviderType } from "@prisma/client";
+import { PosProviderType, PosIntegrationStatus, Prisma, type PosProviderIntegration } from "@prisma/client";
+import { randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { PosProviderRegistry } from "./pos-provider.registry";
 import { BatchInventoryService } from "../inventory/batch-inventory.service";
@@ -8,7 +9,44 @@ import {
     ExternalProduct,
     ExternalSale,
     ExternalSyncResult,
+    IntegrationRecord,
 } from "./pos-provider.types";
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null && !Array.isArray(value);
+
+const isJsonValue = (value: unknown): value is Prisma.InputJsonValue => {
+    if (value === null) return true;
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return true;
+    if (Array.isArray(value)) return value.every(isJsonValue);
+    if (isRecord(value)) return Object.values(value).every(isJsonValue);
+    return false;
+};
+
+const toNullableJsonInput = (
+    value: unknown
+): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | undefined => {
+    if (value === undefined) return undefined;
+    if (value === null) return Prisma.JsonNull;
+    return isJsonValue(value) ? value : undefined;
+};
+
+const toRecord = (value: unknown): Record<string, unknown> =>
+    isRecord(value) ? value : {};
+
+const toStringRecord = (value: unknown): Record<string, string> => {
+    if (!isRecord(value)) return {};
+    const result: Record<string, string> = {};
+    for (const [key, entry] of Object.entries(value)) {
+        if (typeof entry === "string") {
+            result[key] = entry;
+        }
+    }
+    return result;
+};
+
+const getErrorMessage = (error: unknown) =>
+    error instanceof Error ? error.message : "Unknown error";
 
 interface SyncJob {
     id: string;
@@ -35,6 +73,24 @@ export class InventorySyncService {
         private readonly batchInventory: BatchInventoryService
     ) {}
 
+    private buildIntegrationRecord(integration: PosProviderIntegration): IntegrationRecord {
+        const locations = toStringRecord(integration.locations);
+        const devices = toStringRecord(integration.devices);
+
+        return {
+            id: integration.id,
+            campgroundId: integration.campgroundId,
+            provider: integration.provider,
+            displayName: integration.displayName,
+            status: integration.status,
+            capabilities: integration.capabilities,
+            credentials: toRecord(integration.credentials),
+            locations: Object.keys(locations).length > 0 ? locations : undefined,
+            devices: Object.keys(devices).length > 0 ? devices : undefined,
+            webhookSecret: integration.webhookSecret,
+        };
+    }
+
     // ==================== SCHEDULED SYNC ====================
 
     /**
@@ -50,9 +106,9 @@ export class InventorySyncService {
 
         try {
             // Get all active POS integrations that support inventory sync
-            const integrations = await this.prisma.posIntegration.findMany({
+            const integrations = await this.prisma.posProviderIntegration.findMany({
                 where: {
-                    status: "active",
+                    status: PosIntegrationStatus.enabled,
                     capabilities: { hasSome: ["inventory_pull"] },
                 },
             });
@@ -63,9 +119,9 @@ export class InventorySyncService {
                         integration.campgroundId,
                         integration.id
                     );
-                } catch (error: any) {
+                } catch (error: unknown) {
                     this.logger.error(
-                        `Failed to sync sales for integration ${integration.id}: ${error.message}`
+                        `Failed to sync sales for integration ${integration.id}: ${getErrorMessage(error)}`
                     );
                 }
             }
@@ -90,7 +146,7 @@ export class InventorySyncService {
         failed: number;
         products: ExternalProduct[];
     }> {
-        const integration = await this.prisma.posIntegration.findUnique({
+        const integration = await this.prisma.posProviderIntegration.findUnique({
             where: { id: integrationId },
         });
 
@@ -103,18 +159,7 @@ export class InventorySyncService {
             throw new BadRequestException(`Provider ${integration.provider} does not support product sync`);
         }
 
-        const config = {
-            id: integration.id,
-            campgroundId: integration.campgroundId,
-            provider: integration.provider,
-            displayName: integration.displayName,
-            status: integration.status,
-            capabilities: integration.capabilities,
-            credentials: integration.credentials as Record<string, unknown>,
-            locations: integration.locationMappings as Record<string, string>,
-            devices: integration.deviceMappings as Record<string, string>,
-            webhookSecret: integration.webhookSecret,
-        };
+        const config = this.buildIntegrationRecord(integration);
 
         const externalProducts = await adapter.fetchProducts(config);
 
@@ -143,7 +188,7 @@ export class InventorySyncService {
                             externalSku: extProduct.externalSku,
                             lastSyncedAt: new Date(),
                             syncStatus: "synced",
-                            metadata: extProduct.metadata ?? {},
+                            metadata: toNullableJsonInput(extProduct.metadata),
                         },
                     });
                     updated++;
@@ -164,6 +209,7 @@ export class InventorySyncService {
                     // Create mapping (productId may be null if not matched)
                     await this.prisma.productExternalMapping.create({
                         data: {
+                            id: randomUUID(),
                             campgroundId,
                             productId: productId ?? "unmatched", // We'll need to handle unmatched products
                             provider: integration.provider,
@@ -171,24 +217,25 @@ export class InventorySyncService {
                             externalSku: extProduct.externalSku,
                             lastSyncedAt: new Date(),
                             syncStatus: productId ? "synced" : "unmatched",
-                            metadata: {
+                            metadata: toNullableJsonInput({
                                 ...extProduct.metadata,
                                 originalName: extProduct.name,
                                 originalPrice: extProduct.priceCents,
                                 category: extProduct.category,
-                            },
+                            }) ?? Prisma.DbNull,
+                            updatedAt: new Date()
                         },
                     });
                     imported++;
                 }
-            } catch (error: any) {
-                this.logger.error(`Failed to sync product ${extProduct.externalId}: ${error.message}`);
+            } catch (error: unknown) {
+                this.logger.error(`Failed to sync product ${extProduct.externalId}: ${getErrorMessage(error)}`);
                 failed++;
             }
         }
 
         // Update integration sync timestamp
-        await this.prisma.posIntegration.update({
+        await this.prisma.posProviderIntegration.update({
             where: { id: integrationId },
             data: { lastSyncAt: new Date() },
         });
@@ -216,7 +263,7 @@ export class InventorySyncService {
         skipped: number;
         errors: string[];
     }> {
-        const integration = await this.prisma.posIntegration.findUnique({
+        const integration = await this.prisma.posProviderIntegration.findUnique({
             where: { id: integrationId },
         });
 
@@ -232,18 +279,7 @@ export class InventorySyncService {
         // Default to last sync time or 24 hours ago
         const syncSince = since ?? integration.lastSyncAt ?? new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-        const config = {
-            id: integration.id,
-            campgroundId: integration.campgroundId,
-            provider: integration.provider,
-            displayName: integration.displayName,
-            status: integration.status,
-            capabilities: integration.capabilities,
-            credentials: integration.credentials as Record<string, unknown>,
-            locations: integration.locationMappings as Record<string, string>,
-            devices: integration.deviceMappings as Record<string, string>,
-            webhookSecret: integration.webhookSecret,
-        };
+        const config = this.buildIntegrationRecord(integration);
 
         const externalSales = await adapter.fetchSales(config, syncSince);
 
@@ -270,16 +306,19 @@ export class InventorySyncService {
                 }
 
                 // Record the sale
+                const itemsValue: Prisma.InputJsonValue =
+                    isJsonValue(sale.items) && sale.items !== null ? sale.items : [];
                 const saleRecord = await this.prisma.externalPosSale.create({
                     data: {
+                        id: randomUUID(),
                         campgroundId,
                         externalTransactionId: sale.externalTransactionId,
                         provider: integration.provider,
-                        items: sale.items,
+                        items: itemsValue,
                         totalCents: sale.totalCents,
                         paymentMethod: sale.paymentMethod,
                         saleDate: sale.saleDate,
-                        metadata: sale.metadata ?? {},
+                        metadata: toNullableJsonInput(sale.metadata),
                         inventoryDeducted: false,
                     },
                 });
@@ -337,14 +376,15 @@ export class InventorySyncService {
                             );
 
                             deducted++;
-                        } catch (err: any) {
-                            errors.push(`Failed to deduct batch inventory for ${product.id}: ${err.message}`);
+                        } catch (err: unknown) {
+                            errors.push(`Failed to deduct batch inventory for ${product.id}: ${getErrorMessage(err)}`);
                             allDeducted = false;
                         }
                     } else {
                         // Simple inventory deduction
                         await this.prisma.inventoryMovement.create({
                             data: {
+                                id: randomUUID(),
                                 campgroundId,
                                 productId: product.id,
                                 movementType: "sale",
@@ -369,13 +409,13 @@ export class InventorySyncService {
                 }
 
                 processed++;
-            } catch (error: any) {
-                errors.push(`Failed to process sale ${sale.externalTransactionId}: ${error.message}`);
+            } catch (error: unknown) {
+                errors.push(`Failed to process sale ${sale.externalTransactionId}: ${getErrorMessage(error)}`);
             }
         }
 
         // Update integration sync timestamp
-        await this.prisma.posIntegration.update({
+        await this.prisma.posProviderIntegration.update({
             where: { id: integrationId },
             data: { lastSyncAt: new Date() },
         });
@@ -402,7 +442,7 @@ export class InventorySyncService {
         failed: number;
         results: ExternalSyncResult[];
     }> {
-        const integration = await this.prisma.posIntegration.findUnique({
+        const integration = await this.prisma.posProviderIntegration.findUnique({
             where: { id: integrationId },
         });
 
@@ -424,22 +464,11 @@ export class InventorySyncService {
                 ...(productId ? { productId } : {}),
             },
             include: {
-                product: true,
+                Product: true,
             },
         });
 
-        const config = {
-            id: integration.id,
-            campgroundId: integration.campgroundId,
-            provider: integration.provider,
-            displayName: integration.displayName,
-            status: integration.status,
-            capabilities: integration.capabilities,
-            credentials: integration.credentials as Record<string, unknown>,
-            locations: integration.locationMappings as Record<string, string>,
-            devices: integration.deviceMappings as Record<string, string>,
-            webhookSecret: integration.webhookSecret,
-        };
+        const config = this.buildIntegrationRecord(integration);
 
         const results: ExternalSyncResult[] = [];
         let pushed = 0;
@@ -450,11 +479,12 @@ export class InventorySyncService {
                 // Get current inventory level
                 let qtyOnHand: number;
 
-                if (mapping.product.useBatchTracking) {
+                if (mapping.Product.useBatchTracking) {
                     qtyOnHand = await this.batchInventory.getBatchStock(mapping.productId);
+                } else if (mapping.Product.channelInventoryMode === "split") {
+                    qtyOnHand = Math.max(0, mapping.Product.posStockQty ?? 0);
                 } else {
-                    // Sum from inventory movements or use stockLevel from product
-                    qtyOnHand = mapping.product.stockLevel ?? 0;
+                    qtyOnHand = Math.max(0, mapping.Product.stockQty ?? 0);
                 }
 
                 const result = await adapter.pushInventoryUpdate(config, {
@@ -485,11 +515,11 @@ export class InventorySyncService {
                         },
                     });
                 }
-            } catch (error: any) {
+            } catch (error: unknown) {
                 failed++;
                 results.push({
                     success: false,
-                    error: error.message,
+                    error: getErrorMessage(error),
                 });
             }
         }
@@ -512,7 +542,7 @@ export class InventorySyncService {
         isMarkdown: boolean = false,
         originalPriceCents?: number
     ): Promise<ExternalSyncResult> {
-        const integration = await this.prisma.posIntegration.findUnique({
+        const integration = await this.prisma.posProviderIntegration.findUnique({
             where: { id: integrationId },
         });
 
@@ -542,18 +572,7 @@ export class InventorySyncService {
             };
         }
 
-        const config = {
-            id: integration.id,
-            campgroundId: integration.campgroundId,
-            provider: integration.provider,
-            displayName: integration.displayName,
-            status: integration.status,
-            capabilities: integration.capabilities,
-            credentials: integration.credentials as Record<string, unknown>,
-            locations: integration.locationMappings as Record<string, string>,
-            devices: integration.deviceMappings as Record<string, string>,
-            webhookSecret: integration.webhookSecret,
-        };
+        const config = this.buildIntegrationRecord(integration);
 
         return adapter.pushPriceUpdate(config, {
             productId,
@@ -599,12 +618,14 @@ export class InventorySyncService {
                 lastSyncedAt: new Date(),
             },
             create: {
+                id: randomUUID(),
                 campgroundId,
                 productId,
                 provider,
                 externalId,
                 syncStatus: "synced",
                 lastSyncedAt: new Date(),
+                updatedAt: new Date()
             },
         });
     }
@@ -628,7 +649,7 @@ export class InventorySyncService {
                 ...(provider ? { provider } : {}),
             },
             include: {
-                product: {
+                Product: {
                     select: {
                         id: true,
                         name: true,

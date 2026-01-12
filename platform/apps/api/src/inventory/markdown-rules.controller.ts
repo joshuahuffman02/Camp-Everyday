@@ -9,7 +9,8 @@ import {
     Param,
     Query,
     UseGuards,
-    Request,
+    Req,
+    UnauthorizedException,
 } from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { ScopeGuard } from "../auth/guards/scope.guard";
@@ -25,9 +26,13 @@ export class MarkdownRulesController {
     async createRule(
         @Param("campgroundId") campgroundId: string,
         @Body() dto: CreateMarkdownRuleDto,
-        @Request() req: Request
+        @Req() req: Request
     ) {
-        return this.markdownService.createRule(campgroundId, dto, req.user.id);
+        const userId = req.user?.id;
+        if (!userId) {
+            throw new UnauthorizedException();
+        }
+        return this.markdownService.createRule(campgroundId, dto, userId);
     }
 
     @Get()

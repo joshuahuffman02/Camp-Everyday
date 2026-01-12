@@ -29,6 +29,8 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
+type PresetIcon = typeof Sparkles;
+
 export interface CancellationRule {
   id: string;
   daysBeforeArrival: number; // threshold
@@ -47,14 +49,22 @@ interface CancellationRulesProps {
   isLoading?: boolean;
 }
 
-const SPRING_CONFIG = {
-  type: "spring" as const,
+const SPRING_CONFIG: { type: "spring"; stiffness: number; damping: number } = {
+  type: "spring",
   stiffness: 300,
   damping: 25,
 };
 
 // Preset cancellation policies
-const POLICY_PRESETS = [
+const POLICY_PRESETS: Array<{
+  id: string;
+  name: string;
+  description: string;
+  icon: PresetIcon;
+  color: string;
+  recommended?: boolean;
+  rules: CancellationRule[];
+}> = [
   {
     id: "flexible",
     name: "Flexible",
@@ -65,13 +75,13 @@ const POLICY_PRESETS = [
       {
         id: crypto.randomUUID(),
         daysBeforeArrival: 1,
-        feeType: "flat" as const,
+        feeType: "flat",
         feeAmount: 0,
       },
       {
         id: crypto.randomUUID(),
         daysBeforeArrival: 0,
-        feeType: "full" as const,
+        feeType: "full",
         feeAmount: 0,
       },
     ],
@@ -87,13 +97,13 @@ const POLICY_PRESETS = [
       {
         id: crypto.randomUUID(),
         daysBeforeArrival: 7,
-        feeType: "flat" as const,
+        feeType: "flat",
         feeAmount: 0,
       },
       {
         id: crypto.randomUUID(),
         daysBeforeArrival: 0,
-        feeType: "percent" as const,
+        feeType: "percent",
         feeAmount: 50,
       },
     ],
@@ -108,38 +118,43 @@ const POLICY_PRESETS = [
       {
         id: crypto.randomUUID(),
         daysBeforeArrival: 30,
-        feeType: "flat" as const,
+        feeType: "flat",
         feeAmount: 0,
       },
       {
         id: crypto.randomUUID(),
         daysBeforeArrival: 7,
-        feeType: "nights" as const,
+        feeType: "nights",
         feeAmount: 1,
       },
       {
         id: crypto.randomUUID(),
         daysBeforeArrival: 0,
-        feeType: "full" as const,
+        feeType: "full",
         feeAmount: 0,
       },
     ],
   },
 ];
 
-const FEE_TYPE_LABELS = {
+const FEE_TYPE_LABELS: Record<CancellationRule["feeType"], string> = {
   flat: "Flat Fee",
   percent: "Percentage",
   nights: "Nights Forfeited",
   full: "No Refund",
 };
 
-const FEE_TYPE_ICONS = {
+const FEE_TYPE_ICONS: Record<CancellationRule["feeType"], PresetIcon> = {
   flat: DollarSign,
   percent: Percent,
   nights: Moon,
   full: Ban,
 };
+
+const feeTypeValues: CancellationRule["feeType"][] = ["flat", "percent", "nights", "full"];
+
+const isFeeType = (value: string): value is CancellationRule["feeType"] =>
+  feeTypeValues.some((option) => option === value);
 
 export function CancellationRules({
   rules,
@@ -476,7 +491,7 @@ export function CancellationRules({
                                   value={rule.feeType}
                                   onValueChange={(v) =>
                                     updateRule(rule.id, {
-                                      feeType: v as CancellationRule["feeType"],
+                                      feeType: isFeeType(v) ? v : rule.feeType,
                                       feeAmount: v === "full" ? 0 : rule.feeAmount,
                                     })
                                   }
@@ -597,7 +612,9 @@ export function CancellationRules({
                       <Select
                         value={newFeeType}
                         onValueChange={(v) => {
-                          setNewFeeType(v as CancellationRule["feeType"]);
+                          if (isFeeType(v)) {
+                            setNewFeeType(v);
+                          }
                           if (v === "full") setNewFeeAmount("0");
                         }}
                       >

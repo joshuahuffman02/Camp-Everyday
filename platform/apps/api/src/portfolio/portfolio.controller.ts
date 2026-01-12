@@ -1,6 +1,14 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import { PortfolioService } from './portfolio.service';
+import { PortfolioService, type CreateDashboardDto } from './portfolio.service';
 import { JwtAuthGuard } from '../auth/guards';
+
+type CreateRatePushDto = {
+  orgId: string;
+  name: string;
+  rateConfig: Record<string, unknown>;
+  targetCampIds: string[];
+  createdBy: string;
+};
 
 @Controller('portfolio')
 @UseGuards(JwtAuthGuard)
@@ -10,7 +18,7 @@ export class PortfolioController {
   // ---- Dashboards ----
 
   @Post('dashboards')
-  createDashboard(@Body() dto: any) {
+  createDashboard(@Body() dto: CreateDashboardDto) {
     return this.service.createDashboard(dto);
   }
 
@@ -25,7 +33,7 @@ export class PortfolioController {
   }
 
   @Patch('dashboards/:id')
-  updateDashboard(@Param('id') id: string, @Body() dto: any) {
+  updateDashboard(@Param('id') id: string, @Body() dto: Partial<CreateDashboardDto>) {
     return this.service.updateDashboard(id, dto);
   }
 
@@ -84,13 +92,7 @@ export class PortfolioController {
 
   @Post('rate-push')
   createRatePush(
-    @Body() dto: {
-      orgId: string;
-      name: string;
-      rateConfig: any;
-      targetCampIds: string[];
-      createdBy: string;
-    }
+    @Body() dto: CreateRatePushDto
   ) {
     return this.service.createRatePush(
       dto.orgId,
@@ -111,4 +113,3 @@ export class PortfolioController {
     return this.service.applyRatePush(id, dto.appliedBy);
   }
 }
-

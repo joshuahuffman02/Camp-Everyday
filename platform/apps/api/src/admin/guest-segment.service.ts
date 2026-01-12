@@ -1,12 +1,55 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
+import { randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
-import { SegmentScope, SegmentStatus, Prisma } from "@prisma/client";
+import { SegmentScope, SegmentStatus, Prisma, StayReasonPreset } from "@prisma/client";
 
 interface SegmentCriteria {
     type: string;
     operator: string;
     value: string | string[] | number | boolean;
 }
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null && !Array.isArray(value);
+
+const isStringArray = (value: unknown): value is string[] =>
+    Array.isArray(value) && value.every((entry) => typeof entry === "string");
+
+const isSegmentCriteria = (value: unknown): value is SegmentCriteria => {
+    if (!isRecord(value)) return false;
+    if (typeof value.type !== "string") return false;
+    if (typeof value.operator !== "string") return false;
+    const criterionValue = value.value;
+    if (typeof criterionValue === "string") return true;
+    if (typeof criterionValue === "number") return Number.isFinite(criterionValue);
+    if (typeof criterionValue === "boolean") return true;
+    return isStringArray(criterionValue);
+};
+
+const parseSegmentCriteria = (value: unknown): SegmentCriteria[] => {
+    if (!Array.isArray(value)) return [];
+    return value.filter(isSegmentCriteria);
+};
+
+const toCriteriaJson = (criteria: SegmentCriteria[]): Prisma.InputJsonValue =>
+    criteria.map((criterion) => ({
+        type: criterion.type,
+        operator: criterion.operator,
+        value: criterion.value,
+    }));
+
+const stayReasonPresetValues: ReadonlyArray<StayReasonPreset> = [
+    StayReasonPreset.vacation,
+    StayReasonPreset.family_visit,
+    StayReasonPreset.event,
+    StayReasonPreset.work_remote,
+    StayReasonPreset.stopover,
+    StayReasonPreset.relocation,
+    StayReasonPreset.other,
+];
+
+const isStayReasonPreset = (value: unknown): value is StayReasonPreset =>
+    typeof value === "string" && stayReasonPresetValues.some((entry) => entry === value);
 
 interface CreateSegmentDto {
     name: string;
@@ -34,10 +77,11 @@ export class GuestSegmentService {
     async create(data: CreateSegmentDto) {
         const segment = await this.prisma.guestSegment.create({
             data: {
+                id: randomUUID(),
                 name: data.name,
                 description: data.description,
                 scope: data.scope,
-                criteria: data.criteria as any,
+                criteria: toCriteriaJson(data.criteria),
                 isTemplate: data.isTemplate || false,
                 organizationId: data.organizationId,
                 campgroundId: data.campgroundId,
@@ -74,14 +118,17 @@ export class GuestSegmentService {
     }
 
     async findOne(id: string) {
-        return this.prisma.guestSegment.findUnique({
+        const segment = await this.prisma.guestSegment.findUnique({
             where: { id },
             include: {
-                campground: {
+                Campground: {
                     select: { id: true, name: true },
                 },
             },
         });
+        if (!segment) return segment;
+        const { Campground, ...rest } = segment;
+        return { ...rest, campground: Campground };
     }
 
     async update(id: string, data: UpdateSegmentDto) {
@@ -90,7 +137,7 @@ export class GuestSegmentService {
             data: {
                 ...(data.name && { name: data.name }),
                 ...(data.description !== undefined && { description: data.description }),
-                ...(data.criteria && { criteria: data.criteria as any }),
+                ...(data.criteria && { criteria: toCriteriaJson(data.criteria) }),
                 ...(data.status && { status: data.status }),
             },
         });
@@ -118,7 +165,7 @@ export class GuestSegmentService {
             name: `${original.name} (Copy)`,
             description: original.description || undefined,
             scope: "campground", // Copies default to campground scope
-            criteria: original.criteria as SegmentCriteria[],
+            criteria: parseSegmentCriteria(original.criteria),
             isTemplate: false,
             campgroundId: original.campgroundId || undefined,
             organizationId: original.organizationId || undefined,
@@ -145,7 +192,7 @@ export class GuestSegmentService {
 
         if (!segment) return 0;
 
-        const criteria = segment.criteria as SegmentCriteria[];
+        const criteria = parseSegmentCriteria(segment.criteria);
         const whereConditions = this.buildGuestWhereFromCriteria(criteria);
 
         const count = await this.prisma.guest.count({
@@ -173,7 +220,7 @@ export class GuestSegmentService {
 
         if (!segment) return { guests: [], total: 0 };
 
-        const criteria = segment.criteria as SegmentCriteria[];
+        const criteria = parseSegmentCriteria(segment.criteria);
         const whereConditions = this.buildGuestWhereFromCriteria(criteria);
 
         // CRITICAL: Always filter by campgroundId for multi-tenant isolation
@@ -226,19 +273,28 @@ export class GuestSegmentService {
         const { type, operator, value } = criterion;
 
         switch (type) {
-            case "country":
-                return { country: this.applyOperator(operator, value) };
+            case "country": {
+                const stringValue = this.toStringArrayOrNull(value);
+                if (!stringValue) return null;
+                return { country: this.applyStringOperator(operator, stringValue) };
+            }
 
-            case "state":
-                return { state: this.applyOperator(operator, value) };
+            case "state": {
+                const stringValue = this.toStringArrayOrNull(value);
+                if (!stringValue) return null;
+                return { state: this.applyStringOperator(operator, stringValue) };
+            }
 
-            case "city":
-                return { city: this.applyOperator(operator, value) };
+            case "city": {
+                const stringValue = this.toStringArrayOrNull(value);
+                if (!stringValue) return null;
+                return { city: this.applyStringOperator(operator, stringValue) };
+            }
 
             case "has_children":
                 // This would need to be checked via reservations
                 return {
-                    reservations: {
+                    Reservation: {
                         some: {
                             children: value === "true" || value === true ? { gt: 0 } : { equals: 0 },
                         },
@@ -253,8 +309,11 @@ export class GuestSegmentService {
                     },
                 };
 
-            case "rig_type":
-                return { rigType: this.applyOperator(operator, value) };
+            case "rig_type": {
+                const stringValue = this.toStringArrayOrNull(value);
+                if (!stringValue) return null;
+                return { rigType: this.applyStringOperator(operator, stringValue) };
+            }
 
             case "repeat_stays":
                 return {
@@ -265,14 +324,19 @@ export class GuestSegmentService {
                 // Would need to calculate from reservations
                 return null;
 
-            case "stay_reason":
+            case "stay_reason": {
+                const stringValue = this.toStringArrayOrNull(value);
+                if (!stringValue) return null;
+                const filter = this.applyStayReasonOperator(operator, stringValue);
+                if (!filter) return null;
                 return {
-                    reservations: {
+                    Reservation: {
                         some: {
-                            stayReasonPreset: this.applyOperator(operator, value),
+                            stayReasonPreset: filter,
                         },
                     },
                 };
+            }
 
             case "booking_month":
                 // Complex query - would need raw SQL
@@ -287,24 +351,49 @@ export class GuestSegmentService {
         }
     }
 
-    private applyOperator(operator: string, value: any): any {
+    private applyStringOperator(
+        operator: string,
+        value: string[]
+    ): Prisma.StringFilter {
+        const [firstValue] = value;
         switch (operator) {
             case "equals":
-                return { equals: value };
+                return { equals: firstValue ?? "" };
             case "not_equals":
-                return { not: value };
+                return { not: firstValue ?? "" };
             case "contains":
-                return { contains: value, mode: "insensitive" };
+                return { contains: firstValue ?? "", mode: "insensitive" };
             case "in":
-                return { in: Array.isArray(value) ? value : [value] };
+                return { in: value };
             case "not_in":
-                return { notIn: Array.isArray(value) ? value : [value] };
+                return { notIn: value };
             default:
-                return { equals: value };
+                return { equals: firstValue ?? "" };
         }
     }
 
-    private applyNumericOperator(operator: string, value: number): any {
+    private applyStayReasonOperator(
+        operator: string,
+        value: string[]
+    ): Prisma.EnumStayReasonPresetNullableFilter | null {
+        const filtered = value.filter(isStayReasonPreset);
+        if (!filtered.length) return null;
+        const [firstValue] = filtered;
+        switch (operator) {
+            case "equals":
+                return { equals: firstValue ?? null };
+            case "not_equals":
+                return { not: firstValue ?? null };
+            case "in":
+                return { in: filtered };
+            case "not_in":
+                return { notIn: filtered };
+            default:
+                return { equals: firstValue ?? null };
+        }
+    }
+
+    private applyNumericOperator(operator: string, value: number): Prisma.IntFilter {
         switch (operator) {
             case "equals":
                 return { equals: value };
@@ -321,8 +410,18 @@ export class GuestSegmentService {
         }
     }
 
+    private toStringArrayOrNull(value: SegmentCriteria["value"]): string[] | null {
+        if (typeof value === "string") return [value];
+        if (isStringArray(value)) return value;
+        return null;
+    }
+
     async seedGlobalTemplates() {
-        const templates = [
+        const templates: Array<{
+            name: string;
+            description: string;
+            criteria: SegmentCriteria[];
+        }> = [
             {
                 name: "Canadian Snowbirds",
                 description: "Canadian guests who typically travel south during winter months",
@@ -386,11 +485,12 @@ export class GuestSegmentService {
             if (!existing) {
                 await this.prisma.guestSegment.create({
                     data: {
+                        id: randomUUID(),
                         name: template.name,
                         description: template.description,
                         scope: "global",
                         isTemplate: true,
-                        criteria: template.criteria as any,
+                        criteria: toCriteriaJson(template.criteria),
                         createdById: "system",
                         createdByEmail: "system@keeprstay.com",
                     },

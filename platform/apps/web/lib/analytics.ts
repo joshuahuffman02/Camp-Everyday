@@ -33,8 +33,10 @@ interface AnalyticsMockEntry {
   at: string;
 }
 
-interface WindowWithAnalytics extends Window {
-  __analyticsMock?: AnalyticsMockEntry[];
+declare global {
+  interface Window {
+    __analyticsMock?: AnalyticsMockEntry[];
+  }
 }
 
 export function getAnalyticsSessionId() {
@@ -91,11 +93,10 @@ export async function trackEvent(eventName: string, payload: Partial<{
   if (ANALYTICS_MODE === "mock") {
     // Mock/no-op mode for local validation without hitting the API
     if (typeof window !== "undefined") {
-      const win = window as WindowWithAnalytics;
-      const existing = win.__analyticsMock;
+      const existing = window.__analyticsMock;
       const list = existing ?? [];
       list.push({ ...body, at: new Date().toISOString() });
-      win.__analyticsMock = list.slice(-200);
+      window.__analyticsMock = list.slice(-200);
     }
     console.debug("[analytics:mock]", eventName, body);
     return;
@@ -148,4 +149,3 @@ export function trackDealViewed(payload: Partial<{ campgroundId: string; promoti
 export function trackDealApplied(payload: Partial<{ campgroundId: string; promotionId: string; region: string; metadata: Record<string, unknown> }>) {
   return trackEvent("deal_applied", payload);
 }
-

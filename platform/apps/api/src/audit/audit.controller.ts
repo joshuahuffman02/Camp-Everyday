@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards, Param, Res, Req } from "@nestjs/common";
+import { Controller, Get, Query, UseGuards, Param, Res, Req, ForbiddenException } from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/guards";
 import { AuditService } from "./audit.service";
 import { RolesGuard, Roles } from "../auth/guards/roles.guard";
@@ -8,6 +8,13 @@ import type { Response } from "express";
 import { PermissionGuard } from "../permissions/permission.guard";
 import { RequirePermission } from "../permissions/permission.decorator";
 import type { Request } from "express";
+
+const getRequestUserId = (req?: Request): string | undefined => {
+  if (!req) return undefined;
+  const user = req.user;
+  const id = user?.id;
+  return typeof id === "string" ? id : undefined;
+};
 
 @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard, PermissionGuard)
 @Controller("campgrounds/:campgroundId/audit")
@@ -39,9 +46,13 @@ export class AuditController {
 
     if (format === "csv" && res) {
       const rows = await this.audit.list(params, req?.ip, req?.headers?.["user-agent"]);
+      const requestedById = getRequestUserId(req);
+      if (!requestedById) {
+        throw new ForbiddenException("User not found");
+      }
       await this.audit.recordExport({
         campgroundId,
-        requestedById: req?.user?.id,
+        requestedById,
         format: "csv",
         filters: params,
         recordCount: rows.length
@@ -50,9 +61,13 @@ export class AuditController {
     }
 
     const rows = await this.audit.exportJson(params);
+    const requestedById = getRequestUserId(req);
+    if (!requestedById) {
+      throw new ForbiddenException("User not found");
+    }
     await this.audit.recordExport({
       campgroundId,
-      requestedById: req?.user?.id,
+      requestedById,
       format: "json",
       filters: params,
       recordCount: rows.length
@@ -78,7 +93,7 @@ export class AuditController {
    * Get audit logs for a specific entity (guest, reservation, etc.)
    * GET /campgrounds/:campgroundId/audit/entity/:entityType/:entityId
    */
-  @Roles(UserRole.owner, UserRole.manager, UserRole.staff)
+  @Roles(UserRole.owner, UserRole.manager, UserRole.front_desk)
   @RequirePermission({ resource: "audit", action: "read" })
   @Get("entity/:entityType/:entityId")
   listByEntity(
@@ -95,4 +110,3 @@ export class AuditController {
     });
   }
 }
-

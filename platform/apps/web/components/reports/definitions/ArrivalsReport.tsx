@@ -88,7 +88,7 @@ export function ArrivalsReport({ campgroundId, dateRange }: ArrivalsReportProps)
                                     </td>
                                 </tr>
                             ) : (
-                                arrivals.map((r: any) => (
+                                arrivals.map((r) => (
                                     <tr key={r.id} className="hover:bg-muted group transition-colors">
                                         <td className="px-4 py-3 font-medium text-foreground">
                                             <div className="flex items-center gap-2">
@@ -100,7 +100,7 @@ export function ArrivalsReport({ campgroundId, dateRange }: ArrivalsReportProps)
                                         <td className="px-4 py-3 text-muted-foreground">{format(new Date(r.arrivalDate), "MMM d, yyyy")}</td>
                                         <td className="px-4 py-3 text-muted-foreground">{format(new Date(r.departureDate), "MMM d, yyyy")}</td>
                                         <td className="px-4 py-3 text-muted-foreground">
-                                            {r.occupants?.adults || 0}ad / {r.occupants?.children || 0}ch
+                                            {r.adults || 0}ad / {r.children || 0}ch
                                         </td>
                                         <td className="px-4 py-3">
                                             <span className={((r.totalAmount - (r.paidAmount || 0)) > 0) ? "text-rose-600 font-medium" : "text-emerald-600"}>

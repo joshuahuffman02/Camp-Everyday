@@ -27,6 +27,22 @@ import {
 } from "../webhooks/event-catalog";
 import { WebhookSecurityService } from "../webhooks/webhook-security.service";
 import { PrismaService } from "../prisma/prisma.service";
+import { Prisma } from "@prisma/client";
+import { randomUUID } from "crypto";
+
+type WebhookRequest = Request & { campgroundId?: string | null };
+
+const isWebhookEvent = (value: string): value is WebhookEvent =>
+  Object.prototype.hasOwnProperty.call(EventCatalog, value);
+
+const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined => {
+  if (value === undefined || value === null) return undefined;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
+};
 
 class CreateWebhookDto {
   @IsString()
@@ -60,7 +76,7 @@ class TestWebhookDto {
 }
 
 @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
-@Roles(UserRole.owner, UserRole.manager, "platform_admin")
+@Roles(UserRole.owner, UserRole.manager)
 @Controller("developer/webhooks")
 export class WebhookAdminController {
   private readonly securityService: WebhookSecurityService;
@@ -73,8 +89,10 @@ export class WebhookAdminController {
     this.securityService = new WebhookSecurityService();
   }
 
-  private requireCampgroundId(req: any, fallback?: string): string {
-    const campgroundId = fallback || req?.campgroundId || req?.headers?.["x-campground-id"];
+  private requireCampgroundId(req: WebhookRequest, fallback?: string): string {
+    const headerValue = req?.headers?.["x-campground-id"];
+    const headerCampgroundId = Array.isArray(headerValue) ? headerValue[0] : headerValue;
+    const campgroundId = fallback || req?.campgroundId || headerCampgroundId;
     if (!campgroundId) {
       throw new BadRequestException("campgroundId is required");
     }
@@ -102,7 +120,10 @@ export class WebhookAdminController {
    */
   @Get("event-catalog/:eventType")
   getEventDefinition(@Param("eventType") eventType: string) {
-    const definition = getEventDefinition(eventType as WebhookEvent);
+    if (!isWebhookEvent(eventType)) {
+      throw new NotFoundException(`Event type '${eventType}' not found`);
+    }
+    const definition = getEventDefinition(eventType);
     if (!definition) {
       throw new NotFoundException(`Event type '${eventType}' not found`);
     }
@@ -125,13 +146,13 @@ export class WebhookAdminController {
   // ============================================
 
   @Get()
-  list(@Query("campgroundId") campgroundId: string, @Req() req: Request) {
+  list(@Query("campgroundId") campgroundId: string, @Req() req: WebhookRequest) {
     const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
     return this.webhookService.listEndpoints(requiredCampgroundId);
   }
 
   @Post()
-  create(@Body() body: CreateWebhookDto, @Req() req: Request) {
+  create(@Body() body: CreateWebhookDto, @Req() req: WebhookRequest) {
     const requiredCampgroundId = this.requireCampgroundId(req, body.campgroundId);
     return this.webhookService.createEndpoint({ ...body, campgroundId: requiredCampgroundId });
   }
@@ -141,7 +162,7 @@ export class WebhookAdminController {
     @Param("id") id: string,
     @Body() body: ToggleWebhookDto,
     @Query("campgroundId") campgroundId: string | undefined,
-    @Req() req: Request
+    @Req() req: WebhookRequest
   ) {
     const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
     return this.webhookService.toggleEndpoint(id, requiredCampgroundId, body.isActive);
@@ -152,7 +173,7 @@ export class WebhookAdminController {
   // ============================================
 
   @Get("deliveries")
-  listDeliveries(@Query("campgroundId") campgroundId: string, @Req() req: Request) {
+  listDeliveries(@Query("campgroundId") campgroundId: string, @Req() req: WebhookRequest) {
     const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
     return this.webhookService.listDeliveries(requiredCampgroundId);
   }
@@ -161,7 +182,7 @@ export class WebhookAdminController {
   replay(
     @Param("id") id: string,
     @Query("campgroundId") campgroundId: string | undefined,
-    @Req() req: Request
+    @Req() req: WebhookRequest
   ) {
     const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
     return this.webhookService.replay(id, requiredCampgroundId);
@@ -177,8 +198,8 @@ export class WebhookAdminController {
   @Get("dead-letter")
   getDeadLetterQueue(
     @Query("campgroundId") campgroundId: string,
-    @Query("limit") limit?: string,
-    @Req() req?: Request
+    @Req() req: WebhookRequest,
+    @Query("limit") limit?: string
   ) {
     const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
     return this.webhookService.getDeadLetterQueue(
@@ -194,7 +215,7 @@ export class WebhookAdminController {
   retryDeadLetter(
     @Param("id") id: string,
     @Query("campgroundId") campgroundId: string | undefined,
-    @Req() req: Request
+    @Req() req: WebhookRequest
   ) {
     const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
     return this.webhookService.retryDeadLetter(id, requiredCampgroundId);
@@ -212,7 +233,7 @@ export class WebhookAdminController {
     @Param("id") id: string,
     @Query("campgroundId") campgroundId: string,
     @Body() dto: TestWebhookDto,
-    @Req() req: Request
+    @Req() req: WebhookRequest
   ) {
     const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
     // Get the endpoint
@@ -225,7 +246,10 @@ export class WebhookAdminController {
     }
 
     // Get example payload
-    const eventType = dto.eventType as WebhookEvent;
+    if (!isWebhookEvent(dto.eventType)) {
+      throw new NotFoundException(`Event type '${dto.eventType}' not found`);
+    }
+    const eventType = dto.eventType;
     let payload = dto.customPayload;
 
     if (!payload) {
@@ -249,6 +273,7 @@ export class WebhookAdminController {
       timestamp: new Date().toISOString(),
       _test: true,
     };
+    const payloadJson = toJsonValue(eventPayload) ?? Prisma.JsonNull;
 
     const body = JSON.stringify(eventPayload);
     const timestamp = Date.now();
@@ -263,10 +288,11 @@ export class WebhookAdminController {
     // Create a delivery record
     const delivery = await this.prisma.webhookDelivery.create({
       data: {
+        id: randomUUID(),
         webhookEndpointId: endpoint.id,
         eventType,
         status: "pending",
-        payload: eventPayload,
+        payload: payloadJson,
         signature: legacySignature,
         attempt: 1,
       },
@@ -357,7 +383,7 @@ export class WebhookAdminController {
   // ============================================
 
   @Get("stats")
-  getStats(@Query("campgroundId") campgroundId: string, @Req() req: Request) {
+  getStats(@Query("campgroundId") campgroundId: string, @Req() req: WebhookRequest) {
     const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
     return this.webhookService.getStats(requiredCampgroundId);
   }

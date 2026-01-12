@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { randomUUID } from "crypto";
 
 @Injectable()
 export class InternalConversationsService {
@@ -8,17 +9,19 @@ export class InternalConversationsService {
     async createChannel(name: string, campgroundId: string, participantIds: string[]) {
         return this.prisma.internalConversation.create({
             data: {
+                id: randomUUID(),
+                updatedAt: new Date(),
                 name,
                 type: 'channel',
                 campgroundId,
-                participants: {
-                    create: participantIds.map((id) => ({ userId: id })),
+                InternalConversationParticipant: {
+                    create: participantIds.map((id) => ({ id: randomUUID(), userId: id })),
                 },
             },
             include: {
-                participants: {
+                InternalConversationParticipant: {
                     include: {
-                        user: {
+                        User: {
                             select: {
                                 id: true,
                                 firstName: true,
@@ -35,16 +38,18 @@ export class InternalConversationsService {
     async createDM(campgroundId: string, participantIds: string[]) {
         return this.prisma.internalConversation.create({
             data: {
+                id: randomUUID(),
+                updatedAt: new Date(),
                 type: 'dm',
                 campgroundId,
-                participants: {
-                    create: participantIds.map((id) => ({ userId: id })),
+                InternalConversationParticipant: {
+                    create: participantIds.map((id) => ({ id: randomUUID(), userId: id })),
                 },
             },
             include: {
-                participants: {
+                InternalConversationParticipant: {
                     include: {
-                        user: {
+                        User: {
                             select: {
                                 id: true,
                                 firstName: true,
@@ -62,16 +67,16 @@ export class InternalConversationsService {
         return this.prisma.internalConversation.findMany({
             where: {
                 campgroundId,
-                participants: {
+                InternalConversationParticipant: {
                     some: {
                         userId,
                     },
                 },
             },
             include: {
-                participants: {
+                InternalConversationParticipant: {
                     include: {
-                        user: {
+                        User: {
                             select: {
                                 id: true,
                                 firstName: true,
@@ -81,7 +86,7 @@ export class InternalConversationsService {
                         },
                     },
                 },
-                messages: {
+                InternalMessage: {
                     take: 1,
                     orderBy: { createdAt: 'desc' }
                 }

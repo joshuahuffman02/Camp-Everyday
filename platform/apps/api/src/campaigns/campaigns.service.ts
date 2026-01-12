@@ -1,5 +1,7 @@
+import { randomUUID } from "node:crypto";
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
-import { CampaignSendStatus } from "@prisma/client";
+import { CampaignSendStatus, SiteType } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateCampaignDto } from "./dto/create-campaign.dto";
 import { UpdateCampaignDto } from "./dto/update-campaign.dto";
@@ -8,11 +10,38 @@ import { SmsService } from "../sms/sms.service";
 import { CreateTemplateDto } from "./dto/create-template.dto";
 import { AudienceFiltersDto } from "./dto/audience.dto";
 
-const ChannelTypeValues = { email: "email", sms: "sms", both: "both" } as const;
-type ChannelType = (typeof ChannelTypeValues)[keyof typeof ChannelTypeValues];
+type ChannelType = "email" | "sms" | "both";
+const ChannelTypeValues: Record<ChannelType, ChannelType> = {
+  email: "email",
+  sms: "sms",
+  both: "both"
+};
 
-const CampaignStatusValues = { draft: "draft", scheduled: "scheduled", sending: "sending", sent: "sent", cancelled: "cancelled" } as const;
-type CampaignStatus = (typeof CampaignStatusValues)[keyof typeof CampaignStatusValues];
+const isChannelType = (value: string): value is ChannelType =>
+  value === ChannelTypeValues.email ||
+  value === ChannelTypeValues.sms ||
+  value === ChannelTypeValues.both;
+
+const siteTypeValues = new Set<string>(Object.values(SiteType));
+const isSiteType = (value: string): value is SiteType => siteTypeValues.has(value);
+
+type CampaignStatus = "draft" | "scheduled" | "sending" | "sent" | "cancelled";
+const CampaignStatusValues: Record<CampaignStatus, CampaignStatus> = {
+  draft: "draft",
+  scheduled: "scheduled",
+  sending: "sending",
+  sent: "sent",
+  cancelled: "cancelled"
+};
+
+const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined => {
+  if (value === undefined || value === null) return undefined;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
+};
 
 @Injectable()
 export class CampaignsService {
@@ -42,6 +71,7 @@ export class CampaignsService {
     const scheduledAt = dto.scheduledAt ? new Date(dto.scheduledAt) : null;
     return this.prisma.campaign.create({
       data: {
+        id: randomUUID(),
         campgroundId: dto.campgroundId,
         name: dto.name,
         subject: dto.subject,
@@ -51,7 +81,7 @@ export class CampaignsService {
         textBody: dto.textBody || null,
         channel: dto.channel || ChannelTypeValues.email,
         status: CampaignStatusValues.draft,
-        variables: dto.variables || {},
+        variables: toJsonValue(dto.variables),
         scheduledAt
       }
     });
@@ -62,6 +92,7 @@ export class CampaignsService {
     if (!templateClient?.create) return null;
     return templateClient.create({
       data: {
+        id: randomUUID(),
         campgroundId: dto.campgroundId,
         name: dto.name,
         channel: dto.channel || ChannelTypeValues.email,
@@ -94,9 +125,24 @@ export class CampaignsService {
     if (!templateClient?.update) throw new NotFoundException("Template model not available");
     const existing = await templateClient.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException("Template not found");
+    let channel: ChannelType | undefined;
+    if (data.channel !== undefined) {
+      if (!isChannelType(data.channel)) {
+        throw new BadRequestException("Invalid channel");
+      }
+      channel = data.channel;
+    }
+    const updateData: Prisma.CampaignTemplateUpdateInput = {
+      ...(data.name !== undefined ? { name: data.name } : {}),
+      ...(channel !== undefined ? { channel } : {}),
+      ...(data.category !== undefined ? { category: data.category } : {}),
+      ...(data.subject !== undefined ? { subject: data.subject } : {}),
+      ...(data.html !== undefined ? { html: data.html } : {}),
+      ...(data.textBody !== undefined ? { textBody: data.textBody } : {})
+    };
     return templateClient.update({
       where: { id },
-      data
+      data: updateData
     });
   }
 
@@ -110,30 +156,38 @@ export class CampaignsService {
   }
 
   async audiencePreview(filters: AudienceFiltersDto) {
-    const whereReservation: any = {
+    const whereReservation: Prisma.ReservationWhereInput = {
       ...(filters.campgroundId ? { campgroundId: filters.campgroundId } : {})
     };
-    if (filters.stayedFrom) {
-      whereReservation.departureDate = { ...(whereReservation.departureDate || {}), gte: new Date(filters.stayedFrom) };
-    }
-    if (filters.stayedTo) {
-      whereReservation.arrivalDate = { ...(whereReservation.arrivalDate || {}), lte: new Date(filters.stayedTo) };
+    if (filters.stayedFrom || filters.stayedTo) {
+      const departureDate: Prisma.DateTimeFilter = {};
+      if (filters.stayedFrom) departureDate.gte = new Date(filters.stayedFrom);
+      if (filters.stayedTo) departureDate.lte = new Date(filters.stayedTo);
+      whereReservation.departureDate = departureDate;
     }
     if (filters.stayFrom || filters.stayTo) {
-      whereReservation.arrivalDate = {
-        ...(whereReservation.arrivalDate || {}),
-        ...(filters.stayFrom ? { gte: new Date(filters.stayFrom) } : {}),
-        ...(filters.stayTo ? { lte: new Date(filters.stayTo) } : {})
-      };
+      const arrivalDate: Prisma.DateTimeFilter = {};
+      if (filters.stayFrom) arrivalDate.gte = new Date(filters.stayFrom);
+      if (filters.stayTo) arrivalDate.lte = new Date(filters.stayTo);
+      whereReservation.arrivalDate = arrivalDate;
     }
+    const siteType = filters.siteType
+      ? isSiteType(filters.siteType)
+        ? filters.siteType
+        : undefined
+      : undefined;
+    if (filters.siteType && !siteType) {
+      throw new BadRequestException("Invalid site type");
+    }
+
     const guests = await this.prisma.guest.findMany({
       where: {
         marketingOptIn: true,
-        email: { not: "" } as any,
-        reservations: {
+        email: { not: "" },
+        Reservation: {
           some: {
             ...whereReservation,
-            ...(filters.siteType ? { site: { siteType: filters.siteType as any } } : {}),
+            ...(siteType ? { Site: { siteType } } : {}),
             ...(filters.siteClassId ? { siteClassId: filters.siteClassId } : {})
           }
         },
@@ -147,7 +201,7 @@ export class CampaignsService {
         phone: true,
         primaryFirstName: true,
         primaryLastName: true,
-        reservations: {
+        Reservation: {
           select: { arrivalDate: true, departureDate: true, promoCode: true },
           orderBy: { arrivalDate: "desc" },
           take: 1
@@ -157,22 +211,22 @@ export class CampaignsService {
     });
 
     const currentYear = new Date().getFullYear();
-    const filtered = guests.filter((g: any) => {
-      const lastStay = g.reservations[0]?.departureDate;
+    const filtered = guests.filter((g) => {
+      const lastStay = g.Reservation[0]?.departureDate;
       if (filters.lastStayBefore && lastStay && new Date(lastStay) >= new Date(filters.lastStayBefore)) return false;
       if (filters.notStayedThisYear && lastStay && new Date(lastStay).getFullYear() === currentYear) return false;
-      if (filters.promoUsed && !g.reservations[0]?.promoCode) return false;
+      if (filters.promoUsed && !g.Reservation[0]?.promoCode) return false;
       return true;
     });
 
     return {
       count: filtered.length,
-      sample: filtered.slice(0, 20).map((g: any) => ({
+      sample: filtered.slice(0, 20).map((g) => ({
         id: g.id,
         name: `${g.primaryFirstName || ""} ${g.primaryLastName || ""}`.trim(),
         email: g.email,
         phone: g.phone,
-        lastStay: g.reservations[0]?.departureDate || null
+        lastStay: g.Reservation[0]?.departureDate || null
       }))
     };
   }
@@ -198,25 +252,25 @@ export class CampaignsService {
         arrivalDate: { lt: end14 },
         departureDate: { gt: now }
       },
-      select: { site: { select: { siteType: true } } }
+      select: { Site: { select: { siteType: true } } }
     });
 
     const activeByType: Record<string, number> = {};
-    reservations.forEach((r: any) => {
-      const t = (r.site?.siteType || "rv").toLowerCase();
+    reservations.forEach((r) => {
+      const t = (r.Site?.siteType || "rv").toLowerCase();
       activeByType[t] = (activeByType[t] || 0) + 1;
     });
 
     const suggestions14 = siteCounts
-      .map((sc: any) => {
-        const type = (sc.siteType as string).toLowerCase();
+      .map((sc) => {
+        const type = (sc.siteType ?? "rv").toLowerCase();
         const total = sc._count._all;
         const active = activeByType[type] || 0;
         const occ = total > 0 ? active / total : 1;
         return { type, total, active, occ };
       })
-      .filter((s: any) => s.occ < 0.6 && s.total > 0)
-      .map((s: any) => ({
+      .filter((s) => s.occ < 0.6 && s.total > 0)
+      .map((s) => ({
         reason: `${s.type.toUpperCase()} occupancy ${Math.round(s.occ * 100)}% in next 14 days`,
         filters: {
           campgroundId,
@@ -233,23 +287,23 @@ export class CampaignsService {
         arrivalDate: { lt: end30 },
         departureDate: { gt: now }
       },
-      select: { site: { select: { siteType: true } } }
+      select: { Site: { select: { siteType: true } } }
     });
     const activeByType30: Record<string, number> = {};
-    reservations30.forEach((r: any) => {
-      const t = (r.site?.siteType || "rv").toLowerCase();
+    reservations30.forEach((r) => {
+      const t = (r.Site?.siteType || "rv").toLowerCase();
       activeByType30[t] = (activeByType30[t] || 0) + 1;
     });
     const suggestions30 = siteCounts
-      .map((sc: any) => {
-        const type = (sc.siteType as string).toLowerCase();
+      .map((sc) => {
+        const type = (sc.siteType ?? "rv").toLowerCase();
         const total = sc._count._all;
         const active = activeByType30[type] || 0;
         const occ = total > 0 ? active / total : 1;
         return { type, total, active, occ };
       })
-      .filter((s: any) => s.occ < 0.7 && s.total > 0)
-      .map((s: any) => ({
+      .filter((s) => s.occ < 0.7 && s.total > 0)
+      .map((s) => ({
         reason: `${s.type.toUpperCase()} soft occupancy in next 30 days (${Math.round(s.occ * 100)}%)`,
         filters: {
           campgroundId,
@@ -341,7 +395,7 @@ export class CampaignsService {
   async sendNow(id: string, opts?: { scheduledAt?: string | null; batchPerMinute?: string | null }) {
     const campaign = await this.prisma.campaign.findUnique({
       where: { id },
-      include: { campground: true }
+      include: { Campground: true }
     });
     if (!campaign) throw new NotFoundException("Campaign not found");
     if (campaign.status !== CampaignStatusValues.draft && campaign.status !== CampaignStatusValues.scheduled) {
@@ -368,7 +422,7 @@ export class CampaignsService {
           { email: { not: "" } },
           { phone: { not: "" } }
         ],
-        reservations: {
+        Reservation: {
           some: { campgroundId: campaign.campgroundId }
         }
       },
@@ -386,6 +440,7 @@ export class CampaignsService {
       if ((campaign.channel === ChannelTypeValues.email || campaign.channel === ChannelTypeValues.both) && targetEmail) {
         const send = await this.prisma.campaignSend.create({
           data: {
+            id: randomUUID(),
             campaignId: campaign.id,
             campgroundId: campaign.campgroundId,
             guestId: guest.id,
@@ -426,6 +481,7 @@ export class CampaignsService {
       if ((campaign.channel === ChannelTypeValues.sms || campaign.channel === ChannelTypeValues.both) && targetPhone) {
         const send = await this.prisma.campaignSend.create({
           data: {
+            id: randomUUID(),
             campaignId: campaign.id,
             campgroundId: campaign.campgroundId,
             guestId: guest.id,
@@ -500,4 +556,3 @@ export class CampaignsService {
     return { sent };
   }
 }
-

@@ -88,9 +88,9 @@ export default function GuestWalletMethod({
       }
 
       onSuccess(result.transactionId);
-    } catch (err: any) {
-      const errorMessage = err.message || "Failed to process wallet payment";
-      onError(errorMessage);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to process wallet payment";
+      onError(message);
     } finally {
       setIsProcessing(false);
     }

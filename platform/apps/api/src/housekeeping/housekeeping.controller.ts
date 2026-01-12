@@ -13,7 +13,7 @@ import { HousekeepingService } from './housekeeping.service';
 import { InspectionService } from './inspection.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ScopeGuard } from '../auth/guards/scope.guard';
-import { TaskType, SiteType } from '@prisma/client';
+import { TaskType, SiteType, type Prisma } from '@prisma/client';
 
 @Controller('housekeeping')
 @UseGuards(JwtAuthGuard, ScopeGuard)
@@ -32,8 +32,8 @@ export class HousekeepingController {
     siteType?: SiteType;
     name: string;
     estimatedMinutes: number;
-    checklist: any;
-    suppliesNeeded?: any;
+    checklist: Prisma.InputJsonValue;
+    suppliesNeeded?: Prisma.InputJsonValue;
     priority?: number;
     slaMinutes?: number;
     requiresInspection?: boolean;
@@ -66,8 +66,8 @@ export class HousekeepingController {
     @Body() body: Partial<{
       name: string;
       estimatedMinutes: number;
-      checklist: any;
-      suppliesNeeded: any;
+      checklist: Prisma.InputJsonValue;
+      suppliesNeeded: Prisma.InputJsonValue;
       priority: number;
       slaMinutes: number;
       requiresInspection: boolean;

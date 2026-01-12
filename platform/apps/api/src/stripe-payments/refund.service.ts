@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, NotFoundException, ForbiddenException 
 import { PrismaService } from "../prisma/prisma.service";
 import { StripeService } from "../payments/stripe.service";
 import { postBalancedLedgerEntries } from "../ledger/ledger-posting.util";
+import { randomUUID } from "crypto";
 
 export interface RefundEligibility {
     canRefund: boolean;
@@ -173,8 +174,11 @@ export class RefundService {
         });
 
         // Create refund record (positive amount with refund direction)
+        const stripeChargeId =
+            typeof refund.charge === "string" ? refund.charge : refund.charge?.id;
         const refundPayment = await this.prisma.payment.create({
             data: {
+                id: randomUUID(),
                 campgroundId,
                 reservationId: payment.reservationId,
                 amountCents: refundAmountCents,
@@ -182,7 +186,7 @@ export class RefundService {
                 direction: "refund",
                 note: note || `Refund for payment ${paymentId}`,
                 stripePaymentIntentId: `refund_${refund.id}`, // Unique ID for refund
-                stripeChargeId: refund.charge as string | undefined,
+                stripeChargeId: stripeChargeId ?? undefined,
                 methodType: payment.paymentMethodType,
                 stripePaymentMethodId: payment.stripePaymentMethodId,
                 paymentMethodType: payment.paymentMethodType,
@@ -225,7 +229,7 @@ export class RefundService {
                     account: "Cash",
                     description: `Refund for payment ${paymentId}`,
                     amountCents: refundAmountCents,
-                    direction: "credit" as const, // Credit reduces Cash (money going out)
+                    direction: "credit", // Credit reduces Cash (money going out)
                     dedupeKey: `${dedupeKey}:credit`
                 },
                 {
@@ -235,7 +239,7 @@ export class RefundService {
                     account: "Site Revenue",
                     description: `Refund for payment ${paymentId}`,
                     amountCents: refundAmountCents,
-                    direction: "debit" as const, // Debit reduces Revenue
+                    direction: "debit", // Debit reduces Revenue
                     dedupeKey: `${dedupeKey}:debit`
                 }
             ]);
@@ -244,6 +248,7 @@ export class RefundService {
         // Log to payment audit log
         await this.prisma.paymentAuditLog.create({
             data: {
+                id: randomUUID(),
                 campgroundId,
                 actorId,
                 action: "payment.refunded",
@@ -269,7 +274,7 @@ export class RefundService {
 
         return {
             refundId: refund.id,
-            status: refund.status,
+            status: refund.status ?? "unknown",
             amountCents: refund.amount,
             paymentMethodType: payment.paymentMethodType,
             paymentMethodLast4: payment.paymentMethodLast4,

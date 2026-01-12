@@ -3,6 +3,8 @@ import { PrismaService } from "../prisma/prisma.service";
 import { AiAutopilotConfigService } from "./ai-autopilot-config.service";
 import { AiAutonomousActionService } from "./ai-autonomous-action.service";
 import OpenAI from "openai";
+import type { AiCampgroundContext, Prisma } from "@prisma/client";
+import { randomUUID } from "crypto";
 
 /**
  * AI Phone Agent Service - The Killer Feature
@@ -41,11 +43,44 @@ interface CallSession {
   callSid: string;
   campgroundId: string;
   callerPhone: string;
-  openaiSession: any;
+  openaiSession: unknown;
   intents: string[];
-  actionsPerformed: any[];
+  actionsPerformed: PhoneActionLog[];
   startedAt: Date;
 }
+
+type PhoneActionLog = {
+  action: string;
+  args: Record<string, unknown>;
+  result: Record<string, unknown>;
+  timestamp: Date;
+};
+
+type AvailableSiteSummary = {
+  siteName: string;
+  siteType?: string | null;
+  defaultRate?: number | null;
+};
+
+type ReservationLookup = Prisma.ReservationGetPayload<{
+  include: {
+    Site: { select: { name: true } };
+    Guest: { select: { primaryFirstName: true; primaryLastName: true } };
+  };
+}>;
+
+const getStringValue = (value: unknown): string | undefined =>
+  typeof value === "string" && value.length > 0 ? value : undefined;
+const getNumberValue = (value: unknown): number | undefined =>
+  typeof value === "number" && Number.isFinite(value) ? value : undefined;
+const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined => {
+  if (value === undefined || value === null) return undefined;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
+};
 
 @Injectable()
 export class AiPhoneAgentService {
@@ -224,7 +259,7 @@ export class AiPhoneAgentService {
         phoneAgentNumber: toPhone,
         phoneAgentEnabled: true,
       },
-      include: { campground: true },
+      include: { Campground: true },
     });
 
     if (!config) {
@@ -240,16 +275,18 @@ export class AiPhoneAgentService {
     // Check if within operating hours
     if (!this.isWithinOperatingHours(config)) {
       // Take voicemail
-      return this.generateVoicemailTwiML(config.campground.name, callSid);
+      return this.generateVoicemailTwiML(config.Campground.name, callSid);
     }
 
     // Create phone session record
     await this.prisma.aiPhoneSession.create({
       data: {
+        id: randomUUID(),
         campgroundId: config.campgroundId,
         twilioCallSid: callSid,
         callerPhone,
         status: "ringing",
+        intents: [],
       },
     });
 
@@ -261,7 +298,7 @@ export class AiPhoneAgentService {
   <Connect>
     <Stream url="${wsUrl}">
       <Parameter name="campgroundId" value="${config.campgroundId}"/>
-      <Parameter name="campgroundName" value="${config.campground.name}"/>
+      <Parameter name="campgroundName" value="${config.Campground.name}"/>
     </Stream>
   </Connect>
 </Response>`;
@@ -277,7 +314,7 @@ export class AiPhoneAgentService {
 
     if (!session) return;
 
-    const updates: any = {};
+    const updates: Prisma.AiPhoneSessionUpdateInput = {};
 
     switch (status) {
       case "in-progress":
@@ -393,13 +430,13 @@ export class AiPhoneAgentService {
     callSid: string,
     toolName: string,
     toolArgs: Record<string, unknown>
-  ): Promise<any> {
+  ): Promise<Record<string, unknown>> {
     const session = this.activeSessions.get(callSid);
     if (!session) return { error: "Session not found" };
 
     session.intents.push(toolName);
 
-    let result: any;
+    let result: Record<string, unknown>;
 
     switch (toolName) {
       case "check_availability":
@@ -446,7 +483,7 @@ export class AiPhoneAgentService {
       where: { twilioCallSid: callSid },
       data: {
         intents: session.intents,
-        actionsPerformed: session.actionsPerformed,
+        actionsPerformed: toJsonValue(session.actionsPerformed),
       },
     });
 
@@ -458,26 +495,35 @@ export class AiPhoneAgentService {
 
   private async toolCheckAvailability(
     campgroundId: string,
-    args: { arrivalDate: string; departureDate: string; siteType?: string; guests?: number }
+    args: Record<string, unknown>
   ) {
     try {
-      const arrival = new Date(args.arrivalDate);
-      const departure = new Date(args.departureDate);
+      const arrivalDate = getStringValue(args.arrivalDate);
+      const departureDate = getStringValue(args.departureDate);
+      const siteType = getStringValue(args.siteType);
+      const guests = getNumberValue(args.guests);
+
+      if (!arrivalDate || !departureDate) {
+        return { error: "Arrival and departure dates are required." };
+      }
+
+      const arrival = new Date(arrivalDate);
+      const departure = new Date(departureDate);
 
       // Get available sites
       const sites = await this.prisma.site.findMany({
         where: {
           campgroundId,
           status: "available",
-          siteClass: args.siteType
-            ? { name: { contains: args.siteType, mode: "insensitive" } }
+          SiteClass: siteType
+            ? { name: { contains: siteType, mode: "insensitive" } }
             : undefined,
         },
         include: { SiteClass: true },
       });
 
       // Check for conflicting reservations
-      const available: any[] = [];
+      const available: AvailableSiteSummary[] = [];
 
       for (const site of sites) {
         const conflict = await this.prisma.reservation.findFirst({
@@ -490,18 +536,18 @@ export class AiPhoneAgentService {
         });
 
         if (!conflict) {
-          available.push({
-            siteName: site.name,
-            siteType: site.siteClass?.name,
-            defaultRate: site.siteClass?.defaultRate,
-          });
+        available.push({
+          siteName: site.name,
+          siteType: site.SiteClass?.name,
+          defaultRate: site.SiteClass?.defaultRate,
+        });
         }
       }
 
       if (available.length === 0) {
         return {
           available: false,
-          message: `No sites available for ${args.arrivalDate} to ${args.departureDate}`,
+          message: `No sites available for ${arrivalDate} to ${departureDate}`,
           suggestion: "I can check nearby dates or add you to our waitlist.",
         };
       }
@@ -515,6 +561,7 @@ export class AiPhoneAgentService {
           max: Math.max(...available.map((s) => s.defaultRate || 0)),
         },
         message: `We have ${available.length} sites available for those dates.`,
+        guests,
       };
     } catch (error) {
       this.logger.error(`Check availability error: ${error}`);
@@ -524,14 +571,22 @@ export class AiPhoneAgentService {
 
   private async toolGetRates(
     campgroundId: string,
-    args: { arrivalDate: string; departureDate: string; siteType?: string }
+    args: Record<string, unknown>
   ) {
     try {
+      const arrivalDate = getStringValue(args.arrivalDate);
+      const departureDate = getStringValue(args.departureDate);
+      const siteType = getStringValue(args.siteType);
+
+      if (!arrivalDate || !departureDate) {
+        return { error: "Arrival and departure dates are required." };
+      }
+
       const siteClasses = await this.prisma.siteClass.findMany({
         where: {
           campgroundId,
-          name: args.siteType
-            ? { contains: args.siteType, mode: "insensitive" }
+          name: siteType
+            ? { contains: siteType, mode: "insensitive" }
             : undefined,
         },
         select: { name: true, defaultRate: true, maxOccupancy: true },
@@ -541,8 +596,8 @@ export class AiPhoneAgentService {
         return { error: "No site types found matching your request" };
       }
 
-      const arrival = new Date(args.arrivalDate);
-      const departure = new Date(args.departureDate);
+      const arrival = new Date(arrivalDate);
+      const departure = new Date(departureDate);
       const nights = Math.ceil(
         (departure.getTime() - arrival.getTime()) / (1000 * 60 * 60 * 24)
       );
@@ -567,35 +622,40 @@ export class AiPhoneAgentService {
 
   private async toolLookupReservation(
     campgroundId: string,
-    args: { confirmationNumber?: string; phoneNumber?: string; lastName?: string }
+    args: Record<string, unknown>
   ) {
     try {
-      if (!args.confirmationNumber && !args.phoneNumber) {
+      const confirmationNumber = getStringValue(args.confirmationNumber);
+      const phoneNumber = getStringValue(args.phoneNumber);
+      const lastName = getStringValue(args.lastName);
+
+      if (!confirmationNumber && !phoneNumber) {
         return { error: "Please provide either a confirmation number or phone number" };
       }
 
-      let reservation: any = null;
+      let reservation: ReservationLookup | null = null;
 
-      if (args.confirmationNumber) {
+      if (confirmationNumber) {
         reservation = await this.prisma.reservation.findFirst({
           where: {
             campgroundId,
-            confirmationNumber: args.confirmationNumber,
+            id: confirmationNumber,
           },
           include: {
-            site: { select: { name: true } },
-            guest: { select: { primaryFirstName: true, primaryLastName: true } },
+            Site: { select: { name: true } },
+            Guest: { select: { primaryFirstName: true, primaryLastName: true } },
           },
         });
-      } else if (args.phoneNumber) {
+      } else if (phoneNumber) {
+        const normalizedPhone = phoneNumber.replace(/\D/g, "");
         reservation = await this.prisma.reservation.findFirst({
           where: {
             campgroundId,
-            guest: { primaryPhone: { contains: args.phoneNumber.replace(/\D/g, "") } },
+            Guest: { phoneNormalized: { contains: normalizedPhone } },
           },
           include: {
-            site: { select: { name: true } },
-            guest: { select: { primaryFirstName: true, primaryLastName: true } },
+            Site: { select: { name: true } },
+            Guest: { select: { primaryFirstName: true, primaryLastName: true } },
           },
           orderBy: { arrivalDate: "desc" },
         });
@@ -608,16 +668,17 @@ export class AiPhoneAgentService {
         };
       }
 
-      return {
-        found: true,
-        confirmationNumber: reservation.confirmationNumber,
-        guestName: `${reservation.guest?.primaryFirstName} ${reservation.guest?.primaryLastName}`,
-        siteName: reservation.site?.name,
-        arrivalDate: reservation.arrivalDate.toISOString().split("T")[0],
-        departureDate: reservation.departureDate.toISOString().split("T")[0],
-        status: reservation.status,
-        balance: reservation.balanceDueCents || 0,
-      };
+        return {
+          found: true,
+          confirmationNumber: reservation.id,
+          guestName: `${reservation.Guest?.primaryFirstName} ${reservation.Guest?.primaryLastName}`,
+          siteName: reservation.Site?.name,
+          arrivalDate: reservation.arrivalDate.toISOString().split("T")[0],
+          departureDate: reservation.departureDate.toISOString().split("T")[0],
+          status: reservation.status,
+          balance: reservation.balanceAmount || 0,
+          lastName,
+        };
     } catch (error) {
       this.logger.error(`Lookup reservation error: ${error}`);
       return { error: "Could not look up reservation" };
@@ -626,15 +687,21 @@ export class AiPhoneAgentService {
 
   private async toolAnswerFaq(
     campgroundId: string,
-    args: { question: string; category?: string }
+    args: Record<string, unknown>
   ) {
     try {
+      const question = getStringValue(args.question);
+      const category = getStringValue(args.category);
+      if (!question) {
+        return { error: "Question is required to search FAQs." };
+      }
+
       // Search knowledge base
       const contexts = await this.prisma.aiCampgroundContext.findMany({
         where: {
           campgroundId,
           isActive: true,
-          category: args.category || undefined,
+          category: category || undefined,
         },
         orderBy: { priority: "desc" },
         take: 5,
@@ -649,7 +716,7 @@ export class AiPhoneAgentService {
       }
 
       // Simple keyword matching for relevant answers
-      const keywords = args.question.toLowerCase().split(/\s+/);
+      const keywords = question.toLowerCase().split(/\s+/);
       const relevant = contexts.filter((c) =>
         keywords.some(
           (kw) =>
@@ -679,8 +746,10 @@ export class AiPhoneAgentService {
 
   private async toolTransferToStaff(
     session: CallSession,
-    args: { reason: string; urgency?: string }
+    args: Record<string, unknown>
   ) {
+    const reason = getStringValue(args.reason) || "Caller requested transfer";
+    const urgency = getStringValue(args.urgency);
     const config = await this.prisma.aiAutopilotConfig.findUnique({
       where: { campgroundId: session.campgroundId },
     });
@@ -699,7 +768,7 @@ export class AiPhoneAgentService {
       data: {
         status: "transferred",
         transferredAt: new Date(),
-        transferReason: args.reason,
+        transferReason: reason,
         transferredTo: config.phoneAgentTransferNumber,
       },
     });
@@ -709,13 +778,15 @@ export class AiPhoneAgentService {
       action: "transfer",
       transferTo: config.phoneAgentTransferNumber,
       message: "I'll transfer you to our staff now. Please hold.",
+      urgency,
     };
   }
 
   private async toolTakeVoicemail(
     session: CallSession,
-    args: { reason: string }
+    args: Record<string, unknown>
   ) {
+    const reason = getStringValue(args.reason) || "Please leave a message";
     await this.prisma.aiPhoneSession.update({
       where: { twilioCallSid: session.callSid },
       data: {
@@ -726,7 +797,7 @@ export class AiPhoneAgentService {
 
     return {
       action: "voicemail",
-      message: `${args.reason}. Please leave your message after the tone, and we'll get back to you as soon as possible.`,
+      message: `${reason}. Please leave your message after the tone, and we'll get back to you as soon as possible.`,
     };
   }
 
@@ -734,7 +805,7 @@ export class AiPhoneAgentService {
 
   private buildSystemPrompt(
     campgroundName: string,
-    context: { faqs: any[]; policies: any[] }
+    context: { faqs: AiCampgroundContext[]; policies: AiCampgroundContext[] }
   ): string {
     const faqText = context.faqs
       .map((f) => `Q: ${f.question}\nA: ${f.answer}`)
@@ -782,13 +853,17 @@ Start by greeting the caller and asking how you can help today.`;
     };
   }
 
-  private isWithinOperatingHours(config: any): boolean {
+  private isWithinOperatingHours(config: {
+    phoneAgentHoursStart?: string | null;
+    phoneAgentHoursEnd?: string | null;
+    Campground?: { timezone?: string | null } | null;
+  }): boolean {
     if (!config.phoneAgentHoursStart || !config.phoneAgentHoursEnd) {
       return true; // 24/7 if no hours set
     }
 
     const now = new Date();
-    const tz = config.campground?.timezone || "America/New_York";
+    const tz = config.Campground?.timezone || "America/New_York";
 
     const localTime = now.toLocaleTimeString("en-US", {
       timeZone: tz,
@@ -847,7 +922,7 @@ Start by greeting the caller and asking how you can help today.`;
   ) {
     const { status, startDate, endDate, limit = 50 } = options;
 
-    const where: any = { campgroundId };
+    const where: Prisma.AiPhoneSessionWhereInput = { campgroundId };
     if (status) where.status = status;
     if (startDate || endDate) {
       where.startedAt = {};

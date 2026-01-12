@@ -25,27 +25,7 @@ import {
     AlertCircle
 } from "lucide-react";
 
-type Review = {
-    id: string;
-    rating: number;
-    title?: string;
-    body?: string;
-    status: string;
-    helpfulCount?: number;
-    unhelpfulCount?: number;
-    ownerReply?: string;
-    ownerReplyAt?: string;
-    createdAt: string;
-    guest?: {
-        primaryFirstName?: string;
-        primaryLastName?: string;
-    };
-    reservation?: {
-        arrivalDate: string;
-        departureDate: string;
-        site?: { name: string };
-    };
-};
+type Review = Awaited<ReturnType<typeof apiClient.getAdminReviews>>[number];
 
 export default function ReviewsPage() {
     const { selectedCampground, isHydrated } = useCampground();
@@ -56,7 +36,7 @@ export default function ReviewsPage() {
     const [replyingTo, setReplyingTo] = useState<string | null>(null);
     const [replyText, setReplyText] = useState("");
 
-    const { data, isLoading, error } = useQuery({
+    const { data, isLoading, error } = useQuery<Review[]>({
         queryKey: ["reviews", campgroundId, statusFilter],
         queryFn: () => apiClient.getAdminReviews(campgroundId!, statusFilter === "all" ? undefined : statusFilter),
         enabled: !!campgroundId
@@ -87,7 +67,7 @@ export default function ReviewsPage() {
         }
     });
 
-    const reviews: Review[] = (data as Review[]) || [];
+    const reviews = data ?? [];
 
     const filteredReviews = reviews.filter((review) => {
         if (searchQuery) {
@@ -265,7 +245,7 @@ export default function ReviewsPage() {
                                                 {renderStars(review.rating)}
                                                 {getStatusBadge(review.status)}
                                                 <span className="text-sm text-muted-foreground">
-                                                    {new Date(review.createdAt).toLocaleDateString()}
+                                                    {review.createdAt ? new Date(review.createdAt).toLocaleDateString() : "—"}
                                                 </span>
                                             </div>
 
@@ -274,8 +254,8 @@ export default function ReviewsPage() {
                                                 <span className="font-medium">
                                                     {review.guest?.primaryFirstName} {review.guest?.primaryLastName}
                                                 </span>
-                                                {review.reservation?.site && (
-                                                    <span className="text-muted-foreground"> &middot; {review.reservation.site.name}</span>
+                                                {review.reservation?.id && (
+                                                    <span className="text-muted-foreground"> &middot; Reservation {review.reservation.id.slice(0, 8)}</span>
                                                 )}
                                             </div>
 
@@ -287,21 +267,13 @@ export default function ReviewsPage() {
                                                 <p className="text-muted-foreground">{review.body}</p>
                                             )}
 
-                                            {/* Votes */}
-                                            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                                                <span className="flex items-center gap-1">
-                                                    <ThumbsUp className="w-4 h-4" /> {review.helpfulCount}
-                                                </span>
-                                                <span className="flex items-center gap-1">
-                                                    <ThumbsDown className="w-4 h-4" /> {review.unhelpfulCount}
-                                                </span>
-                                            </div>
-
                                             {/* Owner Reply */}
-                                            {review.ownerReply && (
+                                            {review.replies && review.replies.length > 0 && (
                                                 <div className="bg-muted rounded-lg p-4 mt-3">
                                                     <div className="text-xs font-medium text-muted-foreground mb-1">Owner Response</div>
-                                                    <p className="text-sm text-foreground">{review.ownerReply}</p>
+                                                    <p className="text-sm text-foreground">
+                                                        {review.replies.find((reply) => reply.authorType === "staff")?.body ?? review.replies[0]?.body}
+                                                    </p>
                                                 </div>
                                             )}
 
@@ -358,7 +330,7 @@ export default function ReviewsPage() {
                                                     </Button>
                                                 </>
                                             )}
-                                            {review.status === "approved" && !review.ownerReply && replyingTo !== review.id && (
+                                            {review.status === "approved" && (!review.replies || review.replies.length === 0) && replyingTo !== review.id && (
                                                 <Button
                                                     size="sm"
                                                     variant="outline"

@@ -2,7 +2,13 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import nodemailer from 'nodemailer';
 import fetch from 'node-fetch';
 import { PrismaService } from '../prisma/prisma.service';
-import type { Request } from "express";
+import { randomUUID } from "crypto";
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null;
+
+const getString = (value: unknown): string | undefined =>
+    typeof value === "string" ? value : undefined;
 
 interface EmailOptions {
     to: string;
@@ -76,13 +82,30 @@ export class EmailService {
         const isValidEmail = configuredFrom.includes("@");
         const resendFrom = isValidEmail ? configuredFrom : "Keepr <onboarding@resend.dev>";
         const fromEmail = isValidEmail ? configuredFrom : "no-reply@keeprstay.com";
+        const resendApiKey = this.resendApiKey;
+        const postmarkToken = this.postmarkToken;
+
+        const parseJson = async (response: { json: () => Promise<unknown> }): Promise<unknown> => {
+            try {
+                return await response.json();
+            } catch {
+                return null;
+            }
+        };
+
+        const getResponseId = (data: unknown, key: string): string | undefined => {
+            if (!isRecord(data)) {
+                return undefined;
+            }
+            return getString(data[key]);
+        };
 
         const tryResend = async () => {
             const res = await fetch("https://api.resend.com/emails", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    Authorization: `Bearer ${this.resendApiKey}`
+                    Authorization: `Bearer ${resendApiKey}`
                 },
                 body: JSON.stringify({
                     from: resendFrom,
@@ -91,21 +114,24 @@ export class EmailService {
                     html: options.html
                 })
             });
-            const data: any = await res.json();
+            const data = await parseJson(res);
             if (!res.ok) {
                 throw new BadRequestException(`Resend send failed: ${res.status} ${JSON.stringify(data)}`);
             }
             this.logger.log(`Email sent via Resend to ${options.to} (${options.subject})`);
-            return { providerMessageId: data.id, provider: "resend" };
+            return { providerMessageId: getResponseId(data, "id"), provider: "resend" };
         };
 
         const tryPostmark = async () => {
+            if (!postmarkToken) {
+                throw new BadRequestException("Postmark server token is not configured");
+            }
             const res = await fetch("https://api.postmarkapp.com/email", {
                 method: "POST",
                 headers: {
                     Accept: "application/json",
                     "Content-Type": "application/json",
-                    "X-Postmark-Server-Token": this.postmarkToken as string
+                    "X-Postmark-Server-Token": postmarkToken
                 },
                 body: JSON.stringify({
                     From: fromEmail,
@@ -114,16 +140,16 @@ export class EmailService {
                     HtmlBody: options.html
                 })
             });
-            const data: any = await res.json();
+            const data = await parseJson(res);
             if (!res.ok) {
                 throw new BadRequestException(`Postmark send failed: ${res.status} ${JSON.stringify(data)}`);
             }
             this.logger.log(`Email sent via Postmark to ${options.to} (${options.subject})`);
-            return { providerMessageId: data.MessageID, provider: "postmark" };
+            return { providerMessageId: getResponseId(data, "MessageID"), provider: "postmark" };
         };
 
         // Prefer Resend, then Postmark, then SMTP, then console log
-        if (this.resendApiKey) {
+        if (resendApiKey) {
             try {
                 return await tryResend();
             } catch (err) {
@@ -137,7 +163,7 @@ export class EmailService {
             }
         }
 
-        if (this.postmarkToken) {
+        if (postmarkToken) {
             try {
                 return await tryPostmark();
             } catch (err) {
@@ -321,6 +347,7 @@ ${options.html}
             try {
                 await this.prisma.communication.create({
                     data: {
+                        id: randomUUID(),
                         campgroundId: options.campgroundId,
                         guestId: options.guestId,
                         reservationId: options.reservationId,
@@ -633,4 +660,3 @@ ${options.html}
         });
     }
 }
-

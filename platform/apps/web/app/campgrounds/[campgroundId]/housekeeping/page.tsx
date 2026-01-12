@@ -45,18 +45,39 @@ type SlaStatus = "on_track" | "at_risk" | "breached";
 type TaskType = "turnover" | "inspection" | "deep_clean" | "touch_up" | "vip_prep" | "linen_change" | "other";
 const EMPTY_SELECT_VALUE = "__empty";
 
-type ListTasksParams = {
-  state?: TaskState;
-  slaStatus?: SlaStatus;
-  type?: TaskType;
-};
+const taskStateValues: TaskState[] = ["pending", "in_progress", "blocked", "done", "failed", "expired"];
+const slaStatusValues: SlaStatus[] = ["on_track", "at_risk", "breached"];
+const taskTypeValues: TaskType[] = [
+  "turnover",
+  "inspection",
+  "deep_clean",
+  "touch_up",
+  "vip_prep",
+  "linen_change",
+  "other",
+];
 
-type UpdateTaskPayload = {
-  state: TaskState;
+const isTaskState = (value: string): value is TaskState =>
+  taskStateValues.some((state) => state === value);
+
+const isSlaStatus = (value: string): value is SlaStatus =>
+  slaStatusValues.some((status) => status === value);
+
+const isTaskType = (value: string): value is TaskType =>
+  taskTypeValues.some((type) => type === value);
+
+const readString = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+const getSiteZone = (site: SiteRecord): string | undefined => {
+  if ("zone" in site) {
+    return readString(site.zone);
+  }
+  return undefined;
 };
 
 type CreateTaskPayload = {
-  type: string;
+  type: TaskType;
   siteId: string;
   priority?: string;
   notes?: string;
@@ -72,12 +93,25 @@ type DailyScheduleData = {
     stayoverCount?: number;
   };
   expectedCheckouts?: Array<{ id: string; siteName?: string; guestName?: string; time?: string }>;
-  expectedCheckins?: Array<{ id: string; siteName?: string; guestName?: string; time?: string }>;
+  expectedCheckins?: Array<{
+    id: string;
+    siteName?: string;
+    guestName?: string;
+    time?: string;
+    isVIP?: boolean;
+    isEarlyArrival?: boolean;
+  }>;
   expectedTurnovers?: Array<{ id: string; siteName?: string; arrivalTime?: string; departureTime?: string }>;
   stayovers?: Array<{ id: string; siteName?: string; guestName?: string }>;
   prioritySites?: Array<{ id: string; siteName?: string; priority?: string; reason?: string }>;
   priorityUnits?: string[];
 };
+
+type HousekeepingTasks = Awaited<ReturnType<typeof apiClient.listTasks>>;
+type HousekeepingTask = HousekeepingTasks[number];
+type StaffWorkload = Awaited<ReturnType<typeof apiClient.getStaffWorkload>>;
+type StaffWorkloadEntry = StaffWorkload[string];
+type SiteRecord = Awaited<ReturnType<typeof apiClient.getSites>>[number];
 
 function formatDateTime(d?: string | Date | null) {
   if (!d) return "—";
@@ -155,7 +189,11 @@ function TaskStateDropdown({
   return (
     <Select
       value={current}
-      onValueChange={(value) => onChange(value as TaskState)}
+      onValueChange={(value) => {
+        if (isTaskState(value)) {
+          onChange(value);
+        }
+      }}
       disabled={disabled}
     >
       <SelectTrigger className="h-7 w-[140px] text-xs" aria-label="Task state">
@@ -201,13 +239,13 @@ function TaskTypeBadge({ type }: { type: string }) {
 }
 
 export default function HousekeepingPage() {
-  const params = useParams();
+  const params = useParams<{ campgroundId?: string }>();
   const queryClient = useQueryClient();
-  const campgroundId = params.campgroundId as string;
+  const campgroundId = params.campgroundId ?? "";
 
   const [stateFilter, setStateFilter] = useState<TaskState | "all">("all");
   const [slaFilter, setSlaFilter] = useState<SlaStatus | "all">("all");
-  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = useState<TaskType | "all">("all");
   const [showCreateModal, setShowCreateModal] = useState(false);
   // Initialize with empty string to avoid hydration mismatch, set on mount
   const [selectedDate, setSelectedDate] = useState("");
@@ -226,36 +264,36 @@ export default function HousekeepingPage() {
     notes: string;
   }>({ type: "turnover", siteId: "", priority: "medium", notes: "" });
 
-  const tasksQuery = useQuery({
+  const tasksQuery = useQuery<HousekeepingTasks>({
     queryKey: ["tasks", campgroundId, stateFilter, slaFilter, typeFilter],
     queryFn: () =>
       apiClient.listTasks(campgroundId, {
         state: stateFilter === "all" ? undefined : stateFilter,
         slaStatus: slaFilter === "all" ? undefined : slaFilter,
         type: typeFilter === "all" ? undefined : typeFilter,
-      } as ListTasksParams),
+      }),
     enabled: !!campgroundId,
   });
 
-  const housekeepingStatsQuery = useQuery({
+  const housekeepingStatsQuery = useQuery<Awaited<ReturnType<typeof apiClient.getHousekeepingStatusStats>>>({
     queryKey: ["housekeeping-stats", campgroundId],
     queryFn: () => apiClient.getHousekeepingStatusStats(campgroundId),
     enabled: !!campgroundId,
   });
 
-  const dailyScheduleQuery = useQuery({
+  const dailyScheduleQuery = useQuery<DailyScheduleData>({
     queryKey: ["daily-schedule", campgroundId, selectedDate],
     queryFn: () => apiClient.getDailySchedule(campgroundId, selectedDate),
     enabled: !!campgroundId && !!selectedDate,
   });
 
-  const staffWorkloadQuery = useQuery({
+  const staffWorkloadQuery = useQuery<StaffWorkload>({
     queryKey: ["staff-workload", campgroundId, selectedDate],
     queryFn: () => apiClient.getStaffWorkload(campgroundId, selectedDate),
     enabled: !!campgroundId && !!selectedDate,
   });
 
-  const inspectionStatsQuery = useQuery({
+  const inspectionStatsQuery = useQuery<Awaited<ReturnType<typeof apiClient.getInspectionStats>>>({
     queryKey: ["inspection-stats", campgroundId],
     queryFn: () => apiClient.getInspectionStats(campgroundId),
     enabled: !!campgroundId,
@@ -263,14 +301,14 @@ export default function HousekeepingPage() {
 
   const updateTaskMutation = useMutation({
     mutationFn: ({ id, state }: { id: string; state: TaskState }) =>
-      apiClient.updateTask(id, { state } as Parameters<typeof apiClient.updateTask>[1]),
+      apiClient.updateTask(id, { state }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks", campgroundId] });
     },
   });
 
   const createTaskMutation = useMutation({
-    mutationFn: (payload: CreateTaskPayload) => apiClient.createTask(campgroundId, payload as Parameters<typeof apiClient.createTask>[1]),
+    mutationFn: (payload: CreateTaskPayload) => apiClient.createTask(campgroundId, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks", campgroundId] });
       setShowCreateModal(false);
@@ -278,32 +316,39 @@ export default function HousekeepingPage() {
     },
   });
 
-  const sitesQuery = useQuery({
+  const sitesQuery = useQuery<SiteRecord[]>({
     queryKey: ["sites", campgroundId],
     queryFn: () => apiClient.getSites(campgroundId),
     enabled: !!campgroundId,
   });
-  const sites = sitesQuery.data || [];
+  const sites = sitesQuery.data ?? [];
 
-  const tasks = tasksQuery.data || [];
-  const dailySchedule = dailyScheduleQuery.data as DailyScheduleData | undefined;
-  const staffWorkload = staffWorkloadQuery.data || {};
+  const tasks = tasksQuery.data ?? [];
+  const dailySchedule = dailyScheduleQuery.data;
+  const staffWorkload: StaffWorkload = staffWorkloadQuery.data ?? {};
   const housekeepingStats = housekeepingStatsQuery.data;
   const inspectionStats = inspectionStatsQuery.data;
 
-  const tasksByState = {
-    pending: tasks.filter((t: any) => t.state === "pending"),
-    in_progress: tasks.filter((t: any) => t.state === "in_progress"),
-    blocked: tasks.filter((t: any) => t.state === "blocked"),
-    done: tasks.filter((t: any) => t.state === "done"),
+  const tasksByState: Record<TaskState, HousekeepingTask[]> = {
+    pending: [],
+    in_progress: [],
+    blocked: [],
+    done: [],
+    failed: [],
+    expired: [],
   };
+  tasks.forEach((task) => {
+    tasksByState[task.state].push(task);
+  });
 
   const slaStats = {
     total: tasks.length,
-    onTrack: tasks.filter((t: any) => t.slaStatus === "on_track").length,
-    atRisk: tasks.filter((t: any) => t.slaStatus === "at_risk").length,
-    breached: tasks.filter((t: any) => t.slaStatus === "breached").length,
+    onTrack: tasks.filter((task) => task.slaStatus === "on_track").length,
+    atRisk: tasks.filter((task) => task.slaStatus === "at_risk").length,
+    breached: tasks.filter((task) => task.slaStatus === "breached").length,
   };
+
+  const boardStates: TaskState[] = ["pending", "in_progress", "blocked", "done"];
 
   return (
     <DashboardShell>
@@ -389,7 +434,16 @@ export default function HousekeepingPage() {
             {/* Filters */}
             <div className="flex flex-wrap gap-2 items-center">
               <Filter className="h-4 w-4 text-muted-foreground" />
-              <Select value={stateFilter} onValueChange={(value) => setStateFilter(value as TaskState | "all")}>
+              <Select
+                value={stateFilter}
+                onValueChange={(value) => {
+                  if (value === "all") {
+                    setStateFilter("all");
+                  } else if (isTaskState(value)) {
+                    setStateFilter(value);
+                  }
+                }}
+              >
                 <SelectTrigger className="h-8 w-[150px] text-sm" aria-label="State filter">
                   <SelectValue />
                 </SelectTrigger>
@@ -403,7 +457,16 @@ export default function HousekeepingPage() {
                   <SelectItem value="expired">Expired</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={slaFilter} onValueChange={(value) => setSlaFilter(value as SlaStatus | "all")}>
+              <Select
+                value={slaFilter}
+                onValueChange={(value) => {
+                  if (value === "all") {
+                    setSlaFilter("all");
+                  } else if (isSlaStatus(value)) {
+                    setSlaFilter(value);
+                  }
+                }}
+              >
                 <SelectTrigger className="h-8 w-[140px] text-sm" aria-label="SLA filter">
                   <SelectValue />
                 </SelectTrigger>
@@ -414,7 +477,16 @@ export default function HousekeepingPage() {
                   <SelectItem value="breached">Breached</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <Select
+                value={typeFilter}
+                onValueChange={(value) => {
+                  if (value === "all") {
+                    setTypeFilter("all");
+                  } else if (isTaskType(value)) {
+                    setTypeFilter(value);
+                  }
+                }}
+              >
                 <SelectTrigger className="h-8 w-[150px] text-sm" aria-label="Task type filter">
                   <SelectValue />
                 </SelectTrigger>
@@ -440,7 +512,7 @@ export default function HousekeepingPage() {
               </div>
             ) : (
               <div className="grid md:grid-cols-4 gap-4">
-                {(["pending", "in_progress", "blocked", "done"] as const).map((stateKey) => (
+                {boardStates.map((stateKey) => (
                   <div key={stateKey} className="space-y-2">
                     <div className="font-medium text-sm text-foreground capitalize flex items-center gap-2">
                       {stateKey.replace("_", " ")}
@@ -449,12 +521,12 @@ export default function HousekeepingPage() {
                       </Badge>
                     </div>
                     <div className="space-y-2">
-                      {tasksByState[stateKey].map((task: any) => (
+                      {tasksByState[stateKey].map((task) => (
                         <Card key={task.id} className="p-3 hover:shadow-md transition-shadow">
                           <div className="space-y-2">
                             <div className="flex items-start justify-between gap-2">
                               <TaskTypeBadge type={task.type} />
-                              <SlaStatusBadge status={task.slaStatus} />
+                              {task.slaStatus && <SlaStatusBadge status={task.slaStatus} />}
                             </div>
 
                             <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -533,8 +605,8 @@ export default function HousekeepingPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2">
-                    {dailySchedule.expectedCheckouts?.slice(0, 10).map((checkout: any) => (
-                      <div key={checkout.reservationId} className="p-2 border rounded text-sm">
+                    {dailySchedule.expectedCheckouts?.slice(0, 10).map((checkout) => (
+                      <div key={checkout.id} className="p-2 border rounded text-sm">
                         <div className="font-medium">{checkout.siteName}</div>
                         <div className="text-xs text-muted-foreground">{checkout.guestName}</div>
                       </div>
@@ -554,8 +626,8 @@ export default function HousekeepingPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-2">
-                    {dailySchedule.expectedCheckins?.slice(0, 10).map((checkin: any) => (
-                      <div key={checkin.reservationId} className="p-2 border rounded text-sm">
+                    {dailySchedule.expectedCheckins?.slice(0, 10).map((checkin) => (
+                      <div key={checkin.id} className="p-2 border rounded text-sm">
                         <div className="font-medium flex items-center gap-2">
                           {checkin.siteName}
                           {checkin.isVIP && <Badge variant="destructive" className="text-xs">VIP</Badge>}
@@ -601,7 +673,7 @@ export default function HousekeepingPage() {
                 <Card key={status} className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-2xl font-bold">{count as number}</div>
+                      <div className="text-2xl font-bold">{count}</div>
                       <div className="text-xs text-muted-foreground capitalize">{status.replace(/_/g, " ")}</div>
                     </div>
                     <HousekeepingStatusBadge status={status} />
@@ -628,15 +700,18 @@ export default function HousekeepingPage() {
                   <CardContent>
                     <div className="space-y-1 max-h-48 overflow-y-auto">
                       {sites
-                        .filter((s: any) => s.housekeepingStatus === status)
+                        .filter((site) => site.housekeepingStatus === status)
                         .slice(0, 10)
-                        .map((site: any) => (
-                          <div key={site.id} className="text-sm p-2 border rounded flex justify-between">
-                            <span>{site.name}</span>
-                            {site.zone && <span className="text-xs text-muted-foreground">{site.zone}</span>}
-                          </div>
-                        ))}
-                      {sites.filter((s: any) => s.housekeepingStatus === status).length === 0 && (
+                        .map((site) => {
+                          const zone = getSiteZone(site);
+                          return (
+                            <div key={site.id} className="text-sm p-2 border rounded flex justify-between">
+                              <span>{site.name}</span>
+                              {zone && <span className="text-xs text-muted-foreground">{zone}</span>}
+                            </div>
+                          );
+                        })}
+                      {sites.filter((site) => site.housekeepingStatus === status).length === 0 && (
                         <div className="text-sm text-muted-foreground">None</div>
                       )}
                     </div>
@@ -663,7 +738,7 @@ export default function HousekeepingPage() {
               <div className="text-center py-12 text-muted-foreground">No workload data available.</div>
             ) : (
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {Object.entries(staffWorkload).map(([userId, data]: [string, any]) => (
+                {Object.entries(staffWorkload).map(([userId, data]) => (
                   <Card key={userId}>
                     <CardHeader className="pb-2">
                       <CardTitle className="text-sm flex items-center gap-2">
@@ -731,9 +806,11 @@ export default function HousekeepingPage() {
                   <Label htmlFor="task-type" className="text-sm font-medium text-foreground">Type</Label>
                   <Select
                     value={newTask.type}
-                    onValueChange={(value) =>
-                      setNewTask({ ...newTask, type: value as TaskType })
-                    }
+                    onValueChange={(value) => {
+                      if (isTaskType(value)) {
+                        setNewTask({ ...newTask, type: value });
+                      }
+                    }}
                   >
                     <SelectTrigger id="task-type" className="w-full mt-1">
                       <SelectValue />
@@ -763,11 +840,14 @@ export default function HousekeepingPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value={EMPTY_SELECT_VALUE}>Select a site...</SelectItem>
-                      {sites.map((site: any) => (
-                        <SelectItem key={site.id} value={site.id}>
-                          {site.name} {site.zone ? `(${site.zone})` : ""}
-                        </SelectItem>
-                      ))}
+                      {sites.map((site) => {
+                        const zone = getSiteZone(site);
+                        return (
+                          <SelectItem key={site.id} value={site.id}>
+                            {site.name} {zone ? `(${zone})` : ""}
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
                 </div>

@@ -11,7 +11,7 @@ import {
   ClaimVerificationMethod,
   Prisma,
 } from "@prisma/client";
-import { randomBytes } from "crypto";
+import { randomBytes, randomUUID } from "crypto";
 
 /**
  * Claims Service
@@ -49,8 +49,8 @@ export interface ClaimDetails {
   campgroundId: string;
   campgroundName: string;
   status: string;
-  verificationMethod: ClaimVerificationMethod;
-  businessName: string;
+  verificationMethod: ClaimVerificationMethod | null;
+  businessName: string | null;
   contactName: string;
   contactEmail: string;
   submittedAt: Date;
@@ -106,7 +106,7 @@ export class ClaimsService {
     // Check for existing pending claims by this user
     const existingClaim = await this.prisma.campgroundClaim.findFirst({
       where: {
-        claimantId: userId,
+        userId,
         campgroundId: dto.campgroundId,
         status: "pending",
       },
@@ -130,23 +130,19 @@ export class ClaimsService {
       // Create the claim
       const newClaim = await tx.campgroundClaim.create({
         data: {
+          id: randomUUID(),
           campgroundId: dto.campgroundId,
-          claimantId: userId,
-          organizationId: dto.organizationId,
+          userId,
           status: "pending",
           verificationMethod: dto.verificationMethod,
           verificationCode,
-          verificationCodeExpiry: verificationExpiry,
+          verificationExpiry: verificationExpiry,
           businessName: dto.businessName,
-          contactName: dto.contactName,
-          contactEmail: dto.contactEmail.trim().toLowerCase(),
-          contactPhone: dto.contactPhone,
-          notes: dto.notes,
-        },
-        include: {
-          campground: {
-            select: { name: true },
-          },
+          claimantName: dto.contactName,
+          claimantEmail: dto.contactEmail.trim().toLowerCase(),
+          claimantPhone: dto.contactPhone,
+          notes: dto.notes ?? null,
+          updatedAt: new Date(),
         },
       });
 
@@ -175,16 +171,16 @@ export class ClaimsService {
     return {
       id: claim.id,
       campgroundId: claim.campgroundId,
-      campgroundName: claim.campground.name,
+      campgroundName: campground.name,
       status: claim.status,
-      verificationMethod: claim.verificationMethod,
-      businessName: claim.businessName,
-      contactName: claim.contactName,
-      contactEmail: claim.contactEmail,
-      submittedAt: claim.submittedAt,
+      verificationMethod: claim.verificationMethod ?? null,
+      businessName: claim.businessName ?? null,
+      contactName: claim.claimantName,
+      contactEmail: claim.claimantEmail,
+      submittedAt: claim.createdAt,
       verifiedAt: claim.verifiedAt,
       reviewedAt: claim.reviewedAt,
-      reviewedBy: claim.reviewedBy,
+      reviewedBy: claim.reviewedByUserId,
       rejectionReason: claim.rejectionReason,
     };
   }
@@ -196,8 +192,8 @@ export class ClaimsService {
     const claim = await this.prisma.campgroundClaim.findUnique({
       where: { id: dto.claimId },
       include: {
-        campground: {
-          select: { name: true, verificationAttempts: true },
+        Campground: {
+          select: { name: true },
         },
       },
     });
@@ -206,7 +202,7 @@ export class ClaimsService {
       throw new NotFoundException("Claim not found");
     }
 
-    if (claim.claimantId !== userId) {
+    if (claim.userId !== userId) {
       throw new BadRequestException("You are not the owner of this claim");
     }
 
@@ -218,8 +214,7 @@ export class ClaimsService {
 
     // Check verification attempts
     if (
-      claim.campground.verificationAttempts &&
-      claim.campground.verificationAttempts >= this.MAX_VERIFICATION_ATTEMPTS
+      claim.verificationAttempts >= this.MAX_VERIFICATION_ATTEMPTS
     ) {
       throw new BadRequestException(
         "Maximum verification attempts exceeded. Please submit a new claim."
@@ -228,8 +223,8 @@ export class ClaimsService {
 
     // Check code expiry
     if (
-      claim.verificationCodeExpiry &&
-      new Date() > claim.verificationCodeExpiry
+      claim.verificationExpiry &&
+      new Date() > claim.verificationExpiry
     ) {
       throw new BadRequestException(
         "Verification code has expired. Please request a new code."
@@ -239,8 +234,8 @@ export class ClaimsService {
     // Check code match
     if (claim.verificationCode !== dto.verificationCode) {
       // Increment attempts
-      await this.prisma.campground.update({
-        where: { id: claim.campgroundId },
+      await this.prisma.campgroundClaim.update({
+        where: { id: claim.id },
         data: {
           verificationAttempts: { increment: 1 },
         },
@@ -257,7 +252,7 @@ export class ClaimsService {
         verifiedAt: new Date(),
       },
       include: {
-        campground: {
+        Campground: {
           select: { name: true },
         },
       },
@@ -270,16 +265,16 @@ export class ClaimsService {
     return {
       id: updatedClaim.id,
       campgroundId: updatedClaim.campgroundId,
-      campgroundName: updatedClaim.campground.name,
+      campgroundName: updatedClaim.Campground.name,
       status: updatedClaim.status,
-      verificationMethod: updatedClaim.verificationMethod,
-      businessName: updatedClaim.businessName,
-      contactName: updatedClaim.contactName,
-      contactEmail: updatedClaim.contactEmail,
-      submittedAt: updatedClaim.submittedAt,
+      verificationMethod: updatedClaim.verificationMethod ?? null,
+      businessName: updatedClaim.businessName ?? null,
+      contactName: updatedClaim.claimantName,
+      contactEmail: updatedClaim.claimantEmail,
+      submittedAt: updatedClaim.createdAt,
       verifiedAt: updatedClaim.verifiedAt,
       reviewedAt: updatedClaim.reviewedAt,
-      reviewedBy: updatedClaim.reviewedBy,
+      reviewedBy: updatedClaim.reviewedByUserId,
       rejectionReason: updatedClaim.rejectionReason,
     };
   }
@@ -296,7 +291,7 @@ export class ClaimsService {
       throw new NotFoundException("Claim not found");
     }
 
-    if (claim.claimantId !== userId) {
+    if (claim.userId !== userId) {
       throw new BadRequestException("You are not the owner of this claim");
     }
 
@@ -315,7 +310,7 @@ export class ClaimsService {
         where: { id: claimId },
         data: {
           verificationCode: newCode,
-          verificationCodeExpiry: newExpiry,
+          verificationExpiry: newExpiry,
         },
       }),
       this.prisma.campground.update({
@@ -329,6 +324,9 @@ export class ClaimsService {
     ]);
 
     // Send the new code
+    if (!claim.verificationMethod) {
+      throw new BadRequestException("Claim verification method is missing");
+    }
     await this.sendVerificationCode(claim, claim.verificationMethod);
 
     this.logger.log(`Verification code resent for claim ${claimId}`);
@@ -345,7 +343,7 @@ export class ClaimsService {
     const claim = await this.prisma.campgroundClaim.findUnique({
       where: { id: claimId },
       include: {
-        campground: { select: { name: true } },
+        Campground: { select: { name: true } },
       },
     });
 
@@ -367,11 +365,10 @@ export class ClaimsService {
         data: {
           status: "approved",
           reviewedAt: new Date(),
-          reviewedBy: adminUserId,
-          organizationId,
+          reviewedByUserId: adminUserId,
         },
         include: {
-          campground: { select: { name: true } },
+          Campground: { select: { name: true } },
         },
       });
 
@@ -381,11 +378,11 @@ export class ClaimsService {
         data: {
           claimStatus: CampgroundClaimStatus.claimed,
           claimedAt: new Date(),
-          claimedByUserId: claim.claimantId,
+          claimedByUserId: claim.userId,
           organizationId,
           verificationCode: null,
           verificationCodeExpiry: null,
-          verificationAttempts: null,
+          verificationAttempts: 0,
         },
       });
 
@@ -399,16 +396,16 @@ export class ClaimsService {
     return {
       id: updatedClaim.id,
       campgroundId: updatedClaim.campgroundId,
-      campgroundName: updatedClaim.campground.name,
+      campgroundName: updatedClaim.Campground.name,
       status: updatedClaim.status,
-      verificationMethod: updatedClaim.verificationMethod,
-      businessName: updatedClaim.businessName,
-      contactName: updatedClaim.contactName,
-      contactEmail: updatedClaim.contactEmail,
-      submittedAt: updatedClaim.submittedAt,
+      verificationMethod: updatedClaim.verificationMethod ?? null,
+      businessName: updatedClaim.businessName ?? null,
+      contactName: updatedClaim.claimantName,
+      contactEmail: updatedClaim.claimantEmail,
+      submittedAt: updatedClaim.createdAt,
       verifiedAt: updatedClaim.verifiedAt,
       reviewedAt: updatedClaim.reviewedAt,
-      reviewedBy: updatedClaim.reviewedBy,
+      reviewedBy: updatedClaim.reviewedByUserId,
       rejectionReason: updatedClaim.rejectionReason,
     };
   }
@@ -424,7 +421,7 @@ export class ClaimsService {
     const claim = await this.prisma.campgroundClaim.findUnique({
       where: { id: claimId },
       include: {
-        campground: { select: { name: true } },
+        Campground: { select: { name: true } },
       },
     });
 
@@ -445,11 +442,11 @@ export class ClaimsService {
         data: {
           status: "rejected",
           reviewedAt: new Date(),
-          reviewedBy: adminUserId,
+          reviewedByUserId: adminUserId,
           rejectionReason: reason,
         },
         include: {
-          campground: { select: { name: true } },
+          Campground: { select: { name: true } },
         },
       });
 
@@ -460,7 +457,7 @@ export class ClaimsService {
           claimStatus: CampgroundClaimStatus.unclaimed,
           verificationCode: null,
           verificationCodeExpiry: null,
-          verificationAttempts: null,
+          verificationAttempts: 0,
           verificationMethod: null,
         },
       });
@@ -475,16 +472,16 @@ export class ClaimsService {
     return {
       id: updatedClaim.id,
       campgroundId: updatedClaim.campgroundId,
-      campgroundName: updatedClaim.campground.name,
+      campgroundName: updatedClaim.Campground.name,
       status: updatedClaim.status,
-      verificationMethod: updatedClaim.verificationMethod,
-      businessName: updatedClaim.businessName,
-      contactName: updatedClaim.contactName,
-      contactEmail: updatedClaim.contactEmail,
-      submittedAt: updatedClaim.submittedAt,
+      verificationMethod: updatedClaim.verificationMethod ?? null,
+      businessName: updatedClaim.businessName ?? null,
+      contactName: updatedClaim.claimantName,
+      contactEmail: updatedClaim.claimantEmail,
+      submittedAt: updatedClaim.createdAt,
       verifiedAt: updatedClaim.verifiedAt,
       reviewedAt: updatedClaim.reviewedAt,
-      reviewedBy: updatedClaim.reviewedBy,
+      reviewedBy: updatedClaim.reviewedByUserId,
       rejectionReason: updatedClaim.rejectionReason,
     };
   }
@@ -496,7 +493,7 @@ export class ClaimsService {
     const claim = await this.prisma.campgroundClaim.findUnique({
       where: { id: claimId },
       include: {
-        campground: { select: { name: true } },
+        Campground: { select: { name: true } },
       },
     });
 
@@ -507,16 +504,16 @@ export class ClaimsService {
     return {
       id: claim.id,
       campgroundId: claim.campgroundId,
-      campgroundName: claim.campground.name,
+      campgroundName: claim.Campground.name,
       status: claim.status,
-      verificationMethod: claim.verificationMethod,
-      businessName: claim.businessName,
-      contactName: claim.contactName,
-      contactEmail: claim.contactEmail,
-      submittedAt: claim.submittedAt,
+      verificationMethod: claim.verificationMethod ?? null,
+      businessName: claim.businessName ?? null,
+      contactName: claim.claimantName,
+      contactEmail: claim.claimantEmail,
+      submittedAt: claim.createdAt,
       verifiedAt: claim.verifiedAt,
       reviewedAt: claim.reviewedAt,
-      reviewedBy: claim.reviewedBy,
+      reviewedBy: claim.reviewedByUserId,
       rejectionReason: claim.rejectionReason,
     };
   }
@@ -525,10 +522,10 @@ export class ClaimsService {
    * List claims for a user
    */
   async listUserClaims(userId: string) {
-    return this.prisma.campgroundClaim.findMany({
-      where: { claimantId: userId },
+    const claims = await this.prisma.campgroundClaim.findMany({
+      where: { userId },
       include: {
-        campground: {
+        Campground: {
           select: {
             id: true,
             name: true,
@@ -539,8 +536,12 @@ export class ClaimsService {
           },
         },
       },
-      orderBy: { submittedAt: "desc" },
+      orderBy: { createdAt: "desc" },
     });
+    return claims.map(({ Campground, ...claim }) => ({
+      ...claim,
+      campground: Campground,
+    }));
   }
 
   /**
@@ -554,11 +555,11 @@ export class ClaimsService {
       where.status = status;
     }
 
-    const [claims, total] = await Promise.all([
+    const [claimsRaw, total] = await Promise.all([
       this.prisma.campgroundClaim.findMany({
         where,
         include: {
-          campground: {
+          Campground: {
             select: {
               id: true,
               name: true,
@@ -568,7 +569,7 @@ export class ClaimsService {
               seededDataSource: true,
             },
           },
-          claimant: {
+          User: {
             select: {
               id: true,
               email: true,
@@ -577,12 +578,18 @@ export class ClaimsService {
             },
           },
         },
-        orderBy: { submittedAt: "asc" },
+        orderBy: { createdAt: "asc" },
         take: limit,
         skip: offset,
       }),
       this.prisma.campgroundClaim.count({ where }),
     ]);
+
+    const claims = claimsRaw.map(({ Campground, User, ...claim }) => ({
+      ...claim,
+      campground: Campground,
+      claimant: User,
+    }));
 
     return { claims, total };
   }
@@ -621,7 +628,7 @@ export class ClaimsService {
    * Send verification code via the appropriate method
    */
   private async sendVerificationCode(
-    claim: { contactEmail: string; contactPhone: string; verificationCode: string | null },
+    claim: { claimantEmail: string; claimantPhone: string | null; verificationCode: string | null },
     method: ClaimVerificationMethod
   ): Promise<void> {
     const code = claim.verificationCode;
@@ -631,14 +638,14 @@ export class ClaimsService {
     switch (method) {
       case ClaimVerificationMethod.email:
         this.logger.log(
-          `[TODO] Send email verification code ${code} to ${claim.contactEmail}`
+          `[TODO] Send email verification code ${code} to ${claim.claimantEmail}`
         );
         // await this.emailService.sendClaimVerification(claim.contactEmail, code);
         break;
 
       case ClaimVerificationMethod.phone:
         this.logger.log(
-          `[TODO] Send SMS verification code ${code} to ${claim.contactPhone}`
+          `[TODO] Send SMS verification code ${code} to ${claim.claimantPhone ?? ""}`
         );
         // await this.smsService.sendClaimVerification(claim.contactPhone, code);
         break;

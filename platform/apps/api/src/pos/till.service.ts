@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { CloseTillDto, OpenTillDto, TillMovementDto, ListTillsDto, DailyTillReportQueryDto } from "./till.dto";
 import { AuditService } from "../audit/audit.service";
@@ -9,20 +10,24 @@ const OVER_SHORT_ALERT_TOLERANCE_CENTS = 500; // $5 tolerance before alerting
 const MOVEMENT_DUPLICATE_WINDOW_MINUTES = 10;
 
 // Local enum stand-ins to decouple from generated Prisma enums at test/build time
-export const TillMovementType = {
+export type TillMovementType = "cash_sale" | "cash_refund" | "paid_in" | "paid_out" | "adjustment";
+export const TillMovementType: Record<TillMovementType, TillMovementType> = {
   cash_sale: "cash_sale",
   cash_refund: "cash_refund",
   paid_in: "paid_in",
   paid_out: "paid_out",
   adjustment: "adjustment"
-} as const;
-export type TillMovementType = (typeof TillMovementType)[keyof typeof TillMovementType];
+};
 
-export const TillSessionStatus = {
+export type TillSessionStatus = "open" | "closed";
+export const TillSessionStatus: Record<TillSessionStatus, TillSessionStatus> = {
   open: "open",
   closed: "closed"
-} as const;
-export type TillSessionStatus = (typeof TillSessionStatus)[keyof typeof TillSessionStatus];
+};
+
+const tillStatusValues: string[] = Object.values(TillSessionStatus);
+const isTillSessionStatus = (value: string): value is TillSessionStatus =>
+  tillStatusValues.includes(value);
 
 @Injectable()
 export class TillService {
@@ -43,12 +48,14 @@ export class TillService {
 
     const session = await this.prisma.tillSession.create({
       data: {
+        id: randomUUID(),
         campgroundId: actor.campgroundId,
         terminalId: dto.terminalId,
         openingFloatCents: dto.openingFloatCents,
         currency: dto.currency,
         notes: dto.notes,
-        openedByUserId: actor.id
+        openedByUserId: actor.id,
+        updatedAt: new Date()
       }
     });
 
@@ -73,19 +80,32 @@ export class TillService {
     if (!actor?.campgroundId) throw new BadRequestException("Missing actor context");
     const session = await this.prisma.tillSession.findFirst({
       where: { id, campgroundId: actor.campgroundId },
-      include: { movements: true, openedBy: true, closedBy: true, terminal: true }
+      include: {
+        TillMovement: true,
+        User_TillSession_openedByUserIdToUser: true,
+        User_TillSession_closedByUserIdToUser: true,
+        PosTerminal: true
+      }
     });
     if (!session) throw new NotFoundException("Till session not found");
-    const expected = this.computeExpected(session.openingFloatCents, session.movements);
-    return { ...session, computedExpectedCloseCents: expected, overShortCents: session.overShortCents };
+    const expected = this.computeExpected(session.openingFloatCents, session.TillMovement);
+    const { TillMovement, ...rest } = session;
+    return {
+      ...rest,
+      movements: TillMovement,
+      computedExpectedCloseCents: expected,
+      overShortCents: session.overShortCents
+    };
   }
 
   async list(params: ListTillsDto, actor: Actor) {
     if (!actor?.campgroundId) throw new BadRequestException("Missing actor context");
+    const status =
+      params.status && isTillSessionStatus(params.status) ? params.status : undefined;
     return this.prisma.tillSession.findMany({
       where: {
         campgroundId: actor.campgroundId,
-        status: params.status
+        status
       },
       orderBy: { openedAt: "desc" },
       take: 50
@@ -96,12 +116,12 @@ export class TillService {
     if (!actor?.campgroundId || !actor?.id) throw new BadRequestException("Missing actor context");
     const session = await this.prisma.tillSession.findFirst({
       where: { id, campgroundId: actor.campgroundId },
-      include: { movements: true }
+      include: { TillMovement: true }
     });
     if (!session) throw new NotFoundException("Till session not found");
     if (session.status === TillSessionStatus.closed) throw new BadRequestException("Till already closed");
 
-    const expected = this.computeExpected(session.openingFloatCents, session.movements);
+    const expected = this.computeExpected(session.openingFloatCents, session.TillMovement);
     const overShort = dto.countedCloseCents - expected;
     const toleranceBreached = Math.abs(overShort) > OVER_SHORT_ALERT_TOLERANCE_CENTS;
 
@@ -201,7 +221,7 @@ export class TillService {
     }
   ) {
     if (!actor?.id) throw new BadRequestException("Missing actor context");
-    const session = await this.prisma.tillSession.findUnique({ where: { id: sessionId }, include: { movements: true } });
+    const session = await this.prisma.tillSession.findUnique({ where: { id: sessionId }, include: { TillMovement: true } });
     if (!session) throw new NotFoundException("Till session not found");
     if (session.status !== TillSessionStatus.open) throw new BadRequestException("Till is not open");
     if (!session.terminalId) throw new BadRequestException("Till is not assigned to a terminal");
@@ -220,7 +240,7 @@ export class TillService {
     if (dto.referenceId) noteParts.push(`ref:${dto.referenceId}`);
     const finalNote = noteParts.length ? noteParts.join(" | ") : dto.note;
 
-    const movements = session.movements ?? [];
+    const movements = session.TillMovement ?? [];
     const expectedBefore = this.computeExpected(session.openingFloatCents, movements);
     const subtractive = type === TillMovementType.cash_refund || type === TillMovementType.paid_out;
     const nextExpected = subtractive ? expectedBefore - dto.amountCents : expectedBefore + dto.amountCents;
@@ -230,7 +250,7 @@ export class TillService {
     }
 
     if (options?.preventDuplicate) {
-      const duplicate = movements.find((m: any) => {
+      const duplicate = movements.find((m) => {
         if (sourceCartId && m.sourceCartId === sourceCartId && m.type === type) return true;
         if (dto.reasonCode && m.type === type && (m.note ?? "").includes(`reason:${dto.reasonCode}`)) return true;
         if (dto.referenceId && m.type === type && (m.note ?? "").includes(`ref:${dto.referenceId}`)) return true;
@@ -240,7 +260,7 @@ export class TillService {
 
       const recentCutoff = Date.now() - MOVEMENT_DUPLICATE_WINDOW_MINUTES * 60 * 1000;
       const hasRecentSameAmount = movements.some(
-        (m: any) =>
+        (m) =>
           m.type === type &&
           m.amountCents === dto.amountCents &&
           m.createdAt &&
@@ -251,6 +271,7 @@ export class TillService {
 
     const movement = await this.prisma.tillMovement.create({
       data: {
+        id: randomUUID(),
         sessionId,
         type,
         amountCents: dto.amountCents,
@@ -317,7 +338,12 @@ export class TillService {
         openedAt: { gte: start, lt: end },
         terminalId: query.terminalId ?? undefined
       },
-      include: { movements: true, openedBy: true, closedBy: true, terminal: true },
+      include: {
+        TillMovement: true,
+        User_TillSession_openedByUserIdToUser: true,
+        User_TillSession_closedByUserIdToUser: true,
+        PosTerminal: true
+      },
       orderBy: { openedAt: "asc" }
     });
 
@@ -330,22 +356,22 @@ export class TillService {
     let totalCounted = 0;
     let totalOverShort = 0;
 
-    const sessionSummaries = sessions.map((s: any) => {
+    const sessionSummaries = sessions.map((s) => {
       const currency = s.currency;
-      const movements = (s.movements as any[]).filter((m: any) => m.currency.toLowerCase() === currency.toLowerCase());
+      const movements = s.TillMovement.filter((m) => m.currency.toLowerCase() === currency.toLowerCase());
       const expected = this.computeExpected(s.openingFloatCents, movements);
       const cashSales = movements
-        .filter((m: any) => m.type === TillMovementType.cash_sale)
-        .reduce((n: number, m: any) => n + m.amountCents, 0);
+        .filter((m) => m.type === TillMovementType.cash_sale)
+        .reduce((n, m) => n + m.amountCents, 0);
       const cashRefunds = movements
-        .filter((m: any) => m.type === TillMovementType.cash_refund)
-        .reduce((n: number, m: any) => n + m.amountCents, 0);
+        .filter((m) => m.type === TillMovementType.cash_refund)
+        .reduce((n, m) => n + m.amountCents, 0);
       const paidIn = movements
-        .filter((m: any) => m.type === TillMovementType.paid_in)
-        .reduce((n: number, m: any) => n + m.amountCents, 0);
+        .filter((m) => m.type === TillMovementType.paid_in)
+        .reduce((n, m) => n + m.amountCents, 0);
       const paidOut = movements
-        .filter((m: any) => m.type === TillMovementType.paid_out)
-        .reduce((n: number, m: any) => n + m.amountCents, 0);
+        .filter((m) => m.type === TillMovementType.paid_out)
+        .reduce((n, m) => n + m.amountCents, 0);
       const counted = s.countedCloseCents ?? null;
       const overShort = counted !== null ? counted - expected : null;
 
@@ -375,9 +401,13 @@ export class TillService {
         overShortCents: overShort,
         openedAt: s.openedAt,
         closedAt: s.closedAt,
-        openedBy: s.openedBy ? { id: s.openedBy.id, email: s.openedBy.email } : null,
-        closedBy: s.closedBy ? { id: s.closedBy.id, email: s.closedBy.email } : null,
-        terminal: s.terminal ? { id: s.terminal.id, locationId: s.terminal.locationId } : null
+        openedBy: s.User_TillSession_openedByUserIdToUser
+          ? { id: s.User_TillSession_openedByUserIdToUser.id, email: s.User_TillSession_openedByUserIdToUser.email }
+          : null,
+        closedBy: s.User_TillSession_closedByUserIdToUser
+          ? { id: s.User_TillSession_closedByUserIdToUser.id, email: s.User_TillSession_closedByUserIdToUser.email }
+          : null,
+        terminal: s.PosTerminal ? { id: s.PosTerminal.id, locationId: s.PosTerminal.locationId } : null
       };
     });
 
@@ -418,7 +448,7 @@ export class TillService {
       "closedByEmail"
     ];
 
-    const rows = report.sessions.map((s: any) => [
+    const rows = report.sessions.map((s) => [
       report.date,
       s.terminalId ?? "",
       s.status,

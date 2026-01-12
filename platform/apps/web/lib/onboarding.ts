@@ -27,6 +27,24 @@ export type OnboardingStepKey =
 
 export type OnboardingPhase = "foundation" | "inventory" | "pricing" | "rules" | "features" | "launch";
 
+type SiteType = "rv" | "tent" | "cabin" | "yurt";
+
+type SiteClassTemplate = {
+  id: string;
+  name: string;
+  siteType: SiteType;
+  icon: string;
+  description: string;
+  defaults: {
+    hookupsPower: boolean;
+    hookupsWater: boolean;
+    hookupsSewer: boolean;
+    maxOccupancy: number;
+    rigMaxLength?: number;
+    petFriendly: boolean;
+  };
+};
+
 export interface OnboardingStep {
   key: OnboardingStepKey;
   title: string;
@@ -260,11 +278,11 @@ export const phaseLabels: Record<OnboardingPhase, string> = {
 };
 
 // Site class templates for quick setup
-export const siteClassTemplates = [
+export const siteClassTemplates: SiteClassTemplate[] = [
   {
     id: "full_hookup_rv",
     name: "Full Hookup RV",
-    siteType: "rv" as const,
+    siteType: "rv",
     icon: "Truck",
     description: "RV sites with power, water, and sewer",
     defaults: {
@@ -279,7 +297,7 @@ export const siteClassTemplates = [
   {
     id: "backin_rv",
     name: "Back-in RV",
-    siteType: "rv" as const,
+    siteType: "rv",
     icon: "Truck",
     description: "Standard RV sites with electric and water",
     defaults: {
@@ -294,7 +312,7 @@ export const siteClassTemplates = [
   {
     id: "tent",
     name: "Tent Site",
-    siteType: "tent" as const,
+    siteType: "tent",
     icon: "Tent",
     description: "Primitive sites for tent camping",
     defaults: {
@@ -308,7 +326,7 @@ export const siteClassTemplates = [
   {
     id: "cabin",
     name: "Cabin",
-    siteType: "cabin" as const,
+    siteType: "cabin",
     icon: "Home",
     description: "Rustic cabins with beds and amenities",
     defaults: {
@@ -322,7 +340,7 @@ export const siteClassTemplates = [
   {
     id: "glamping",
     name: "Glamping",
-    siteType: "yurt" as const,
+    siteType: "yurt",
     icon: "Sparkles",
     description: "Yurts, safari tents, or unique stays",
     defaults: {
@@ -336,7 +354,9 @@ export const siteClassTemplates = [
 ];
 
 // US Timezones for dropdown
-export const US_TIMEZONES = [
+type TimezoneOption = { value: string; label: string };
+
+export const US_TIMEZONES: readonly TimezoneOption[] = [
   { value: "America/New_York", label: "Eastern (ET)" },
   { value: "America/Chicago", label: "Central (CT)" },
   { value: "America/Denver", label: "Mountain (MT)" },
@@ -344,4 +364,4 @@ export const US_TIMEZONES = [
   { value: "America/Los_Angeles", label: "Pacific (PT)" },
   { value: "America/Anchorage", label: "Alaska (AKT)" },
   { value: "Pacific/Honolulu", label: "Hawaii (HST)" },
-] as const;
+];

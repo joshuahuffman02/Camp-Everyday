@@ -18,7 +18,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { Badge } from "@/components/ui/badge"
+import { Badge, type BadgeProps } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { IconButton } from "@/components/ui/icon-button"
 import { VisuallyHidden } from "@/components/ui/visually-hidden"
@@ -61,24 +61,27 @@ export function AccessibleReservationCard({
     date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
 
   // Status badge configuration
-  const statusConfig = {
+  const statusConfig: Record<
+    ReservationCardProps["status"],
+    { variant: BadgeProps["variant"]; text: string; srText: string }
+  > = {
     confirmed: {
-      variant: "success" as const,
+      variant: "success",
       text: "Confirmed",
       srText: "Reservation status: confirmed",
     },
     pending: {
-      variant: "warning" as const,
+      variant: "warning",
       text: "Pending",
       srText: "Reservation status: pending confirmation",
     },
     "checked-in": {
-      variant: "info" as const,
+      variant: "info",
       text: "Checked In",
       srText: "Reservation status: guest has checked in",
     },
     cancelled: {
-      variant: "destructive" as const,
+      variant: "destructive",
       text: "Cancelled",
       srText: "Reservation status: cancelled",
     },

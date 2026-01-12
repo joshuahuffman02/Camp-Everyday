@@ -99,7 +99,7 @@ export function AiAutoFillDialog({
     return "text-orange-600";
   };
 
-  const formatValue = (value: any): string => {
+  const formatValue = (value: SuggestedValue["suggestedValue"] | null): string => {
     if (value === null || value === undefined) return "-";
     if (typeof value === "boolean") return value ? "Yes" : "No";
     if (typeof value === "number") {
@@ -111,13 +111,13 @@ export function AiAutoFillDialog({
   };
 
   // Group suggestions by row for better display
-  const groupedByRow = suggestions.reduce((acc, s) => {
+  const groupedByRow = suggestions.reduce<Record<number, SuggestedValue[]>>((acc, s) => {
     if (!acc[s.rowNumber]) {
       acc[s.rowNumber] = [];
     }
     acc[s.rowNumber].push(s);
     return acc;
-  }, {} as Record<number, SuggestedValue[]>);
+  }, {});
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

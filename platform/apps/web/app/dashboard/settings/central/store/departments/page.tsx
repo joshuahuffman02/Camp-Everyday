@@ -32,6 +32,11 @@ interface Department {
   isActive: boolean;
 }
 
+type ProductCategory = Awaited<ReturnType<typeof apiClient.getProductCategories>>[number] & {
+  color?: string | null;
+};
+type Product = Awaited<ReturnType<typeof apiClient.getProducts>>[number];
+
 export default function DepartmentsPage() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,28 +48,29 @@ export default function DepartmentsPage() {
       return;
     }
 
-    Promise.all([
-      apiClient.getProductCategories(campgroundId).catch(() => []),
-      apiClient.getProducts(campgroundId).catch(() => [])
-    ]).then(([categories, products]) => {
-      const categoryList = Array.isArray(categories) ? categories : [];
-      const productList = Array.isArray(products) ? products : [];
+    const emptyCategories: ProductCategory[] = [];
+    const emptyProducts: Product[] = [];
+    const categoriesPromise: Promise<ProductCategory[]> =
+      apiClient.getProductCategories(campgroundId).catch(() => emptyCategories);
+    const productsPromise: Promise<Product[]> =
+      apiClient.getProducts(campgroundId).catch(() => emptyProducts);
+    Promise.all([categoriesPromise, productsPromise]).then(([categoryList, productList]) => {
 
       // Count products per category
       const productCounts: Record<string, number> = {};
-      productList.forEach((p: any) => {
-        if (p.categoryId) {
-          productCounts[p.categoryId] = (productCounts[p.categoryId] || 0) + 1;
+      productList.forEach((product) => {
+        if (product.categoryId) {
+          productCounts[product.categoryId] = (productCounts[product.categoryId] || 0) + 1;
         }
       });
 
       // Map categories to departments
-      const depts: Department[] = categoryList.map((cat: any) => ({
-        id: cat.id,
-        name: cat.name,
-        color: cat.color || "#6b7280",
-        productCount: productCounts[cat.id] || 0,
-        isActive: cat.isActive !== false,
+      const depts: Department[] = categoryList.map((category) => ({
+        id: category.id,
+        name: category.name,
+        color: category.color || "#6b7280",
+        productCount: productCounts[category.id] || 0,
+        isActive: category.isActive !== false,
       }));
 
       setDepartments(depts);

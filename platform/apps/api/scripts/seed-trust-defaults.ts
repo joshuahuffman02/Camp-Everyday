@@ -6,8 +6,9 @@
  *  - Specific camp: SEED_CAMP_ID=sandbox-camp pnpm ts-node --project tsconfig.json platform/apps/api/scripts/seed-trust-defaults.ts
  *  - All camps: SEED_CAMP_ID=all pnpm ts-node --project tsconfig.json platform/apps/api/scripts/seed-trust-defaults.ts
  */
-import { PrismaClient, PermissionEffect, UserRole } from "@prisma/client";
+import { Prisma, PrismaClient, PermissionEffect, UserRole } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { randomUUID } from "crypto";
 
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL || process.env.PLATFORM_DATABASE_URL
@@ -57,19 +58,65 @@ async function main() {
     }
   }
 
-  const policies = [
-    { action: "export_pii", resource: "privacy", approverRoles: [UserRole.owner], rationale: "PII export requires owner approval" },
-    { action: "refund_over_500", resource: "payments", approverRoles: [UserRole.owner, UserRole.manager], rationale: "High-value refund" },
-    { action: "role_change_owner", resource: "permissions", approverRoles: [UserRole.owner], rationale: "Protect ownership changes" },
-    { action: "subject_request", resource: "privacy", approverRoles: [UserRole.owner], rationale: "Data subject request confirmation" },
+  const policies: Array<{
+    action: string;
+    name: string;
+    description: string;
+    approverRoles: UserRole[];
+    appliesTo: string[];
+  }> = [
+    {
+      action: "export_pii",
+      name: "Export PII",
+      description: "PII export requires owner approval",
+      approverRoles: [UserRole.owner],
+      appliesTo: ["export_pii"]
+    },
+    {
+      action: "refund_over_500",
+      name: "Refund Over $500",
+      description: "High-value refund",
+      approverRoles: [UserRole.owner, UserRole.manager],
+      appliesTo: ["refund_over_500"]
+    },
+    {
+      action: "role_change_owner",
+      name: "Owner Role Change",
+      description: "Protect ownership changes",
+      approverRoles: [UserRole.owner],
+      appliesTo: ["role_change_owner"]
+    },
+    {
+      action: "subject_request",
+      name: "Subject Request",
+      description: "Data subject request confirmation",
+      approverRoles: [UserRole.owner],
+      appliesTo: ["subject_request"]
+    },
   ];
 
   for (const campId of targetCampIds) {
     for (const policy of policies) {
+      const where: Prisma.ApprovalPolicyWhereUniqueInput = {
+        campgroundId_action: { campgroundId: campId, action: policy.action }
+      };
       await prisma.approvalPolicy.upsert({
-        where: { campgroundId_action: { campgroundId: campId, action: policy.action } } as any,
-        create: { ...policy, campgroundId: campId },
-        update: { approverRoles: policy.approverRoles, rationale: policy.rationale }
+        where,
+        create: {
+          id: randomUUID(),
+          campgroundId: campId,
+          action: policy.action,
+          name: policy.name,
+          description: policy.description,
+          approverRoles: policy.approverRoles,
+          appliesTo: policy.appliesTo
+        },
+        update: {
+          name: policy.name,
+          description: policy.description,
+          approverRoles: policy.approverRoles,
+          appliesTo: policy.appliesTo
+        }
       });
     }
   }
@@ -97,4 +144,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-

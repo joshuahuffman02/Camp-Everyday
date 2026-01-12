@@ -38,8 +38,8 @@ export default function FeatureFlagsPage() {
             if (!res.ok) throw new Error(`Failed to load flags (${res.status})`);
             const data = await res.json();
             setFlags(Array.isArray(data) ? data : []);
-        } catch (err: any) {
-            setError(err.message || "Failed to load feature flags");
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : "Failed to load feature flags");
         } finally {
             setLoading(false);
         }
@@ -62,8 +62,8 @@ export default function FeatureFlagsPage() {
             setFlags((prev) =>
                 prev.map((f) => (f.id === id ? updated : f))
             );
-        } catch (err: any) {
-            setError(err.message);
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : "Failed to toggle flag");
         }
     };
 

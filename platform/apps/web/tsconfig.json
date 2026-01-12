@@ -9,6 +9,7 @@
     "allowJs": false,
     "skipLibCheck": true,
     "strict": true,
+    "noImplicitAny": true,
     "useUnknownInCatchVariables": true,
     "noEmit": true,
     "incremental": true,
@@ -32,7 +33,9 @@
       ]
     },
     "types": [
-      "node"
+      "node",
+      "vitest/globals",
+      "@testing-library/jest-dom"
     ],
     "plugins": [
       {

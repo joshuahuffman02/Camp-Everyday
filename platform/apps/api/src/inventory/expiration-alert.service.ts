@@ -1,6 +1,7 @@
 import { Injectable, Logger, Inject, forwardRef } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { Prisma, ExpirationTier } from "@prisma/client";
+import { randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { BatchInventoryService } from "./batch-inventory.service";
 import { WebhookService, WebhookEvent } from "../developer-api/webhook.service";
@@ -43,7 +44,7 @@ export class ExpirationAlertService {
             // Get all campgrounds with batch-tracked products
             const campgrounds = await this.prisma.campground.findMany({
                 where: {
-                    products: {
+                    Product: {
                         some: { useBatchTracking: true },
                     },
                 },
@@ -79,17 +80,17 @@ export class ExpirationAlertService {
                 expirationDate: { not: null },
             },
             include: {
-                product: {
+                Product: {
                     select: {
                         id: true,
                         name: true,
                         sku: true,
                         categoryId: true,
-                        category: true,
-                        expirationConfigs: { where: { campgroundId } },
+                        ProductCategory: true,
+                        ProductExpirationConfig: { where: { campgroundId } },
                     },
                 },
-                location: { select: { id: true, name: true } },
+                StoreLocation: { select: { id: true, name: true } },
             },
         });
 
@@ -106,8 +107,8 @@ export class ExpirationAlertService {
             const alertData: ExpirationAlertData = {
                 batchId: batch.id,
                 productId: batch.productId,
-                productName: batch.product.name,
-                locationName: batch.location?.name ?? null,
+                productName: batch.Product.name,
+                locationName: batch.StoreLocation?.name ?? null,
                 tier,
                 expirationDate: batch.expirationDate!,
                 daysRemaining,
@@ -131,13 +132,14 @@ export class ExpirationAlertService {
                 // Create new alert record
                 await this.prisma.expirationAlert.create({
                     data: {
+                        id: randomUUID(),
                         campgroundId,
                         batchId: batch.id,
                         tier,
                         expirationDate: batch.expirationDate!,
                         daysRemaining,
-                        productName: batch.product.name,
-                        locationName: batch.location?.name,
+                        productName: batch.Product.name,
+                        locationName: batch.StoreLocation?.name,
                         qtyRemaining: batch.qtyRemaining,
                     },
                 });
@@ -148,13 +150,13 @@ export class ExpirationAlertService {
                     await this.webhookService.emit(webhookEventType, campgroundId, {
                         batchId: batch.id,
                         productId: batch.productId,
-                        productSku: batch.product.sku,
-                        productName: batch.product.name,
+                        productSku: batch.Product.sku,
+                        productName: batch.Product.name,
                         expirationDate: batch.expirationDate!.toISOString(),
                         daysUntilExpiration: daysRemaining,
                         qtyRemaining: batch.qtyRemaining,
-                        locationId: batch.location?.id ?? null,
-                        locationName: batch.location?.name ?? null,
+                        locationId: batch.StoreLocation?.id ?? null,
+                        locationName: batch.StoreLocation?.name ?? null,
                         tier,
                     });
                 }

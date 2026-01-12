@@ -123,24 +123,24 @@ type FormState<T extends Record<string, unknown>> = {
  *
  * <FormField {...getFieldProps('email')} label="Email" />
  */
-export function useFormValidation<T extends Record<string, string>>(
-  fieldConfigs: Record<keyof T, FieldConfig>,
-  initialValues: T
+export function useFormValidation(
+  fieldConfigs: Record<string, FieldConfig>,
+  initialValues: Record<string, string>
 ) {
-  const [values, setValues] = useState<T>(initialValues);
-  const [errors, setErrors] = useState<Partial<Record<keyof T, string | null>>>({});
-  const [touched, setTouched] = useState<Partial<Record<keyof T, boolean>>>({});
-  const [dirty, setDirty] = useState<Partial<Record<keyof T, boolean>>>({});
+  const [values, setValues] = useState<Record<string, string>>(initialValues);
+  const [errors, setErrors] = useState<Record<string, string | null>>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [dirty, setDirty] = useState<Record<string, boolean>>({});
 
   const validateField = useCallback(
-    (field: keyof T, value?: string): string | null => {
+    (field: string, value?: string): string | null => {
       const config = fieldConfigs[field];
       if (!config?.rules) return null;
 
       const valueToValidate = value ?? values[field];
 
       for (const rule of config.rules) {
-        if (!rule.validate(valueToValidate, values as Record<string, unknown>)) {
+        if (!rule.validate(valueToValidate, values)) {
           return rule.message;
         }
       }
@@ -150,7 +150,7 @@ export function useFormValidation<T extends Record<string, string>>(
   );
 
   const handleChange = useCallback(
-    (field: keyof T, value: string) => {
+    (field: string, value: string) => {
       setValues((prev) => ({ ...prev, [field]: value }));
       setDirty((prev) => ({ ...prev, [field]: true }));
 
@@ -164,7 +164,7 @@ export function useFormValidation<T extends Record<string, string>>(
   );
 
   const handleBlur = useCallback(
-    (field: keyof T) => {
+    (field: string) => {
       setTouched((prev) => ({ ...prev, [field]: true }));
 
       const config = fieldConfigs[field];
@@ -177,38 +177,37 @@ export function useFormValidation<T extends Record<string, string>>(
   );
 
   const validateAll = useCallback((): boolean => {
-    const newErrors: Partial<Record<keyof T, string | null>> = {};
+    const newErrors: Record<string, string | null> = {};
     let isValid = true;
 
-    for (const field of Object.keys(fieldConfigs) as (keyof T)[]) {
+    for (const field of Object.keys(fieldConfigs)) {
       const error = validateField(field);
       newErrors[field] = error;
       if (error) isValid = false;
     }
 
     setErrors(newErrors);
-    setTouched(
-      Object.keys(fieldConfigs).reduce(
-        (acc, key) => ({ ...acc, [key]: true }),
-        {} as Partial<Record<keyof T, boolean>>
-      )
-    );
+    const allTouched: Record<string, boolean> = {};
+    Object.keys(fieldConfigs).forEach((key) => {
+      allTouched[key] = true;
+    });
+    setTouched(allTouched);
 
     return isValid;
   }, [fieldConfigs, validateField]);
 
-  const resetForm = useCallback((newValues?: T) => {
+  const resetForm = useCallback((newValues?: Record<string, string>) => {
     setValues(newValues || initialValues);
     setErrors({});
     setTouched({});
     setDirty({});
   }, [initialValues]);
 
-  const setFieldValue = useCallback((field: keyof T, value: string) => {
+  const setFieldValue = useCallback((field: string, value: string) => {
     handleChange(field, value);
   }, [handleChange]);
 
-  const setFieldError = useCallback((field: keyof T, error: string | null) => {
+  const setFieldError = useCallback((field: string, error: string | null) => {
     setErrors((prev) => ({ ...prev, [field]: error }));
   }, []);
 
@@ -224,7 +223,7 @@ export function useFormValidation<T extends Record<string, string>>(
    * Get props to spread on FormField component
    */
   const getFieldProps = useCallback(
-    (field: keyof T) => ({
+    (field: string) => ({
       value: values[field],
       onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
         handleChange(field, e.target.value),

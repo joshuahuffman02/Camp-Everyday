@@ -12,6 +12,50 @@ import { loadQueue as loadQueueGeneric, saveQueue as saveQueueGeneric } from "@/
 import { OfflineTelemetryPanel } from "@/components/pwa/OfflineTelemetryPanel";
 
 type TelemetryEntry = ReturnType<typeof getTelemetry>[number];
+type QueueItemBase = {
+  id: string;
+  conflict?: boolean;
+  nextAttemptAt?: number;
+  lastError?: string | null;
+};
+type QueuedMessage = QueueItemBase & {
+  reservationId: string;
+  guestId: string;
+  content: string;
+};
+type QueuedStoreOrder = QueueItemBase & {
+  campgroundId?: string | null;
+  payload: Record<string, unknown>;
+};
+type QueuedCheckIn = QueueItemBase & {
+  reservationId: string;
+  upsellTotal: number;
+};
+type QueuedActivity = QueueItemBase & {
+  sessionId: string;
+  payload: Record<string, unknown>;
+};
+type ConflictItem = { queueKey: string; label: string; item: QueueItemBase };
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof Error) return error.message;
+  if (isRecord(error) && typeof error.message === "string") return error.message;
+  return fallback;
+};
+
+const getPaymentMethod = (payload: Record<string, unknown>) =>
+  typeof payload.paymentMethod === "string" ? payload.paymentMethod : undefined;
+
+const normalizeActivityPayload = (payload: Record<string, unknown>) => {
+  const guestId = typeof payload.guestId === "string" ? payload.guestId : null;
+  const quantity = typeof payload.quantity === "number" ? payload.quantity : null;
+  const reservationId = typeof payload.reservationId === "string" ? payload.reservationId : undefined;
+  if (!guestId || quantity === null) return null;
+  return { guestId, quantity, reservationId };
+};
 
 export default function SyncLogPage() {
   const [entries, setEntries] = useState<TelemetryEntry[]>([]);
@@ -20,9 +64,7 @@ export default function SyncLogPage() {
     Array<{ key: string; label: string; count: number; conflicts: number; nextRetry?: number | null; lastError?: string | null }>
   >([]);
   const [flushStatus, setFlushStatus] = useState<string | null>(null);
-  const [conflicts, setConflicts] = useState<
-    { queueKey: string; label: string; item: any }[]
-  >([]);
+  const [conflicts, setConflicts] = useState<ConflictItem[]>([]);
 
   const queueSources = [
     { key: "campreserv:pwa:queuedMessages", label: "Guest messages" },
@@ -46,19 +88,19 @@ export default function SyncLogPage() {
     });
     setQueues(counts);
 
-    const conflictItems: { queueKey: string; label: string; item: any }[] = [];
+    const conflictItems: ConflictItem[] = [];
     const stats: { key: string; label: string; count: number; conflicts: number; nextRetry?: number | null; lastError?: string | null }[] = [];
     for (const q of queueSources) {
       try {
-        const list = loadQueueGeneric<any>(q.key);
-        const conflictsForQueue = list.filter((i: any) => i?.conflict);
-        conflictsForQueue.forEach((item: any) => conflictItems.push({ queueKey: q.key, label: q.label, item }));
+        const list = loadQueueGeneric<QueueItemBase>(q.key);
+        const conflictsForQueue = list.filter((item) => item.conflict);
+        conflictsForQueue.forEach((item) => conflictItems.push({ queueKey: q.key, label: q.label, item }));
         const nextRetry =
           list
-            .map((i: any) => i?.nextAttemptAt)
-            .filter((n: any) => typeof n === "number")
+            .map((item) => item.nextAttemptAt)
+            .filter((n): n is number => typeof n === "number")
             .sort((a: number, b: number) => a - b)[0] ?? null;
-        const lastError = list.map((i: any) => i?.lastError).find((e: any) => e);
+        const lastError = list.map((item) => item.lastError).find((e) => typeof e === "string" && e.length > 0);
         stats.push({
           key: q.key,
           label: q.label,
@@ -91,11 +133,11 @@ export default function SyncLogPage() {
     setEntries([]);
   };
 
-  const updateQueueItem = (queueKey: string, itemId: string, updater: (item: any) => any | null) => {
-    const list = loadQueueGeneric<any>(queueKey);
+  const updateQueueItem = (queueKey: string, itemId: string, updater: (item: QueueItemBase) => QueueItemBase | null) => {
+    const list = loadQueueGeneric<QueueItemBase>(queueKey);
     const updated = list
       .map((i) => (i.id === itemId ? updater(i) : i))
-      .filter(Boolean);
+      .filter((item): item is QueueItemBase => item !== null);
     saveQueueGeneric(queueKey, updated);
     loadQueues();
   };
@@ -120,104 +162,115 @@ export default function SyncLogPage() {
     try {
       // Guest message queue
       try {
-        const raw = localStorage.getItem("campreserv:pwa:queuedMessages");
-        const items = raw ? JSON.parse(raw) : [];
-        const remaining: any[] = [];
+        const items = loadQueueGeneric<QueuedMessage>("campreserv:pwa:queuedMessages");
+        const remaining: QueuedMessage[] = [];
         for (const item of items) {
           try {
             await apiClient.sendReservationMessage(item.reservationId, item.content, "guest", item.guestId);
             recordTelemetry({ source: "guest-pwa", type: "sync", status: "success", message: "Manual flush message", meta: { reservationId: item.reservationId } });
-          } catch (err: any) {
+          } catch (err: unknown) {
             remaining.push(item);
-            recordTelemetry({ source: "guest-pwa", type: "error", status: "failed", message: "Flush message failed", meta: { error: err?.message } });
+            recordTelemetry({ source: "guest-pwa", type: "error", status: "failed", message: "Flush message failed", meta: { error: getErrorMessage(err, "Flush message failed") } });
           }
         }
-        localStorage.setItem("campreserv:pwa:queuedMessages", JSON.stringify(remaining));
+        saveQueueGeneric("campreserv:pwa:queuedMessages", remaining);
       } catch {
         /* ignore */
       }
 
       // POS orders
       try {
-        const raw = localStorage.getItem("campreserv:pos:orderQueue");
-        const items = raw ? JSON.parse(raw) : [];
-        const remaining: any[] = [];
+        const items = loadQueueGeneric<QueuedStoreOrder>("campreserv:pos:orderQueue");
+        const remaining: QueuedStoreOrder[] = [];
         for (const item of items) {
           try {
+            if (!item.campgroundId) {
+              remaining.push({ ...item, lastError: "Missing campground ID", conflict: true });
+              recordTelemetry({ source: "pos", type: "error", status: "failed", message: "Flush POS order missing campground ID", meta: { id: item.id } });
+              continue;
+            }
             await apiClient.createStoreOrder(item.campgroundId, item.payload);
-            recordTelemetry({ source: "pos", type: "sync", status: "success", message: "Manual flush POS order", meta: { paymentMethod: item.payload?.paymentMethod } });
-          } catch (err: any) {
+            recordTelemetry({ source: "pos", type: "sync", status: "success", message: "Manual flush POS order", meta: { paymentMethod: getPaymentMethod(item.payload) } });
+          } catch (err: unknown) {
             remaining.push(item);
-            recordTelemetry({ source: "pos", type: "error", status: "failed", message: "Flush POS order failed", meta: { error: err?.message } });
+            recordTelemetry({ source: "pos", type: "error", status: "failed", message: "Flush POS order failed", meta: { error: getErrorMessage(err, "Flush POS order failed") } });
           }
         }
-        localStorage.setItem("campreserv:pos:orderQueue", JSON.stringify(remaining));
+        saveQueueGeneric("campreserv:pos:orderQueue", remaining);
       } catch {
         /* ignore */
       }
 
       // Kiosk check-ins
       try {
-        const raw = localStorage.getItem("campreserv:kiosk:checkinQueue");
-        const items = raw ? JSON.parse(raw) : [];
-        const remaining: any[] = [];
+        const items = loadQueueGeneric<QueuedCheckIn>("campreserv:kiosk:checkinQueue");
+        const remaining: QueuedCheckIn[] = [];
         for (const item of items) {
           try {
             const deviceToken = localStorage.getItem("campreserv:kioskDeviceToken") || undefined;
             await apiClient.kioskCheckIn(item.reservationId, item.upsellTotal, deviceToken);
             recordTelemetry({ source: "kiosk", type: "sync", status: "success", message: "Manual flush check-in", meta: { reservationId: item.reservationId } });
-          } catch (err: any) {
+          } catch (err: unknown) {
             remaining.push(item);
-            recordTelemetry({ source: "kiosk", type: "error", status: "failed", message: "Flush check-in failed", meta: { error: err?.message } });
+            recordTelemetry({ source: "kiosk", type: "error", status: "failed", message: "Flush check-in failed", meta: { error: getErrorMessage(err, "Flush check-in failed") } });
           }
         }
-        localStorage.setItem("campreserv:kiosk:checkinQueue", JSON.stringify(remaining));
+        saveQueueGeneric("campreserv:kiosk:checkinQueue", remaining);
       } catch {
         /* ignore */
       }
 
       // Portal store orders
       try {
-        const raw = localStorage.getItem("campreserv:portal:orderQueue");
-        const items = raw ? JSON.parse(raw) : [];
-        const remaining: any[] = [];
+        const items = loadQueueGeneric<QueuedStoreOrder>("campreserv:portal:orderQueue");
+        const remaining: QueuedStoreOrder[] = [];
         for (const item of items) {
           try {
+            if (!item.campgroundId) {
+              remaining.push({ ...item, lastError: "Missing campground ID", conflict: true });
+              recordTelemetry({ source: "portal-store", type: "error", status: "failed", message: "Flush portal order missing campground ID", meta: { id: item.id } });
+              continue;
+            }
             await apiClient.createStoreOrder(item.campgroundId, item.payload);
-            recordTelemetry({ source: "portal-store", type: "sync", status: "success", message: "Manual flush portal order", meta: { paymentMethod: item.payload?.paymentMethod } });
-          } catch (err: any) {
+            recordTelemetry({ source: "portal-store", type: "sync", status: "success", message: "Manual flush portal order", meta: { paymentMethod: getPaymentMethod(item.payload) } });
+          } catch (err: unknown) {
             remaining.push(item);
-            recordTelemetry({ source: "portal-store", type: "error", status: "failed", message: "Flush portal order failed", meta: { error: err?.message } });
+            recordTelemetry({ source: "portal-store", type: "error", status: "failed", message: "Flush portal order failed", meta: { error: getErrorMessage(err, "Flush portal order failed") } });
           }
         }
-        localStorage.setItem("campreserv:portal:orderQueue", JSON.stringify(remaining));
+        saveQueueGeneric("campreserv:portal:orderQueue", remaining);
       } catch {
         /* ignore */
       }
 
       // Portal activity bookings
       try {
-        const raw = localStorage.getItem("campreserv:portal:activityQueue");
-        const items = raw ? JSON.parse(raw) : [];
-        const remaining: any[] = [];
+        const items = loadQueueGeneric<QueuedActivity>("campreserv:portal:activityQueue");
+        const remaining: QueuedActivity[] = [];
         for (const item of items) {
           try {
-            await apiClient.bookActivity(item.sessionId, item.payload);
+            const payload = normalizeActivityPayload(item.payload);
+            if (!payload) {
+              remaining.push({ ...item, lastError: "Invalid activity payload", conflict: true });
+              recordTelemetry({ source: "portal-activities", type: "error", status: "failed", message: "Flush activity booking payload invalid", meta: { id: item.id } });
+              continue;
+            }
+            await apiClient.bookActivity(item.sessionId, payload);
             recordTelemetry({ source: "portal-activities", type: "sync", status: "success", message: "Manual flush activity booking", meta: { sessionId: item.sessionId } });
-          } catch (err: any) {
+          } catch (err: unknown) {
             remaining.push(item);
-            recordTelemetry({ source: "portal-activities", type: "error", status: "failed", message: "Flush activity booking failed", meta: { error: err?.message } });
+            recordTelemetry({ source: "portal-activities", type: "error", status: "failed", message: "Flush activity booking failed", meta: { error: getErrorMessage(err, "Flush activity booking failed") } });
           }
         }
-        localStorage.setItem("campreserv:portal:activityQueue", JSON.stringify(remaining));
+        saveQueueGeneric("campreserv:portal:activityQueue", remaining);
       } catch {
         /* ignore */
       }
 
       setFlushStatus("Flush complete");
-    } catch (err: any) {
+    } catch (err: unknown) {
       setFlushStatus("Flush failed");
-      recordTelemetry({ source: "sync-log", type: "error", status: "failed", message: "Manual flush failed", meta: { error: err?.message } });
+      recordTelemetry({ source: "sync-log", type: "error", status: "failed", message: "Manual flush failed", meta: { error: getErrorMessage(err, "Manual flush failed") } });
     } finally {
       refresh();
       setTimeout(() => setFlushStatus(null), 3000);

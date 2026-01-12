@@ -40,11 +40,15 @@ function parseEnumsFromSchema(schemaContent) {
 }
 
 function generateEnumDeclaration(enumDef) {
-  const entries = enumDef.values
-    .map(value => `    ${value} = "${value}",`)
+  const typeEntries = enumDef.values
+    .map(value => `    readonly ${JSON.stringify(value)}: ${JSON.stringify(value)};`)
     .join('\n');
 
-  return `  export enum ${enumDef.name} {\n${entries}\n  }`;
+  const valueEntries = enumDef.values
+    .map(value => `    ${JSON.stringify(value)}: ${JSON.stringify(value)},`)
+    .join('\n');
+
+  return `  export const ${enumDef.name}: {\n${typeEntries}\n  } = {\n${valueEntries}\n  };\n\n  export type ${enumDef.name} = (typeof ${enumDef.name})[keyof typeof ${enumDef.name}];`;
 }
 
 function generatePrismaDeclarations(enums) {
@@ -63,6 +67,8 @@ function generatePrismaDeclarations(enums) {
  *   node scripts/generate-prisma-enums.js
  */
 
+export {};
+
 declare module "@prisma/client" {
 ${enumDeclarations}
 
@@ -70,11 +76,6 @@ ${enumDeclarations}
   export namespace Prisma {
     export type TransactionClient = import("@prisma/client").PrismaClient;
     export type InputJsonValue = import("@prisma/client/runtime/client").InputJsonValue;
-  }
-
-  // Re-export PrismaClient for compatibility
-  export class PrismaClient {
-    [key: string]: unknown;
   }
 }
 `;

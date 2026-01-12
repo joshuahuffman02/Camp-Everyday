@@ -48,7 +48,10 @@ export default function PhotosPage() {
       qc.invalidateQueries({ queryKey: ["campground", campgroundId] });
       toast({ title: "Photos updated" });
     },
-    onError: (err: any) => toast({ title: err?.message || "Failed to update photos", variant: "destructive" }),
+    onError: (err: unknown) => {
+      const message = err instanceof Error ? err.message : "Failed to update photos";
+      toast({ title: message, variant: "destructive" });
+    },
   });
 
   const move = (idx: number, dir: -1 | 1) => {

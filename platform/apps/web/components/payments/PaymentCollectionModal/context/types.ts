@@ -527,6 +527,10 @@ export const PAYMENT_METHOD_INFO: Record<PaymentMethodType, PaymentMethodInfo> =
   },
 };
 
+const isPaymentMethodType = (value: string): value is PaymentMethodType =>
+  Object.prototype.hasOwnProperty.call(PAYMENT_METHOD_INFO, value);
+const paymentMethodTypes = Object.keys(PAYMENT_METHOD_INFO).filter(isPaymentMethodType);
+
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
@@ -548,8 +552,8 @@ export function getAvailablePaymentMethods(
 ): PaymentMethodType[] {
   const available: PaymentMethodType[] = [];
 
-  for (const [type, info] of Object.entries(PAYMENT_METHOD_INFO)) {
-    const method = type as PaymentMethodType;
+  for (const method of paymentMethodTypes) {
+    const info = PAYMENT_METHOD_INFO[method];
 
     // Check if method is available in this context
     if (!info.contexts.includes(context)) continue;

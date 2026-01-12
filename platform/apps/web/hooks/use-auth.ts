@@ -87,8 +87,10 @@ export function useAuth(): UseAuthReturn {
   }, [isBrowser]);
 
   // Get session token
-  const sessionWithToken = session as SessionWithToken | null;
-  const sessionToken = sessionWithToken?.apiToken;
+  const hasApiToken = (value: unknown): value is SessionWithToken =>
+    typeof value === "object" && value !== null && "apiToken" in value;
+  const sessionToken =
+    hasApiToken(session) && typeof session.apiToken === "string" ? session.apiToken : undefined;
   const effectiveToken = sessionToken || token;
   const hasAuth = Boolean(effectiveToken);
 
@@ -116,16 +118,16 @@ export function useAuth(): UseAuthReturn {
       };
     }
 
-    if (sessionWithToken?.user) {
+    if (session?.user && typeof session.user.id === "string") {
       return {
-        id: sessionWithToken.user.id,
-        email: sessionWithToken.user.email,
-        name: sessionWithToken.user.name,
+        id: session.user.id,
+        email: session.user.email,
+        name: session.user.name,
       };
     }
 
     return null;
-  }, [whoami, sessionWithToken]);
+  }, [whoami, session]);
 
   const isLoading = status === "loading" || (hasAuth && whoamiLoading);
   const isAuthenticated = Boolean(user || hasAuth);

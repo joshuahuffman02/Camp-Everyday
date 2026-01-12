@@ -12,6 +12,14 @@ export type ReportsV2Filters = {
   groupBy: "none" | "site" | "status" | "date" | "siteType";
 };
 
+const statusOptions: ReportsV2Filters["status"][] = ["all", "confirmed", "checked_in", "pending", "cancelled"];
+const groupByOptions: ReportsV2Filters["groupBy"][] = ["none", "site", "status", "date", "siteType"];
+
+const isStatus = (value: string): value is ReportsV2Filters["status"] =>
+  statusOptions.some((status) => status === value);
+const isGroupBy = (value: string): value is ReportsV2Filters["groupBy"] =>
+  groupByOptions.some((groupBy) => groupBy === value);
+
 const toDateInput = (value: Date) => value.toISOString().slice(0, 10);
 
 const rangeFromToday = (days: number) => {
@@ -190,7 +198,11 @@ export function ReportsV2FiltersSheet({
               <Label>Status</Label>
               <Select
                 value={draftFilters.status}
-                onValueChange={(value) => setDraftFilters((prev) => ({ ...prev, status: value as ReportsV2Filters["status"] }))}
+                onValueChange={(value) => {
+                  if (isStatus(value)) {
+                    setDraftFilters((prev) => ({ ...prev, status: value }));
+                  }
+                }}
               >
                 <SelectTrigger className="mt-1">
                   <SelectValue />
@@ -226,7 +238,11 @@ export function ReportsV2FiltersSheet({
               <Label>Group by</Label>
               <Select
                 value={draftFilters.groupBy}
-                onValueChange={(value) => setDraftFilters((prev) => ({ ...prev, groupBy: value as ReportsV2Filters["groupBy"] }))}
+                onValueChange={(value) => {
+                  if (isGroupBy(value)) {
+                    setDraftFilters((prev) => ({ ...prev, groupBy: value }));
+                  }
+                }}
               >
                 <SelectTrigger className="mt-1">
                   <SelectValue />

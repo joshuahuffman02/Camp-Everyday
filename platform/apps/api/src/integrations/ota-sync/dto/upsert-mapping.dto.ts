@@ -2,10 +2,10 @@ import { IsString, IsOptional, IsUrl, ValidateIf } from "class-validator";
 
 export class UpsertMappingDto {
   @IsString()
-  channelId: string;
+  channelId!: string;
 
   @IsString()
-  externalId: string;
+  externalId!: string;
 
   @IsOptional()
   @IsString()

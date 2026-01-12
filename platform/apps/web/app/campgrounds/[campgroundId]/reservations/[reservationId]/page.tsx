@@ -67,6 +67,7 @@ import { ReservationFormsCard } from "../../../../../components/reservations/Res
 import { PaymentCollectionModal } from "../../../../../components/payments/PaymentCollectionModal";
 import { cn } from "../../../../../lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
+import type { Reservation } from "@keepr/shared";
 
 function formatDate(d?: string | Date | null) {
   if (!d) return "--";
@@ -96,7 +97,7 @@ type ReservationWithExtras = {
   departureDate: string;
   status: string;
   totalAmount: number;
-  paidAmount: number;
+  paidAmount?: number | null;
   adults?: number | null;
   children?: number | null;
   notes?: string | null;
@@ -109,7 +110,7 @@ type ReservationWithExtras = {
     primaryFirstName: string;
     primaryLastName: string;
     email?: string;
-    phone?: string;
+    phone?: string | null;
   } | null;
   site?: {
     name?: string | null;
@@ -127,7 +128,7 @@ type ReservationWithExtras = {
     createdAt?: string;
     date?: string;
   }>;
-  balanceAmount?: number;
+  balanceAmount?: number | null;
   createdAt?: string;
   updatedAt?: string;
   checkInAt?: string | null;
@@ -136,12 +137,43 @@ type ReservationWithExtras = {
   seasonalRateId?: string | null;
 };
 
+type RelatedReservation = Reservation;
+type RepeatCharge = Awaited<ReturnType<typeof apiClient.getRepeatChargesByReservation>>[number];
+type CommunicationList = Awaited<ReturnType<typeof apiClient.listCommunications>>;
+type CommunicationItem = CommunicationList["items"][number];
+type AccessStatus = Awaited<ReturnType<typeof apiClient.getAccessStatus>>;
+type AccessGrant = AccessStatus["grants"][number];
+
+type AccessProvider = "kisi" | "brivo" | "cloudkey";
+type DeliveryChannel = "email" | "email_and_sms" | "sms";
+
+type SignatureRequest = {
+  id: string;
+  documentType?: string | null;
+  recipientEmail?: string | null;
+  sentAt?: string | null;
+  status: string;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const isAccessProvider = (value: string): value is AccessProvider =>
+  value === "kisi" || value === "brivo" || value === "cloudkey";
+
+const isDeliveryChannel = (value: string): value is DeliveryChannel =>
+  value === "email" || value === "email_and_sms" || value === "sms";
+
+const isSignatureRequest = (value: unknown): value is SignatureRequest =>
+  isRecord(value) &&
+  typeof value.id === "string" &&
+  typeof value.status === "string";
+
 export default function ReservationDetailPage() {
-  const params = useParams();
+  const params = useParams<{ reservationId: string; campgroundId: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const reservationId = params.reservationId as string;
-  const campgroundId = params.campgroundId as string;
+  const { reservationId, campgroundId } = params;
 
   // Payment modal state
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
@@ -157,13 +189,13 @@ export default function ReservationDetailPage() {
   const [vehicleRigLength, setVehicleRigLength] = useState("");
 
   // Access control state
-  const [accessProvider, setAccessProvider] = useState<"kisi" | "brivo" | "cloudkey">("kisi");
+  const [accessProvider, setAccessProvider] = useState<AccessProvider>("kisi");
   const [accessCode, setAccessCode] = useState("");
 
   // Signature state
   const [signatureEmail, setSignatureEmail] = useState("");
   const [signatureType, setSignatureType] = useState("long_term_stay");
-  const [deliveryChannel, setDeliveryChannel] = useState<"email" | "email_and_sms" | "sms">("email");
+  const [deliveryChannel, setDeliveryChannel] = useState<DeliveryChannel>("email");
 
   // COI state
   const [coiUrl, setCoiUrl] = useState("");
@@ -178,12 +210,12 @@ export default function ReservationDetailPage() {
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Queries
-  const reservationQuery = useQuery({
+  const reservationQuery = useQuery<ReservationWithExtras>({
     queryKey: ["reservation", reservationId],
     queryFn: () => apiClient.getReservation(reservationId),
     enabled: !!reservationId
   });
-  const reservation = reservationQuery.data as ReservationWithExtras | undefined;
+  const reservation = reservationQuery.data;
 
   const checkinStatusQuery = useQuery({
     queryKey: ["checkin-status", reservationId],
@@ -192,7 +224,7 @@ export default function ReservationDetailPage() {
   });
   const checkinStatus = checkinStatusQuery.data;
 
-  const accessQuery = useQuery({
+  const accessQuery = useQuery<AccessStatus>({
     queryKey: ["access-status", reservationId],
     queryFn: () => apiClient.getAccessStatus(reservationId, campgroundId),
     enabled: !!reservationId
@@ -210,7 +242,7 @@ export default function ReservationDetailPage() {
     enabled: !!reservationId && !!campgroundId && !!reservation?.siteId
   });
 
-  const commsQuery = useQuery({
+  const commsQuery = useQuery<CommunicationList>({
     queryKey: ["reservation-comms", reservationId],
     queryFn: () =>
       apiClient.listCommunications({
@@ -222,24 +254,26 @@ export default function ReservationDetailPage() {
     enabled: !!reservationId && !!campgroundId
   });
 
-  const chargesQuery = useQuery({
+  const chargesQuery = useQuery<RepeatCharge[]>({
     queryKey: ["reservation-charges", reservationId],
     queryFn: () => apiClient.getRepeatChargesByReservation(reservationId, campgroundId),
     enabled: !!reservationId && !!campgroundId
   });
 
-  const relatedQuery = useQuery({
+  const relatedQuery = useQuery<RelatedReservation[]>({
     queryKey: ["related-reservations", campgroundId, reservation?.guestId],
     queryFn: () => apiClient.getReservations(campgroundId),
     enabled: !!campgroundId && !!reservation?.guestId
   });
 
-  const signaturesQuery = useQuery({
+  const signaturesQuery = useQuery<SignatureRequest[]>({
     queryKey: ["signatures", reservationId],
     queryFn: async () => {
       const res = await fetch(`/api/signatures/reservations/${reservationId}`, { credentials: "include" });
       if (!res.ok) throw new Error("Unable to fetch signature requests");
-      return res.json();
+      const data = await res.json();
+      if (!Array.isArray(data)) return [];
+      return data.filter(isSignatureRequest);
     },
     enabled: !!reservationId,
     retry: false
@@ -433,7 +467,7 @@ export default function ReservationDetailPage() {
   const payments = reservation.payments || [];
   const quote = quoteQuery.data;
   const comms = commsQuery.data?.items || [];
-  const signatureRequests = Array.isArray(signaturesQuery.data) ? signaturesQuery.data : [];
+  const signatureRequests = signaturesQuery.data ?? [];
 
   // Calculate in cents first to avoid floating-point precision issues
   const totalCents = Math.round(Number(reservation.totalAmount) || 0);
@@ -447,7 +481,7 @@ export default function ReservationDetailPage() {
   );
 
   const related = (relatedQuery.data || [])
-    .filter((r: any) => r.id !== reservationId && r.guestId === reservation.guestId)
+    .filter((r) => r.id !== reservationId && r.guestId === reservation.guestId)
     .slice(0, 5);
 
   const statusConfig: Record<string, { bg: string; text: string; border: string }> = {
@@ -1001,7 +1035,7 @@ export default function ReservationDetailPage() {
                   <p className="text-sm text-muted-foreground">First time guest - no previous stays</p>
                 ) : (
                   <div className="space-y-2">
-                    {related.map((r: any) => (
+                    {related.map((r) => (
                       <button
                         key={r.id}
                         onClick={() => router.push(`/campgrounds/${campgroundId}/reservations/${r.id}`)}
@@ -1277,7 +1311,7 @@ export default function ReservationDetailPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y">
-                        {chargesQuery.data?.map((charge: any) => (
+                        {chargesQuery.data?.map((charge) => (
                           <tr key={charge.id} className="hover:bg-muted">
                             <td className="px-4 py-3">{formatDate(charge.dueDate)}</td>
                             <td className="px-4 py-3 font-medium">{formatCurrency(charge.amount)}</td>
@@ -1365,7 +1399,7 @@ export default function ReservationDetailPage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {comms.map((c: any) => (
+                  {comms.map((c) => (
                     <div
                       key={c.id}
                       className="p-4 rounded-lg border border-border hover:bg-muted transition-colors"
@@ -1566,7 +1600,14 @@ export default function ReservationDetailPage() {
                       <div className="font-medium">Access Control</div>
                       <div className="text-xs text-muted-foreground">Gate/lock credentials</div>
                     </div>
-                    <Select value={accessProvider} onValueChange={(value) => setAccessProvider(value as any)}>
+                    <Select
+                      value={accessProvider}
+                      onValueChange={(value) => {
+                        if (isAccessProvider(value)) {
+                          setAccessProvider(value);
+                        }
+                      }}
+                    >
                       <SelectTrigger className="h-9 w-[140px]" aria-label="Access provider">
                         <SelectValue />
                       </SelectTrigger>
@@ -1605,7 +1646,7 @@ export default function ReservationDetailPage() {
                       onClick={() =>
                         revokeAccessMutation.mutate({
                           provider: accessProvider,
-                          providerAccessId: accessStatus?.grants?.find((g: any) => g.provider === accessProvider)?.providerAccessId || undefined
+                          providerAccessId: accessStatus?.grants.find((g) => g.provider === accessProvider)?.providerAccessId || undefined
                         })
                       }
                       disabled={revokeAccessMutation.isPending}
@@ -1615,7 +1656,7 @@ export default function ReservationDetailPage() {
                   </div>
                   {(accessStatus?.grants ?? []).length > 0 && (
                     <div className="space-y-1">
-                      {accessStatus?.grants?.map((g: any) => (
+                      {accessStatus?.grants.map((g) => (
                         <div key={g.id} className="flex items-center justify-between text-sm p-2 rounded border">
                           <span className="capitalize">{g.provider}</span>
                           <Badge
@@ -1648,7 +1689,7 @@ export default function ReservationDetailPage() {
                 {signatureRequests.length > 0 && (
                   <div className="space-y-2">
                     <h4 className="text-sm font-medium text-foreground">Signature Requests</h4>
-                    {signatureRequests.map((req: any) => (
+                    {signatureRequests.map((req) => (
                       <div key={req.id} className="flex items-center justify-between p-3 rounded-lg border">
                         <div>
                           <div className="font-medium capitalize">
@@ -1697,7 +1738,14 @@ export default function ReservationDetailPage() {
                         <SelectItem value="other">Other</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Select value={deliveryChannel} onValueChange={(value) => setDeliveryChannel(value as any)}>
+                    <Select
+                      value={deliveryChannel}
+                      onValueChange={(value) => {
+                        if (isDeliveryChannel(value)) {
+                          setDeliveryChannel(value);
+                        }
+                      }}
+                    >
                       <SelectTrigger className="h-10" aria-label="Signature delivery channel">
                         <SelectValue />
                       </SelectTrigger>

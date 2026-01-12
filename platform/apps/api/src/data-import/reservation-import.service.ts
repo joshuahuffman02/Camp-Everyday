@@ -1,4 +1,5 @@
 import { Injectable, Logger, BadRequestException } from "@nestjs/common";
+import { randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { CsvParserService, FieldMapping } from "./parsers/csv-parser.service";
 
@@ -200,7 +201,7 @@ export class ReservationImportService {
     return {
       headers: parseResult.headers,
       suggestedMapping,
-      sampleRows: parseResult.rows.slice(0, 5).map(r => r.data as Record<string, string>),
+      sampleRows: parseResult.rows.slice(0, 5).map(r => this.normalizeRowData(r.data)),
       totalRows: parseResult.rows.length,
     };
   }
@@ -217,14 +218,16 @@ export class ReservationImportService {
     const campground = await this.prisma.campground.findUnique({
       where: { id: campgroundId },
       include: {
-        siteClasses: { where: { isActive: true } },
-        sites: { select: { id: true, name: true, siteNumber: true, siteClassId: true } },
+        SiteClass: { where: { isActive: true } },
+        Site: { select: { id: true, name: true, siteNumber: true, siteClassId: true } },
       },
     });
 
     if (!campground) {
       throw new BadRequestException("Campground not found");
     }
+    const sites = campground.Site;
+    const siteClasses = campground.SiteClass;
 
     // Build field mappings for CSV parser
     const fieldMappings: FieldMapping[] = [];
@@ -244,7 +247,7 @@ export class ReservationImportService {
     const parsedRows: ParsedReservationRow[] = [];
     for (let i = 0; i < parseResult.rows.length; i++) {
       const row = parseResult.rows[i];
-      const parsed = this.parseRow(i, row.data as Record<string, string>, mapping);
+      const parsed = this.parseRow(i, this.normalizeRowData(row.data), mapping);
       parsedRows.push(parsed);
     }
 
@@ -273,7 +276,7 @@ export class ReservationImportService {
 
     const existingGuestsByEmail = allEmails.length > 0
       ? await this.prisma.guest.findMany({
-          where: { campgroundId, email: { in: allEmails } },
+          where: { Reservation: { some: { campgroundId } }, email: { in: allEmails } },
           select: { id: true, email: true, primaryFirstName: true, primaryLastName: true, phone: true },
         })
       : [];
@@ -287,7 +290,7 @@ export class ReservationImportService {
 
     // 5. Build lookup maps for O(1) access
     const guestEmailMap = new Map(existingGuestsByEmail.map(g => [g.email?.toLowerCase(), g]));
-    const siteIdToClassId = new Map(campground.sites.map(s => [s.id, s.siteClassId]));
+    const siteIdToClassId = new Map(sites.map(s => [s.id, s.siteClassId]));
 
     // Helper to check site availability using prefetched data
     const checkSiteAvailabilityBatch = (siteId: string, arrivalDate: Date, departureDate: Date): string | undefined => {
@@ -356,8 +359,8 @@ export class ReservationImportService {
     for (const parsed of parsedRows) {
       // Site matching (uses prefetched conflict data)
       const siteMatch = this.matchSiteBatch(
-        campground.sites,
-        campground.siteClasses,
+        sites,
+        siteClasses,
         parsed.siteIdentifier,
         parsed.stay.arrivalDate,
         parsed.stay.departureDate,
@@ -435,13 +438,20 @@ export class ReservationImportService {
         // Create guest if needed
         let guestId = execRow.guestId;
         if (!guestId && execRow.createGuest) {
+          const normalizedEmail = execRow.createGuest.email?.toLowerCase().trim();
+          if (!normalizedEmail) {
+            result.errors.push({ rowIndex: execRow.rowIndex, error: "Guest email is required" });
+            continue;
+          }
           const guest = await this.prisma.guest.create({
             data: {
-              campgroundId,
+              id: randomUUID(),
               primaryFirstName: execRow.createGuest.firstName,
               primaryLastName: execRow.createGuest.lastName,
-              email: execRow.createGuest.email?.toLowerCase().trim() || null,
+              email: normalizedEmail,
+              emailNormalized: normalizedEmail,
               phone: execRow.createGuest.phone || null,
+              phoneNormalized: execRow.createGuest.phone?.replace(/[^0-9+]/g, "") || null,
             },
           });
           guestId = guest.id;
@@ -453,8 +463,8 @@ export class ReservationImportService {
           continue;
         }
 
-        if (!execRow.siteId && !execRow.siteClassId) {
-          result.errors.push({ rowIndex: execRow.rowIndex, error: "No site or site class selected" });
+        if (!execRow.siteId) {
+          result.errors.push({ rowIndex: execRow.rowIndex, error: "No site selected" });
           continue;
         }
 
@@ -483,8 +493,9 @@ export class ReservationImportService {
         // Create reservation
         const reservation = await this.prisma.reservation.create({
           data: {
+            id: randomUUID(),
             campgroundId,
-            siteId: execRow.siteId || undefined,
+            siteId: execRow.siteId,
             guestId,
             arrivalDate: parsed.stay.arrivalDate,
             departureDate: parsed.stay.departureDate,
@@ -501,10 +512,11 @@ export class ReservationImportService {
 
         result.createdReservationIds.push(reservation.id);
         result.imported++;
-      } catch (error: any) {
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
         result.errors.push({
           rowIndex: execRow.rowIndex,
-          error: error.message || "Failed to create reservation",
+          error: message || "Failed to create reservation",
         });
       }
     }
@@ -514,6 +526,20 @@ export class ReservationImportService {
   }
 
   // ============ Private Methods ============
+
+  private normalizeRowData(data: Record<string, unknown>): Record<string, string> {
+    const normalized: Record<string, string> = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (typeof value === "string") {
+        normalized[key] = value;
+      } else if (value === null || value === undefined) {
+        normalized[key] = "";
+      } else {
+        normalized[key] = String(value);
+      }
+    }
+    return normalized;
+  }
 
   private parseRow(
     rowIndex: number,
@@ -803,7 +829,7 @@ export class ReservationImportService {
     if (guestData.email) {
       const existing = await this.prisma.guest.findFirst({
         where: {
-          campgroundId,
+          Reservation: { some: { campgroundId } },
           email: guestData.email.toLowerCase(),
         },
       });
@@ -822,7 +848,7 @@ export class ReservationImportService {
       const normalizedPhone = guestData.phone.replace(/\D/g, "");
       const existing = await this.prisma.guest.findFirst({
         where: {
-          campgroundId,
+          Reservation: { some: { campgroundId } },
           phone: { contains: normalizedPhone.slice(-10) },
           primaryLastName: { equals: guestData.lastName, mode: "insensitive" },
         },
@@ -897,16 +923,16 @@ export class ReservationImportService {
     let calculatedTotalCents = 0;
 
     try {
-      if (siteId) {
-        const site = await this.prisma.site.findUnique({
-          where: { id: siteId },
-          include: { SiteClass: true },
-        });
-        if (site?.siteClass?.defaultRate) {
+        if (siteId) {
+          const site = await this.prisma.site.findUnique({
+            where: { id: siteId },
+            include: { SiteClass: true },
+          });
+        if (site?.SiteClass?.defaultRate) {
           const nights = Math.ceil(
             (departureDate.getTime() - arrivalDate.getTime()) / (1000 * 60 * 60 * 24)
           );
-          calculatedTotalCents = site.siteClass.defaultRate * nights;
+          calculatedTotalCents = site.SiteClass.defaultRate * nights;
         }
       } else if (siteClassId) {
         const siteClass = await this.prisma.siteClass.findUnique({

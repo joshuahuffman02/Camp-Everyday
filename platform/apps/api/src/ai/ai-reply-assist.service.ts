@@ -4,6 +4,7 @@ import { AiPrivacyService } from './ai-privacy.service';
 import { AiFeatureGateService } from './ai-feature-gate.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiFeatureType } from '@prisma/client';
+import { randomUUID } from 'crypto';
 
 interface ReplyContext {
     campgroundId: string;
@@ -20,6 +21,10 @@ interface ReplySuggestion {
     confidence: 'high' | 'medium' | 'low';
     tone: 'professional' | 'friendly' | 'formal';
 }
+
+type AnonymizationLevel = 'strict' | 'moderate' | 'minimal';
+type ReplyConfidence = ReplySuggestion['confidence'];
+type ReplyTone = ReplySuggestion['tone'];
 
 @Injectable()
 export class AiReplyAssistService {
@@ -59,7 +64,9 @@ export class AiReplyAssistService {
         }
 
         // Anonymize conversation context
-        const anonymizationLevel = campground.aiAnonymizationLevel as 'strict' | 'moderate' | 'minimal';
+        const anonymizationLevel = this.normalizeAnonymizationLevel(
+            campground.aiAnonymizationLevel,
+        );
         const tokenMaps: Map<string, string>[] = [];
 
         // Anonymize guest info
@@ -128,6 +135,7 @@ export class AiReplyAssistService {
         // For now, just log this. In the future, could be used for fine-tuning or preference learning
         await this.prisma.aiInteractionLog.create({
             data: {
+                id: randomUUID(),
                 campgroundId,
                 featureType: AiFeatureType.reply_assist,
                 promptHash: this.privacy.hashForAudit(`feedback:${suggestionText}`),
@@ -205,9 +213,13 @@ SUGGESTION 2 [CONFIDENCE: high/medium/low] [TONE: professional/friendly/formal]
 
         let match;
         while ((match = regex.exec(content)) !== null) {
+            const confidence = this.normalizeConfidence(match[1]);
+            const tone = this.normalizeTone(match[2]);
+            if (!confidence || !tone) continue;
+
             suggestions.push({
-                confidence: match[1].toLowerCase() as 'high' | 'medium' | 'low',
-                tone: match[2].toLowerCase() as 'professional' | 'friendly' | 'formal',
+                confidence,
+                tone,
                 suggestion: match[3].trim(),
             });
         }
@@ -222,5 +234,28 @@ SUGGESTION 2 [CONFIDENCE: high/medium/low] [TONE: professional/friendly/formal]
         }
 
         return suggestions;
+    }
+
+    private normalizeAnonymizationLevel(level?: string | null): AnonymizationLevel {
+        if (level === 'strict' || level === 'moderate' || level === 'minimal') {
+            return level;
+        }
+        return 'moderate';
+    }
+
+    private normalizeConfidence(value: string): ReplyConfidence | undefined {
+        const lowered = value.toLowerCase();
+        if (lowered === 'high' || lowered === 'medium' || lowered === 'low') {
+            return lowered;
+        }
+        return undefined;
+    }
+
+    private normalizeTone(value: string): ReplyTone | undefined {
+        const lowered = value.toLowerCase();
+        if (lowered === 'professional' || lowered === 'friendly' || lowered === 'formal') {
+            return lowered;
+        }
+        return undefined;
     }
 }

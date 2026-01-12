@@ -2,7 +2,7 @@ import { IsOptional, IsString } from "class-validator";
 
 export class MarkPaperSignedDto {
   @IsString()
-  id: string;
+  id!: string;
 
   @IsOptional()
   @IsString()

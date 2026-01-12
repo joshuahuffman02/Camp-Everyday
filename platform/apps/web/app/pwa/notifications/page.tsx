@@ -7,6 +7,15 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { recordTelemetry } from "@/lib/sync-telemetry";
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object";
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (typeof error === "string") return error;
+  if (isRecord(error) && typeof error.message === "string") return error.message;
+  return fallback;
+};
+
 export default function NotificationPrefsPage() {
   const [permission, setPermission] = useState<NotificationPermission | "unsupported">("default");
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
@@ -36,14 +45,15 @@ export default function NotificationPrefsPage() {
         status: perm === "granted" ? "success" : "failed",
         message: `Push permission ${perm}`,
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       setPermission("default");
+      const message = getErrorMessage(err, "Push permission request failed");
       recordTelemetry({
         source: "notifications",
         type: "error",
         status: "failed",
         message: "Push permission request failed",
-        meta: { error: err?.message },
+        meta: { error: message },
       });
     }
   };
@@ -98,14 +108,15 @@ export default function NotificationPrefsPage() {
         status: "success",
         message: "Push subscription saved",
       });
-    } catch (err: any) {
-      setSubscriptionStatus(err?.message || "Subscription failed");
+    } catch (err: unknown) {
+      const message = getErrorMessage(err, "Subscription failed");
+      setSubscriptionStatus(message);
       recordTelemetry({
         source: "notifications",
         type: "error",
         status: "failed",
         message: "Push subscription failed",
-        meta: { error: err?.message },
+        meta: { error: message },
       });
     }
   };
@@ -163,4 +174,3 @@ export default function NotificationPrefsPage() {
     </div>
   );
 }
-

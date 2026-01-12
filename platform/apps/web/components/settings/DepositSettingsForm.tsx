@@ -6,9 +6,22 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
-import { DepositConfig, DepositRule, DepositTier, DepositSeason, computeDepositDue, parseDepositConfig } from "@keepr/shared";
+import {
+  DepositConfig,
+  DepositRule,
+  DepositTier,
+  DepositSeason,
+  DepositScopeRule,
+  DepositScheduleEntry,
+  computeDepositDue,
+  parseDepositConfig
+} from "@keepr/shared";
 
 type PresetKey = "simple" | "standard" | "enterprise";
+type LegacyRuleSummary = {
+  rule: "percentage" | "full" | "half" | "first_night" | "first_night_fees" | "none";
+  percentage: number | null;
+};
 
 interface DepositSettingsFormProps {
   campgroundId: string;
@@ -22,6 +35,37 @@ const defaultRuleForPreset = (preset: PresetKey): DepositRule => {
   if (preset === "enterprise") return { type: "percent_total", percent: 50, refundable: true, refundWindowHours: 48 };
   return { type: "percent_total", percent: 50 };
 };
+
+const presetKeys: PresetKey[] = ["simple", "standard", "enterprise"];
+const depositRuleTypes: ReadonlyArray<DepositRule["type"]> = [
+  "none",
+  "full",
+  "half",
+  "first_night",
+  "first_night_fees",
+  "percent_total",
+  "fixed_amount"
+];
+
+const toDepositRuleType = (value: string): DepositRule["type"] =>
+  depositRuleTypes.find((entry) => entry === value) ?? "none";
+
+const scheduleDueAtValues: ReadonlyArray<DepositScheduleEntry["dueAt"]> = [
+  "booking",
+  "before_arrival"
+];
+
+const scheduleAmountTypes: ReadonlyArray<DepositScheduleEntry["amountType"]> = [
+  "percent",
+  "fixed_cents",
+  "remaining"
+];
+
+const toScheduleDueAt = (value: string): DepositScheduleEntry["dueAt"] =>
+  scheduleDueAtValues.find((entry) => entry === value) ?? "booking";
+
+const toScheduleAmountType = (value: string): DepositScheduleEntry["amountType"] =>
+  scheduleAmountTypes.find((entry) => entry === value) ?? "percent";
 
 const deriveConfig = (
   initialRule: string,
@@ -44,17 +88,17 @@ const deriveConfig = (
   if (normalized === "half" || normalized === "percentage_50")
     return { version: 1, defaultRule: { type: "percent_total", percent: 50 } };
   if (normalized === "first_night" || normalized === "first_night_fees")
-    return { version: 1, defaultRule: { type: normalized as DepositRule["type"] } };
+    return { version: 1, defaultRule: { type: normalized } };
   return { version: 1, defaultRule: { type: "none" } };
 };
 
-const summarizeLegacy = (rule: DepositRule) => {
-  if (rule.type === "percent_total") return { rule: "percentage" as const, percentage: rule.percent ?? 0 };
-  if (rule.type === "full") return { rule: "full" as const, percentage: null };
-  if (rule.type === "half") return { rule: "half" as const, percentage: null };
-  if (rule.type === "first_night") return { rule: "first_night" as const, percentage: null };
-  if (rule.type === "first_night_fees") return { rule: "first_night_fees" as const, percentage: null };
-  return { rule: "none" as const, percentage: null };
+const summarizeLegacy = (rule: DepositRule): LegacyRuleSummary => {
+  if (rule.type === "percent_total") return { rule: "percentage", percentage: rule.percent ?? 0 };
+  if (rule.type === "full") return { rule: "full", percentage: null };
+  if (rule.type === "half") return { rule: "half", percentage: null };
+  if (rule.type === "first_night") return { rule: "first_night", percentage: null };
+  if (rule.type === "first_night_fees") return { rule: "first_night_fees", percentage: null };
+  return { rule: "none", percentage: null };
 };
 
 const toUsd = (cents?: number) => (cents ?? 0) / 100;
@@ -99,7 +143,7 @@ export function DepositSettingsForm({ campgroundId, initialRule, initialPercenta
     });
   };
 
-  const updateScope = (idx: number, partial: any) => {
+  const updateScope = (idx: number, partial: Partial<DepositScopeRule>) => {
     setConfig((prev) => {
       const next = [...(prev.scopeRules || [])];
       next[idx] = { ...next[idx], ...partial };
@@ -107,7 +151,7 @@ export function DepositSettingsForm({ campgroundId, initialRule, initialPercenta
     });
   };
 
-  const updateSchedule = (idx: number, partial: any) => {
+  const updateSchedule = (idx: number, partial: Partial<DepositScheduleEntry>) => {
     setConfig((prev) => {
       const next = [...(prev.schedule || [])];
       next[idx] = { ...next[idx], ...partial };
@@ -139,7 +183,7 @@ export function DepositSettingsForm({ campgroundId, initialRule, initialPercenta
     setMessage(null);
     try {
       const { rule, percentage } = summarizeLegacy(config.defaultRule);
-      await apiClient.updateCampgroundDeposit(campgroundId, rule as any, percentage, config);
+      await apiClient.updateCampgroundDeposit(campgroundId, rule, percentage, config);
       setMessage({ type: "success", text: "Deposit settings saved" });
     } catch (err) {
       console.error(err);
@@ -154,7 +198,7 @@ export function DepositSettingsForm({ campgroundId, initialRule, initialPercenta
       <div className="space-y-2">
         <Label>Presets</Label>
         <div className="flex gap-2">
-          {(["simple", "standard", "enterprise"] as PresetKey[]).map((key) => (
+          {presetKeys.map((key) => (
             <Button
               key={key}
               type="button"
@@ -176,7 +220,7 @@ export function DepositSettingsForm({ campgroundId, initialRule, initialPercenta
           <select
             id="baseRule"
             value={config.defaultRule.type}
-            onChange={(e) => updateDefaultRule({ type: e.target.value as DepositRule["type"] })}
+            onChange={(e) => updateDefaultRule({ type: toDepositRuleType(e.target.value) })}
             className="flex h-10 w-full rounded-md border border-border bg-card px-3 py-2 text-sm"
           >
             <option value="none">No deposit</option>
@@ -295,7 +339,7 @@ export function DepositSettingsForm({ campgroundId, initialRule, initialPercenta
                     <Label>Rule</Label>
                     <select
                       value={tier.rule.type}
-                      onChange={(e) => updateTier(idx, { rule: { ...tier.rule, type: e.target.value as DepositRule["type"] } })}
+                      onChange={(e) => updateTier(idx, { rule: { ...tier.rule, type: toDepositRuleType(e.target.value) } })}
                       className="w-full h-10 rounded-md border border-border px-2 text-sm"
                     >
                       <option value="first_night">First night</option>
@@ -378,7 +422,7 @@ export function DepositSettingsForm({ campgroundId, initialRule, initialPercenta
                   <div className="flex gap-2">
                     <select
                       value={season.rule.type}
-                      onChange={(e) => updateSeason(idx, { rule: { ...season.rule, type: e.target.value as DepositRule["type"] } })}
+                      onChange={(e) => updateSeason(idx, { rule: { ...season.rule, type: toDepositRuleType(e.target.value) } })}
                       className="w-full h-10 rounded-md border border-border px-2 text-sm"
                     >
                       <option value="percent_total">% of total</option>
@@ -463,7 +507,7 @@ export function DepositSettingsForm({ campgroundId, initialRule, initialPercenta
                   <div className="grid md:grid-cols-3 gap-2 items-end">
                     <select
                       value={scope.rule.type}
-                      onChange={(e) => updateScope(idx, { rule: { ...scope.rule, type: e.target.value as DepositRule["type"] } })}
+                      onChange={(e) => updateScope(idx, { rule: { ...scope.rule, type: toDepositRuleType(e.target.value) } })}
                       className="h-10 rounded-md border border-border px-2 text-sm"
                     >
                       <option value="percent_total">% of total</option>
@@ -530,7 +574,7 @@ export function DepositSettingsForm({ campgroundId, initialRule, initialPercenta
                 <div key={idx} className="grid md:grid-cols-4 gap-2 items-end">
                   <select
                     value={entry.dueAt}
-                    onChange={(e) => updateSchedule(idx, { dueAt: e.target.value })}
+                    onChange={(e) => updateSchedule(idx, { dueAt: toScheduleDueAt(e.target.value) })}
                     className="h-10 rounded-md border border-border px-2 text-sm"
                   >
                     <option value="booking">At booking</option>
@@ -546,7 +590,7 @@ export function DepositSettingsForm({ campgroundId, initialRule, initialPercenta
                   />
                   <select
                     value={entry.amountType}
-                    onChange={(e) => updateSchedule(idx, { amountType: e.target.value })}
+                    onChange={(e) => updateSchedule(idx, { amountType: toScheduleAmountType(e.target.value) })}
                     className="h-10 rounded-md border border-border px-2 text-sm"
                   >
                     <option value="percent">% of total</option>

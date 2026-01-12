@@ -1,9 +1,12 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from "@nestjs/common";
+import { randomUUID } from "crypto";
 import { Cron } from "@nestjs/schedule";
 import { PrismaService } from "../prisma/prisma.service";
 import { AiProviderService } from "./ai-provider.service";
 import { AiAutopilotConfigService } from "./ai-autopilot-config.service";
 import { AiAutonomousActionService } from "./ai-autonomous-action.service";
+import { AiFeatureType } from "@prisma/client";
+import type { AiPricingRecommendation, Prisma } from "@prisma/client";
 
 interface PricingFactor {
   name: string;
@@ -22,6 +25,25 @@ interface PricingAnalysis {
   recommendationType: "underpriced" | "overpriced" | "event_opportunity" | "demand_surge" | "optimal";
   estimatedRevenueDelta: number;
 }
+
+type PricingRecommendationDraft = Omit<PricingAnalysis, "currentPrice" | "suggestedPrice"> & {
+  dateStart: Date;
+  dateEnd: Date;
+  currentPrice: number;
+  suggestedPrice: number;
+};
+
+const recommendationTypes: PricingAnalysis["recommendationType"][] = [
+  "underpriced",
+  "overpriced",
+  "event_opportunity",
+  "demand_surge",
+  "optimal",
+];
+const isRecommendationType = (value: string): value is PricingAnalysis["recommendationType"] =>
+  recommendationTypes.some((type) => type === value);
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
 
 @Injectable()
 export class AiDynamicPricingService {
@@ -48,7 +70,7 @@ export class AiDynamicPricingService {
   ) {
     const { status, siteClassId, startDate, endDate, limit = 50 } = options;
 
-    const where: any = { campgroundId };
+    const where: Prisma.AiPricingRecommendationWhereInput = { campgroundId };
     if (status) where.status = status;
     if (siteClassId) where.siteClassId = siteClassId;
     if (startDate) where.dateStart = { gte: startDate };
@@ -76,7 +98,7 @@ export class AiDynamicPricingService {
   /**
    * Analyze pricing for a campground and generate recommendations
    */
-  async analyzePricing(campgroundId: string): Promise<any[]> {
+  async analyzePricing(campgroundId: string): Promise<AiPricingRecommendation[]> {
     const config = await this.configService.getConfig(campgroundId);
 
     if (!config.dynamicPricingAiEnabled) {
@@ -111,7 +133,7 @@ export class AiDynamicPricingService {
     const endDate = new Date(today);
     endDate.setDate(endDate.getDate() + 90);
 
-    const recommendations: any[] = [];
+    const recommendations: AiPricingRecommendation[] = [];
 
     for (const siteClass of siteClasses) {
       try {
@@ -137,8 +159,15 @@ export class AiDynamicPricingService {
           if (existing) continue;
 
           // Create recommendation
+          const factors: Prisma.InputJsonValue = rec.factors.map((factor) => ({
+            name: factor.name,
+            impact: factor.impact,
+            confidence: factor.confidence,
+            details: factor.details,
+          }));
           const created = await this.prisma.aiPricingRecommendation.create({
             data: {
+              id: randomUUID(),
               campgroundId,
               siteClassId: siteClass.id,
               dateStart: rec.dateStart,
@@ -149,7 +178,7 @@ export class AiDynamicPricingService {
               adjustmentPercent: rec.adjustmentPercent,
               confidence: rec.confidence,
               reasoning: rec.reasoning,
-              factors: rec.factors,
+              factors,
               estimatedRevenueDelta: rec.estimatedRevenueDelta,
               expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
             },
@@ -179,7 +208,7 @@ export class AiDynamicPricingService {
     siteClass: { id: string; name: string; defaultRate: number },
     startDate: Date,
     endDate: Date
-  ): Promise<any[]> {
+  ): Promise<PricingRecommendationDraft[]> {
     // Get historical reservation data
     const historicalData = await this.getHistoricalData(
       campgroundId,
@@ -251,23 +280,78 @@ ${events.length > 0 ? JSON.stringify(events, null, 2) : "No events found"}
 Current date: ${startDate.toISOString().split("T")[0]}`;
 
     try {
-      const response = await this.aiProvider.complete({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
+      const response = await this.aiProvider.getCompletion({
+        campgroundId,
+        featureType: AiFeatureType.recommendations,
+        systemPrompt,
+        userPrompt,
         temperature: 0.3,
         maxTokens: 2000,
-        responseFormat: { type: "json_object" },
       });
 
       const parsed = JSON.parse(response.content);
-      return (parsed.recommendations || []).map((rec: any) => ({
-        ...rec,
-        dateStart: new Date(rec.dateStart),
-        dateEnd: new Date(rec.dateEnd),
-      }));
+      const recommendations = isRecord(parsed) && Array.isArray(parsed.recommendations)
+        ? parsed.recommendations
+        : [];
+
+      return recommendations
+        .map((rec): PricingRecommendationDraft | null => {
+          if (!isRecord(rec)) return null;
+          if (typeof rec.dateStart !== "string" || typeof rec.dateEnd !== "string") return null;
+
+          const dateStart = new Date(rec.dateStart);
+          const dateEnd = new Date(rec.dateEnd);
+          if (Number.isNaN(dateStart.getTime()) || Number.isNaN(dateEnd.getTime())) return null;
+
+          if (typeof rec.recommendationType !== "string" || !isRecommendationType(rec.recommendationType)) {
+            return null;
+          }
+
+          const currentPrice = typeof rec.currentPrice === "number" ? rec.currentPrice : null;
+          const suggestedPrice = typeof rec.suggestedPrice === "number" ? rec.suggestedPrice : null;
+          const adjustmentPercent = typeof rec.adjustmentPercent === "number" ? rec.adjustmentPercent : null;
+          const confidence = typeof rec.confidence === "number" ? rec.confidence : null;
+          const reasoning = typeof rec.reasoning === "string" ? rec.reasoning : "";
+          const estimatedRevenueDelta =
+            typeof rec.estimatedRevenueDelta === "number" ? rec.estimatedRevenueDelta : 0;
+
+          if (
+            currentPrice === null ||
+            suggestedPrice === null ||
+            adjustmentPercent === null ||
+            confidence === null
+          ) {
+            return null;
+          }
+
+          const factors = Array.isArray(rec.factors)
+            ? rec.factors
+                .map((factor): PricingFactor | null => {
+                  if (!isRecord(factor)) return null;
+                  const name = typeof factor.name === "string" ? factor.name : null;
+                  const impact = typeof factor.impact === "number" ? factor.impact : null;
+                  const factorConfidence = typeof factor.confidence === "number" ? factor.confidence : null;
+                  const details = typeof factor.details === "string" ? factor.details : "";
+                  if (!name || impact === null || factorConfidence === null) return null;
+                  return { name, impact, confidence: factorConfidence, details };
+                })
+                .filter((factor): factor is PricingFactor => factor !== null)
+            : [];
+
+          return {
+            dateStart,
+            dateEnd,
+            recommendationType: rec.recommendationType,
+            currentPrice,
+            suggestedPrice,
+            adjustmentPercent,
+            confidence,
+            reasoning,
+            estimatedRevenueDelta,
+            factors,
+          };
+        })
+        .filter((rec): rec is PricingRecommendationDraft => rec !== null);
     } catch (error) {
       this.logger.error(`AI pricing analysis failed: ${error}`);
       return [];
@@ -290,7 +374,7 @@ Current date: ${startDate.toISOString().split("T")[0]}`;
     const reservations = await this.prisma.reservation.findMany({
       where: {
         campgroundId,
-        site: { siteClassId },
+        Site: { siteClassId },
         status: { in: ["confirmed", "checked_in", "checked_out"] },
         arrivalDate: { gte: lastYear },
       },
@@ -350,7 +434,7 @@ Current date: ${startDate.toISOString().split("T")[0]}`;
     const reservations = await this.prisma.reservation.findMany({
       where: {
         campgroundId,
-        site: { siteClassId },
+        Site: { siteClassId },
         status: { in: ["confirmed", "pending"] },
         arrivalDate: { lte: endDate },
         departureDate: { gte: startDate },
@@ -610,7 +694,7 @@ Current date: ${startDate.toISOString().split("T")[0]}`;
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
-    const whereClause: any = {
+    const whereClause: Prisma.ReservationWhereInput = {
       campgroundId,
       status: { in: ["confirmed", "checked_in", "checked_out"] },
       createdAt: { gte: sixMonthsAgo },
@@ -618,7 +702,7 @@ Current date: ${startDate.toISOString().split("T")[0]}`;
     };
 
     if (siteClassId) {
-      whereClause.site = { siteClassId };
+      whereClause.Site = { siteClassId };
     }
 
     const reservations = await this.prisma.reservation.findMany({
@@ -735,7 +819,9 @@ Current date: ${startDate.toISOString().split("T")[0]}`;
   }> {
     const config = await this.configService.getConfig(campgroundId);
 
-    if (!config.dynamicPricingAutopilot) {
+    const autopilotEnabled =
+      config.dynamicPricingAiEnabled && config.dynamicPricingMode === "auto";
+    if (!autopilotEnabled) {
       return { applied: 0, skipped: 0, reasons: ["Autopilot not enabled"] };
     }
 
@@ -884,6 +970,7 @@ Current date: ${startDate.toISOString().split("T")[0]}`;
 
     return this.prisma.aiPriceExperiment.create({
       data: {
+        id: randomUUID(),
         campgroundId,
         siteClassId: data.siteClassId,
         name: data.name,
@@ -899,6 +986,7 @@ Current date: ${startDate.toISOString().split("T")[0]}`;
         autoApplyWinner: data.autoApplyWinner || false,
         createdById: data.createdById,
         status: "draft",
+        updatedAt: new Date(),
       },
     });
   }
@@ -1034,7 +1122,7 @@ Current date: ${startDate.toISOString().split("T")[0]}`;
     const exp = await this.prisma.aiPriceExperiment.findUnique({ where: { id } });
     if (!exp) throw new NotFoundException("Experiment not found");
 
-    const updateData: any = {
+    const updateData: Prisma.AiPriceExperimentUpdateInput = {
       status: "completed",
     };
 
@@ -1075,7 +1163,7 @@ Current date: ${startDate.toISOString().split("T")[0]}`;
    * Get experiments for a campground
    */
   async getExperiments(campgroundId: string, status?: string) {
-    const where: any = { campgroundId };
+    const where: Prisma.AiPriceExperimentWhereInput = { campgroundId };
     if (status) where.status = status;
 
     return this.prisma.aiPriceExperiment.findMany({
@@ -1103,7 +1191,7 @@ Current date: ${startDate.toISOString().split("T")[0]}`;
     this.logger.log("Starting daily autopilot pricing...");
 
     const configs = await this.prisma.aiAutopilotConfig.findMany({
-      where: { dynamicPricingAutopilot: true },
+      where: { dynamicPricingAiEnabled: true, dynamicPricingMode: "auto" },
       select: { campgroundId: true },
     });
 

@@ -1,4 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
+import { randomUUID } from "crypto";
 import { Cron } from "@nestjs/schedule";
 import { PrismaService } from "../prisma/prisma.service";
 
@@ -147,7 +148,17 @@ export class AiDashboardService {
     ]);
 
     // Transform and merge into unified activity feed
-    const activities: any[] = [];
+    type ActivityItem = {
+      id: string;
+      type: "auto_reply" | "anomaly" | "pricing" | "maintenance" | "weather" | "phone" | "autonomous";
+      title: string;
+      subtitle: string;
+      timestamp: Date;
+      icon: string;
+      color: string;
+      confidence?: number | null;
+    };
+    const activities: ActivityItem[] = [];
 
     for (const item of autoReplies) {
       activities.push({
@@ -359,6 +370,7 @@ export class AiDashboardService {
 
       calculatedAt: new Date(),
     };
+    const createMetrics = { id: randomUUID(), ...metrics };
 
     // Cache the metrics
     await this.prisma.aiDashboardMetrics.upsert({
@@ -369,7 +381,7 @@ export class AiDashboardService {
           periodEnd,
         },
       },
-      create: metrics,
+      create: createMetrics,
       update: metrics,
     });
 
@@ -522,7 +534,7 @@ export class AiDashboardService {
     });
 
     const accepted = scores.filter(
-      (s) => s.WaitlistEntry.status === "offered_accepted"
+      (s) => s.WaitlistEntry.status === "fulfilled"
     );
 
     return {

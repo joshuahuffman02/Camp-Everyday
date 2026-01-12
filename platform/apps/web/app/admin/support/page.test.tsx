@@ -33,7 +33,8 @@ vi.mock("next/navigation", () => ({
 describe("SupportAdminPage", () => {
   beforeEach(() => {
     mockFetch.mockResolvedValue({ ok: true, json: async () => [] });
-    vi.stubGlobal("fetch", mockFetch as unknown as typeof fetch);
+    const fetchMock: typeof fetch = (input, init) => mockFetch(input, init);
+    vi.stubGlobal("fetch", fetchMock);
     localStorage.setItem("campreserv:selectedCampground", "cg1");
   });
 
@@ -53,5 +54,4 @@ describe("SupportAdminPage", () => {
     expect(screen.getByRole("link", { name: /Checklists/i })).toHaveAttribute("href", "/operations#checklists");
   });
 });
-
 

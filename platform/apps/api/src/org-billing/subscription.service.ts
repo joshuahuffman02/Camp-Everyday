@@ -2,6 +2,12 @@ import { Injectable, Logger, NotFoundException, BadRequestException } from "@nes
 import { PrismaService } from "../prisma/prisma.service";
 import { StripeService } from "../payments/stripe.service";
 import { EmailService } from "../email/email.service";
+import type { Organization } from "@prisma/client";
+import type Stripe from "stripe";
+import { randomUUID } from "crypto";
+
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error && error.message ? error.message : "Unknown error";
 
 /**
  * Maps our internal tier names to Stripe price configuration
@@ -60,7 +66,7 @@ export class SubscriptionService {
     const org = await this.prisma.organization.findUniqueOrThrow({
       where: { id: organizationId },
       include: {
-        campgrounds: {
+        Campground: {
           take: 1,
           include: {
             CampgroundMembership: {
@@ -81,7 +87,7 @@ export class SubscriptionService {
     // Get billing email - prefer billingEmail, then owner email from first campground
     const ownerEmail =
       org.billingEmail ||
-      org.campgrounds[0]?.CampgroundMembership[0]?.User?.email ||
+      org.Campground[0]?.CampgroundMembership[0]?.User?.email ||
       `org-${org.id}@keeprstay.com`;
 
     // Create new Stripe customer
@@ -119,24 +125,24 @@ export class SubscriptionService {
     const tierConfig = STRIPE_PRICE_IDS[tier] || STRIPE_PRICE_IDS.standard;
 
     // Build subscription items
-    const items: Array<{ price: string; quantity?: number }> = [];
+    const items: Array<{ priceId: string; quantity?: number }> = [];
 
     // Add monthly subscription price (if not $0)
     if (tierConfig.monthlyPriceId) {
-      items.push({ price: tierConfig.monthlyPriceId });
+      items.push({ priceId: tierConfig.monthlyPriceId });
     }
 
     // Add metered booking fee price
     if (tierConfig.bookingFeePriceId) {
-      items.push({ price: tierConfig.bookingFeePriceId });
+      items.push({ priceId: tierConfig.bookingFeePriceId });
     }
 
     // Add SMS prices
     if (STRIPE_SMS_PRICE_IDS.outbound) {
-      items.push({ price: STRIPE_SMS_PRICE_IDS.outbound });
+      items.push({ priceId: STRIPE_SMS_PRICE_IDS.outbound });
     }
     if (STRIPE_SMS_PRICE_IDS.inbound) {
-      items.push({ price: STRIPE_SMS_PRICE_IDS.inbound });
+      items.push({ priceId: STRIPE_SMS_PRICE_IDS.inbound });
     }
 
     if (items.length === 0) {
@@ -246,7 +252,7 @@ export class SubscriptionService {
 
     // Find the subscription item for booking fees
     const bookingFeeItem = subscription.items.data.find(
-      (item: any) => item.price.id === tierConfig.bookingFeePriceId
+      (item) => item.price.id === tierConfig.bookingFeePriceId
     );
 
     if (!bookingFeeItem) {
@@ -303,7 +309,7 @@ export class SubscriptionService {
     const subscription = await this.stripe.getSubscription(org.stripeSubscriptionId);
 
     const smsItem = subscription.items.data.find(
-      (item: any) => item.price.id === priceId
+      (item) => item.price.id === priceId
     );
 
     if (!smsItem) {
@@ -358,9 +364,17 @@ export class SubscriptionService {
     const subscription = await this.stripe.getSubscription(org.stripeSubscriptionId);
     const tierConfig = STRIPE_PRICE_IDS[org.billingTier || "standard"];
 
-    const usage: Record<string, unknown> = {
-      periodStart: new Date(subscription.current_period_start * 1000),
-      periodEnd: new Date(subscription.current_period_end * 1000),
+    type UsageSummary = {
+      periodStart: Date | null;
+      periodEnd: Date | null;
+      items: Record<string, { priceId: string; totalUsage: number; unitAmount: number | null }>;
+    };
+
+    const periodStart = subscription.items.data[0]?.current_period_start;
+    const periodEnd = subscription.items.data[0]?.current_period_end;
+    const usage: UsageSummary = {
+      periodStart: periodStart ? new Date(periodStart * 1000) : null,
+      periodEnd: periodEnd ? new Date(periodEnd * 1000) : null,
       items: {},
     };
 
@@ -476,6 +490,7 @@ export class SubscriptionService {
         },
       },
       create: {
+        id: randomUUID(),
         organizationId: org.id,
         periodStart,
         periodEnd,
@@ -483,6 +498,7 @@ export class SubscriptionService {
         stripeInvoiceId: invoiceId,
         totalCents: invoice.amount_paid,
         paidAt: new Date(),
+        updatedAt: new Date(),
       },
       update: {
         status: "paid",
@@ -532,20 +548,20 @@ export class SubscriptionService {
   /**
    * Send notification to org owner about failed payment
    */
-  private async notifyOrgOwnerPaymentFailed(org: any, invoice: any) {
+  private async notifyOrgOwnerPaymentFailed(org: Organization, invoice: Stripe.Invoice): Promise<void> {
     try {
       // Get the org owner (user with owner role in this org)
       const ownerMembership = await this.prisma.campgroundMembership.findFirst({
         where: {
-          campground: { organizationId: org.id },
+          Campground: { organizationId: org.id },
           role: "owner",
         },
         include: {
-          user: { select: { email: true, firstName: true, lastName: true } },
+          User: { select: { email: true, firstName: true, lastName: true } },
         },
       });
 
-      if (!ownerMembership?.user?.email) {
+      if (!ownerMembership?.User?.email) {
         this.logger.warn(`No owner email found for org ${org.id}, cannot send payment failed notification`);
         return;
       }
@@ -556,11 +572,11 @@ export class SubscriptionService {
         : "soon";
 
       await this.emailService.sendEmail({
-        to: ownerMembership.user.email,
+        to: ownerMembership.User.email,
         subject: `[Action Required] Payment Failed for ${org.name}`,
         html: `
           <h2>Payment Failed</h2>
-          <p>Hi ${ownerMembership.user.firstName || "there"},</p>
+          <p>Hi ${ownerMembership.User.firstName || "there"},</p>
           <p>We were unable to process your payment of <strong>${amountDue}</strong> for your ${org.name} subscription.</p>
           <p>To avoid service interruption, please update your payment method as soon as possible.</p>
           <p><strong>Invoice ID:</strong> ${invoice.id}</p>
@@ -570,9 +586,9 @@ export class SubscriptionService {
         `,
       });
 
-      this.logger.log(`Payment failed notification sent to ${ownerMembership.user.email} for org ${org.id}`);
-    } catch (error: any) {
-      this.logger.error(`Failed to send payment failed notification for org ${org.id}: ${error.message}`);
+      this.logger.log(`Payment failed notification sent to ${ownerMembership.User.email} for org ${org.id}`);
+    } catch (error: unknown) {
+      this.logger.error(`Failed to send payment failed notification for org ${org.id}: ${getErrorMessage(error)}`);
     }
   }
 }

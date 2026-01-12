@@ -5,13 +5,16 @@ const redactPhone = (value: string) => value.replace(/\+?\d[\d\s().-]{7,}\b/g, "
 const redactCardLast4 = (value: string) =>
   value.replace(/last4["']?\s*:\s*["']?\d{4}["']?/gi, 'last4:"[redacted_last4]"');
 
-const redact = (value: any, keyHint?: string): any => {
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const redact = (value: unknown, keyHint?: string): unknown => {
   if (typeof value === "string") {
     if (keyHint === "last4") return "[redacted_last4]";
     return redactCardLast4(redactPhone(redactEmail(value)));
   }
   if (Array.isArray(value)) return value.map((v) => redact(v));
-  if (value && typeof value === "object") {
+  if (isRecord(value)) {
     return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, redact(v, k)]));
   }
   return value;
@@ -19,19 +22,19 @@ const redact = (value: any, keyHint?: string): any => {
 
 @Injectable()
 export class RedactingLogger {
-  log(message?: any, ...optionalParams: any[]): any {
+  log(message?: unknown, ...optionalParams: unknown[]): void {
     console.log(redact(message), ...optionalParams.map((value) => redact(value)));
   }
-  error(message?: any, ...optionalParams: any[]): any {
+  error(message?: unknown, ...optionalParams: unknown[]): void {
     console.error(redact(message), ...optionalParams.map((value) => redact(value)));
   }
-  warn(message?: any, ...optionalParams: any[]): any {
+  warn(message?: unknown, ...optionalParams: unknown[]): void {
     console.warn(redact(message), ...optionalParams.map((value) => redact(value)));
   }
-  debug?(message: any, ...optionalParams: any[]): any {
+  debug?(message: unknown, ...optionalParams: unknown[]): void {
     console.debug(redact(message), ...optionalParams.map((value) => redact(value)));
   }
-  verbose?(message: any, ...optionalParams: any[]): any {
+  verbose?(message: unknown, ...optionalParams: unknown[]): void {
     console.debug(redact(message), ...optionalParams.map((value) => redact(value)));
   }
 }

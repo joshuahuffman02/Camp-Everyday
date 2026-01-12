@@ -36,21 +36,6 @@ type TicketClient = {
   deviceType: DeviceType;
 };
 
-type WhoamiUser = {
-  id: string;
-  email: string;
-  firstName?: string | null;
-  lastName?: string | null;
-  name?: string;
-};
-
-type WhoamiData = {
-  user?: WhoamiUser;
-  id?: string;
-  email?: string;
-  name?: string;
-};
-
 const LS_PINS = "campreserv:help:pins";
 const LS_RECENT = "campreserv:help:recent";
 const LS_FEEDBACK = "campreserv:help:feedback";
@@ -202,7 +187,9 @@ export function HelpPanel({ open, onClose }: HelpPanelProps) {
 
   const pinnedTopics = useMemo(() => allTopics.filter((t) => pinnedIds.includes(t.id)), [allTopics, pinnedIds]);
   const recentTopics = useMemo(
-    () => recentIds.map((id) => allTopics.find((t) => t.id === id)).filter(Boolean) as HelpTopic[],
+    () => recentIds
+      .map((id) => allTopics.find((t) => t.id === id))
+      .filter((topic): topic is HelpTopic => Boolean(topic)),
     [recentIds, allTopics]
   );
 
@@ -260,21 +247,19 @@ export function HelpPanel({ open, onClose }: HelpPanelProps) {
       return;
     }
 
-    const whoamiData = whoami as WhoamiData | undefined;
+    const nameParts = [whoami?.user?.firstName, whoami?.user?.lastName].filter(
+      (part): part is string => Boolean(part)
+    );
+    const displayName = nameParts.length > 0 ? nameParts.join(" ") : null;
+
     const submitter: TicketSubmitter = {
-      id: whoamiData?.id ?? whoamiData?.user?.id ?? null,
-      name:
-        whoamiData?.name ??
-        whoamiData?.user?.name ??
-        whoamiData?.user?.firstName ??
-        whoamiData?.email ??
-        whoamiData?.user?.email ??
-        null,
-      email: whoamiData?.email ?? whoamiData?.user?.email ?? null
+      id: whoami?.user?.id ?? null,
+      name: displayName ?? whoami?.user?.email ?? null,
+      email: whoami?.user?.email ?? null
     };
 
     const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
-    const platform = typeof navigator !== "undefined" ? (navigator.platform as string | undefined) ?? null : null;
+    const platform = typeof navigator !== "undefined" ? navigator.platform ?? null : null;
     const language = typeof navigator !== "undefined" ? navigator.language ?? null : null;
 
     const detectDeviceType = (userAgent: string): DeviceType => {
@@ -322,8 +307,12 @@ export function HelpPanel({ open, onClose }: HelpPanelProps) {
       setReportDescription("");
       setReportSteps("");
       setReportEmail("");
-    } catch (err: any) {
-      toast({ title: "Could not submit", description: err?.message || "Please try again.", variant: "destructive" });
+    } catch (err) {
+      toast({
+        title: "Could not submit",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive"
+      });
     }
   };
 

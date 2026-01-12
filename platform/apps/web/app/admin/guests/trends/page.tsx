@@ -51,7 +51,7 @@ interface RegionalTrend {
   topOriginState: string;
 }
 
-interface MonthlyTrend {
+interface MonthlyTrend extends Record<string, number | string> {
   month: string;
   bookings: number;
   revenue: number;
@@ -75,6 +75,14 @@ interface TrendsData {
   monthlyTrends: MonthlyTrend[];
   snowbirdTrends: SnowbirdTrend[];
 }
+
+type GuestTrendsResponse = {
+  overview?: { totalGuests: number; repeatRate: number; avgStayLength: number };
+  geographic?: { byState?: Array<{ state: string; count: number }> };
+  seasonalTrends?: { byMonth?: MonthlyTrend[] };
+};
+
+type ChartDatum = { month: string; [key: string]: number | string };
 
 // Empty state
 const emptyTrendsData: TrendsData = {
@@ -142,8 +150,8 @@ function MetricCard({ metric }: { metric: TrendMetric }) {
   );
 }
 
-function SimpleAreaChart({ data, dataKey, color }: { data: any[]; dataKey: string; color: string }) {
-  const values = data.map(d => d[dataKey]);
+function SimpleAreaChart({ data, dataKey, color }: { data: ChartDatum[]; dataKey: string; color: string }) {
+  const values = data.map((d) => Number(d[dataKey]) || 0);
   const max = Math.max(...values);
   const min = Math.min(...values);
   const range = max - min || 1;
@@ -151,13 +159,14 @@ function SimpleAreaChart({ data, dataKey, color }: { data: any[]; dataKey: strin
   return (
     <div className="h-32 flex items-end gap-0.5">
       {data.map((item, i) => {
-        const height = ((item[dataKey] - min) / range) * 100;
+        const rawValue = Number(item[dataKey]) || 0;
+        const height = ((rawValue - min) / range) * 100;
         return (
           <div
             key={i}
             className={`flex-1 ${color} rounded-t opacity-80 hover:opacity-100 transition-opacity cursor-pointer`}
             style={{ height: `${Math.max(height, 5)}%` }}
-            title={`${item.month}: ${item[dataKey].toLocaleString()}`}
+            title={`${item.month}: ${rawValue.toLocaleString()}`}
           />
         );
       })}
@@ -200,36 +209,43 @@ export default function GuestTrendsPage() {
           throw new Error(`Failed to fetch trends: ${res.statusText}`);
         }
 
-        const result = await res.json();
+        const result: GuestTrendsResponse = await res.json();
 
         // Transform the data to match our trends structure
         // This is a placeholder - adjust based on your actual API response
-        if (result.overview?.totalGuests > 0) {
+        const totalGuests =
+          typeof result.overview?.totalGuests === "number" ? result.overview.totalGuests : 0;
+        const repeatRate =
+          typeof result.overview?.repeatRate === "number" ? result.overview.repeatRate : 0;
+        const avgStayLength =
+          typeof result.overview?.avgStayLength === "number" ? result.overview.avgStayLength : 0;
+
+        if (totalGuests > 0) {
           setTrendsData({
             metrics: [
               {
                 label: "Total Guests",
-                currentValue: result.overview.totalGuests,
-                previousValue: result.overview.totalGuests * 0.85,
+                currentValue: totalGuests,
+                previousValue: totalGuests * 0.85,
                 change: 15,
                 format: "number"
               },
               {
                 label: "Repeat Rate",
-                currentValue: result.overview.repeatRate,
-                previousValue: result.overview.repeatRate * 0.9,
+                currentValue: repeatRate,
+                previousValue: repeatRate * 0.9,
                 change: 10,
                 format: "percent"
               },
               {
                 label: "Avg Stay Length",
-                currentValue: result.overview.avgStayLength,
-                previousValue: result.overview.avgStayLength * 0.95,
+                currentValue: avgStayLength,
+                previousValue: avgStayLength * 0.95,
                 change: 5,
                 format: "days"
               },
             ],
-            regionalTrends: result.geographic?.byState?.slice(0, 5).map((state: any) => ({
+            regionalTrends: result.geographic?.byState?.slice(0, 5).map((state) => ({
               region: state.state,
               currentBookings: state.count,
               previousBookings: Math.floor(state.count * 0.85),

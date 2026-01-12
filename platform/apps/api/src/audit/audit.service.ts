@@ -1,7 +1,34 @@
 import { Injectable } from "@nestjs/common";
-import { createHash } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
-import type { Response } from "express";
+import type { Prisma } from "@prisma/client";
+
+const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined => {
+  if (value === undefined || value === null) return undefined;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
+};
+
+type AuditLogWithUser = Prisma.AuditLogGetPayload<{
+  include: { User: { select: { id: true; email: true; firstName: true; lastName: true } } };
+}>;
+
+type AuditLogWithActor = Omit<AuditLogWithUser, "User"> & {
+  actor: AuditLogWithUser["User"];
+};
+
+type AuditExportResponse = {
+  setHeader: (name: string, value: string) => unknown;
+  send: (body: string) => unknown;
+};
+
+const toActorRow = (row: AuditLogWithUser): AuditLogWithActor => {
+  const { User, ...rest } = row;
+  return { ...rest, actor: User };
+};
 
 @Injectable()
 export class AuditService {
@@ -24,14 +51,15 @@ export class AuditService {
         } : undefined
       },
       include: {
-        actor: { select: { id: true, email: true, firstName: true, lastName: true } }
+        User: { select: { id: true, email: true, firstName: true, lastName: true } }
       },
       orderBy: { createdAt: "desc" },
       take: params.limit || 200
     });
 
-    if (!privacy.redactPII) return rows;
-    return rows.map((row: any) => this.redactRow(row));
+    const actorRows = rows.map(toActorRow);
+    if (!privacy.redactPII) return actorRows;
+    return actorRows.map((row) => this.redactRow(row));
   }
 
   async quickAudit(params: { campgroundId: string; limit?: number }) {
@@ -47,14 +75,17 @@ export class AuditService {
       this.prisma.auditLog.findMany({
         where: { campgroundId: params.campgroundId },
         include: {
-          actor: { select: { id: true, email: true, firstName: true, lastName: true } }
+          User: { select: { id: true, email: true, firstName: true, lastName: true } }
         },
         orderBy: { createdAt: "desc" },
         take: limit
       })
     ]);
 
-    const auditEvents = privacy.redactPII ? auditEventsRaw.map((row: any) => this.redactRow(row)) : auditEventsRaw;
+    const auditEventsMapped = auditEventsRaw.map(toActorRow);
+    const auditEvents = privacy.redactPII
+      ? auditEventsMapped.map((row) => this.redactRow(row))
+      : auditEventsMapped;
 
     return {
       privacyDefaults: {
@@ -69,12 +100,15 @@ export class AuditService {
     };
   }
 
-  async exportCsv(params: { campgroundId: string; action?: string; actorId?: string; start?: Date; end?: Date; limit?: number }, res: Response) {
+  async exportCsv(
+    params: { campgroundId: string; action?: string; actorId?: string; start?: Date; end?: Date; limit?: number },
+    res: AuditExportResponse
+  ) {
     const rows = await this.list(params);
     const headers = ["id", "campgroundId", "actorId", "action", "entity", "entityId", "createdAt", "ip", "userAgent", "chainHash", "prevHash", "before", "after"];
     const csv = [headers.join(",")]
       .concat(
-        rows.map((r: any) =>
+        rows.map((r) =>
           [
             r.id,
             r.campgroundId,
@@ -93,9 +127,9 @@ export class AuditService {
         )
       )
       .join("\n");
-    (res as any).setHeader("Content-Type", "text/csv");
-    (res as any).setHeader("Content-Disposition", "attachment; filename=audit.csv");
-    return (res as any).send(csv);
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", "attachment; filename=audit.csv");
+    return res.send(csv);
   }
 
   async exportJson(params: { campgroundId: string; action?: string; actorId?: string; start?: Date; end?: Date; limit?: number }) {
@@ -119,14 +153,15 @@ export class AuditService {
         entityId: params.entityId
       },
       include: {
-        actor: { select: { id: true, email: true, firstName: true, lastName: true } }
+        User: { select: { id: true, email: true, firstName: true, lastName: true } }
       },
       orderBy: { createdAt: "desc" },
       take: params.limit || 100
     });
 
-    if (!privacy.redactPII) return rows;
-    return rows.map((row: any) => this.redactRow(row));
+    const actorRows = rows.map(toActorRow);
+    if (!privacy.redactPII) return actorRows;
+    return actorRows.map((row) => this.redactRow(row));
   }
 
   async record(event: {
@@ -148,14 +183,16 @@ export class AuditService {
       select: { chainHash: true }
     });
     const prevHash = prev?.chainHash ?? null;
+    const before = toJsonValue(event.before);
+    const after = toJsonValue(event.after);
     const payload = {
       campgroundId: event.campgroundId,
       actorId: event.actorId,
       action: event.action,
       entity: event.entity,
       entityId: event.entityId,
-      before: event.before ?? null,
-      after: event.after ?? null,
+      before: before ?? null,
+      after: after ?? null,
       ip: event.ip ?? null,
       userAgent: event.userAgent ?? null,
       createdAt: now.toISOString(),
@@ -166,7 +203,10 @@ export class AuditService {
 
     return this.prisma.auditLog.create({
       data: {
+        id: randomUUID(),
         ...payload,
+        before,
+        after,
         createdAt: now,
         prevHash,
         chainHash,
@@ -178,10 +218,11 @@ export class AuditService {
   async recordExport(params: { campgroundId: string; requestedById: string; format: "csv" | "json"; filters?: Record<string, unknown>; recordCount: number }) {
     return this.prisma.auditExport.create({
       data: {
+        id: randomUUID(),
         campgroundId: params.campgroundId,
         requestedById: params.requestedById,
         format: params.format,
-        filters: params.filters ?? null,
+        filters: toJsonValue(params.filters),
         recordCount: params.recordCount
       }
     });
@@ -200,26 +241,32 @@ export class AuditService {
     if (existing) return existing;
     return this.prisma.privacySetting.create({
       data: {
+        id: randomUUID(),
         campgroundId,
         redactPII: true,
         consentRequired: true,
         backupRetentionDays: 30,
         keyRotationDays: 90,
+        updatedAt: new Date(),
       },
     });
   }
 
-  private redactRow(row: any) {
-    const mask = (val: any) => {
+  private redactRow(row: AuditLogWithActor) {
+    const mask = (val: unknown) => {
       if (typeof val !== "string") return val;
       const emailMasked = val.replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "***@redacted");
       const phoneMasked = emailMasked.replace(/\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b/g, "***-***-****");
       return phoneMasked;
     };
-    const scrubJson = (obj: any) => {
-      if (!obj) return obj;
-      const json = JSON.stringify(obj, (_, v) => mask(v));
-      try { return JSON.parse(json); } catch { return obj; }
+    const scrubJson = (obj: unknown) => {
+      if (obj == null) return obj;
+      const json = JSON.stringify(obj, (_, value) => mask(value));
+      try {
+        return JSON.parse(json);
+      } catch {
+        return obj;
+      }
     };
 
     return {
@@ -239,4 +286,3 @@ export class AuditService {
     };
   }
 }
-

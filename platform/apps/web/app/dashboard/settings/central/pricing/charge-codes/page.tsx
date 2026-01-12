@@ -37,6 +37,10 @@ interface ChargeCode {
   isActive: boolean;
 }
 
+type Product = Awaited<ReturnType<typeof apiClient.getProducts>>[number];
+type ProductCategory = Awaited<ReturnType<typeof apiClient.getProductCategories>>[number];
+type LedgerSummaryEntry = Awaited<ReturnType<typeof apiClient.getLedgerSummary>>[number];
+
 // Standard system charge codes that campgrounds typically use
 const SYSTEM_CHARGE_CODES = [
   { code: "SITE", name: "Site Rental", category: "Accommodation" },
@@ -63,11 +67,16 @@ export default function ChargeCodesPage() {
     }
 
     // Fetch products and ledger summary to build charge codes list
-    Promise.all([
-      apiClient.getProducts(id).catch(() => []),
-      apiClient.getLedgerSummary(id, {}).catch(() => []),
-    ]).then(([products, ledgerSummary]) => {
+    const emptyProducts: Product[] = [];
+    const emptyLedger: LedgerSummaryEntry[] = [];
+    const emptyCategories: ProductCategory[] = [];
+    const productsPromise: Promise<Product[]> = apiClient.getProducts(id).catch(() => emptyProducts);
+    const ledgerPromise: Promise<LedgerSummaryEntry[]> = apiClient.getLedgerSummary(id, {}).catch(() => emptyLedger);
+    const categoriesPromise: Promise<ProductCategory[]> =
+      apiClient.getProductCategories(id).catch(() => emptyCategories);
+    Promise.all([productsPromise, ledgerPromise, categoriesPromise]).then(([products, ledgerSummary, categories]) => {
       const codesMap = new Map<string, ChargeCode>();
+      const categoryById = new Map(categories.map((category) => [category.id, category.name]));
 
       // Add system charge codes
       SYSTEM_CHARGE_CODES.forEach((sc) => {
@@ -83,8 +92,8 @@ export default function ChargeCodesPage() {
       });
 
       // Add GL codes from products
-      const productList = Array.isArray(products) ? products : [];
-      productList.forEach((product: any) => {
+      const productList = products;
+      productList.forEach((product) => {
         if (product.glCode) {
           const existing = codesMap.get(product.glCode);
           if (existing) {
@@ -94,7 +103,7 @@ export default function ChargeCodesPage() {
               id: `product-${product.id}`,
               code: product.glCode,
               name: product.name || product.glCode,
-              category: product.category?.name || "Store",
+              category: product.categoryId ? categoryById.get(product.categoryId) || "Store" : "Store",
               source: "product",
               usageCount: 1,
               isActive: product.isActive !== false,

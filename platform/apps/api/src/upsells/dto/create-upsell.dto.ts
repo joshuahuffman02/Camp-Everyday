@@ -2,7 +2,7 @@ import { IsBoolean, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Min } from 
 import { UpsellPriceType } from "@prisma/client";
 
 // Guard to prevent undefined enum when prisma client isn't generated
-const UpsellPriceTypeGuard = UpsellPriceType ?? ({ flat: "flat", percent: "percent" } as const);
+const UpsellPriceTypeGuard = UpsellPriceType ?? { flat: "flat", percent: "percent" };
 
 export class CreateUpsellDto {
   @IsString()
@@ -32,4 +32,3 @@ export class CreateUpsellDto {
   @IsString()
   siteClassId?: string | null;
 }
-

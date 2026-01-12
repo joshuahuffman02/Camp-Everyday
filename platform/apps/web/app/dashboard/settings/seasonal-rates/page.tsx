@@ -89,6 +89,25 @@ const pricingStructureLabels: Record<PricingStructure, string> = {
     flat_season: "Flat Season Rate"
 };
 
+const isRateType = (value: string): value is SeasonalRateFormData["rateType"] =>
+    value === "nightly" || value === "weekly" || value === "monthly" || value === "seasonal";
+
+const isPaymentSchedule = (value: string): value is PaymentSchedule =>
+    value === "single" ||
+    value === "weekly" ||
+    value === "monthly" ||
+    value === "as_you_stay" ||
+    value === "offseason_installments";
+
+const isPricingStructure = (value: string): value is PricingStructure =>
+    value === "per_night" ||
+    value === "flat_week" ||
+    value === "flat_month" ||
+    value === "flat_season";
+
+const getErrorMessage = (error: unknown, fallback: string) =>
+    error instanceof Error ? error.message : fallback;
+
 export default function SeasonalRatesSettingsPage() {
     const [rates, setRates] = useState<SeasonalRate[]>([]);
     const [siteClasses, setSiteClasses] = useState<SiteClass[]>([]);
@@ -190,8 +209,8 @@ export default function SeasonalRatesSettingsPage() {
             }
             setIsModalOpen(false);
             loadData(campgroundId);
-        } catch (err: any) {
-            setError(err.message || "Failed to save seasonal rate");
+        } catch (err: unknown) {
+            setError(getErrorMessage(err, "Failed to save seasonal rate"));
         } finally {
             setSaving(false);
         }
@@ -437,7 +456,11 @@ export default function SeasonalRatesSettingsPage() {
                                     <Label>Rate Type</Label>
                                     <Select
                                         value={formData.rateType}
-                                        onValueChange={(val) => setFormData({ ...formData, rateType: val as "nightly" | "weekly" | "monthly" | "seasonal" })}
+                                    onValueChange={(val) => {
+                                        if (isRateType(val)) {
+                                            setFormData({ ...formData, rateType: val });
+                                        }
+                                    }}
                                     >
                                         <SelectTrigger>
                                             <SelectValue />
@@ -522,7 +545,11 @@ export default function SeasonalRatesSettingsPage() {
                                     <Label>Payment Schedule</Label>
                                     <Select
                                         value={formData.paymentSchedule}
-                                        onValueChange={(val) => setFormData({ ...formData, paymentSchedule: val as PaymentSchedule })}
+                                    onValueChange={(val) => {
+                                        if (isPaymentSchedule(val)) {
+                                            setFormData({ ...formData, paymentSchedule: val });
+                                        }
+                                    }}
                                     >
                                         <SelectTrigger>
                                             <SelectValue />
@@ -547,7 +574,11 @@ export default function SeasonalRatesSettingsPage() {
                                     <Label>Pricing Structure</Label>
                                     <Select
                                         value={formData.pricingStructure}
-                                        onValueChange={(val) => setFormData({ ...formData, pricingStructure: val as PricingStructure })}
+                                    onValueChange={(val) => {
+                                        if (isPricingStructure(val)) {
+                                            setFormData({ ...formData, pricingStructure: val });
+                                        }
+                                    }}
                                     >
                                         <SelectTrigger>
                                             <SelectValue />

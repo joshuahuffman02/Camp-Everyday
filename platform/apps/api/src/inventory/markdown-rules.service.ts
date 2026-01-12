@@ -4,6 +4,7 @@ import {
     BadRequestException,
     ForbiddenException,
 } from "@nestjs/common";
+import crypto from "node:crypto";
 import { Prisma, MarkdownScope, MarkdownDiscountType } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { WebhookService } from "../developer-api/webhook.service";
@@ -43,6 +44,7 @@ export class MarkdownRulesService {
 
         return this.prisma.markdownRule.create({
             data: {
+                id: crypto.randomUUID(),
                 campgroundId,
                 daysUntilExpiration: dto.daysUntilExpiration,
                 discountType: dto.discountType,
@@ -61,8 +63,8 @@ export class MarkdownRulesService {
         const rule = await this.prisma.markdownRule.findUnique({
             where: { id },
             include: {
-                category: { select: { id: true, name: true } },
-                product: { select: { id: true, name: true } },
+                ProductCategory: { select: { id: true, name: true } },
+                Product: { select: { id: true, name: true } },
             },
         });
         if (!rule) throw new NotFoundException("Markdown rule not found");
@@ -79,8 +81,8 @@ export class MarkdownRulesService {
                 ...(includeInactive ? {} : { isActive: true }),
             },
             include: {
-                category: { select: { id: true, name: true } },
-                product: { select: { id: true, name: true } },
+                ProductCategory: { select: { id: true, name: true } },
+                Product: { select: { id: true, name: true } },
             },
             orderBy: [
                 { priority: "asc" },
@@ -149,8 +151,8 @@ export class MarkdownRulesService {
         const batch = await this.prisma.inventoryBatch.findUnique({
             where: { id: batchId },
             include: {
-                product: {
-                    include: { category: true },
+                Product: {
+                    include: { ProductCategory: true },
                 },
             },
         });
@@ -173,7 +175,7 @@ export class MarkdownRulesService {
                     { scope: MarkdownScope.all },
                     {
                         scope: MarkdownScope.category,
-                        categoryId: batch.product.categoryId,
+                        categoryId: batch.Product.categoryId,
                     },
                     {
                         scope: MarkdownScope.product,
@@ -281,12 +283,13 @@ export class MarkdownRulesService {
         const batch = await this.prisma.inventoryBatch.findUnique({
             where: { id: batchId },
             include: {
-                product: { select: { id: true, name: true, sku: true } },
+                Product: { select: { id: true, name: true, sku: true } },
             },
         });
 
         const application = await this.prisma.markdownApplication.create({
             data: {
+                id: crypto.randomUUID(),
                 campgroundId,
                 markdownRuleId: ruleId,
                 batchId,
@@ -306,8 +309,8 @@ export class MarkdownRulesService {
                 ruleId,
                 batchId,
                 productId: batch.productId,
-                productSku: batch.product.sku,
-                productName: batch.product.name,
+                productSku: batch.Product.sku,
+                productName: batch.Product.name,
                 originalPriceCents,
                 markdownPriceCents,
                 discountCents: originalPriceCents - markdownPriceCents,
@@ -339,7 +342,7 @@ export class MarkdownRulesService {
                 expirationDate: { not: null },
             },
             include: {
-                product: {
+                Product: {
                     select: { id: true, name: true, priceCents: true },
                 },
             },
@@ -350,7 +353,7 @@ export class MarkdownRulesService {
                 campgroundId,
                 batch.productId,
                 batch.id,
-                batch.product.priceCents
+                batch.Product.priceCents
             );
 
             if (markdown.applies && markdown.ruleId) {
@@ -362,11 +365,11 @@ export class MarkdownRulesService {
                 previews.push({
                     batchId: batch.id,
                     productId: batch.productId,
-                    productName: batch.product.name,
+                    productName: batch.Product.name,
                     expirationDate: batch.expirationDate,
                     daysUntilExpiration: markdown.daysUntilExpiration,
                     qtyRemaining: batch.qtyRemaining,
-                    originalPriceCents: batch.product.priceCents,
+                    originalPriceCents: batch.Product.priceCents,
                     markdownPriceCents: markdown.markdownPriceCents,
                     discountCents: markdown.discountCents,
                     discountPercent: markdown.discountPercent,
@@ -399,10 +402,10 @@ export class MarkdownRulesService {
                 },
             },
             include: {
-                markdownRule: true,
-                batch: {
+                MarkdownRule: true,
+                InventoryBatch: {
                     include: {
-                        product: { select: { name: true, categoryId: true } },
+                        Product: { select: { name: true, categoryId: true } },
                     },
                 },
             },
@@ -415,7 +418,7 @@ export class MarkdownRulesService {
             0
         );
         const totalUnits = applications.reduce((sum, a) => sum + a.qty, 0);
-        const uniqueProducts = new Set(applications.map((a) => a.batch.productId)).size;
+        const uniqueProducts = new Set(applications.map((a) => a.InventoryBatch.productId)).size;
 
         return {
             applications,

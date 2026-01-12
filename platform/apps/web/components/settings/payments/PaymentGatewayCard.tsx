@@ -58,6 +58,15 @@ interface PaymentGatewayCardProps {
   disabled: boolean;
 }
 
+const isGateway = (value: string): value is Gateway =>
+  value === "stripe" || value === "adyen" || value === "authorize_net" || value === "other";
+
+const isGatewayMode = (value: string): value is GatewayMode =>
+  value === "test" || value === "prod";
+
+const isFeeMode = (value: string): value is FeeMode =>
+  value === "absorb" || value === "pass_through";
+
 const GATEWAY_PRESETS: GatewayPreset[] = [
   { id: "preset_stripe_test", gateway: "stripe", mode: "test", label: "Stripe test (no fees)", percentBasisPoints: 0, flatFeeCents: 0 },
   { id: "preset_stripe_prod", gateway: "stripe", mode: "prod", label: "Stripe default (2.9% + 30¢)", percentBasisPoints: 290, flatFeeCents: 30 },
@@ -192,7 +201,12 @@ export function PaymentGatewayCard({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="gateway-select">Gateway</Label>
-            <Select value={gateway} onValueChange={(v) => setGateway(v as Gateway)}>
+            <Select
+              value={gateway}
+              onValueChange={(value) => {
+                if (isGateway(value)) setGateway(value);
+              }}
+            >
               <SelectTrigger id="gateway-select">
                 <SelectValue placeholder="Select gateway" />
               </SelectTrigger>
@@ -217,7 +231,12 @@ export function PaymentGatewayCard({
 
           <div className="space-y-2">
             <Label htmlFor="gateway-mode">Mode</Label>
-            <Select value={mode} onValueChange={(v) => setMode(v as GatewayMode)}>
+            <Select
+              value={mode}
+              onValueChange={(value) => {
+                if (isGatewayMode(value)) setMode(value);
+              }}
+            >
               <SelectTrigger id="gateway-mode">
                 <SelectValue placeholder="Select mode" />
               </SelectTrigger>
@@ -238,7 +257,12 @@ export function PaymentGatewayCard({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="gateway-fee-mode">Who pays gateway fees?</Label>
-            <Select value={feeMode} onValueChange={(v) => setFeeMode(v as FeeMode)}>
+            <Select
+              value={feeMode}
+              onValueChange={(value) => {
+                if (isFeeMode(value)) setFeeMode(value);
+              }}
+            >
               <SelectTrigger id="gateway-fee-mode">
                 <SelectValue placeholder="Select fee mode" />
               </SelectTrigger>

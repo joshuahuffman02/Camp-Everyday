@@ -20,6 +20,93 @@ import { PARK_AMENITIES, SITE_CLASS_AMENITIES, CABIN_AMENITIES } from "@/lib/ame
 
 type PublicCampgroundDetail = Awaited<ReturnType<typeof apiClient.getPublicCampground>>;
 
+type PublicEventRecord = Record<string, unknown>;
+
+interface NormalizedEvent {
+    id?: string;
+    title: string;
+    eventType: string;
+    startDate: string;
+    endDate?: string | null;
+    description?: string | null;
+    imageUrl?: string | null;
+    location?: string | null;
+    isRecurring: boolean;
+    recurrenceDays?: number[];
+    children: NormalizedEvent[];
+    priceCents?: number;
+    capacity?: number;
+    currentSignups?: number;
+    startTime?: string | null;
+    endTime?: string | null;
+}
+
+type RatingFilter = "all" | "5" | "4" | "3" | "2" | "1";
+type SortOption = "relevant" | "newest" | "highest" | "lowest" | "photos";
+
+type AmenityDisplay = { id: string; icon: LucideIcon; label: string };
+
+const ratingFilterValues: RatingFilter[] = ["all", "5", "4", "3", "2", "1"];
+const sortOptionValues: SortOption[] = ["relevant", "newest", "highest", "lowest", "photos"];
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null;
+
+const getString = (value: unknown): string | undefined =>
+    typeof value === "string" ? value : undefined;
+
+const getNumber = (value: unknown): number | undefined =>
+    typeof value === "number" && Number.isFinite(value) ? value : undefined;
+
+const getBoolean = (value: unknown): boolean | undefined =>
+    typeof value === "boolean" ? value : undefined;
+
+const getNumberArray = (value: unknown): number[] | undefined =>
+    Array.isArray(value) && value.every((item) => typeof item === "number") ? value : undefined;
+
+const isRatingFilter = (value: string): value is RatingFilter =>
+    ratingFilterValues.some((option) => option === value);
+
+const isSortOption = (value: string): value is SortOption =>
+    sortOptionValues.some((option) => option === value);
+
+const isAmenityDisplay = (value: AmenityDisplay | null): value is AmenityDisplay =>
+    value !== null;
+
+const toRatingBucket = (rating: number): 1 | 2 | 3 | 4 | 5 => {
+    const rounded = Math.round(rating);
+    if (rounded <= 1) return 1;
+    if (rounded === 2) return 2;
+    if (rounded === 3) return 3;
+    if (rounded === 4) return 4;
+    return 5;
+};
+
+function normalizeEvent(event: PublicEventRecord): NormalizedEvent {
+    const children = Array.isArray(event.children)
+        ? event.children.filter(isRecord).map((child) => normalizeEvent(child))
+        : [];
+
+    return {
+        id: getString(event.id),
+        title: getString(event.title) || "Event",
+        eventType: getString(event.eventType) || "activity",
+        startDate: getString(event.startDate) || new Date().toISOString(),
+        endDate: getString(event.endDate),
+        description: getString(event.description),
+        imageUrl: getString(event.imageUrl),
+        location: getString(event.location),
+        isRecurring: getBoolean(event.isRecurring) ?? false,
+        recurrenceDays: getNumberArray(event.recurrenceDays),
+        children,
+        priceCents: getNumber(event.priceCents),
+        capacity: getNumber(event.capacity),
+        currentSignups: getNumber(event.currentSignups),
+        startTime: getString(event.startTime),
+        endTime: getString(event.endTime),
+    };
+}
+
 // Helper to get amenity icon and label from our centralized definitions
 function getAmenityDisplay(amenityId: string): { icon: LucideIcon; label: string } | null {
     // Check park amenities first
@@ -303,19 +390,17 @@ function SiteClassCard({
     onSelect?: (siteType?: string) => void;
 }) {
     // Get top amenities to display (max 4 additional beyond hookups)
-    type SiteClassWithExtras = typeof siteClass & {
-        amenityTags?: string[];
-        electricAmps?: number[];
-    };
-    const siteClassExtended = siteClass as SiteClassWithExtras;
-    const amenityTags = siteClassExtended.amenityTags;
-    const electricAmps = siteClassExtended.electricAmps;
+    const amenityTags = siteClass.amenityTags ?? [];
+    const electricAmps = siteClass.electricAmps ?? [];
     const displayAmenities = useMemo(() => {
-        if (!amenityTags || amenityTags.length === 0) return [];
-        return amenityTags.slice(0, 4).map(tag => {
-            const display = getAmenityDisplay(tag);
-            return display ? { id: tag, ...display } : null;
-        }).filter(Boolean) as Array<{ id: string; icon: LucideIcon; label: string }>;
+        if (amenityTags.length === 0) return [];
+        return amenityTags
+            .slice(0, 4)
+            .map((tag) => {
+                const display = getAmenityDisplay(tag);
+                return display ? { id: tag, ...display } : null;
+            })
+            .filter(isAmenityDisplay);
     }, [amenityTags]);
 
     return (
@@ -406,7 +491,7 @@ function getRecurrenceDescription(recurrenceDays?: number[]): string {
 }
 
 // Event Card
-function EventCard({ event, slug }: { event: PublicCampgroundDetail["events"][0]; slug: string }) {
+function EventCard({ event, slug }: { event: PublicEventRecord; slug: string }) {
     const typeColors: Record<string, string> = {
         activity: "bg-status-info/15 text-status-info",
         workshop: "bg-purple-100 text-purple-700",
@@ -417,73 +502,96 @@ function EventCard({ event, slug }: { event: PublicCampgroundDetail["events"][0]
         themed: "bg-indigo-100 text-indigo-700 ring-2 ring-indigo-200",
     };
 
-    const isParentEvent = event.eventType === 'holiday' || event.eventType === 'themed';
-    const isOngoing = event.eventType === 'ongoing';
-    const recurrenceLabel = event.isRecurring ? getRecurrenceDescription(event.recurrenceDays) : '';
+    const eventData = normalizeEvent(event);
+    const isParentEvent = eventData.eventType === "holiday" || eventData.eventType === "themed";
+    const isOngoing = eventData.eventType === "ongoing";
+    const recurrenceLabel = eventData.isRecurring
+        ? getRecurrenceDescription(eventData.recurrenceDays)
+        : "";
 
     // Build booking link with event dates
-    const eventStartDate = event.startDate.split('T')[0];
-    const eventEndDate = event.endDate ? event.endDate.split('T')[0] : (() => {
-        const d = new Date(event.startDate);
+    const eventStartDate = eventData.startDate.split("T")[0];
+    const eventEndDate = eventData.endDate ? eventData.endDate.split("T")[0] : (() => {
+        const d = new Date(eventData.startDate);
         d.setDate(d.getDate() + 1);
-        return d.toISOString().split('T')[0];
+        return d.toISOString().split("T")[0];
     })();
 
     // Parent events (Holiday/Themed) get special treatment
     if (isParentEvent) {
         return (
             <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl border-2 border-slate-200 p-6 hover:shadow-lg transition-all">
-                {event.imageUrl && (
+                {eventData.imageUrl && (
                     <div className="relative mb-4 h-44 w-full overflow-hidden rounded-lg">
-                        <Image src={event.imageUrl} alt={event.title} fill className="object-cover" />
+                        <Image src={eventData.imageUrl} alt={eventData.title} fill className="object-cover" />
                     </div>
                 )}
                 <div className="flex items-start justify-between mb-4">
                     <div>
                         <span
-                            className={`text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wide ${typeColors[event.eventType]}`}
+                            className={`text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wide ${typeColors[eventData.eventType]}`}
                         >
-                            {event.eventType === 'holiday' ? <><Star className="h-3.5 w-3.5 inline" /> Holiday Weekend</> : <><Palette className="h-3.5 w-3.5 inline" /> Themed Weekend</>}
+                            {eventData.eventType === "holiday" ? (
+                                <>
+                                    <Star className="h-3.5 w-3.5 inline" /> Holiday Weekend
+                                </>
+                            ) : (
+                                <>
+                                    <Palette className="h-3.5 w-3.5 inline" /> Themed Weekend
+                                </>
+                            )}
                         </span>
-                        <h3 className="font-bold text-xl text-slate-900 mt-3">{event.title}</h3>
-                        {event.description && (
-                            <p className="text-slate-600 mt-2">{event.description}</p>
+                        <h3 className="font-bold text-xl text-slate-900 mt-3">{eventData.title}</h3>
+                        {eventData.description && (
+                            <p className="text-slate-600 mt-2">{eventData.description}</p>
                         )}
                     </div>
                 </div>
                 <div className="flex flex-wrap gap-3 text-sm text-slate-600 mb-4">
                     <div className="flex items-center gap-1">
                         <Calendar className="h-4 w-4" />
-                        <span>{formatDate(event.startDate)} {event.endDate && `- ${formatDate(event.endDate)}`}</span>
+                        <span>
+                            {formatDate(eventData.startDate)}{" "}
+                            {eventData.endDate && `- ${formatDate(eventData.endDate)}`}
+                        </span>
                     </div>
-                    {event.location && (
+                    {eventData.location && (
                         <div className="flex items-center gap-1">
                             <MapPin className="h-4 w-4" />
-                            <span>{event.location}</span>
+                            <span>{eventData.location}</span>
                         </div>
                     )}
                 </div>
                 {/* Show child events if any */}
-                {event.children && event.children.length > 0 && (
+                {eventData.children.length > 0 && (
                     <div className="mt-4 pt-4 border-t border-slate-200">
                         <h4 className="text-sm font-semibold text-slate-700 mb-3">Events this weekend:</h4>
                         <div className="space-y-2">
-                            {event.children.slice(0, 4).map((child: any) => (
-                                <div key={child.id} className="flex items-center justify-between text-sm bg-white p-2 rounded-lg">
+                            {eventData.children.slice(0, 4).map((child, index) => (
+                                <div
+                                    key={child.id ?? `${child.title}-${index}`}
+                                    className="flex items-center justify-between text-sm bg-white p-2 rounded-lg"
+                                >
                                     <span className="font-medium text-slate-800">{child.title}</span>
-                                    <span className="text-slate-500">{child.startTime && formatTime(child.startTime)}</span>
+                                    <span className="text-slate-500">
+                                        {child.startTime && formatTime(child.startTime)}
+                                    </span>
                                 </div>
                             ))}
-                            {event.children.length > 4 && (
-                                <div className="text-sm text-slate-500 text-center">+{event.children.length - 4} more events</div>
+                            {eventData.children.length > 4 && (
+                                <div className="text-sm text-slate-500 text-center">
+                                    +{eventData.children.length - 4} more events
+                                </div>
                             )}
                         </div>
                     </div>
                 )}
                 <div className="mt-4 pt-4 border-t border-slate-200 flex items-center justify-between">
                     <div>
-                        {event.priceCents && event.priceCents > 0 ? (
-                            <span className="font-semibold text-emerald-600">{formatPrice(event.priceCents)}</span>
+                        {eventData.priceCents && eventData.priceCents > 0 ? (
+                            <span className="font-semibold text-emerald-600">
+                                {formatPrice(eventData.priceCents)}
+                            </span>
                         ) : (
                             <span className="font-semibold text-emerald-600">Free</span>
                         )}
@@ -503,9 +611,9 @@ function EventCard({ event, slug }: { event: PublicCampgroundDetail["events"][0]
     if (isOngoing) {
         return (
             <div className="bg-gradient-to-r from-status-warning/10 to-orange-50 rounded-xl border-2 border-status-warning/30 p-5 hover:shadow-md transition-all">
-                {event.imageUrl && (
+                {eventData.imageUrl && (
                     <div className="relative mb-3 h-36 w-full overflow-hidden rounded-lg">
-                        <Image src={event.imageUrl} alt={event.title} fill className="object-cover" />
+                        <Image src={eventData.imageUrl} alt={eventData.title} fill className="object-cover" />
                     </div>
                 )}
                 <div className="flex items-center gap-2 mb-2">
@@ -514,21 +622,21 @@ function EventCard({ event, slug }: { event: PublicCampgroundDetail["events"][0]
                         All Weekend
                     </span>
                 </div>
-                <h4 className="font-bold text-slate-900 text-lg">{event.title}</h4>
-                {event.description && (
-                    <p className="text-slate-600 text-sm mt-1">{event.description}</p>
+                <h4 className="font-bold text-slate-900 text-lg">{eventData.title}</h4>
+                {eventData.description && (
+                    <p className="text-slate-600 text-sm mt-1">{eventData.description}</p>
                 )}
                 <div className="mt-3 flex flex-wrap gap-3 text-sm text-slate-600">
-                    {event.location && (
+                    {eventData.location && (
                         <div className="flex items-center gap-1">
                             <MapPin className="h-4 w-4" />
-                            <span>{event.location}</span>
+                            <span>{eventData.location}</span>
                         </div>
                     )}
-                    {event.startTime && event.endTime && (
+                    {eventData.startTime && eventData.endTime && (
                         <div className="flex items-center gap-1">
                             <Clock className="h-4 w-4" />
-                            <span>{formatTime(event.startTime)} - {formatTime(event.endTime)}</span>
+                            <span>{formatTime(eventData.startTime)} - {formatTime(eventData.endTime)}</span>
                         </div>
                     )}
                 </div>
@@ -539,18 +647,18 @@ function EventCard({ event, slug }: { event: PublicCampgroundDetail["events"][0]
     // Standard event card (with recurring badge if applicable)
     return (
         <div className="bg-white rounded-xl border border-slate-200 p-5 hover:shadow-md transition-shadow">
-            {event.imageUrl && (
+            {eventData.imageUrl && (
                 <div className="relative mb-3 h-44 w-full overflow-hidden rounded-lg">
-                    <Image src={event.imageUrl} alt={event.title} fill className="object-cover" />
+                    <Image src={eventData.imageUrl} alt={eventData.title} fill className="object-cover" />
                 </div>
             )}
             <div className="flex items-start justify-between">
                 <div>
                     <div className="flex items-center gap-2 flex-wrap">
                         <span
-                            className={`text-xs px-2 py-1 rounded-full font-medium ${typeColors[event.eventType] || "bg-slate-100 text-slate-600"}`}
+                            className={`text-xs px-2 py-1 rounded-full font-medium ${typeColors[eventData.eventType] || "bg-slate-100 text-slate-600"}`}
                         >
-                            {event.eventType.charAt(0).toUpperCase() + event.eventType.slice(1)}
+                            {eventData.eventType.charAt(0).toUpperCase() + eventData.eventType.slice(1)}
                         </span>
                         {recurrenceLabel && (
                             <span className="text-xs px-2 py-1 bg-status-success text-white rounded-full font-medium inline-flex items-center gap-1">
@@ -558,40 +666,40 @@ function EventCard({ event, slug }: { event: PublicCampgroundDetail["events"][0]
                             </span>
                         )}
                     </div>
-                    <h4 className="font-bold text-slate-900 mt-2">{event.title}</h4>
-                    {event.description && (
-                        <p className="text-slate-600 text-sm mt-1 line-clamp-2">{event.description}</p>
+                    <h4 className="font-bold text-slate-900 mt-2">{eventData.title}</h4>
+                    {eventData.description && (
+                        <p className="text-slate-600 text-sm mt-1 line-clamp-2">{eventData.description}</p>
                     )}
                 </div>
             </div>
             <div className="mt-4 flex flex-wrap gap-3 text-sm text-slate-600">
                 <div className="flex items-center gap-1">
                     <Calendar className="h-4 w-4" />
-                    <span>{formatDate(event.startDate)}</span>
+                    <span>{formatDate(eventData.startDate)}</span>
                 </div>
-                {event.startTime && (
+                {eventData.startTime && (
                     <div className="flex items-center gap-1">
                         <Clock className="h-4 w-4" />
-                        <span>{formatTime(event.startTime)}</span>
+                        <span>{formatTime(eventData.startTime)}</span>
                     </div>
                 )}
-                {event.location && (
+                {eventData.location && (
                     <div className="flex items-center gap-1">
                         <MapPin className="h-4 w-4" />
-                        <span>{event.location}</span>
+                        <span>{eventData.location}</span>
                     </div>
                 )}
             </div>
             <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
                 <div>
-                    {event.priceCents && event.priceCents > 0 ? (
-                        <span className="font-semibold text-emerald-600">{formatPrice(event.priceCents)}</span>
+                    {eventData.priceCents && eventData.priceCents > 0 ? (
+                        <span className="font-semibold text-emerald-600">{formatPrice(eventData.priceCents)}</span>
                     ) : (
                         <span className="font-semibold text-emerald-600">Free</span>
                     )}
-                    {event.capacity && (
+                    {eventData.capacity && (
                         <span className="text-sm text-slate-500 ml-2">
-                            {event.currentSignups || 0}/{event.capacity} spots
+                            {eventData.currentSignups || 0}/{eventData.capacity} spots
                         </span>
                     )}
                 </div>
@@ -732,8 +840,8 @@ export function CampgroundDetailClient({
             trackEvent("review_viewed", { campgroundId: campground.id, metadata: { count }, page: `/park/${slug}` });
         }
     }, [campground?.id, reviewsQuery.data, slug]);
-    const [ratingFilter, setRatingFilter] = useState<"all" | "5" | "4" | "3" | "2" | "1">("all");
-    const [sortOption, setSortOption] = useState<"relevant" | "newest" | "highest" | "lowest" | "photos">("relevant");
+    const [ratingFilter, setRatingFilter] = useState<RatingFilter>("all");
+    const [sortOption, setSortOption] = useState<SortOption>("relevant");
     const [searchTerm, setSearchTerm] = useState("");
     const [photosOnly, setPhotosOnly] = useState(false);
     const [tagFilter, setTagFilter] = useState<string | null>(null);
@@ -799,7 +907,7 @@ export function CampgroundDetailClient({
             return true;
         });
         uniqueReviews.forEach((r) => {
-            const key = Math.round(r.rating) as 1 | 2 | 3 | 4 | 5;
+            const key = toRatingBucket(r.rating);
             buckets[key] = (buckets[key] || 0) + 1;
         });
         const total = uniqueReviews.length || 1;
@@ -1041,7 +1149,12 @@ export function CampgroundDetailClient({
                                 <label className="text-sm text-slate-600">Rating</label>
                                 <select
                                     value={ratingFilter}
-                                    onChange={(e) => setRatingFilter(e.target.value as "all" | "5" | "4" | "3" | "2" | "1")}
+                                    onChange={(e) => {
+                                        const value = e.target.value;
+                                        if (isRatingFilter(value)) {
+                                            setRatingFilter(value);
+                                        }
+                                    }}
                                     className="border border-slate-200 rounded-lg px-3 py-2 text-sm"
                                 >
                                     <option value="all">All</option>
@@ -1056,7 +1169,12 @@ export function CampgroundDetailClient({
                                 <label className="text-sm text-slate-600">Sort</label>
                                 <select
                                     value={sortOption}
-                                    onChange={(e) => setSortOption(e.target.value as "relevant" | "newest" | "highest" | "lowest" | "photos")}
+                                    onChange={(e) => {
+                                        const value = e.target.value;
+                                        if (isSortOption(value)) {
+                                            setSortOption(value);
+                                        }
+                                    }}
                                     className="border border-slate-200 rounded-lg px-3 py-2 text-sm"
                                 >
                                     <option value="relevant">Most relevant</option>
@@ -1228,9 +1346,16 @@ export function CampgroundDetailClient({
                         <section className="mb-12">
                             <h2 className="text-2xl font-bold text-slate-900 mb-6">Upcoming Events & Activities</h2>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {campground.events.map((event) => (
-                                    <EventCard key={event.id} event={event} slug={slug} />
-                                ))}
+                                {campground.events.map((event, index) => {
+                                    const eventId = getString(event.id);
+                                    return (
+                                        <EventCard
+                                            key={eventId ?? `${index}`}
+                                            event={event}
+                                            slug={slug}
+                                        />
+                                    );
+                                })}
                             </div>
                         </section>
                     )}

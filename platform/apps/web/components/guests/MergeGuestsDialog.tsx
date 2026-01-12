@@ -24,7 +24,7 @@ type Guest = {
   primaryFirstName: string;
   primaryLastName: string;
   email: string;
-  phone: string;
+  phone?: string | null;
   vip?: boolean;
   city?: string | null;
   state?: string | null;
@@ -69,10 +69,11 @@ export function MergeGuestsDialog({
       onOpenChange(false);
       onSuccess?.();
     },
-    onError: (error: any) => {
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : "An error occurred while merging guests";
       toast({
         title: "Failed to merge guests",
-        description: error?.message || "An error occurred while merging guests",
+        description: message,
         variant: "destructive",
       });
     },

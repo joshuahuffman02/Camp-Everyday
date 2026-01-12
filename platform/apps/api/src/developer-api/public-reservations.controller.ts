@@ -6,6 +6,7 @@ import { PublicApiService, ApiReservationInput } from "./public-api.service";
 import { IsBoolean, IsDateString, IsNotEmpty, IsNumber, IsOptional, IsString } from "class-validator";
 import { ApiTags, ApiOperation, ApiResponse, ApiProperty, ApiBearerAuth } from "@nestjs/swagger";
 import type { Request } from "express";
+import type { ApiPrincipal } from "./types";
 
 class CreateReservationBody implements ApiReservationInput {
   @ApiProperty({ description: "ID of the site to reserve" })
@@ -73,6 +74,8 @@ class PaymentBody {
   method?: string;
 }
 
+type ApiRequest = Request & { apiPrincipal: ApiPrincipal };
+
 @ApiTags("Reservations")
 @ApiBearerAuth("bearer")
 @Controller("developer/reservations")
@@ -84,7 +87,7 @@ export class PublicReservationsController {
   @ApiScopes("reservations:read")
   @ApiOperation({ summary: "List reservations" })
   @ApiResponse({ status: 200, description: "List of reservations" })
-  list(@Req() req: Request) {
+  list(@Req() req: ApiRequest) {
     const campgroundId = req.apiPrincipal.campgroundId;
     return this.api.listReservations(campgroundId);
   }
@@ -94,7 +97,7 @@ export class PublicReservationsController {
   @ApiOperation({ summary: "Get a reservation" })
   @ApiResponse({ status: 200, description: "Reservation details" })
   @ApiResponse({ status: 404, description: "Reservation not found" })
-  get(@Req() req: Request, @Param("id") id: string) {
+  get(@Req() req: ApiRequest, @Param("id") id: string) {
     const campgroundId = req.apiPrincipal.campgroundId;
     return this.api.getReservation(campgroundId, id);
   }
@@ -103,7 +106,7 @@ export class PublicReservationsController {
   @ApiScopes("reservations:write")
   @ApiOperation({ summary: "Create a reservation" })
   @ApiResponse({ status: 201, description: "Reservation created" })
-  create(@Req() req: Request, @Body() body: CreateReservationBody) {
+  create(@Req() req: ApiRequest, @Body() body: CreateReservationBody) {
     const campgroundId = req.apiPrincipal.campgroundId;
     return this.api.createReservation(campgroundId, body);
   }
@@ -112,7 +115,7 @@ export class PublicReservationsController {
   @ApiScopes("reservations:write")
   @ApiOperation({ summary: "Update a reservation" })
   @ApiResponse({ status: 200, description: "Reservation updated" })
-  update(@Req() req: Request, @Param("id") id: string, @Body() body: UpdateReservationBody) {
+  update(@Req() req: ApiRequest, @Param("id") id: string, @Body() body: UpdateReservationBody) {
     const campgroundId = req.apiPrincipal.campgroundId;
     return this.api.updateReservation(campgroundId, id, body);
   }
@@ -121,7 +124,7 @@ export class PublicReservationsController {
   @ApiScopes("reservations:write")
   @ApiOperation({ summary: "Delete a reservation" })
   @ApiResponse({ status: 200, description: "Reservation deleted" })
-  remove(@Req() req: Request, @Param("id") id: string) {
+  remove(@Req() req: ApiRequest, @Param("id") id: string) {
     const campgroundId = req.apiPrincipal.campgroundId;
     return this.api.deleteReservation(campgroundId, id);
   }
@@ -130,7 +133,7 @@ export class PublicReservationsController {
   @ApiScopes("reservations:write")
   @ApiOperation({ summary: "Record a payment" })
   @ApiResponse({ status: 201, description: "Payment recorded" })
-  pay(@Req() req: Request, @Param("id") id: string, @Body() body: PaymentBody) {
+  pay(@Req() req: ApiRequest, @Param("id") id: string, @Body() body: PaymentBody) {
     const campgroundId = req.apiPrincipal.campgroundId;
     return this.api.recordPayment(campgroundId, id, body.amountCents, body.method);
   }

@@ -1,4 +1,3 @@
-import type { Request } from "express";
 import {
   Controller,
   Post,
@@ -6,13 +5,13 @@ import {
   Body,
   Query,
   UseGuards,
-  Request,
+  Req,
   Logger,
   Param,
   HttpCode,
   HttpStatus,
-  ForbiddenException,
 } from '@nestjs/common';
+import type { Request as ExpressRequest } from "express";
 import { AuthGuard } from '@nestjs/passport';
 import { Throttle } from '@nestjs/throttler';
 import { ChatService } from './chat.service';
@@ -22,22 +21,13 @@ import { GetHistoryDto, ConversationHistoryResponse } from './dto/get-history.dt
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ScopeGuard } from '../auth/guards/scope.guard';
 import { ChatParticipantType, Guest } from '@prisma/client';
+import type { AuthUser } from "../auth/auth.types";
 
 // Types for authenticated staff requests
-interface StaffAuthenticatedRequest extends Request {
-  user: {
-    id: string;
-    email: string;
-    campgroundId?: string;
-    role?: string;
-    memberships?: { campgroundId: string; role: string }[];
-  };
-}
+type StaffAuthenticatedRequest = Omit<ExpressRequest, "user"> & { user: AuthUser };
 
 // Types for authenticated guest requests
-interface GuestAuthenticatedRequest extends Request {
-  user: Guest;
-}
+type GuestAuthenticatedRequest = Omit<ExpressRequest, "user"> & { user: Guest };
 
 @Controller('chat')
 export class ChatController {
@@ -50,7 +40,7 @@ export class ChatController {
    */
   private getStaffRole(req: StaffAuthenticatedRequest, campgroundId: string): string | undefined {
     const membership = req.user.memberships?.find(m => m.campgroundId === campgroundId);
-    return membership?.role || req.user.role;
+    return membership?.role ?? req.user.role ?? undefined;
   }
 
   /**
@@ -64,7 +54,7 @@ export class ChatController {
   async sendStaffMessage(
     @Param('campgroundId') campgroundId: string,
     @Body() dto: SendMessageDto,
-    @Request() req: StaffAuthenticatedRequest,
+    @Req() req: StaffAuthenticatedRequest,
   ): Promise<ChatMessageResponse> {
     this.logger.log(`Staff chat message from user ${req.user.id}`);
 
@@ -87,7 +77,7 @@ export class ChatController {
   async sendStaffMessageStream(
     @Param('campgroundId') campgroundId: string,
     @Body() dto: SendMessageDto,
-    @Request() req: StaffAuthenticatedRequest,
+    @Req() req: StaffAuthenticatedRequest,
   ): Promise<{ status: string; message: string }> {
     this.logger.log(`Staff chat stream from user ${req.user.id}`);
 
@@ -115,7 +105,7 @@ export class ChatController {
   async executeStaffAction(
     @Param('campgroundId') campgroundId: string,
     @Body() dto: ExecuteActionDto,
-    @Request() req: StaffAuthenticatedRequest,
+    @Req() req: StaffAuthenticatedRequest,
   ): Promise<ExecuteActionResponse> {
     return this.chatService.executeAction(dto, {
       campgroundId,
@@ -134,7 +124,7 @@ export class ChatController {
   async getStaffHistory(
     @Param('campgroundId') campgroundId: string,
     @Query() dto: GetHistoryDto,
-    @Request() req: StaffAuthenticatedRequest,
+    @Req() req: StaffAuthenticatedRequest,
   ): Promise<ConversationHistoryResponse> {
     return this.chatService.getHistory(dto, {
       campgroundId,
@@ -156,14 +146,11 @@ export class ChatController {
   async sendGuestMessage(
     @Param('campgroundId') campgroundId: string,
     @Body() dto: SendMessageDto,
-    @Request() req: GuestAuthenticatedRequest,
+    @Req() req: GuestAuthenticatedRequest,
   ): Promise<ChatMessageResponse> {
     const guest = req.user;
 
-    // Verify guest belongs to this campground
-    if (guest.campgroundId !== campgroundId) {
-      throw new ForbiddenException('You do not have access to this campground');
-    }
+    await this.chatService.assertGuestAccess(guest.id, campgroundId);
 
     this.logger.log(`Guest chat message from guest ${guest.id}`);
 
@@ -185,14 +172,11 @@ export class ChatController {
   async sendGuestMessageStream(
     @Param('campgroundId') campgroundId: string,
     @Body() dto: SendMessageDto,
-    @Request() req: GuestAuthenticatedRequest,
+    @Req() req: GuestAuthenticatedRequest,
   ): Promise<{ status: string; message: string }> {
     const guest = req.user;
 
-    // Verify guest belongs to this campground
-    if (guest.campgroundId !== campgroundId) {
-      throw new ForbiddenException('You do not have access to this campground');
-    }
+    await this.chatService.assertGuestAccess(guest.id, campgroundId);
 
     this.logger.log(`Guest chat stream from ${guest.id}`);
 
@@ -219,14 +203,11 @@ export class ChatController {
   async executeGuestAction(
     @Param('campgroundId') campgroundId: string,
     @Body() dto: ExecuteActionDto,
-    @Request() req: GuestAuthenticatedRequest,
+    @Req() req: GuestAuthenticatedRequest,
   ): Promise<ExecuteActionResponse> {
     const guest = req.user;
 
-    // Verify guest belongs to this campground
-    if (guest.campgroundId !== campgroundId) {
-      throw new ForbiddenException('You do not have access to this campground');
-    }
+    await this.chatService.assertGuestAccess(guest.id, campgroundId);
 
     return this.chatService.executeAction(dto, {
       campgroundId,
@@ -244,14 +225,11 @@ export class ChatController {
   async getGuestHistory(
     @Param('campgroundId') campgroundId: string,
     @Query() dto: GetHistoryDto,
-    @Request() req: GuestAuthenticatedRequest,
+    @Req() req: GuestAuthenticatedRequest,
   ): Promise<ConversationHistoryResponse> {
     const guest = req.user;
 
-    // Verify guest belongs to this campground
-    if (guest.campgroundId !== campgroundId) {
-      throw new ForbiddenException('You do not have access to this campground');
-    }
+    await this.chatService.assertGuestAccess(guest.id, campgroundId);
 
     return this.chatService.getHistory(dto, {
       campgroundId,

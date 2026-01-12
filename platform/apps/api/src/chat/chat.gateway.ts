@@ -23,25 +23,31 @@ interface AuthenticatedChatSocket extends Socket {
   };
 }
 
+type ChatToolCall = {
+  id: string;
+  name: string;
+  args: Record<string, unknown>;
+};
+
+type ChatToolResult = {
+  toolCallId: string;
+  result: unknown;
+};
+
+type ChatActionRequired = {
+  type: string;
+  actionId: string;
+  title: string;
+  description: string;
+  options?: Array<{ id: string; label: string; variant?: string }>;
+};
+
 interface ChatStreamToken {
   token: string;
   isComplete: boolean;
-  toolCall?: {
-    id: string;
-    name: string;
-    args: Record<string, unknown>;
-  };
-  toolResult?: {
-    toolCallId: string;
-    result: any;
-  };
-  actionRequired?: {
-    type: string;
-    actionId: string;
-    title: string;
-    description: string;
-    options?: Array<{ id: string; label: string; variant?: string }>;
-  };
+  toolCall?: ChatToolCall;
+  toolResult?: ChatToolResult;
+  actionRequired?: ChatActionRequired;
 }
 
 /**
@@ -68,7 +74,7 @@ export class ChatGateway
   implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
 {
   @WebSocketServer()
-  server: Server;
+  server!: Server;
 
   private readonly logger = new Logger(ChatGateway.name);
   private connectedClients = new Map<string, AuthenticatedChatSocket>();
@@ -102,13 +108,12 @@ export class ChatGateway
 
       // Guest authentication (via guestId header)
       if (guestId) {
-        // Validate guest exists and belongs to this campground
-        const guest = await this.prisma.guest.findUnique({
-          where: { id: guestId },
-          select: { id: true, campgroundId: true },
+        const reservation = await this.prisma.reservation.findFirst({
+          where: { guestId, campgroundId },
+          select: { id: true },
         });
 
-        if (!guest || guest.campgroundId !== campgroundId) {
+        if (!reservation) {
           this.logger.warn(`Chat connection rejected: Invalid guest ${guestId}`);
           client.emit("error", { message: "Invalid guest credentials" });
           client.disconnect();
@@ -117,7 +122,7 @@ export class ChatGateway
 
         participantType = ChatParticipantType.guest;
         participantId = guestId;
-        campgroundIds = [guest.campgroundId];
+        campgroundIds = [campgroundId];
       }
       // Staff authentication (via JWT)
       else if (token) {
@@ -161,12 +166,13 @@ export class ChatGateway
       }
 
       // Store participant data on socket
-      const authSocket = client as AuthenticatedChatSocket;
-      authSocket.data = {
-        participantType,
-        participantId,
-        campgroundIds,
-      };
+      const authSocket: AuthenticatedChatSocket = Object.assign(client, {
+        data: {
+          participantType,
+          participantId,
+          campgroundIds,
+        },
+      });
 
       // Join participant's chat room
       await client.join(`chat:${campgroundId}:${participantId}`);
@@ -283,9 +289,9 @@ export class ChatGateway
     data: {
       messageId: string;
       content: string;
-      toolCalls?: any[];
-      toolResults?: any[];
-      actionRequired?: any;
+      toolCalls?: ChatToolCall[];
+      toolResults?: ChatToolResult[];
+      actionRequired?: ChatActionRequired;
     }
   ) {
     this.server.to(`conversation:${conversationId}`).emit("chat:complete", {
@@ -311,7 +317,7 @@ export class ChatGateway
     campgroundId: string,
     participantId: string,
     event: string,
-    data: any
+    data: Record<string, unknown>
   ) {
     this.server
       .to(`chat:${campgroundId}:${participantId}`)

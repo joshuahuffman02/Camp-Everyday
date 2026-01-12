@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, type Transition } from "framer-motion";
 import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
 import { DashboardShell } from "@/components/ui/layout/DashboardShell";
@@ -22,12 +22,15 @@ import { useSession } from "next-auth/react";
 import { useToast } from "@/components/ui/use-toast";
 import { MobileQuickActionsBar } from "@/components/staff/MobileQuickActionsBar";
 import { cn } from "@/lib/utils";
+import type { Guest } from "@keepr/shared";
 
-const SPRING_CONFIG = {
-    type: "spring" as const,
+const SPRING_CONFIG: Transition = {
+    type: "spring",
     stiffness: 300,
     damping: 25,
 };
+
+const STATUS_FILTERS: Array<"all" | "failed"> = ["all", "failed"];
 
 type Message = {
     id: string;
@@ -75,6 +78,33 @@ type Conversation = {
     lastMessage: Message | null;
 };
 
+type RawConversation = {
+    reservationId: string;
+    guestName: string;
+    guestEmail?: string | null;
+    guestPhone?: string | null;
+    guestId?: string | null;
+    siteName: string;
+    siteType?: string | null;
+    status: string;
+    arrivalDate?: string | null;
+    departureDate?: string | null;
+    adults?: number | null;
+    children?: number | null;
+    pets?: number | null;
+    totalAmountCents?: number | null;
+    notes?: string | null;
+    messages: Message[];
+    unreadCount?: number;
+    lastMessage?: Message | null;
+};
+
+declare global {
+    interface Window {
+        webkitAudioContext?: typeof AudioContext;
+    }
+}
+
 export default function MessagesPage() {
     const { data: session } = useSession();
     const { toast } = useToast();
@@ -113,14 +143,15 @@ export default function MessagesPage() {
     useEffect(() => {
         const handleKeyPress = (e: KeyboardEvent) => {
             // Ignore if user is typing in an input
-            if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA') {
+            const target = e.target;
+            if (target instanceof HTMLElement && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) {
                 return;
             }
 
             // Cmd/Ctrl + K: Focus search
             if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
                 e.preventDefault();
-                const searchInput = document.querySelector('input[placeholder="Search..."]') as HTMLInputElement;
+                const searchInput = document.querySelector<HTMLInputElement>('input[placeholder="Search..."]');
                 searchInput?.focus();
             }
 
@@ -189,7 +220,7 @@ export default function MessagesPage() {
     });
 
     // Get guests for compose search - only when user starts typing
-    const { data: searchedGuests = [] } = useQuery({
+    const { data: searchedGuests = [] } = useQuery<Guest[]>({
         queryKey: ["guests-search", campground?.id, composeGuestSearch],
         queryFn: () => apiClient.getGuests(campground!.id, {
             search: composeGuestSearch,
@@ -201,7 +232,7 @@ export default function MessagesPage() {
 
     // Fetch all conversations in a single API call (much faster than N sequential calls)
     // Poll every 5 seconds for real-time updates
-    const { data: rawConversations = [], isLoading: loadingConversations } = useQuery({
+    const { data: rawConversations = [], isLoading: loadingConversations } = useQuery<RawConversation[]>({
         queryKey: ["conversations", campground?.id],
         queryFn: () => apiClient.getConversations(campground!.id),
         enabled: !!campground?.id,
@@ -236,7 +267,7 @@ export default function MessagesPage() {
                     {
                         id: "demo-msg-1",
                         content: "Hey! Just testing the inbox. Everything looks good.",
-                        senderType: "guest" as const,
+                        senderType: "guest",
                         createdAt: now,
                         readAt: now,
                         guest: { id: "demo-guest", primaryFirstName: "Demo", primaryLastName: "Guest" }
@@ -245,7 +276,7 @@ export default function MessagesPage() {
                 lastMessage: {
                     id: "demo-msg-1",
                     content: "Hey! Just testing the inbox. Everything looks good.",
-                    senderType: "guest" as const,
+                    senderType: "guest",
                     createdAt: now,
                     readAt: now,
                     guest: { id: "demo-guest", primaryFirstName: "Demo", primaryLastName: "Guest" }
@@ -254,10 +285,10 @@ export default function MessagesPage() {
         }
 
         // Transform raw conversations to expected format
-        return rawConversations.map((conv: any) => {
+        return rawConversations.map((conv) => {
             // Apply date filter if set
             const filteredMsgs = dateRange.start || dateRange.end
-                ? conv.messages.filter((m: any) => {
+                ? conv.messages.filter((m) => {
                     const created = new Date(m.createdAt);
                     const startOk = dateRange.start ? created >= new Date(dateRange.start) : true;
                     const endOk = dateRange.end ? created <= new Date(dateRange.end) : true;
@@ -265,7 +296,8 @@ export default function MessagesPage() {
                 })
                 : conv.messages;
 
-            return {
+            const unreadCount = filteredMsgs.filter((m) => m.senderType === "guest" && !m.readAt).length;
+            const conversation: Conversation = {
                 reservationId: conv.reservationId,
                 guestName: conv.guestName,
                 guestEmail: conv.guestEmail || null,
@@ -282,16 +314,17 @@ export default function MessagesPage() {
                 totalAmountCents: conv.totalAmountCents || null,
                 notes: conv.notes || null,
                 messages: filteredMsgs,
-                unreadCount: filteredMsgs.filter((m: any) => m.senderType === "guest" && !m.readAt).length,
+                unreadCount,
                 lastMessage: filteredMsgs[filteredMsgs.length - 1] || null
-            } as Conversation;
+            };
+            return conversation;
         });
     }, [rawConversations, dateRange]);
 
     // Play notification sound helper
     const playNotificationSound = () => {
         try {
-            const AudioContextClass = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
             if (!AudioContextClass) return;
             const audioContext = new AudioContextClass();
             const oscillator = audioContext.createOscillator();
@@ -351,7 +384,7 @@ export default function MessagesPage() {
 
     // Function to update conversations after sending a message
     const updateConversationMessages = (reservationId: string, newMessage: Message) => {
-        queryClient.setQueryData(["conversations", campground?.id], (old: typeof rawConversations) => {
+        queryClient.setQueryData<RawConversation[]>(["conversations", campground?.id], (old) => {
             if (!old) return old;
             return old.map(conv =>
                 conv.reservationId === reservationId
@@ -369,7 +402,7 @@ export default function MessagesPage() {
     }, [campground?.id, selectedInternalConversationId]);
 
     // Get internal conversations
-    const { data: internalConversations = [] } = useQuery({
+    const { data: internalConversations = [] } = useQuery<InternalConversation[]>({
         queryKey: ["internal-conversations", campground?.id],
         queryFn: () => apiClient.getInternalConversations(campground!.id),
         enabled: !!campground?.id
@@ -384,7 +417,7 @@ export default function MessagesPage() {
     }, [activeTab, internalConversations, selectedInternalConversationId]);
 
     // Get internal messages
-    const { data: internalMessages = [] } = useQuery({
+    const { data: internalMessages = [] } = useQuery<InternalMessage[]>({
         queryKey: ["internal-messages", selectedInternalConversationId],
         queryFn: () => apiClient.getInternalMessages(selectedInternalConversationId!),
         enabled: !!selectedInternalConversationId,
@@ -609,7 +642,7 @@ export default function MessagesPage() {
             try {
                 await apiClient.markMessagesAsRead(conv.reservationId, "staff");
                 // Update the cache to mark messages as read
-                queryClient.setQueryData(["conversations", campground?.id], (old: typeof rawConversations) => {
+                queryClient.setQueryData<RawConversation[]>(["conversations", campground?.id], (old) => {
                     if (!old) return old;
                     return old.map(c =>
                         c.reservationId === conv.reservationId
@@ -985,7 +1018,7 @@ export default function MessagesPage() {
                             <div className="flex items-center gap-2">
                                 <span className="text-xs text-muted-foreground font-medium">Status:</span>
                                 <div className="flex gap-1">
-                                    {(["all", "failed"] as const).map((f) => (
+                                    {STATUS_FILTERS.map((f) => (
                                         <button
                                             key={f}
                                             className={cn(
@@ -1661,13 +1694,13 @@ export default function MessagesPage() {
 
                                 <div className="flex-1 overflow-y-auto p-3 sm:p-4">
                                     <div className="space-y-4">
-                                        {(internalMessages as InternalMessage[]).length === 0 ? (
+                                        {internalMessages.length === 0 ? (
                                             <div className="flex flex-col items-center gap-2 text-muted-foreground py-4 border border-dashed rounded-md bg-muted/30">
                                                 <MessageSquare className="h-8 w-8 opacity-50" />
                                                 <p>No messages yet</p>
                                             </div>
                                         ) : (
-                                            (internalMessages as InternalMessage[]).map((msg) => (
+                                            internalMessages.map((msg) => (
                                                 <div key={msg.id} className={`flex flex-col gap-1 ${msg.senderId === session?.user?.id ? "items-end" : "items-start"}`}>
                                                     <div className="flex items-center gap-2">
                                                         <span className="font-medium text-sm">
@@ -2129,7 +2162,7 @@ export default function MessagesPage() {
                                     />
                                     {searchedGuests.length > 0 && (
                                         <div className="absolute top-full left-0 right-0 mt-1 border rounded-md bg-popover shadow-lg z-50 max-h-48 overflow-y-auto">
-                                            {searchedGuests.map((guest: any) => (
+                                            {searchedGuests.map((guest) => (
                                                 <button
                                                     key={guest.id}
                                                     type="button"
@@ -2149,12 +2182,14 @@ export default function MessagesPage() {
                                                             name: `${guest.primaryFirstName || ""} ${guest.primaryLastName || ""}`.trim() || "Unknown Guest",
                                                             email: guest.email || undefined,
                                                             phone: guest.phone || undefined,
-                                                            reservations: guestReservations.length > 0 ? guestReservations : guest.reservations?.map((r: any) => ({
-                                                                id: r.id,
-                                                                siteName: r.site?.siteNumber || "Unknown Site",
-                                                                arrivalDate: r.arrivalDate,
-                                                                status: r.status || "confirmed"
-                                                            })) || []
+                                                            reservations: guestReservations.length > 0
+                                                                ? guestReservations
+                                                                : guest.reservations?.map((reservation) => ({
+                                                                    id: reservation.id || "",
+                                                                    siteName: reservation.site?.siteNumber || "Unknown Site",
+                                                                    arrivalDate: reservation.arrivalDate || "",
+                                                                    status: reservation.status || "confirmed"
+                                                                })) || []
                                                         });
                                                         setComposeSelectedReservation(null);
                                                         setComposeGuestSearch("");

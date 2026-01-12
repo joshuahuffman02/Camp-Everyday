@@ -66,6 +66,15 @@ export const SECURITY_CATEGORIES: Record<SecurityCategory, { label: string; desc
   }
 };
 
+const SECURITY_CATEGORY_KEYS: SecurityCategory[] = [
+  "access_management",
+  "physical_security",
+  "employee_training",
+  "incident_response",
+  "privacy_practices",
+  "vendor_management",
+];
+
 /**
  * Platform Protections - Handled by Campreserv
  * These are always active and not configurable by campground operators
@@ -535,9 +544,16 @@ export function getSecurityAssessmentStats(assessment: SecurityAssessmentData): 
   const requiredItems = SECURITY_CHECKLIST.filter(item => item.required);
   const completedRequired = requiredItems.filter(item => completedSet.has(item.id));
 
-  const categoryProgress = {} as Record<SecurityCategory, { completed: number; total: number; points: number; maxPoints: number }>;
+  const categoryProgress: Record<SecurityCategory, { completed: number; total: number; points: number; maxPoints: number }> = {
+    access_management: { completed: 0, total: 0, points: 0, maxPoints: 0 },
+    physical_security: { completed: 0, total: 0, points: 0, maxPoints: 0 },
+    employee_training: { completed: 0, total: 0, points: 0, maxPoints: 0 },
+    incident_response: { completed: 0, total: 0, points: 0, maxPoints: 0 },
+    privacy_practices: { completed: 0, total: 0, points: 0, maxPoints: 0 },
+    vendor_management: { completed: 0, total: 0, points: 0, maxPoints: 0 },
+  };
 
-  for (const category of Object.keys(SECURITY_CATEGORIES) as SecurityCategory[]) {
+  for (const category of SECURITY_CATEGORY_KEYS) {
     const categoryItems = SECURITY_CHECKLIST.filter(item => item.category === category);
     const completedCategoryItems = categoryItems.filter(item => completedSet.has(item.id));
 

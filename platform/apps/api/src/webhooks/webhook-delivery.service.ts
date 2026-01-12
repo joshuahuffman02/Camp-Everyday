@@ -1,7 +1,9 @@
-import { Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { Injectable, Logger, NotFoundException, BadRequestException } from "@nestjs/common";
+import { randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { WebhookSecurityService } from "./webhook-security.service";
 import { WebhookEvent } from "./event-catalog";
+import type { Prisma } from "@prisma/client";
 
 /**
  * Retry configuration for webhook deliveries
@@ -36,6 +38,20 @@ export interface DeliveryResult {
   errorMessage?: string;
   deliveredAt?: Date;
 }
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const isJsonValue = (value: unknown): value is Prisma.InputJsonValue => {
+  if (value === null) return true;
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return true;
+  if (Array.isArray(value)) return value.every(isJsonValue);
+  if (isRecord(value)) return Object.values(value).every(isJsonValue);
+  return false;
+};
+
+const toJsonInput = (value: unknown): Prisma.InputJsonValue | undefined =>
+  isJsonValue(value) ? value : undefined;
 
 @Injectable()
 export class WebhookDeliveryService {
@@ -107,9 +123,14 @@ export class WebhookDeliveryService {
     eventType: WebhookEvent,
     payload: Record<string, unknown>
   ): Promise<string> {
-    const eventPayload = {
+    const payloadValue = toJsonInput(payload);
+    if (!payloadValue) {
+      throw new BadRequestException("Webhook payload must be JSON-serializable");
+    }
+
+    const eventPayload: Prisma.InputJsonValue = {
       event: eventType,
-      data: payload,
+      data: payloadValue,
       timestamp: new Date().toISOString(),
     };
 
@@ -122,6 +143,7 @@ export class WebhookDeliveryService {
     // Create delivery record
     const delivery = await this.prisma.webhookDelivery.create({
       data: {
+        id: randomUUID(),
         webhookEndpointId: endpoint.id,
         eventType,
         status: "pending",
@@ -306,7 +328,7 @@ export class WebhookDeliveryService {
         status: "retrying",
         nextRetryAt: { lte: new Date() },
       },
-      include: { webhookEndpoint: true },
+      include: { WebhookEndpoint: true },
       take: batchSize,
     });
 
@@ -314,7 +336,7 @@ export class WebhookDeliveryService {
     let failed = 0;
 
     for (const delivery of pendingRetries) {
-      if (!delivery.webhookEndpoint || !delivery.webhookEndpoint.isActive) {
+      if (!delivery.WebhookEndpoint || !delivery.WebhookEndpoint.isActive) {
         // Endpoint disabled or deleted - move to dead letter
         await this.prisma.webhookDelivery.update({
           where: { id: delivery.id },
@@ -336,8 +358,8 @@ export class WebhookDeliveryService {
 
       const result = await this.attemptDelivery(
         delivery.id,
-        delivery.webhookEndpoint.url,
-        delivery.webhookEndpoint.secret,
+        delivery.WebhookEndpoint.url,
+        delivery.WebhookEndpoint.secret,
         body
       );
 
@@ -371,10 +393,10 @@ export class WebhookDeliveryService {
       webhookEndpoint: { id: string; url: string };
     }>
   > {
-    return this.prisma.webhookDelivery.findMany({
+    const deliveries = await this.prisma.webhookDelivery.findMany({
       where: {
         status: "dead_letter",
-        webhookEndpoint: { campgroundId },
+        WebhookEndpoint: { campgroundId },
       },
       select: {
         id: true,
@@ -382,13 +404,18 @@ export class WebhookDeliveryService {
         payload: true,
         errorMessage: true,
         createdAt: true,
-        webhookEndpoint: {
+        WebhookEndpoint: {
           select: { id: true, url: true },
         },
       },
       orderBy: { createdAt: "desc" },
       take: limit,
     });
+
+    return deliveries.map(({ WebhookEndpoint, ...delivery }) => ({
+      ...delivery,
+      webhookEndpoint: WebhookEndpoint,
+    }));
   }
 
   /**
@@ -397,7 +424,7 @@ export class WebhookDeliveryService {
   async retryDeadLetter(deliveryId: string): Promise<DeliveryResult> {
     const delivery = await this.prisma.webhookDelivery.findUnique({
       where: { id: deliveryId },
-      include: { webhookEndpoint: true },
+      include: { WebhookEndpoint: true },
     });
 
     if (!delivery) {
@@ -410,7 +437,7 @@ export class WebhookDeliveryService {
       );
     }
 
-    if (!delivery.webhookEndpoint || !delivery.webhookEndpoint.isActive) {
+    if (!delivery.WebhookEndpoint || !delivery.WebhookEndpoint.isActive) {
       throw new NotFoundException("Webhook endpoint is disabled or deleted");
     }
 
@@ -433,8 +460,8 @@ export class WebhookDeliveryService {
 
     return this.attemptDelivery(
       deliveryId,
-      delivery.webhookEndpoint.url,
-      delivery.webhookEndpoint.secret,
+      delivery.WebhookEndpoint.url,
+      delivery.WebhookEndpoint.secret,
       body
     );
   }

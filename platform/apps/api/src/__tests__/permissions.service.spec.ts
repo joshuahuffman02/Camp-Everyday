@@ -1,31 +1,59 @@
+import { Test, TestingModule } from "@nestjs/testing";
 import { PermissionEffect, UserRole } from "@prisma/client";
 import { PermissionsService } from "../permissions/permissions.service";
+import { PrismaService } from "../prisma/prisma.service";
+import { buildAuthMembership, buildAuthUser } from "../test-helpers/auth";
 
 describe("PermissionsService", () => {
-  const prismaMock: any = {
-    permissionRule: {
-      findMany: jest.fn(),
-      upsert: jest.fn(),
-      delete: jest.fn()
-    },
-    approvalRequest: {
-      create: jest.fn(),
-      findUnique: jest.fn(),
-      update: jest.fn(),
-      findMany: jest.fn()
-    }
+  type PrismaMock = {
+    permissionRule: { findMany: jest.Mock; findFirst: jest.Mock; create: jest.Mock; update: jest.Mock; delete: jest.Mock };
+    approvalRequest: { create: jest.Mock; findUnique: jest.Mock; update: jest.Mock; findMany: jest.Mock };
   };
 
-  const service = new PermissionsService(prismaMock);
+  let service: PermissionsService;
+  let prismaMock: PrismaMock;
+  let moduleRef: TestingModule;
 
-  beforeEach(() => {
+  const buildUserForCampground = (campgroundId: string, role: UserRole, overrides: Parameters<typeof buildAuthUser>[0] = {}) =>
+    buildAuthUser({
+      role,
+      memberships: [buildAuthMembership({ campgroundId, role })],
+      ...overrides,
+    });
+
+  beforeEach(async () => {
+    prismaMock = {
+      permissionRule: {
+        findMany: jest.fn(),
+        findFirst: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
+        delete: jest.fn()
+      },
+      approvalRequest: {
+        create: jest.fn(),
+        findUnique: jest.fn(),
+        update: jest.fn(),
+        findMany: jest.fn()
+      }
+    };
+
+    moduleRef = await Test.createTestingModule({
+      providers: [PermissionsService, { provide: PrismaService, useValue: prismaMock }]
+    }).compile();
+
+    service = moduleRef.get(PermissionsService);
+  });
+
+  afterEach(async () => {
     jest.clearAllMocks();
+    await moduleRef.close();
   });
 
   it("denies when no rules match", async () => {
     prismaMock.permissionRule.findMany.mockResolvedValue([]);
     const res = await service.checkAccess({
-      user: { memberships: [{ campgroundId: "camp1", role: UserRole.front_desk }] },
+      user: buildUserForCampground("camp1", UserRole.front_desk),
       campgroundId: "camp1",
       region: "r1",
       resource: "communications",
@@ -46,7 +74,7 @@ describe("PermissionsService", () => {
     ]);
 
     const res = await service.checkAccess({
-      user: { memberships: [{ campgroundId: "camp1", role: UserRole.front_desk }], region: "r1" },
+      user: buildUserForCampground("camp1", UserRole.front_desk, { region: "r1" }),
       campgroundId: "camp1",
       region: "r1",
       resource: "communications",
@@ -68,7 +96,7 @@ describe("PermissionsService", () => {
     ]);
 
     const res = await service.checkAccess({
-      user: { memberships: [{ campgroundId: "camp1", role: UserRole.front_desk }] },
+      user: buildUserForCampground("camp1", UserRole.front_desk),
       campgroundId: "camp1",
       region: "r1",
       resource: "communications",
@@ -78,7 +106,8 @@ describe("PermissionsService", () => {
   });
 
   it("persists regions inside fields on upsert", async () => {
-    prismaMock.permissionRule.upsert.mockResolvedValue({});
+    prismaMock.permissionRule.findFirst.mockResolvedValue(null);
+    prismaMock.permissionRule.create.mockResolvedValue({});
     await service.upsertRule({
       campgroundId: "camp1",
       role: UserRole.front_desk,
@@ -88,9 +117,9 @@ describe("PermissionsService", () => {
       regions: ["r1"],
       effect: PermissionEffect.allow
     });
-    expect(prismaMock.permissionRule.upsert).toHaveBeenCalledWith(
+    expect(prismaMock.permissionRule.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        create: expect.objectContaining({
+        data: expect.objectContaining({
           fields: expect.arrayContaining(["body", "__region:r1"])
         })
       })
@@ -99,7 +128,7 @@ describe("PermissionsService", () => {
 
   it("treats owners/managers as superusers", async () => {
     const resOwner = await service.checkAccess({
-      user: { role: UserRole.owner, memberships: [] },
+      user: buildAuthUser({ role: UserRole.owner, memberships: [] }),
       campgroundId: "campX",
       region: "r1",
       resource: "finance",
@@ -108,7 +137,7 @@ describe("PermissionsService", () => {
     expect(resOwner.allowed).toBe(true);
 
     const resManager = await service.checkAccess({
-      user: { role: UserRole.manager, memberships: [] },
+      user: buildAuthUser({ role: UserRole.manager, memberships: [] }),
       campgroundId: "campX",
       region: "r1",
       resource: "finance",
@@ -138,7 +167,7 @@ describe("PermissionsService", () => {
     ]);
 
     const res = await service.checkAccess({
-      user: { memberships: [{ campgroundId: "camp1", role: UserRole.front_desk }] },
+      user: buildUserForCampground("camp1", UserRole.front_desk),
       campgroundId: "camp1",
       region: null,
       resource: "communications",
@@ -159,7 +188,7 @@ describe("PermissionsService", () => {
     ]);
 
     const res = await service.checkAccess({
-      user: { memberships: [{ campgroundId: "camp1", role: UserRole.front_desk }], region: "r1" },
+      user: buildUserForCampground("camp1", UserRole.front_desk, { region: "r1" }),
       campgroundId: "camp1",
       region: "r1",
       resource: "communications",
@@ -168,4 +197,3 @@ describe("PermissionsService", () => {
     expect(res.allowed).toBe(false);
   });
 });
-

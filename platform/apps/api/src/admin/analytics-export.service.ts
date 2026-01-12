@@ -1,7 +1,8 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
+import { randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { GuestAnalyticsService } from "./guest-analytics.service";
-import { AnalyticsType, ExportFormat, ExportStatus, SegmentScope } from "@prisma/client";
+import { AnalyticsType, ExportFormat, ExportStatus, SegmentScope, Prisma } from "@prisma/client";
 
 interface ExportRequest {
   analyticsType: AnalyticsType;
@@ -13,6 +14,29 @@ interface ExportRequest {
   includePII?: boolean;
   emailTo?: string[];
 }
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const toStringValue = (value: unknown): string => {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return "";
+};
+
+const toNumberValue = (value: unknown): number => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+};
+
+const toRecordArray = (value: unknown): Record<string, unknown>[] => {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is Record<string, unknown> => isRecord(item));
+};
 
 @Injectable()
 export class AnalyticsExportService {
@@ -28,26 +52,30 @@ export class AnalyticsExportService {
     userId: string,
     userEmail: string
   ) {
+    const scope = request.campgroundId
+      ? SegmentScope.campground
+      : request.organizationId
+      ? SegmentScope.organization
+      : SegmentScope.global;
+    const data: Prisma.AnalyticsExportUncheckedCreateInput = {
+      id: randomUUID(),
+      analyticsType: request.analyticsType,
+      format: request.format,
+      status: ExportStatus.pending,
+      scope,
+      dateRange: request.dateRange || "last_30_days",
+      includePII: request.includePII || false,
+      requestedBy: userId,
+      requestedByEmail: userEmail,
+      emailTo: request.emailTo || [],
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      ...(request.campgroundId ? { campgroundId: request.campgroundId } : {}),
+      ...(request.organizationId ? { organizationId: request.organizationId } : {}),
+      ...(request.segmentId ? { segmentId: request.segmentId } : {}),
+    };
+
     const exportRecord = await this.prisma.analyticsExport.create({
-      data: {
-        analyticsType: request.analyticsType,
-        format: request.format,
-        status: ExportStatus.pending,
-        scope: request.campgroundId
-          ? SegmentScope.campground
-          : request.organizationId
-          ? SegmentScope.organization
-          : SegmentScope.global,
-        campgroundId: request.campgroundId,
-        organizationId: request.organizationId,
-        segmentId: request.segmentId,
-        dateRange: request.dateRange || "last_30_days",
-        includePII: request.includePII || false,
-        requestedBy: userId,
-        requestedByEmail: userEmail,
-        emailTo: request.emailTo || [],
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-      },
+      data,
     });
 
     // Process export (in production, this would be a background job)
@@ -164,87 +192,72 @@ export class AnalyticsExportService {
     }
   }
 
-  private convertToCsv(data: any, analyticsType: AnalyticsType): string {
+  private convertToCsv(data: unknown, analyticsType: AnalyticsType): string {
     const rows: string[] = [];
+    const record = isRecord(data) ? data : {};
 
     switch (analyticsType) {
       case AnalyticsType.overview:
         rows.push("Metric,Value");
-        rows.push(`Total Guests,${data.totalGuests}`);
-        rows.push(`New Guests This Month,${data.newGuestsThisMonth}`);
-        rows.push(`New Guests Last Month,${data.newGuestsLastMonth}`);
-        rows.push(`Repeat Guests,${data.repeatGuests}`);
-        rows.push(`Repeat Rate,${data.repeatRate}%`);
-        rows.push(`Average Party Size,${data.avgPartySize}`);
-        rows.push(`Average Stay Length,${data.avgStayLength} nights`);
-        rows.push(`Average Lead Time,${data.avgLeadTime} days`);
+        rows.push(`Total Guests,${toNumberValue(record.totalGuests)}`);
+        rows.push(`New Guests This Month,${toNumberValue(record.newGuestsThisMonth)}`);
+        rows.push(`New Guests Last Month,${toNumberValue(record.newGuestsLastMonth)}`);
+        rows.push(`Repeat Guests,${toNumberValue(record.repeatGuests)}`);
+        rows.push(`Repeat Rate,${toNumberValue(record.repeatRate)}%`);
+        rows.push(`Average Party Size,${toNumberValue(record.avgPartySize)}`);
+        rows.push(`Average Stay Length,${toNumberValue(record.avgStayLength)} nights`);
+        rows.push(`Average Lead Time,${toNumberValue(record.avgLeadTime)} days`);
         break;
 
       case AnalyticsType.geographic:
         rows.push("Region Type,Region,Guest Count,Percentage");
-        if (data.byCountry) {
-          data.byCountry.forEach((item: any) => {
-            rows.push(`Country,${item.country},${item.count},${item.percentage}%`);
-          });
-        }
-        if (data.byState) {
-          data.byState.forEach((item: any) => {
-            rows.push(`State/Province,${item.state},${item.count},${item.percentage}%`);
-          });
-        }
-        if (data.topCities) {
-          data.topCities.forEach((item: any) => {
-            rows.push(`City,${item.city},${item.count},${item.percentage}%`);
-          });
-        }
+        toRecordArray(record.byCountry).forEach((item) => {
+          rows.push(`Country,${toStringValue(item.country)},${toNumberValue(item.count)},${toNumberValue(item.percentage)}%`);
+        });
+        toRecordArray(record.byState).forEach((item) => {
+          rows.push(`State/Province,${toStringValue(item.state)},${toNumberValue(item.count)},${toNumberValue(item.percentage)}%`);
+        });
+        toRecordArray(record.topCities).forEach((item) => {
+          rows.push(`City,${toStringValue(item.city)},${toNumberValue(item.count)},${toNumberValue(item.percentage)}%`);
+        });
         break;
 
       case AnalyticsType.demographics:
         rows.push("Category,Segment,Count,Percentage");
-        if (data.partyComposition) {
-          data.partyComposition.forEach((item: any) => {
-            rows.push(`Party Composition,${item.type},${item.count},${item.percentage}%`);
-          });
-        }
-        if (data.rigTypes) {
-          data.rigTypes.forEach((item: any) => {
-            rows.push(`RV Type,${item.type},${item.count},${item.percentage}%`);
-          });
-        }
+        toRecordArray(record.partyComposition).forEach((item) => {
+          rows.push(`Party Composition,${toStringValue(item.type)},${toNumberValue(item.count)},${toNumberValue(item.percentage)}%`);
+        });
+        toRecordArray(record.rigTypes).forEach((item) => {
+          rows.push(`RV Type,${toStringValue(item.type)},${toNumberValue(item.count)},${toNumberValue(item.percentage)}%`);
+        });
         break;
 
       case AnalyticsType.seasonal_trends:
         rows.push("Month,Year,Reservations,Revenue,Avg Stay Length");
-        if (data.monthlyData) {
-          data.monthlyData.forEach((item: any) => {
-            rows.push(
-              `${item.month},${item.year},${item.reservations},${item.revenue},${item.avgStayLength}`
-            );
-          });
-        }
+        toRecordArray(record.monthlyData).forEach((item) => {
+          rows.push(
+            `${toStringValue(item.month)},${toNumberValue(item.year)},${toNumberValue(item.reservations)},${toNumberValue(item.revenue)},${toNumberValue(item.avgStayLength)}`
+          );
+        });
         break;
 
       case AnalyticsType.travel_behavior:
         rows.push("Category,Item,Count,Percentage");
-        if (data.stayReasons) {
-          data.stayReasons.forEach((item: any) => {
-            rows.push(`Stay Reason,${item.reason},${item.count},${item.percentage}%`);
-          });
-        }
-        if (data.bookingSources) {
-          data.bookingSources.forEach((item: any) => {
-            rows.push(`Booking Source,${item.source},${item.count},${item.percentage}%`);
-          });
-        }
+        toRecordArray(record.stayReasons).forEach((item) => {
+          rows.push(`Stay Reason,${toStringValue(item.reason)},${toNumberValue(item.count)},${toNumberValue(item.percentage)}%`);
+        });
+        toRecordArray(record.bookingSources).forEach((item) => {
+          rows.push(`Booking Source,${toStringValue(item.source)},${toNumberValue(item.count)},${toNumberValue(item.percentage)}%`);
+        });
         break;
 
       case AnalyticsType.full_report:
         // Full report as flattened CSV
         rows.push("Section,Metric,Value");
-        if (data.overview) {
-          rows.push(`Overview,Total Guests,${data.overview.totalGuests}`);
-          rows.push(`Overview,Repeat Rate,${data.overview.repeatRate}%`);
-          rows.push(`Overview,Avg Stay,${data.overview.avgStayLength} nights`);
+        if (isRecord(record.overview)) {
+          rows.push(`Overview,Total Guests,${toNumberValue(record.overview.totalGuests)}`);
+          rows.push(`Overview,Repeat Rate,${toNumberValue(record.overview.repeatRate)}%`);
+          rows.push(`Overview,Avg Stay,${toNumberValue(record.overview.avgStayLength)} nights`);
         }
         break;
 
@@ -256,15 +269,20 @@ export class AnalyticsExportService {
     return rows.join("\n");
   }
 
-  private countRows(data: any): number {
+  private countRows(data: unknown): number {
     if (Array.isArray(data)) {
       return data.length;
     }
+
+    if (!isRecord(data)) {
+      return 0;
+    }
+
     // Count nested arrays
     let count = 0;
-    for (const key of Object.keys(data)) {
-      if (Array.isArray(data[key])) {
-        count += data[key].length;
+    for (const value of Object.values(data)) {
+      if (Array.isArray(value)) {
+        count += value.length;
       } else {
         count += 1;
       }

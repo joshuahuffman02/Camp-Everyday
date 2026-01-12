@@ -2,7 +2,7 @@ import { ConflictException, Injectable, NotFoundException, ForbiddenException, B
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateCampgroundDto } from "./dto/create-campground.dto";
 import * as bcrypt from "bcryptjs";
-import { UserRole } from "@prisma/client";
+import { AnalyticsEventName, Prisma, UserRole } from "@prisma/client";
 import { EmailService } from "../email/email.service";
 import { AuditService } from "../audit/audit.service";
 import { randomBytes } from "crypto";
@@ -12,6 +12,63 @@ import { CampgroundReviewConnectors } from "./campground-review-connectors.servi
 import { UpdatePhotosDto } from "./dto/update-photos.dto";
 import { randomUUID } from "crypto";
 import dns from "dns/promises";
+import fetch from "node-fetch";
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const toStringValue = (value: unknown): string | undefined => {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return undefined;
+};
+
+const toNumberValue = (value: unknown): number | undefined => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return undefined;
+};
+
+const toJsonInput = (value: unknown): Prisma.InputJsonValue | undefined => {
+  if (value === undefined || value === null) return undefined;
+  try {
+    const serialized = JSON.stringify(value);
+    if (serialized === undefined) return undefined;
+    return JSON.parse(serialized);
+  } catch {
+    return undefined;
+  }
+};
+
+type ReviewSource = {
+  source: string | undefined;
+  rating: number | undefined;
+  count: number | undefined;
+  weight: number | undefined;
+};
+
+const toReviewSources = (
+  value: unknown
+): ReviewSource[] | undefined => {
+  if (!Array.isArray(value)) return undefined;
+  const sources = value
+    .map((entry) => {
+      if (!isRecord(entry)) return null;
+      const source = toStringValue(entry.source);
+      const rating = toNumberValue(entry.rating);
+      const count = toNumberValue(entry.count);
+      const weight = toNumberValue(entry.weight);
+      if (!source && rating === undefined && count === undefined && weight === undefined) {
+        return null;
+      }
+      return { source, rating, count, weight };
+    })
+    .filter((entry): entry is ReviewSource => entry !== null);
+  return sources.length > 0 ? sources : undefined;
+};
 
 @Injectable()
 export class CampgroundsService {
@@ -127,9 +184,9 @@ export class CampgroundsService {
   private computeBlendedReviewScore(
     sources?: { source?: string; rating?: number; count?: number; weight?: number }[],
     fallback?: number | null
-  ) {
+  ): { score: number | null; count?: number } {
     if (!sources || sources.length === 0) {
-      return { score: fallback ?? null, count: undefined as number | undefined };
+      return { score: fallback ?? null };
     }
     let weightedSum = 0;
     let totalWeight = 0;
@@ -168,7 +225,7 @@ export class CampgroundsService {
 
     const blended = this.computeBlendedReviewScore(
       reviews.map((r) => ({ source: r.source, rating: r.rating ?? undefined, count: r.count ?? undefined })),
-      cg.reviewScore as any
+      cg.reviewScore ? Number(cg.reviewScore) : null
     );
 
     return this.prisma.campground.update({
@@ -231,10 +288,11 @@ export class CampgroundsService {
 
     await this.prisma.analyticsEvent.create({
       data: {
+        id: randomUUID(),
         sessionId: randomUUID(),
-        eventName: "admin_image_reorder" as any,
-        campground: { connect: { id: campgroundId } },
-        metadata: { count: updated.photos.length },
+        eventName: AnalyticsEventName.admin_image_reorder,
+        Campground: { connect: { id: campgroundId } },
+        metadata: toJsonInput({ count: updated.photos.length }),
       },
     });
 
@@ -275,7 +333,7 @@ export class CampgroundsService {
     if (existing) return existing.id;
 
     const org = await this.prisma.organization.create({
-      data: { name: this.EXTERNAL_ORG_NAME }
+      data: { id: randomUUID(), name: this.EXTERNAL_ORG_NAME }
     });
     return org.id;
   }
@@ -321,7 +379,7 @@ export class CampgroundsService {
    * SECURITY: Used by controller to return only campgrounds the user has membership to
    */
   listByIds(ids: string[], orgId?: string) {
-    const where: any = { id: { in: ids } };
+    const where: Prisma.CampgroundWhereInput = { id: { in: ids } };
     if (orgId) {
       where.organizationId = orgId;
     }
@@ -518,7 +576,7 @@ export class CampgroundsService {
     await this.assertCampgroundScoped(id, orgId);
     return this.prisma.campground.update({
       where: { id },
-      data: { slaMinutes } as any
+      data: { slaMinutes }
     });
   }
 
@@ -642,7 +700,7 @@ export class CampgroundsService {
 
   async updateNpsSettings(
     id: string,
-    data: { npsAutoSendEnabled?: boolean; npsSendHour?: number | null; npsTemplateId?: string | null; npsSchedule?: any },
+    data: { npsAutoSendEnabled?: boolean; npsSendHour?: number | null; npsTemplateId?: string | null; npsSchedule?: unknown },
     orgId?: string
   ) {
     const cg = await this.findOne(id, orgId);
@@ -652,13 +710,14 @@ export class CampgroundsService {
         throw new BadRequestException("npsSendHour must be between 0 and 23");
       }
     }
+    const npsSchedule = data.npsSchedule !== undefined ? toJsonInput(data.npsSchedule) : undefined;
     return this.prisma.campground.update({
       where: { id },
       data: {
         ...(data.npsAutoSendEnabled !== undefined ? { npsAutoSendEnabled: data.npsAutoSendEnabled } : {}),
         ...(data.npsSendHour !== undefined ? { npsSendHour: data.npsSendHour } : {}),
         ...(data.npsTemplateId !== undefined ? { npsTemplateId: data.npsTemplateId } : {}),
-        ...(data.npsSchedule !== undefined ? { npsSchedule: data.npsSchedule } : {})
+        ...(data.npsSchedule !== undefined ? { npsSchedule } : {})
       }
     });
   }
@@ -727,11 +786,11 @@ export class CampgroundsService {
     const campground = await this.prisma.campground.findUnique({
       where: { slug },
       include: {
-        siteClasses: {
+        SiteClass: {
           where: { isActive: true },
           orderBy: { defaultRate: "asc" }
         },
-        events: {
+        Event: {
           where: {
             isPublished: true,
             isCancelled: false,
@@ -740,13 +799,23 @@ export class CampgroundsService {
           orderBy: { startDate: "asc" },
           take: 10
         },
-        promotions: {
+        Promotion: {
           where: { isActive: true },
           orderBy: { createdAt: "desc" }
         }
       }
     });
-    return campground;
+    if (!campground) return null;
+    const { SiteClass, Event, Promotion, ...rest } = campground;
+    return {
+      ...rest,
+      siteClasses: SiteClass,
+      events: Event,
+      promotions: Promotion,
+      SiteClass: undefined,
+      Event: undefined,
+      Promotion: undefined
+    };
   }
 
   async findPublicSite(slug: string, code: string) {
@@ -762,17 +831,23 @@ export class CampgroundsService {
         name: { equals: code, mode: "insensitive" } // Flexible matching
       },
       include: {
-        siteClass: true
+        SiteClass: true
       }
     });
 
     if (!site) return null;
+    const { SiteClass, ...restSite } = site;
+    const normalizedSite = {
+      ...restSite,
+      siteClass: SiteClass,
+      SiteClass: undefined
+    };
 
     const now = new Date();
     const activeReservation = await this.prisma.reservation.findFirst({
       where: {
         siteId: site.id,
-        status: { not: "canceled" }, // Assuming string based status or enum mapping
+        status: { not: "cancelled" }, // Assuming string based status or enum mapping
         arrivalDate: { lte: now },
         departureDate: { gt: now }
       },
@@ -780,7 +855,7 @@ export class CampgroundsService {
     });
 
     return {
-      site,
+      site: normalizedSite,
       status: activeReservation ? "occupied" : "available",
       currentReservation: activeReservation
     };
@@ -798,9 +873,10 @@ export class CampgroundsService {
       reviewScore,
       reviewCount,
       ...rest
-    } = data as any;
+    } = data;
     return this.prisma.campground.create({
       data: {
+        id: randomUUID(),
         ...rest,
         taxState: taxState ? Number(taxState) : null,
         taxLocal: taxLocal ? Number(taxLocal) : null,
@@ -839,26 +915,33 @@ export class CampgroundsService {
     const amenitySummary =
       amenitySummaryRaw === null || amenitySummaryRaw === undefined
         ? undefined
-        : (amenitySummaryRaw as any);
+        : toJsonInput(amenitySummaryRaw);
 
     const reviewSourcesRaw = payload.reviewSources ?? existing?.reviewSources;
     const reviewSources =
       reviewSourcesRaw === null || reviewSourcesRaw === undefined
         ? undefined
-        : (reviewSourcesRaw as any);
+        : toJsonInput(reviewSourcesRaw);
     const now = new Date();
+    const reviewSourcesForBlend = toReviewSources(payload.reviewSources ?? existing?.reviewSources);
+    const fallbackScore = payload.reviewScore ?? (existing?.reviewScore ? Number(existing.reviewScore) : undefined);
     const blended = this.computeBlendedReviewScore(
-      payload.reviewSources as any,
-      (payload.reviewScore ?? existing?.reviewScore) as any
+      reviewSourcesForBlend,
+      fallbackScore ?? null
     );
 
     const photosMetaRaw = payload.photosMeta ?? existing?.photosMeta;
     const photosMeta =
       photosMetaRaw === null || photosMetaRaw === undefined
         ? undefined
-        : Array.isArray(photosMetaRaw)
-          ? (photosMetaRaw as any)
-          : (photosMetaRaw as any);
+        : toJsonInput(photosMetaRaw);
+    const provenanceBase = isRecord(existing?.provenance) ? existing.provenance : {};
+
+    const provenance = toJsonInput({
+      ...provenanceBase,
+      lastIngestSource: payload.dataSource ?? existing?.dataSource ?? "osm",
+      lastIngestedAt: now.toISOString()
+    });
 
     const data = {
       organizationId,
@@ -899,11 +982,7 @@ export class CampgroundsService {
       importedAt: payload.dataSourceUpdatedAt
         ? new Date(payload.dataSourceUpdatedAt)
         : existing?.importedAt ?? now,
-      provenance: {
-        ...(existing?.provenance as any),
-        lastIngestSource: payload.dataSource ?? existing?.dataSource ?? "osm",
-        lastIngestedAt: now.toISOString()
-      }
+      provenance
     };
 
     if (existing) {
@@ -914,7 +993,10 @@ export class CampgroundsService {
     }
 
     return this.prisma.campground.create({
-      data
+      data: {
+        id: randomUUID(),
+        ...data
+      }
     });
   }
 
@@ -934,7 +1016,7 @@ export class CampgroundsService {
       out center;
     `;
 
-    const res = await (globalThis as any).fetch("https://overpass-api.de/api/interpreter", {
+    const res = await fetch("https://overpass-api.de/api/interpreter", {
       method: "POST",
       headers: { "Content-Type": "text/plain" },
       body: query
@@ -944,34 +1026,41 @@ export class CampgroundsService {
       throw new ConflictException("Failed to pull OSM data");
     }
 
-    const json = await res.json();
-    const elements: any[] = Array.isArray(json?.elements) ? json.elements : [];
+    const json: unknown = await res.json();
+    const elements = isRecord(json) && Array.isArray(json.elements) ? json.elements : [];
     const limited = options.limit ? elements.slice(0, options.limit) : elements;
 
     let upserted = 0;
     for (const el of limited) {
-      const tags = el.tags || {};
-      const center = el.center || (el.type === "node" ? { lat: el.lat, lon: el.lon } : null);
-      if (!center) continue;
+      if (!isRecord(el)) continue;
+      const tags = isRecord(el.tags) ? el.tags : {};
+      const tagValue = (key: string) => toStringValue(tags[key]);
+      const type = toStringValue(el.type) ?? "";
+      const idValue = toStringValue(el.id) ?? "";
+      const centerRecord = isRecord(el.center) ? el.center : null;
+      const lat = toNumberValue(centerRecord?.lat ?? (type === "node" ? el.lat : undefined));
+      const lon = toNumberValue(centerRecord?.lon ?? (type === "node" ? el.lon : undefined));
+      if (lat === undefined || lon === undefined) continue;
 
+      const image = tagValue("image");
       await this.upsertExternalCampground({
-        name: tags.name || tags.ref || `Campground ${el.id}`,
-        slug: tags.slug,
-        latitude: center.lat,
-        longitude: center.lon,
-        city: tags["addr:city"],
-        state: tags["addr:state"] || tags["addr:province"],
-        country: tags["addr:country"],
-        postalCode: tags["addr:postcode"],
-        website: tags.website || tags.url,
-        externalUrl: tags.website || tags.url,
-        phone: tags.phone,
+        name: tagValue("name") ?? tagValue("ref") ?? (idValue ? `Campground ${idValue}` : "Campground"),
+        slug: tagValue("slug"),
+        latitude: lat,
+        longitude: lon,
+        city: tagValue("addr:city"),
+        state: tagValue("addr:state") ?? tagValue("addr:province"),
+        country: tagValue("addr:country"),
+        postalCode: tagValue("addr:postcode"),
+        website: tagValue("website") ?? tagValue("url"),
+        externalUrl: tagValue("website") ?? tagValue("url"),
+        phone: tagValue("phone"),
         amenities: this.extractAmenitiesFromTags(tags),
         amenitySummary: this.amenitySummaryFromTags(tags),
-        photos: tags.image ? [tags.image] : undefined,
+        photos: image ? [image] : undefined,
         dataSource: "osm",
-        dataSourceId: `${el.type}:${el.id}`,
-        dataSourceUpdatedAt: tags["source:date"],
+        dataSourceId: `${type}:${idValue || String(el.id ?? "")}`,
+        dataSourceUpdatedAt: tagValue("source:date"),
         isBookable: false,
         isPublished: true
       });
@@ -1012,13 +1101,19 @@ export class CampgroundsService {
     return this.prisma.campground.delete({ where: { id } });
   }
 
-  async updateDepositRule(id: string, depositRule: string, depositPercentage?: number | null, depositConfig?: any) {
+  async updateDepositRule(id: string, depositRule: string, depositPercentage?: number | null, depositConfig?: unknown) {
+    const depositConfigValue =
+      depositConfig === undefined
+        ? undefined
+        : depositConfig === null
+          ? Prisma.JsonNull
+          : toJsonInput(depositConfig);
     return this.prisma.campground.update({
       where: { id },
       data: {
         depositRule,
         depositPercentage: depositPercentage ?? null,
-        depositConfig: depositConfig ?? null
+        depositConfig: depositConfigValue
       }
     });
   }
@@ -1109,7 +1204,7 @@ export class CampgroundsService {
     const memberships = await this.prisma.campgroundMembership.findMany({
       where: { campgroundId: id },
       include: {
-        user: { select: { id: true, firstName: true, lastName: true, email: true, isActive: true } }
+        User: { select: { id: true, firstName: true, lastName: true, email: true, isActive: true } }
       },
       orderBy: { createdAt: "desc" }
     });
@@ -1119,19 +1214,19 @@ export class CampgroundsService {
       where: { campgroundId: id, userId: { in: userIds } },
       orderBy: { createdAt: "desc" }
     });
-    const latestInviteByUser: Record<string, unknown> = {};
+    const latestInviteByUser = new Map<string, (typeof invites)[number]>();
     for (const inv of invites) {
-      if (!latestInviteByUser[inv.userId]) {
-        latestInviteByUser[inv.userId] = inv;
+      if (!latestInviteByUser.has(inv.userId)) {
+        latestInviteByUser.set(inv.userId, inv);
       }
     }
 
     return memberships.map((m) => {
-      const invite = latestInviteByUser[m.userId];
+      const invite = latestInviteByUser.get(m.userId);
       return {
         id: m.id,
         role: m.role,
-        user: m.user,
+        user: m.User,
         createdAt: m.createdAt,
         lastInviteSentAt: invite?.createdAt ?? null,
         lastInviteRedeemedAt: invite?.redeemedAt ?? null,
@@ -1187,6 +1282,7 @@ export class CampgroundsService {
       const passwordHash = await bcrypt.hash(Math.random().toString(36), 12);
       const user = await this.prisma.user.create({
         data: {
+          id: randomUUID(),
           email,
           passwordHash,
           firstName: data.firstName || "Pending",
@@ -1216,7 +1312,7 @@ export class CampgroundsService {
     }
 
     const membership = await this.prisma.campgroundMembership.create({
-      data: { userId: ensuredUserId, campgroundId, role: data.role }
+      data: { id: randomUUID(), userId: ensuredUserId, campgroundId, role: data.role }
     });
 
     const user = await this.prisma.user.findUnique({
@@ -1230,6 +1326,7 @@ export class CampgroundsService {
       inviteToken = this.generateInviteToken();
       await this.prisma.inviteToken.create({
         data: {
+          id: randomUUID(),
           token: inviteToken,
           userId,
           campgroundId,
@@ -1295,7 +1392,7 @@ export class CampgroundsService {
   async resendInvite(campgroundId: string, membershipId: string, actorId?: string) {
     const membership = await this.prisma.campgroundMembership.findFirst({
       where: { id: membershipId, campgroundId },
-      include: { user: true }
+      include: { User: true }
     });
     if (!membership) {
       throw new NotFoundException("Membership not found");
@@ -1318,6 +1415,7 @@ export class CampgroundsService {
     const token = this.generateInviteToken();
     await this.prisma.inviteToken.create({
       data: {
+        id: randomUUID(),
         token,
         userId: membership.userId,
         campgroundId,
@@ -1328,7 +1426,7 @@ export class CampgroundsService {
     const baseUrl = process.env.FRONTEND_URL || "https://app.campreserv.com";
     const inviteUrl = `${baseUrl}/invite?token=${token}`;
     this.emailService.sendEmail({
-      to: membership.user.email,
+      to: membership.User.email,
       subject: "Your Keepr Host invite",
       html: `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 540px; margin: 0 auto; padding: 20px;">
@@ -1422,7 +1520,7 @@ export class CampgroundsService {
   async updateAccessibilitySettings(
     id: string,
     data: {
-      adaAssessment?: any;
+      adaAssessment?: unknown;
       adaCertificationLevel?: string;
       adaAccessibleSiteCount?: number;
       adaTotalSiteCount?: number;
@@ -1434,10 +1532,11 @@ export class CampgroundsService {
     organizationId?: string
   ) {
     await this.assertCampgroundScoped(id, organizationId);
+    const adaAssessment = data.adaAssessment !== undefined ? toJsonInput(data.adaAssessment) : undefined;
     return this.prisma.campground.update({
       where: { id },
       data: {
-        adaAssessment: data.adaAssessment ?? undefined,
+        adaAssessment,
         adaCertificationLevel: data.adaCertificationLevel ?? undefined,
         adaAccessibleSiteCount: data.adaAccessibleSiteCount ?? undefined,
         adaTotalSiteCount: data.adaTotalSiteCount ?? undefined,
@@ -1452,7 +1551,7 @@ export class CampgroundsService {
   async updateSecuritySettings(
     id: string,
     data: {
-      securityAssessment?: any;
+      securityAssessment?: unknown;
       securityCertificationLevel?: string;
       securityAssessmentUpdatedAt?: string;
       securityVerified?: boolean;
@@ -1464,10 +1563,11 @@ export class CampgroundsService {
     organizationId?: string
   ) {
     await this.assertCampgroundScoped(id, organizationId);
+    const securityAssessment = data.securityAssessment !== undefined ? toJsonInput(data.securityAssessment) : undefined;
     return this.prisma.campground.update({
       where: { id },
       data: {
-        securityAssessment: data.securityAssessment ?? undefined,
+        securityAssessment,
         securityCertificationLevel: data.securityCertificationLevel ?? undefined,
         securityAssessmentUpdatedAt: data.securityAssessmentUpdatedAt ? new Date(data.securityAssessmentUpdatedAt) : undefined,
         securityVerified: data.securityVerified ?? undefined,
@@ -1479,4 +1579,3 @@ export class CampgroundsService {
     });
   }
 }
-

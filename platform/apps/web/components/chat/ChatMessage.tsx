@@ -11,7 +11,7 @@ interface ToolCall {
 
 interface ToolResult {
   toolCallId: string;
-  result: any;
+  result: unknown;
   error?: string;
 }
 
@@ -43,6 +43,15 @@ export interface ChatMessageProps {
   onActionSelect?: (actionId: string, optionId: string) => void;
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const getString = (value: unknown, fallback = ""): string =>
+  typeof value === "string" ? value : fallback;
+
+const getNumber = (value: unknown, fallback = 0): number =>
+  typeof value === "number" ? value : fallback;
+
 function formatToolName(name: string): string {
   return name
     .replace(/_/g, " ")
@@ -61,10 +70,10 @@ function ToolResultDisplay({ result }: { result: ToolResult }) {
   }
 
   const data = result.result;
-  if (!data) return null;
+  if (!isRecord(data)) return null;
 
   // Simple success message
-  if (data.message && typeof data.message === "string") {
+  if (typeof data.message === "string") {
     return (
       <div className="flex items-start gap-2 text-xs text-emerald-700 bg-emerald-50 p-2 rounded-lg">
         <Check className="h-4 w-4 flex-shrink-0 mt-0.5" />
@@ -74,23 +83,25 @@ function ToolResultDisplay({ result }: { result: ToolResult }) {
   }
 
   // Array of items (e.g., available sites, reservations)
-  if (data.availableSites && Array.isArray(data.availableSites)) {
+  if (Array.isArray(data.availableSites)) {
+    const sites = data.availableSites.filter(isRecord);
+    const totalAvailable = getNumber(data.totalAvailable, sites.length);
     return (
       <div className="space-y-2">
         <div className="text-xs font-medium text-muted-foreground">
-          {data.totalAvailable} site{data.totalAvailable !== 1 ? "s" : ""} available
+          {totalAvailable} site{totalAvailable !== 1 ? "s" : ""} available
         </div>
         <div className="space-y-1.5">
-          {data.availableSites.slice(0, 5).map((site: any) => (
+          {sites.slice(0, 5).map((site) => (
             <div
-              key={site.id}
+              key={getString(site.id, "site")}
               className="flex items-center justify-between p-2 bg-muted/50 rounded-lg text-xs"
             >
               <div>
-                <span className="font-medium">{site.name}</span>
-                <span className="text-muted-foreground ml-2">{site.className}</span>
+                <span className="font-medium">{getString(site.name, "Site")}</span>
+                <span className="text-muted-foreground ml-2">{getString(site.className)}</span>
               </div>
-              <span className="font-medium text-emerald-600">{site.pricePerNight}/night</span>
+              <span className="font-medium text-emerald-600">{getString(site.pricePerNight)}/night</span>
             </div>
           ))}
         </div>
@@ -98,25 +109,27 @@ function ToolResultDisplay({ result }: { result: ToolResult }) {
     );
   }
 
-  if (data.reservations && Array.isArray(data.reservations)) {
+  if (Array.isArray(data.reservations)) {
+    const reservations = data.reservations.filter(isRecord);
+    const count = getNumber(data.count, reservations.length);
     return (
       <div className="space-y-2">
         <div className="text-xs font-medium text-muted-foreground">
-          {data.count} reservation{data.count !== 1 ? "s" : ""} found
+          {count} reservation{count !== 1 ? "s" : ""} found
         </div>
         <div className="space-y-1.5">
-          {data.reservations.slice(0, 5).map((res: any) => (
+          {reservations.slice(0, 5).map((res) => (
             <div
-              key={res.id}
+              key={getString(res.id, "reservation")}
               className="flex items-center justify-between p-2 bg-muted/50 rounded-lg text-xs"
             >
               <div>
-                <span className="font-medium">{res.guestName}</span>
-                <span className="text-muted-foreground ml-2">#{res.confirmationCode}</span>
+                <span className="font-medium">{getString(res.guestName, "Guest")}</span>
+                <span className="text-muted-foreground ml-2">#{getString(res.confirmationCode)}</span>
               </div>
               <div className="text-right">
-                <div className="text-muted-foreground">{res.site}</div>
-                <div>{res.arrival} - {res.departure}</div>
+                <div className="text-muted-foreground">{getString(res.site)}</div>
+                <div>{getString(res.arrival)} - {getString(res.departure)}</div>
               </div>
             </div>
           ))}
@@ -126,27 +139,28 @@ function ToolResultDisplay({ result }: { result: ToolResult }) {
   }
 
   // Quote display
-  if (data.quote) {
+  if (isRecord(data.quote)) {
     const quote = data.quote;
+    const breakdown = isRecord(quote.breakdown) ? quote.breakdown : null;
     return (
       <div className="p-3 bg-emerald-50 rounded-lg text-sm">
-        <div className="font-medium text-emerald-800 mb-2">Quote for {quote.site}</div>
+        <div className="font-medium text-emerald-800 mb-2">Quote for {getString(quote.site, "site")}</div>
         <div className="space-y-1 text-xs text-emerald-700">
           <div className="flex justify-between">
-            <span>{quote.nights} night{quote.nights !== 1 ? "s" : ""}</span>
-            <span>{quote.breakdown.nightly}/night</span>
+            <span>{getNumber(quote.nights)} night{getNumber(quote.nights) !== 1 ? "s" : ""}</span>
+            <span>{getString(breakdown?.nightly)}/night</span>
           </div>
           <div className="flex justify-between">
             <span>Subtotal</span>
-            <span>{quote.breakdown.subtotal}</span>
+            <span>{getString(breakdown?.subtotal)}</span>
           </div>
           <div className="flex justify-between">
             <span>Tax</span>
-            <span>{quote.breakdown.tax}</span>
+            <span>{getString(breakdown?.tax)}</span>
           </div>
           <div className="flex justify-between font-medium pt-1 border-t border-emerald-200">
             <span>Total</span>
-            <span>{quote.breakdown.total}</span>
+            <span>{getString(breakdown?.total)}</span>
           </div>
         </div>
       </div>
@@ -154,22 +168,24 @@ function ToolResultDisplay({ result }: { result: ToolResult }) {
   }
 
   // Balance display
-  if (data.balance) {
+  if (isRecord(data.balance)) {
+    const balance = data.balance;
+    const due = getString(balance.due);
     return (
       <div className="p-3 bg-muted/50 rounded-lg text-sm">
         <div className="space-y-1 text-xs">
           <div className="flex justify-between">
             <span className="text-muted-foreground">Total</span>
-            <span>{data.balance.total}</span>
+            <span>{getString(balance.total)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Paid</span>
-            <span className="text-emerald-600">{data.balance.paid}</span>
+            <span className="text-emerald-600">{getString(balance.paid)}</span>
           </div>
           <div className="flex justify-between font-medium">
             <span>Balance Due</span>
-            <span className={data.balance.due === "$0.00" ? "text-emerald-600" : "text-amber-600"}>
-              {data.balance.due}
+            <span className={due === "$0.00" ? "text-emerald-600" : "text-amber-600"}>
+              {due}
             </span>
           </div>
         </div>

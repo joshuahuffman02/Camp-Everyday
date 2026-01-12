@@ -2,6 +2,7 @@ import { BadRequestException } from "@nestjs/common";
 import type { LedgerEntry, Prisma } from "@prisma/client";
 import type { PrismaService } from "../prisma/prisma.service";
 import { compact } from "../utils/array";
+import { randomUUID } from "crypto";
 
 type PrismaLedgerClient = PrismaService | Prisma.TransactionClient;
 
@@ -132,7 +133,7 @@ export async function postBalancedLedgerEntries(
   // - When called with regular PrismaService, each create is its own operation
   const results: LedgerEntry[] = [];
   for (const entry of normalized) {
-    results.push(await prisma.ledgerEntry.create({ data: entry }));
+    results.push(await prisma.ledgerEntry.create({ data: { ...entry, id: randomUUID() } }));
   }
   return results;
 }

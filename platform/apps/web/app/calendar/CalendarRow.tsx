@@ -89,8 +89,8 @@ export const CalendarRow = memo(function CalendarRow({
                             )}
                             onPointerDown={(e) => {
                                 // Important: release pointer capture so pointerenter/enter triggers on other cells
-                                const target = e.currentTarget as HTMLElement;
-                                if (target.hasPointerCapture?.(e.pointerId)) {
+                                const target = e.currentTarget;
+                                if (typeof target.hasPointerCapture === "function" && target.hasPointerCapture(e.pointerId)) {
                                     target.releasePointerCapture(e.pointerId);
                                 }
                                 onDragStart(site.id, i);

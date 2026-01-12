@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AiProviderService } from '../ai/ai-provider.service';
 import { RedisService } from '../redis/redis.service';
 import { AiFeatureType, ChatParticipantType, ChatMessageRole } from '@prisma/client';
+import type { ChatMessage, Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import {
   SendMessageDto,
@@ -50,6 +51,66 @@ const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
 // Redis key prefix for pending actions
 const REDIS_PENDING_ACTION_PREFIX = 'chat:pending_action:';
 
+type PendingActionSerialized = Omit<PendingAction, 'expiresAt'> & { expiresAt: string };
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined => {
+  if (value === undefined || value === null) return undefined;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
+};
+
+const normalizeMessageRole = (role: ChatMessageRole): MessageHistoryItem['role'] => {
+  switch (role) {
+    case ChatMessageRole.user:
+      return 'user';
+    case ChatMessageRole.assistant:
+      return 'assistant';
+    case ChatMessageRole.tool:
+      return 'tool';
+    case ChatMessageRole.system:
+      return 'system';
+    default:
+      return 'assistant';
+  }
+};
+
+const isToolCall = (value: unknown): value is ToolCall =>
+  isRecord(value) &&
+  typeof value.id === 'string' &&
+  typeof value.name === 'string' &&
+  isRecord(value.args);
+
+const isToolResult = (value: unknown): value is ToolResult =>
+  isRecord(value) &&
+  typeof value.toolCallId === 'string' &&
+  'result' in value;
+
+const parseToolCalls = (value: unknown): ToolCall[] | undefined =>
+  Array.isArray(value) ? value.filter(isToolCall) : undefined;
+
+const parseToolResults = (value: unknown): ToolResult[] | undefined =>
+  Array.isArray(value) ? value.filter(isToolResult) : undefined;
+
+const isPendingActionType = (value: unknown): value is PendingAction["type"] =>
+  value === "confirmation" || value === "form" || value === "selection";
+
+const isPendingActionSerialized = (value: unknown): value is PendingActionSerialized =>
+  isRecord(value) &&
+  typeof value.id === "string" &&
+  isPendingActionType(value.type) &&
+  typeof value.tool === "string" &&
+  isRecord(value.args) &&
+  typeof value.title === "string" &&
+  typeof value.description === "string" &&
+  typeof value.conversationId === "string" &&
+  typeof value.expiresAt === "string";
+
 @Injectable()
 export class ChatService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(ChatService.name);
@@ -65,6 +126,17 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
     private readonly chatGateway: ChatGateway,
     private readonly redis: RedisService,
   ) {}
+
+  async assertGuestAccess(guestId: string, campgroundId: string): Promise<void> {
+    const reservation = await this.prisma.reservation.findFirst({
+      where: { guestId, campgroundId },
+      select: { id: true }
+    });
+
+    if (!reservation) {
+      throw new ForbiddenException('You do not have access to this campground');
+    }
+  }
 
   onModuleInit() {
     // Only start cleanup interval if Redis is not available (fallback mode)
@@ -128,8 +200,8 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
   private async getPendingAction(actionId: string): Promise<PendingAction | null> {
     if (this.redis.isEnabled) {
       const key = `${REDIS_PENDING_ACTION_PREFIX}${actionId}`;
-      const data = await this.redis.get<any>(key);
-      if (!data) return null;
+      const data = await this.redis.get(key);
+      if (!isPendingActionSerialized(data)) return null;
       // Deserialize, converting ISO string back to Date
       return {
         ...data,
@@ -241,8 +313,8 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
           conversationId: conversation.id,
           role: ChatMessageRole.assistant,
           content: finalContent,
-          toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-          toolResults: toolResults.length > 0 ? toolResults : undefined,
+          toolCalls: toolCalls.length > 0 ? toJsonValue(toolCalls) : undefined,
+          toolResults: toolResults.length > 0 ? toJsonValue(toolResults) : undefined,
         },
       });
 
@@ -272,7 +344,7 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
           conversationId: conversation.id,
           role: ChatMessageRole.system,
           content: 'I encountered an error processing your request. Please try again.',
-          metadata: { error: error instanceof Error ? error.message : 'Unknown error' },
+          metadata: toJsonValue({ error: error instanceof Error ? error.message : 'Unknown error' }),
         },
       });
 
@@ -400,8 +472,8 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
               conversationId: conversation.id,
               role: ChatMessageRole.assistant,
               content: finalContent || 'I need your confirmation to proceed.',
-              toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-              toolResults: toolResults.length > 0 ? toolResults : undefined,
+              toolCalls: toolCalls.length > 0 ? toJsonValue(toolCalls) : undefined,
+              toolResults: toolResults.length > 0 ? toJsonValue(toolResults) : undefined,
             },
           });
 
@@ -442,8 +514,8 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
           conversationId: conversation.id,
           role: ChatMessageRole.assistant,
           content: finalContent,
-          toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-          toolResults: toolResults.length > 0 ? toolResults : undefined,
+          toolCalls: toolCalls.length > 0 ? toJsonValue(toolCalls) : undefined,
+          toolResults: toolResults.length > 0 ? toJsonValue(toolResults) : undefined,
         },
       });
 
@@ -550,6 +622,11 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
         { ...pendingAction.args, confirmed: true, selectedOption, formData },
         context,
       );
+      const resultRecord = isRecord(result) ? result : {};
+      const resultMessage =
+        typeof resultRecord.message === 'string'
+          ? resultRecord.message
+          : 'Action completed successfully';
 
       // Clear pending action from Redis (or in-memory)
       await this.deletePendingAction(actionId);
@@ -561,14 +638,14 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
           conversationId,
           role: ChatMessageRole.tool,
           content: `Executed: ${pendingAction.tool}`,
-          toolResults: [{ toolCallId: actionId, result }],
+          toolResults: toJsonValue([{ toolCallId: actionId, result }]),
         },
       });
 
       return {
         success: true,
-        message: result.message || 'Action completed successfully',
-        result: result.data,
+        message: resultMessage,
+        result: resultRecord.data,
       };
     } catch (error) {
       this.logger.error('Action execution error:', error);
@@ -612,7 +689,7 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
     }
 
     // Build query for messages
-    const whereClause: any = { conversationId: conversation.id };
+    const whereClause: Prisma.ChatMessageWhereInput = { conversationId: conversation.id };
     if (before) {
       const beforeMessage = await this.prisma.chatMessage.findUnique({
         where: { id: before },
@@ -639,10 +716,10 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
 
     const formattedMessages: MessageHistoryItem[] = messages.map(m => ({
       id: m.id,
-      role: m.role as 'user' | 'assistant' | 'tool' | 'system',
+      role: normalizeMessageRole(m.role),
       content: m.content,
-      toolCalls: m.toolCalls as any[],
-      toolResults: m.toolResults as any[],
+      toolCalls: parseToolCalls(m.toolCalls),
+      toolResults: parseToolResults(m.toolResults),
       createdAt: m.createdAt.toISOString(),
     }));
 
@@ -693,10 +770,10 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
         campgroundId: context.campgroundId,
         participantType: context.participantType,
         participantId: context.participantId,
-        metadata: {
+        metadata: toJsonValue({
           role: context.role,
           currentReservationId: context.currentReservationId,
-        },
+        }),
         updatedAt: new Date(),
       },
     });
@@ -705,7 +782,7 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
   /**
    * Build conversation history for AI context
    */
-  private async buildConversationHistory(conversationId: string) {
+  private async buildConversationHistory(conversationId: string): Promise<ChatMessage[]> {
     const messages = await this.prisma.chatMessage.findMany({
       where: { conversationId },
       orderBy: { createdAt: 'desc' },
@@ -718,7 +795,7 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
   /**
    * Format history for AI prompt
    */
-  private formatHistoryForAI(history: any[], currentMessage: string): string {
+  private formatHistoryForAI(history: ChatMessage[], currentMessage: string): string {
     if (history.length === 0) {
       return currentMessage;
     }
@@ -726,7 +803,14 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
     const formattedHistory = history
       .slice(-10) // Last 10 messages
       .map(m => {
-        const role = m.role === 'user' ? 'User' : m.role === 'assistant' ? 'Assistant' : 'System';
+        const role =
+          m.role === ChatMessageRole.user
+            ? 'User'
+            : m.role === ChatMessageRole.assistant
+              ? 'Assistant'
+              : m.role === ChatMessageRole.system
+                ? 'System'
+                : 'Tool';
         return `${role}: ${m.content}`;
       })
       .join('\n\n');
@@ -738,7 +822,7 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
    * Format history with tool results
    */
   private formatHistoryWithToolResults(
-    history: any[],
+    history: ChatMessage[],
     message: string,
     toolCalls: ToolCall[],
     toolResults: ToolResult[],

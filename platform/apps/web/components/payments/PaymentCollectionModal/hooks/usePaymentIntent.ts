@@ -83,8 +83,10 @@ export function usePaymentIntent(options: UsePaymentIntentOptions = {}): UsePaym
         setClientSecret(data.clientSecret);
         setPaymentIntentId(data.id);
         return data;
-      } catch (err: any) {
-        const message = err.message || "Failed to initialize payment. Please check your connection and try again";
+      } catch (err) {
+        const message = err instanceof Error
+          ? err.message
+          : "Failed to initialize payment. Please check your connection and try again";
         setError(message);
         return null;
       } finally {
@@ -165,8 +167,12 @@ export function useDepositHold() {
         });
 
         return data;
-      } catch (err: any) {
-        setError(err.message || "Failed to create deposit hold. Please check your payment method and try again");
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Failed to create deposit hold. Please check your payment method and try again"
+        );
         return null;
       } finally {
         setLoading(false);
@@ -189,8 +195,10 @@ export function useDepositHold() {
         // This would call a capture endpoint
         // For now, return the hold info
         return hold;
-      } catch (err: any) {
-        setError(err.message || "Failed to capture payment hold. Please try again or contact support");
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Failed to capture payment hold. Please try again or contact support"
+        );
         return null;
       } finally {
         setLoading(false);
@@ -212,8 +220,10 @@ export function useDepositHold() {
       // This would call a cancel/release endpoint
       setHold(null);
       return true;
-    } catch (err: any) {
-      setError(err.message || "Failed to release payment hold. Please try again or contact support");
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to release payment hold. Please try again or contact support"
+      );
       return false;
     } finally {
       setLoading(false);

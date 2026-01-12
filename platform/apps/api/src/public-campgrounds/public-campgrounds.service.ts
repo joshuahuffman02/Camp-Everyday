@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
-import { CampgroundClaimStatus } from "@prisma/client";
+import { CampgroundClaimStatus, Prisma } from "@prisma/client";
 
 /**
  * Public Campgrounds Service
@@ -134,20 +134,19 @@ export class PublicCampgroundsService {
         isExternal: true,
         externalUrl: true,
         deletedAt: true,
-        organization: {
+        Organization: {
           select: {
             id: true,
             name: true,
-            logoUrl: true,
           },
         },
-        attractionMappings: {
+        CampgroundAttraction: {
           where: { isNearby: true },
           orderBy: { distanceMiles: "asc" },
           take: 5,
           select: {
             distanceMiles: true,
-            attraction: {
+            Attraction: {
               select: {
                 id: true,
                 name: true,
@@ -193,11 +192,11 @@ export class PublicCampgroundsService {
       isBookable: isClaimed,
       isExternal: campground.isExternal,
       externalUrl: campground.externalUrl,
-      nearbyAttractions: campground.attractionMappings.map((m) => ({
-        id: m.attraction.id,
-        name: m.attraction.name,
-        slug: m.attraction.slug,
-        type: m.attraction.type,
+      nearbyAttractions: campground.CampgroundAttraction.map((m) => ({
+        id: m.Attraction.id,
+        name: m.Attraction.name,
+        slug: m.Attraction.slug,
+        type: m.Attraction.type,
         distanceMiles: m.distanceMiles,
       })),
     };
@@ -214,11 +213,10 @@ export class PublicCampgroundsService {
         checkOutTime: campground.checkOutTime ?? undefined,
         reviewScore: campground.reviewScore?.toNumber(),
         reviewCount: campground.reviewCount,
-        organization: campground.organization
+        organization: campground.Organization
           ? {
-              id: campground.organization.id,
-              name: campground.organization.name,
-              logo: campground.organization.logoUrl ?? undefined,
+              id: campground.Organization.id,
+              name: campground.Organization.name,
             }
           : undefined,
       };
@@ -245,7 +243,7 @@ export class PublicCampgroundsService {
       sortBy = "name",
     } = options;
 
-    const where: any = {
+    const where: Prisma.CampgroundWhereInput = {
       deletedAt: null,
     };
 
@@ -270,7 +268,7 @@ export class PublicCampgroundsService {
     }
 
     // Determine sort order
-    const orderBy: any = {};
+    const orderBy: Prisma.CampgroundOrderByWithRelationInput = {};
     switch (sortBy) {
       case "rating":
         orderBy.reviewScore = { sort: "desc", nulls: "last" };
@@ -375,7 +373,7 @@ export class PublicCampgroundsService {
   }): Promise<{ results: CampgroundSearchResult[]; total: number }> {
     const { state, search, limit = 20, offset = 0 } = options;
 
-    const where: any = {
+    const where: Prisma.CampgroundWhereInput = {
       deletedAt: null,
       claimStatus: CampgroundClaimStatus.unclaimed,
       seededDataSource: { not: null },

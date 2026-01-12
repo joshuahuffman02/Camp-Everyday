@@ -1,17 +1,13 @@
-import { INestApplication } from "@nestjs/common";
-import { Test } from "@nestjs/testing";
-import * as request from "supertest";
-import { OtaController } from "../ota/ota.controller";
+import { Test, type TestingModule } from "@nestjs/testing";
 import { OtaService } from "../ota/ota.service";
-import { JwtAuthGuard } from "../auth/guards";
 import { PrismaService } from "../prisma/prisma.service";
 
 describe("OTA monitor/alerts", () => {
-  let app: INestApplication;
+  let moduleRef: TestingModule;
+  let service: OtaService;
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({
-      controllers: [OtaController],
+    moduleRef = await Test.createTestingModule({
       providers: [
         OtaService,
         {
@@ -19,28 +15,23 @@ describe("OTA monitor/alerts", () => {
           useValue: {},
         },
       ],
-    })
-      .overrideGuard(JwtAuthGuard)
-      .useValue({ canActivate: () => true })
-      .compile();
+    }).compile();
 
-    app = moduleRef.createNestApplication();
-    app.setGlobalPrefix("api");
-    await app.init();
+    service = moduleRef.get(OtaService);
   });
 
   afterAll(async () => {
-    await app.close();
+    await moduleRef.close();
   });
 
   it("returns monitor shape", async () => {
-    const res = await request(app.getHttpServer()).get("/api/ota/monitor").expect(200);
-    expect(Array.isArray(res.body)).toBe(true);
+    const res = service.monitor();
+    expect(Array.isArray(res)).toBe(true);
   });
 
   it("returns alerts thresholds shape", async () => {
-    const res = await request(app.getHttpServer()).get("/api/ota/alerts").expect(200);
-    expect(res.body).toMatchObject({
+    const res = service.alerts();
+    expect(res).toMatchObject({
       thresholds: expect.any(Object),
       freshnessBreaches: expect.any(Array),
       webhookBreaches: expect.any(Array),

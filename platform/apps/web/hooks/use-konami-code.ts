@@ -45,7 +45,8 @@ export function useKonamiCode({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't track when typing in inputs
-      const target = e.target as HTMLElement;
+      const target = e.target;
+      if (!(target instanceof HTMLElement)) return;
       if (
         target.tagName === "INPUT" ||
         target.tagName === "TEXTAREA" ||

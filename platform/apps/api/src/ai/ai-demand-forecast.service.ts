@@ -4,7 +4,7 @@ import { PrismaService } from "../prisma/prisma.service";
 
 // ==================== INTERFACES ====================
 
-interface DemandForecast {
+export interface DemandForecast {
   date: string;
   predictedOccupancy: number; // 0-100
   predictedRevenue: number; // cents
@@ -33,7 +33,7 @@ interface DayOfWeekPattern {
   avgOccupancy: number;
 }
 
-interface HistoricalAnalysis {
+export interface HistoricalAnalysis {
   baselineOccupancy: number; // average overall
   seasonality: SeasonalityPattern[];
   dayOfWeek: DayOfWeekPattern[];
@@ -42,7 +42,7 @@ interface HistoricalAnalysis {
   dataPoints: number;
 }
 
-interface DemandHeatmapDay {
+export interface DemandHeatmapDay {
   date: string;
   demandScore: number; // 0-100
   demandLevel: "very_low" | "low" | "moderate" | "high" | "very_high";

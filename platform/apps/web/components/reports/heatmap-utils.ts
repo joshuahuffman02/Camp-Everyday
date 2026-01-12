@@ -33,8 +33,11 @@ export function resolvePoints(points: RawPoint[], center: { latitude: number; lo
       // Apply jitter when coordinates are missing so we don't stack exactly on the center
       const lat = Number.isFinite(p.latitude) ? Number(p.latitude) : center.latitude + jitter * Math.sin(idx + 1);
       const lng = Number.isFinite(p.longitude) ? Number(p.longitude) : center.longitude + jitter * Math.cos(idx + 1);
-      return { id: p.id, latitude: lat, longitude: lng, value: p.value, label: p.label } as ResolvedPoint;
+      const label = typeof p.label === "string" ? p.label : undefined;
+      const resolved: ResolvedPoint = label !== undefined
+        ? { id: p.id, latitude: lat, longitude: lng, value: p.value, label }
+        : { id: p.id, latitude: lat, longitude: lng, value: p.value };
+      return resolved;
     })
-    .filter((p): p is ResolvedPoint => !!p);
+    .filter((p): p is ResolvedPoint => p !== null);
 }
-

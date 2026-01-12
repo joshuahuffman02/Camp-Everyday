@@ -39,7 +39,15 @@ interface RevenueAtRisk {
   totalHighRiskCount: number;
 }
 
-interface MorningBriefing {
+type NoShowRiskSignal = {
+  paymentStatusScore: number;
+  communicationScore: number;
+  reminderSentAt: Date | null;
+  guestConfirmedAt: Date | null;
+  guestHistoryScore: number;
+};
+
+export interface MorningBriefing {
   campgroundName: string;
   date: string;
   dayOfWeek: string;
@@ -177,22 +185,29 @@ export class AiMorningBriefingService {
         arrivalDate: { gte: today, lt: tomorrow },
       },
       include: {
-        guest: { select: { firstName: true, lastName: true, isVip: true } },
-        site: { select: { name: true } },
+        Guest: { select: { primaryFirstName: true, primaryLastName: true, vip: true } },
+        Site: { select: { name: true } },
       },
       orderBy: { arrivalDate: "asc" },
     });
 
-    return reservations.map((r) => ({
-      guestName: `${r.guest.firstName} ${r.guest.lastName}`,
-      siteName: r.site?.name || "Unassigned",
-      arrivalDate: r.arrivalDate,
-      departureDate: r.departureDate,
-      specialRequests: r.specialRequests || undefined,
-      isVip: r.guest.isVip || false,
-      totalGuests: (r.adults || 0) + (r.children || 0),
-      vehicleInfo: r.vehicleInfo || undefined,
-    }));
+    return reservations.map((r) => {
+      const rigDetails = [
+        r.rigType,
+        r.rigLength ? `${r.rigLength}ft` : undefined,
+        r.vehiclePlate ? `Plate ${r.vehiclePlate}` : undefined,
+      ].filter(Boolean).join(" ");
+      return {
+        guestName: `${r.Guest.primaryFirstName} ${r.Guest.primaryLastName}`,
+        siteName: r.Site?.name || "Unassigned",
+        arrivalDate: r.arrivalDate,
+        departureDate: r.departureDate,
+        specialRequests: r.notes || undefined,
+        isVip: r.Guest.vip || false,
+        totalGuests: (r.adults || 0) + (r.children || 0),
+        vehicleInfo: rigDetails || undefined,
+      };
+    });
   }
 
   private async getDepartures(
@@ -207,15 +222,15 @@ export class AiMorningBriefingService {
         departureDate: { gte: today, lt: tomorrow },
       },
       include: {
-        guest: { select: { firstName: true, lastName: true } },
-        site: { select: { name: true } },
+        Guest: { select: { primaryFirstName: true, primaryLastName: true } },
+        Site: { select: { name: true } },
       },
       orderBy: { departureDate: "asc" },
     });
 
     return reservations.map((r) => ({
-      guestName: `${r.guest.firstName} ${r.guest.lastName}`,
-      siteName: r.site?.name || "Unknown",
+      guestName: `${r.Guest.primaryFirstName} ${r.Guest.primaryLastName}`,
+      siteName: r.Site?.name || "Unknown",
     }));
   }
 
@@ -278,7 +293,10 @@ export class AiMorningBriefingService {
       },
     });
 
-    return anomalies;
+    return anomalies.map((anomaly) => ({
+      ...anomaly,
+      suggestedAction: anomaly.suggestedAction ?? undefined,
+    }));
   }
 
   private async getWeatherAlerts(campgroundId: string) {
@@ -290,11 +308,15 @@ export class AiMorningBriefingService {
       select: {
         title: true,
         severity: true,
-        description: true,
+        message: true,
       },
     });
 
-    return alerts;
+    return alerts.map((alert) => ({
+      title: alert.title,
+      severity: alert.severity,
+      description: alert.message,
+    }));
   }
 
   private async getMaintenanceReminders(campgroundId: string) {
@@ -302,23 +324,20 @@ export class AiMorningBriefingService {
       where: {
         campgroundId,
         status: { in: ["open", "in_progress"] },
-        priority: { in: ["high", "urgent"] },
-      },
-      include: {
-        site: { select: { name: true } },
+        priority: { in: ["high", "critical"] },
       },
       orderBy: { dueDate: "asc" },
       take: 5,
       select: {
         title: true,
-        site: { select: { name: true } },
+        Site: { select: { name: true } },
         dueDate: true,
       },
     });
 
     return tickets.map((t) => ({
       title: t.title,
-      siteName: t.site?.name,
+      siteName: t.Site?.name,
       dueDate: t.dueDate || undefined,
     }));
   }
@@ -373,22 +392,22 @@ export class AiMorningBriefingService {
       const highRiskRecords = await this.prisma.aiNoShowRisk.findMany({
         where: {
           flagged: true,
-          guestConfirmed: false, // Don't show if guest has already confirmed
-          reservation: {
+          guestConfirmedAt: null, // Don't show if guest has already confirmed
+          Reservation: {
             campgroundId,
             status: { in: ["confirmed", "pending"] },
             arrivalDate: { gte: today, lt: tomorrow },
           },
         },
         include: {
-          reservation: {
+          Reservation: {
             select: {
               id: true,
-              confirmationNumber: true,
               arrivalDate: true,
-              totalAmountCents: true,
-              balanceCents: true,
-              guest: {
+              departureDate: true,
+              totalAmount: true,
+              balanceAmount: true,
+              Guest: {
                 select: {
                   primaryFirstName: true,
                   primaryLastName: true,
@@ -396,7 +415,7 @@ export class AiMorningBriefingService {
                   phone: true,
                 },
               },
-              site: {
+              Site: {
                 select: { name: true },
               },
             },
@@ -407,23 +426,30 @@ export class AiMorningBriefingService {
       });
 
       const highRiskArrivals: HighRiskArrival[] = highRiskRecords.map((risk) => {
-        const reservation = risk.reservation;
-        const suggestedActions = this.getSuggestedActions(risk);
+        const reservation = risk.Reservation;
+        const suggestedActions = this.getSuggestedActions({
+          paymentStatusScore: risk.paymentStatusScore,
+          communicationScore: risk.communicationScore,
+          reminderSentAt: risk.reminderSentAt,
+          guestConfirmedAt: risk.guestConfirmedAt,
+          guestHistoryScore: risk.guestHistoryScore,
+        });
+        const riskReason = this.getRiskReason(risk);
 
         return {
           reservationId: reservation.id,
-          confirmationNumber: reservation.confirmationNumber || "N/A",
-          guestName: reservation.guest
-            ? `${reservation.guest.primaryFirstName || ""} ${reservation.guest.primaryLastName || ""}`.trim()
+          confirmationNumber: reservation.id,
+          guestName: reservation.Guest
+            ? `${reservation.Guest.primaryFirstName || ""} ${reservation.Guest.primaryLastName || ""}`.trim()
             : "Unknown Guest",
-          siteName: reservation.site?.name || "Unassigned",
+          siteName: reservation.Site?.name || "Unassigned",
           arrivalDate: reservation.arrivalDate,
           riskScore: risk.riskScore,
-          riskReason: risk.riskReason || "Multiple risk factors",
-          totalAmountCents: reservation.totalAmountCents || 0,
-          balanceCents: reservation.balanceCents || 0,
-          guestEmail: reservation.guest?.email || undefined,
-          guestPhone: reservation.guest?.phone || undefined,
+          riskReason,
+          totalAmountCents: reservation.totalAmount || 0,
+          balanceCents: reservation.balanceAmount || 0,
+          guestEmail: reservation.Guest?.email || undefined,
+          guestPhone: reservation.Guest?.phone || undefined,
           suggestedActions,
         };
       });
@@ -452,7 +478,7 @@ export class AiMorningBriefingService {
   /**
    * Generate suggested actions based on risk factors
    */
-  private getSuggestedActions(risk: any): string[] {
+  private getSuggestedActions(risk: NoShowRiskSignal): string[] {
     const actions: string[] = [];
 
     // Check payment status
@@ -463,7 +489,7 @@ export class AiMorningBriefingService {
     // Check communication
     if (risk.communicationScore < 50 && !risk.reminderSentAt) {
       actions.push("Send confirmation reminder");
-    } else if (risk.reminderSentAt && !risk.guestConfirmed) {
+    } else if (risk.reminderSentAt && !risk.guestConfirmedAt) {
       actions.push("Follow up by phone");
     }
 
@@ -478,6 +504,22 @@ export class AiMorningBriefingService {
     }
 
     return actions;
+  }
+
+  private getRiskReason(risk: {
+    paymentStatusScore: number;
+    leadTimeScore: number;
+    guestHistoryScore: number;
+    communicationScore: number;
+    bookingPatternScore: number;
+  }): string {
+    const reasons: string[] = [];
+    if (risk.paymentStatusScore < 50) reasons.push("Unpaid or partial payment");
+    if (risk.leadTimeScore < 40) reasons.push("Last-minute booking");
+    if (risk.guestHistoryScore < 50) reasons.push("New guest or past no-shows");
+    if (risk.communicationScore < 40) reasons.push("No communication received");
+    if (risk.bookingPatternScore < 50) reasons.push("Risky booking pattern");
+    return reasons.length > 0 ? reasons.join(", ") : "Multiple risk factors";
   }
 
   private async detectOpportunities(
@@ -574,25 +616,17 @@ export class AiMorningBriefingService {
 
     const briefing = await this.generateBriefing(campgroundId);
 
-    // Get recipients - owners and managers for the campground's organization
-    const campground = await this.prisma.campground.findUnique({
-      where: { id: campgroundId },
-      select: { organizationId: true },
-    });
-
-    if (!campground?.organizationId) {
-      this.logger.debug(`No organization for campground ${campgroundId}`);
-      return { sent: false, recipients: 0 };
-    }
-
-    const staff = await this.prisma.user.findMany({
+    const memberships = await this.prisma.campgroundMembership.findMany({
       where: {
-        organizationId: campground.organizationId,
+        campgroundId,
         role: { in: ["owner", "manager"] },
-        email: { not: null },
       },
-      select: { email: true, firstName: true },
+      select: {
+        User: { select: { email: true, firstName: true } },
+      },
     });
+
+    const staff = memberships.map((membership) => membership.User);
 
     if (staff.length === 0) {
       this.logger.debug(`No morning briefing recipients for ${campgroundId}`);

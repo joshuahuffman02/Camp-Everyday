@@ -27,31 +27,23 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 
-const SPRING_CONFIG = {
-  type: "spring" as const,
+const SPRING_CONFIG: { type: "spring"; stiffness: number; damping: number } = {
+  type: "spring",
   stiffness: 300,
   damping: 25,
 };
 
-type MaintenanceAlert = {
-  id: string;
-  siteId?: string | null;
+type MaintenanceAlert = Awaited<ReturnType<typeof apiClient.getMaintenanceAlerts>>[number] & {
   siteName?: string;
-  alertType: string;
-  severity: string;
-  title: string;
-  summary: string;
-  category: string;
-  incidentCount: number;
   incidentIds?: string[];
   predictedFailure?: string;
-  confidence: number;
-  suggestedAction: string;
-  estimatedCostCents?: number | null;
-  status: string;
   maintenanceTicketId?: string;
   createdAt?: string;
 };
+
+type MaintenanceFilter = "new" | "acknowledged" | "scheduled" | "all";
+
+const MAINTENANCE_FILTERS: MaintenanceFilter[] = ["new", "acknowledged", "scheduled", "all"];
 
 function getSeverityColor(severity: string) {
   switch (severity) {
@@ -82,7 +74,7 @@ function getCategoryIcon(category: string) {
 }
 
 export default function AIMaintenancePage() {
-  const [filter, setFilter] = useState<"all" | "new" | "acknowledged" | "scheduled">("new");
+  const [filter, setFilter] = useState<MaintenanceFilter>("new");
   const { toast } = useToast();
 
   // Get campground
@@ -93,7 +85,7 @@ export default function AIMaintenancePage() {
   const campground = campgrounds[0];
 
   // Get maintenance alerts
-  const { data: alerts = [], isLoading, refetch } = useQuery({
+  const { data: alerts = [], isLoading, refetch } = useQuery<MaintenanceAlert[]>({
     queryKey: ["maintenance-alerts", campground?.id],
     queryFn: () => apiClient.getMaintenanceAlerts(campground!.id),
     enabled: !!campground?.id,
@@ -107,17 +99,18 @@ export default function AIMaintenancePage() {
       toast({ title: "Alert acknowledged" });
       refetch();
     },
-    onError: (error: any) => {
-      toast({ title: "Failed", description: error.message, variant: "destructive" });
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      toast({ title: "Failed", description: message, variant: "destructive" });
     },
   });
 
-  const filteredAlerts = (alerts as MaintenanceAlert[]).filter(a =>
+  const filteredAlerts = alerts.filter(a =>
     filter === "all" ? true : a.status === filter
   );
 
-  const newCount = (alerts as MaintenanceAlert[]).filter(a => a.status === "new").length;
-  const criticalCount = (alerts as MaintenanceAlert[]).filter(a =>
+  const newCount = alerts.filter(a => a.status === "new").length;
+  const criticalCount = alerts.filter(a =>
     a.status === "new" && (a.severity === "critical" || a.severity === "high")
   ).length;
 
@@ -210,7 +203,7 @@ export default function AIMaintenancePage() {
             <CardContent className="p-4">
               <CheckCircle2 className="h-5 w-5 text-status-success-text mb-2" />
               <div className="text-2xl font-bold text-foreground">
-                {(alerts as MaintenanceAlert[]).filter(a => a.status === "scheduled").length}
+                {alerts.filter(a => a.status === "scheduled").length}
               </div>
               <p className="text-xs text-muted-foreground">Scheduled</p>
             </CardContent>
@@ -219,7 +212,7 @@ export default function AIMaintenancePage() {
             <CardContent className="p-4">
               <Calendar className="h-5 w-5 text-status-info-text mb-2" />
               <div className="text-2xl font-bold text-foreground">
-                {(alerts as MaintenanceAlert[]).filter(a => a.status === "resolved").length}
+                {alerts.filter(a => a.status === "resolved").length}
               </div>
               <p className="text-xs text-muted-foreground">Resolved</p>
             </CardContent>
@@ -235,7 +228,7 @@ export default function AIMaintenancePage() {
 
         {/* Filter Tabs */}
         <div className="flex gap-2">
-          {(["new", "acknowledged", "scheduled", "all"] as const).map((f) => (
+          {MAINTENANCE_FILTERS.map((f) => (
             <Button
               key={f}
               variant={filter === f ? "default" : "outline"}

@@ -157,7 +157,7 @@ export function LedgerSummaryReport({ campgroundId, dateRange }: LedgerSummaryRe
                                     </td>
                                 </tr>
                             ) : (
-                                summary.items.map((entry: any) => (
+                                summary.items.map((entry) => (
                                     <tr key={entry.id} className="hover:bg-muted">
                                         <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                                             {format(new Date(entry.occurredAt), "MMM d, yyyy HH:mm")}
@@ -166,7 +166,7 @@ export function LedgerSummaryReport({ campgroundId, dateRange }: LedgerSummaryRe
                                             {entry.description}
                                         </td>
                                         <td className="px-4 py-3 text-muted-foreground font-mono text-xs">
-                                            {entry.externalRef || "—"}
+                                            {entry.reservationId || "—"}
                                         </td>
                                         <td className="px-4 py-3 text-muted-foreground text-xs">
                                             {entry.glCode || "—"}

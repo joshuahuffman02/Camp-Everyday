@@ -36,7 +36,10 @@ import {
   UpdateAnomalyStatusDto,
   MarkConfirmedDto,
 } from "./dto/autopilot.dto";
+import type { AuthUser } from "../auth/auth.types";
 import type { Request } from "express";
+
+type AuthRequest = Request & { user: AuthUser };
 
 @Controller("ai/autopilot")
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -146,10 +149,9 @@ export class AiAutopilotController {
   async reviewDraft(
     @Param("id") id: string,
     @Body() data: ReviewDraftDto,
-    @Req() req: Request
+    @Req() req: AuthRequest
   ) {
-    const user = req.user;
-    return this.autoReplyService.reviewDraft(id, data, user?.id);
+    return this.autoReplyService.reviewDraft(id, data, req.user.id);
   }
 
   @Post("reply-drafts/:id/send")
@@ -201,10 +203,9 @@ export class AiAutopilotController {
   async updateAnomalyStatus(
     @Param("id") id: string,
     @Body() data: UpdateAnomalyStatusDto,
-    @Req() req: Request
+    @Req() req: AuthRequest
   ) {
-    const user = req.user;
-    return this.anomalyService.updateAlertStatus(id, data, user?.id);
+    return this.anomalyService.updateAlertStatus(id, data, req.user.id);
   }
 
   @Post("campgrounds/:campgroundId/anomalies/check")
@@ -331,10 +332,9 @@ export class AiAutopilotController {
   @Roles(UserRole.owner, UserRole.manager)
   async applyPricingRecommendation(
     @Param("id") id: string,
-    @Req() req: Request
+    @Req() req: AuthRequest
   ) {
-    const user = req.user;
-    return this.dynamicPricingService.applyRecommendation(id, user?.id);
+    return this.dynamicPricingService.applyRecommendation(id, req.user.id);
   }
 
   @Post("pricing/recommendations/:id/dismiss")
@@ -342,10 +342,9 @@ export class AiAutopilotController {
   async dismissPricingRecommendation(
     @Param("id") id: string,
     @Body("reason") reason: string,
-    @Req() req: Request
+    @Req() req: AuthRequest
   ) {
-    const user = req.user;
-    return this.dynamicPricingService.dismissRecommendation(id, user?.id, reason);
+    return this.dynamicPricingService.dismissRecommendation(id, req.user.id, reason);
   }
 
   @Post("campgrounds/:campgroundId/pricing/analyze")
@@ -407,14 +406,13 @@ export class AiAutopilotController {
       endDate: string;
       autoApplyWinner?: boolean;
     },
-    @Req() req: Request
+    @Req() req: AuthRequest
   ) {
-    const user = req.user;
     return this.dynamicPricingService.createExperiment(campgroundId, {
       ...data,
       startDate: new Date(data.startDate),
       endDate: new Date(data.endDate),
-      createdById: user?.id,
+      createdById: req.user.id,
     });
   }
 
@@ -520,10 +518,9 @@ export class AiAutopilotController {
   @Roles(UserRole.owner, UserRole.manager, UserRole.maintenance)
   async acknowledgeMaintenanceAlert(
     @Param("id") id: string,
-    @Req() req: Request
+    @Req() req: AuthRequest
   ) {
-    const user = req.user;
-    return this.predictiveMaintenanceService.acknowledgeAlert(id, user?.id);
+    return this.predictiveMaintenanceService.acknowledgeAlert(id, req.user.id);
   }
 
   @Post("maintenance/alerts/:id/schedule")
@@ -665,10 +662,9 @@ export class AiAutopilotController {
   async reverseAutonomousAction(
     @Param("id") id: string,
     @Body("reason") reason: string,
-    @Req() req: Request
+    @Req() req: AuthRequest
   ) {
-    const user = req.user;
-    return this.autonomousActionService.reverseAction(id, user?.id, reason);
+    return this.autonomousActionService.reverseAction(id, req.user.id, reason);
   }
 
   @Get("campgrounds/:campgroundId/autonomous-actions/summary")

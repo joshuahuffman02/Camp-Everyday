@@ -13,13 +13,15 @@ import {
     AlertDialogTitle,
 } from "../ui/alert-dialog";
 import { AddOnModal } from "./AddOnModal";
-import { AddOn } from "@keepr/shared";
+import type { AddOn, CreateAddOnDto } from "@keepr/shared";
 import { CardEmpty } from "../ui/empty-state";
 import { Gift } from "lucide-react";
 
 interface AddOnListProps {
     campgroundId: string;
 }
+
+type AddOnPayload = Omit<CreateAddOnDto, "campgroundId">;
 
 export function AddOnList({ campgroundId }: AddOnListProps) {
     const qc = useQueryClient();
@@ -33,12 +35,12 @@ export function AddOnList({ campgroundId }: AddOnListProps) {
     });
 
     const createMutation = useMutation({
-        mutationFn: (data: any) => apiClient.createStoreAddOn(campgroundId, data),
+        mutationFn: (data: AddOnPayload) => apiClient.createStoreAddOn(campgroundId, data),
         onSuccess: () => qc.invalidateQueries({ queryKey: ["store-addons"] })
     });
 
     const updateMutation = useMutation({
-        mutationFn: (payload: { id: string; data: any }) =>
+        mutationFn: (payload: { id: string; data: Partial<AddOnPayload> }) =>
             apiClient.updateStoreAddOn(payload.id, payload.data, campgroundId),
         onSuccess: () => qc.invalidateQueries({ queryKey: ["store-addons"] })
     });
@@ -48,7 +50,7 @@ export function AddOnList({ campgroundId }: AddOnListProps) {
         onSuccess: () => qc.invalidateQueries({ queryKey: ["store-addons"] })
     });
 
-    const handleSave = async (data: any) => {
+    const handleSave = async (data: AddOnPayload) => {
         if (editingAddOn) {
             await updateMutation.mutateAsync({ id: editingAddOn.id, data });
         } else {

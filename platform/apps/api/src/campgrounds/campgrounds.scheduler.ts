@@ -19,9 +19,9 @@ export class CampgroundsIngestScheduler {
         limit
       });
       this.logger.log(`OSM ingest completed: processed=${processed}, upserted=${upserted}`);
-    } catch (err: any) {
-      this.logger.error(`OSM ingest failed: ${err?.message || err}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.error(`OSM ingest failed: ${message}`);
     }
   }
 }
-

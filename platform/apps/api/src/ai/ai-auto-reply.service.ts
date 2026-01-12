@@ -1,11 +1,14 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
+import { randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { AiProviderService } from "./ai-provider.service";
 import { AiPrivacyService } from "./ai-privacy.service";
 import { AiAutopilotConfigService } from "./ai-autopilot-config.service";
 import { EmailService } from "../email/email.service";
 import { ReviewDraftDto } from "./dto/autopilot.dto";
+import { AiFeatureType } from "@prisma/client";
+import type { AiReplyDraft, Prisma } from "@prisma/client";
 
 interface GeneratedReply {
   content: string;
@@ -15,6 +18,10 @@ interface GeneratedReply {
   usedContextIds: string[];
   usedContextSummary: string;
 }
+
+type CommunicationWithRelations = Prisma.CommunicationGetPayload<{
+  include: { Campground: true; Guest: true; Reservation: true };
+}>;
 
 @Injectable()
 export class AiAutoReplyService {
@@ -31,7 +38,7 @@ export class AiAutoReplyService {
   // ==================== DRAFT CRUD ====================
 
   async getDrafts(campgroundId: string, status?: string) {
-    const where: any = { campgroundId };
+    const where: Prisma.AiReplyDraftWhereInput = { campgroundId };
     if (status) where.status = status;
 
     return this.prisma.aiReplyDraft.findMany({
@@ -52,14 +59,14 @@ export class AiAutoReplyService {
   /**
    * Process an inbound message and generate an AI reply draft
    */
-  async processInboundMessage(communicationId: string): Promise<any> {
+  async processInboundMessage(communicationId: string): Promise<AiReplyDraft | null> {
     // Get the communication
     const communication = await this.prisma.communication.findUnique({
       where: { id: communicationId },
       include: {
-        campground: true,
-        guest: true,
-        reservation: true,
+        Campground: true,
+        Guest: true,
+        Reservation: true,
       },
     });
 
@@ -98,6 +105,7 @@ export class AiAutoReplyService {
     // Create the draft
     const draft = await this.prisma.aiReplyDraft.create({
       data: {
+        id: randomUUID(),
         campgroundId: communication.campgroundId,
         communicationId: communication.id,
         guestId: communication.guestId,
@@ -111,6 +119,7 @@ export class AiAutoReplyService {
         usedContextIds: reply.usedContextIds,
         usedContextSummary: reply.usedContextSummary,
         status: "pending",
+        updatedAt: new Date(),
       },
     });
 
@@ -136,7 +145,7 @@ export class AiAutoReplyService {
   /**
    * Generate an AI reply for a communication
    */
-  private async generateReply(communication: any): Promise<GeneratedReply> {
+  private async generateReply(communication: CommunicationWithRelations): Promise<GeneratedReply> {
     // Get campground context
     const contextItems = await this.prisma.aiCampgroundContext.findMany({
       where: {
@@ -153,13 +162,13 @@ export class AiAutoReplyService {
     );
 
     // Anonymize the message
-    const { text: anonymizedMessage, tokenMap } = this.aiPrivacy.anonymize(
+    const { anonymizedText, tokenMap } = this.aiPrivacy.anonymize(
       communication.body || communication.subject || ""
     );
 
     // Build the system prompt
     const systemPrompt = `You are a helpful campground assistant responding to guest messages.
-You work for ${communication.campground?.name || "the campground"}.
+You work for ${communication.Campground?.name || "the campground"}.
 
 Your responses should be:
 - Friendly and professional
@@ -188,22 +197,20 @@ Respond in JSON format:
     const userMessage = `Guest message:
 Subject: ${communication.subject || "(no subject)"}
 
-${anonymizedMessage}
+${anonymizedText}
 
-${communication.reservation ? `This guest has a reservation arriving ${communication.reservation.arrivalDate}` : ""}
-${communication.guest ? `Guest name: ${communication.guest.primaryFirstName || ""} ${communication.guest.primaryLastName || ""}` : ""}`;
+${communication.Reservation ? `This guest has a reservation arriving ${communication.Reservation.arrivalDate}` : ""}
+${communication.Guest ? `Guest name: ${communication.Guest.primaryFirstName || ""} ${communication.Guest.primaryLastName || ""}` : ""}`;
 
     try {
       // Call AI provider
-      const response = await this.aiProvider.complete({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userMessage },
-        ],
+      const response = await this.aiProvider.getCompletion({
+        campgroundId: communication.campgroundId,
+        featureType: AiFeatureType.reply_assist,
+        systemPrompt,
+        userPrompt: userMessage,
         temperature: 0.7,
         maxTokens: 500,
-        responseFormat: { type: "json_object" },
       });
 
       // Parse the response
@@ -252,7 +259,7 @@ ${communication.guest ? `Guest name: ${communication.guest.primaryFirstName || "
   async reviewDraft(id: string, data: ReviewDraftDto, reviewerId?: string) {
     const draft = await this.getDraft(id);
 
-    const updates: any = {
+    const updates: Prisma.AiReplyDraftUpdateInput = {
       reviewedById: reviewerId,
       reviewedAt: new Date(),
       autoSendScheduledAt: null, // Cancel any scheduled auto-send
@@ -291,7 +298,7 @@ ${communication.guest ? `Guest name: ${communication.guest.primaryFirstName || "
     // Get the original communication for reply-to address
     const communication = await this.prisma.communication.findUnique({
       where: { id: draft.communicationId },
-      include: { campground: true, guest: true },
+      include: { Campground: true, Guest: true },
     });
 
     if (!communication) {
@@ -299,7 +306,7 @@ ${communication.guest ? `Guest name: ${communication.guest.primaryFirstName || "
     }
 
     const replyContent = draft.editedContent || draft.draftContent;
-    const toAddress = communication.fromAddress || communication.guest?.email;
+    const toAddress = communication.fromAddress || communication.Guest?.email;
 
     if (!toAddress) {
       throw new BadRequestException("No recipient address available");
@@ -314,7 +321,7 @@ ${communication.guest ? `Guest name: ${communication.guest.primaryFirstName || "
           <p style="color: #334155; line-height: 1.6; white-space: pre-wrap;">${replyContent}</p>
           <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
           <p style="color: #64748b; font-size: 13px;">
-            ${communication.campground?.name || "The campground team"}
+            ${communication.Campground?.name || "The campground team"}
           </p>
         </div>
       `,
@@ -326,6 +333,7 @@ ${communication.guest ? `Guest name: ${communication.guest.primaryFirstName || "
     // Record the outbound communication
     await this.prisma.communication.create({
       data: {
+        id: randomUUID(),
         campgroundId: draft.campgroundId,
         guestId: draft.guestId,
         reservationId: draft.reservationId,
@@ -336,7 +344,7 @@ ${communication.guest ? `Guest name: ${communication.guest.primaryFirstName || "
         preview: replyContent.substring(0, 280),
         status: "sent",
         toAddress,
-        fromAddress: communication.campground?.email || "noreply@keeprstay.com",
+        fromAddress: communication.Campground?.email || "noreply@keeprstay.com",
         sentAt: new Date(),
         metadata: { aiGenerated: true, draftId: draft.id },
       },

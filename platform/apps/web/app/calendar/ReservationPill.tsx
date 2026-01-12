@@ -117,7 +117,10 @@ export function ReservationPill({
         },
     };
 
-    const config = statusConfig[reservation.status as keyof typeof statusConfig] || statusConfig.pending;
+    const isReservationStatus = (value: string): value is keyof typeof statusConfig =>
+        Object.prototype.hasOwnProperty.call(statusConfig, value);
+    const statusKey = isReservationStatus(reservation.status) ? reservation.status : "pending";
+    const config = statusConfig[statusKey];
     const Icon = config.icon;
     const guestName = `${reservation.guest?.primaryFirstName || ""} ${reservation.guest?.primaryLastName || ""}`.trim() || "Guest";
     const total = (reservation.totalAmount ?? 0) / 100;

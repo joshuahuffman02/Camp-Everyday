@@ -45,19 +45,44 @@ type Ticket = {
   client?: TicketClient;
 };
 
-type WhoamiUser = {
-  id: string;
+type TicketCategory = NonNullable<Ticket["category"]>;
+type TicketStatus = Ticket["status"];
+type TicketStatusFilter = "all" | TicketStatus;
+type TicketCategoryFilter = "all" | TicketCategory;
+type TicketUrgency = "Normal" | "High - Guests waiting" | "Critical - Outage";
+type TicketRole = "Owner" | "Manager" | "Front desk" | "Maintenance" | "Finance";
+
+type NewTicketForm = {
+  title: string;
+  notes: string;
+  category: TicketCategory;
+  area: string;
+  name: string;
   email: string;
-  firstName?: string | null;
-  lastName?: string | null;
-  name?: string;
+  campground: string;
+  role: TicketRole;
+  urgency: TicketUrgency;
 };
 
-type WhoamiData = {
-  user?: WhoamiUser;
-  id?: string;
-  email?: string;
-  name?: string;
+const STATUS_FILTER_OPTIONS: readonly TicketStatusFilter[] = ["all", "open", "completed"];
+const CATEGORY_FILTER_OPTIONS: readonly TicketCategoryFilter[] = ["all", "issue", "question", "feature", "other"];
+const TICKET_ROLES: TicketRole[] = ["Owner", "Manager", "Front desk", "Maintenance", "Finance"];
+const TICKET_URGENCIES: TicketUrgency[] = ["Normal", "High - Guests waiting", "Critical - Outage"];
+
+const isTicketRole = (value: string): value is TicketRole =>
+  TICKET_ROLES.some((role) => role === value);
+
+const isTicketUrgency = (value: string): value is TicketUrgency =>
+  TICKET_URGENCIES.some((urgency) => urgency === value);
+
+const getUserDisplayName = (user?: {
+  firstName?: string | null;
+  lastName?: string | null;
+  email?: string | null;
+}) => {
+  if (!user) return null;
+  const fullName = `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim();
+  return fullName || user.email || null;
 };
 
 export default function TicketsPage() {
@@ -66,8 +91,8 @@ export default function TicketsPage() {
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [upvotingId, setUpvotingId] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<"all" | "open" | "completed">("all");
-  const [categoryFilter, setCategoryFilter] = useState<"all" | "issue" | "question" | "feature" | "other">("all");
+  const [statusFilter, setStatusFilter] = useState<TicketStatusFilter>("all");
+  const [categoryFilter, setCategoryFilter] = useState<TicketCategoryFilter>("all");
   const [areaFilter, setAreaFilter] = useState<string>("all");
   const [detailTicket, setDetailTicket] = useState<Ticket | null>(null);
   const [response, setResponse] = useState("");
@@ -75,15 +100,16 @@ export default function TicketsPage() {
   const [search, setSearch] = useState("");
   const [expandedNotes, setExpandedNotes] = useState<Record<string, boolean>>({});
   const { data: whoami } = useWhoami();
+  const userDisplayName = getUserDisplayName(whoami?.user);
 
   // Create Ticket State
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [newTicket, setNewTicket] = useState({
+  const [newTicket, setNewTicket] = useState<NewTicketForm>({
     title: "",
     notes: "",
-    category: "issue" as "issue" | "question" | "feature" | "other",
+    category: "issue",
     area: "General",
     name: "",
     email: "",
@@ -240,17 +266,10 @@ export default function TicketsPage() {
   const upvote = async (ticket: Ticket) => {
     setUpvotingId(ticket.id);
     try {
-      const whoamiData = whoami as WhoamiData | undefined;
       const actor: TicketSubmitter = {
-        id: whoamiData?.id ?? whoamiData?.user?.id ?? null,
-        name:
-          whoamiData?.name ??
-          whoamiData?.user?.name ??
-          whoamiData?.user?.firstName ??
-          whoamiData?.email ??
-          whoamiData?.user?.email ??
-          null,
-        email: whoamiData?.email ?? whoamiData?.user?.email ?? null,
+        id: whoami?.user?.id ?? null,
+        name: userDisplayName,
+        email: whoami?.user?.email ?? null,
       };
 
       const res = await fetch("/api/tickets", {
@@ -307,7 +326,6 @@ export default function TicketsPage() {
     if (!newTicket.title.trim()) return;
     setCreating(true);
     try {
-      const whoamiData = whoami as WhoamiData | undefined;
       const res = await fetch("/api/tickets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -318,9 +336,9 @@ export default function TicketsPage() {
           area: newTicket.area,
           status: "open",
           submitter: {
-            id: whoamiData?.id ?? whoamiData?.user?.id ?? null,
-            name: newTicket.name || whoamiData?.name || whoamiData?.user?.name || whoamiData?.user?.firstName || null,
-            email: newTicket.email || whoamiData?.email || whoamiData?.user?.email || null
+            id: whoami?.user?.id ?? null,
+            name: newTicket.name || userDisplayName,
+            email: newTicket.email || whoami?.user?.email || null
           },
           extra: {
             campground: newTicket.campground,
@@ -371,7 +389,7 @@ export default function TicketsPage() {
             {canViewList && (
               <div className="flex flex-wrap gap-2 justify-end">
                 <div className="flex items-center gap-1 rounded-full border border-border bg-card p-1 shadow-sm">
-                  {(["all", "open", "completed"] as const).map((key) => (
+                  {STATUS_FILTER_OPTIONS.map((key) => (
                     <Button
                       key={key}
                       size="sm"
@@ -383,7 +401,7 @@ export default function TicketsPage() {
                   ))}
                 </div>
                 <div className="flex items-center gap-1 rounded-full border border-border bg-card p-1 shadow-sm">
-                  {(["all", "issue", "question", "feature", "other"] as const).map((key) => (
+                  {CATEGORY_FILTER_OPTIONS.map((key) => (
                     <Button
                       key={key}
                       size="sm"
@@ -878,7 +896,11 @@ export default function TicketsPage() {
                   <label className="text-sm font-medium text-foreground">Role</label>
                   <Select
                     value={newTicket.role}
-                    onValueChange={(val) => setNewTicket(prev => ({ ...prev, role: val }))}
+                    onValueChange={(val) => {
+                      if (isTicketRole(val)) {
+                        setNewTicket((prev) => ({ ...prev, role: val }));
+                      }
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -896,7 +918,11 @@ export default function TicketsPage() {
                   <label className="text-sm font-medium text-foreground">Urgency</label>
                   <Select
                     value={newTicket.urgency}
-                    onValueChange={(val) => setNewTicket(prev => ({ ...prev, urgency: val }))}
+                    onValueChange={(val) => {
+                      if (isTicketUrgency(val)) {
+                        setNewTicket((prev) => ({ ...prev, urgency: val }));
+                      }
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue />

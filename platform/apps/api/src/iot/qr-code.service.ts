@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
-import { createHash, randomBytes } from "crypto";
+import { createHash, randomBytes, randomUUID } from "crypto";
 import * as QRCode from "qrcode";
 
 export type QRCodeType =
@@ -13,6 +13,23 @@ export type QRCodeType =
   | "wifi"           // WiFi credentials
   | "emergency";     // Emergency info
 
+const QR_CODE_TYPES: QRCodeType[] = [
+  "checkin",
+  "checkout",
+  "site",
+  "amenity",
+  "store",
+  "event",
+  "wifi",
+  "emergency",
+];
+
+const isQRCodeType = (value: string): value is QRCodeType =>
+  QR_CODE_TYPES.some((type) => type === value);
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
 interface GenerateQROptions {
   type: QRCodeType;
   campgroundId: string;
@@ -24,7 +41,7 @@ interface GenerateQROptions {
   metadata?: Record<string, unknown>;
 }
 
-interface QRCodeResult {
+export interface QRCodeResult {
   code: string;
   url: string;
   dataUrl: string; // Base64 encoded SVG
@@ -46,7 +63,7 @@ export class QRCodeService {
   async generateCheckinCode(reservationId: string): Promise<QRCodeResult> {
     const reservation = await this.prisma.reservation.findUnique({
       where: { id: reservationId },
-      include: { campground: true, site: true },
+      include: { Campground: true, Site: true, Guest: true },
     });
 
     if (!reservation) {
@@ -59,8 +76,12 @@ export class QRCodeService {
     expiresAt.setHours(23, 59, 59, 999); // Valid until end of stay
 
     // Store the QR code token
+    const guestName = reservation.Guest
+      ? `${reservation.Guest.primaryFirstName ?? ""} ${reservation.Guest.primaryLastName ?? ""}`.trim()
+      : null;
     const qrCode = await this.prisma.qRCode.create({
       data: {
+        id: randomUUID(),
         campgroundId: reservation.campgroundId,
         reservationId,
         siteId: reservation.siteId,
@@ -68,11 +89,12 @@ export class QRCodeService {
         code: token,
         expiresAt,
         metadata: {
-          guestName: reservation.guestName,
-          siteNumber: reservation.site?.siteNumber,
+          guestName,
+          siteNumber: reservation.Site?.siteNumber,
           arrivalDate: reservation.arrivalDate,
           departureDate: reservation.departureDate,
         },
+        updatedAt: new Date()
       },
     });
 
@@ -93,7 +115,7 @@ export class QRCodeService {
   async generateSiteCode(siteId: string): Promise<QRCodeResult> {
     const site = await this.prisma.site.findUnique({
       where: { id: siteId },
-      include: { campground: true },
+      include: { Campground: true },
     });
 
     if (!site) {
@@ -109,16 +131,18 @@ export class QRCodeService {
       const token = this.generateSecureToken(8); // Shorter for site codes
       qrCode = await this.prisma.qRCode.create({
         data: {
+          id: randomUUID(),
           campgroundId: site.campgroundId,
           siteId,
           type: "site",
           code: token,
           expiresAt: null, // Permanent
           metadata: {
-            siteName: site.siteName,
+            siteName: site.name,
             siteNumber: site.siteNumber,
             siteType: site.siteType,
           },
+          updatedAt: new Date()
         },
       });
     }
@@ -145,11 +169,13 @@ export class QRCodeService {
     const token = this.generateSecureToken(6);
     await this.prisma.qRCode.create({
       data: {
+        id: randomUUID(),
         campgroundId,
         type: "wifi",
         code: token,
         expiresAt: null,
         metadata: { ssid },
+        updatedAt: new Date()
       },
     });
 
@@ -191,11 +217,13 @@ export class QRCodeService {
 
     await this.prisma.qRCode.create({
       data: {
+        id: randomUUID(),
         campgroundId,
         type: "store",
         code: token,
         expiresAt: null,
         metadata: { tableNumber },
+        updatedAt: new Date()
       },
     });
 
@@ -238,6 +266,11 @@ export class QRCodeService {
       }
     }
 
+    const qrType = isQRCodeType(qrCode.type) ? qrCode.type : null;
+    if (!qrType) {
+      return { valid: false, error: "QR code type invalid" };
+    }
+
     // Record scan
     await this.prisma.qRCode.update({
       where: { id: qrCode.id },
@@ -249,11 +282,11 @@ export class QRCodeService {
 
     return {
       valid: true,
-      type: qrCode.type as QRCodeType,
+      type: qrType,
       reservationId: qrCode.reservationId || undefined,
       siteId: qrCode.siteId || undefined,
       campgroundId: qrCode.campgroundId,
-      metadata: qrCode.metadata as Record<string, unknown>,
+      metadata: isRecord(qrCode.metadata) ? qrCode.metadata : {},
     };
   }
 

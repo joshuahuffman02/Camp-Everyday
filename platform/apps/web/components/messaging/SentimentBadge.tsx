@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { AlertTriangle, ThumbsUp, ThumbsDown, Minus, Zap } from "lucide-react";
+import { AlertTriangle, ThumbsUp, ThumbsDown, Minus, Zap, type LucideIcon } from "lucide-react";
 
 type Sentiment = "positive" | "neutral" | "negative" | null | undefined;
 type UrgencyLevel = "low" | "normal" | "high" | "critical" | null | undefined;
@@ -14,7 +14,10 @@ interface SentimentBadgeProps {
   className?: string;
 }
 
-const sentimentConfig = {
+type SentimentKey = Exclude<Sentiment, null | undefined>;
+type UrgencyKey = Exclude<UrgencyLevel, null | undefined>;
+
+const sentimentConfig: Record<SentimentKey, { icon: LucideIcon; label: string; bg: string; border: string; text: string; iconColor: string }> = {
   positive: {
     icon: ThumbsUp,
     label: "Positive",
@@ -39,9 +42,9 @@ const sentimentConfig = {
     text: "text-red-700",
     iconColor: "text-red-500"
   }
-} as const;
+};
 
-const urgencyConfig = {
+const urgencyConfig: Record<Extract<UrgencyKey, "critical" | "high">, { icon: LucideIcon; label: string; bg: string; border: string; text: string; iconColor: string; pulse: boolean }> = {
   critical: {
     icon: AlertTriangle,
     label: "Critical",
@@ -60,13 +63,13 @@ const urgencyConfig = {
     iconColor: "text-amber-600",
     pulse: false
   }
-} as const;
+};
 
-const sizeConfig = {
+const sizeConfig: Record<NonNullable<SentimentBadgeProps["size"]>, { badge: string; icon: string }> = {
   sm: { badge: "px-1.5 py-0.5 text-xs gap-1", icon: "h-3 w-3" },
   md: { badge: "px-2 py-1 text-xs gap-1.5", icon: "h-3.5 w-3.5" },
   lg: { badge: "px-2.5 py-1.5 text-sm gap-2", icon: "h-4 w-4" }
-} as const;
+};
 
 export function SentimentBadge({
   sentiment,

@@ -9,6 +9,7 @@ import {
   Query,
   Req,
   UseGuards,
+  UnauthorizedException,
 } from "@nestjs/common";
 import { Roles, RolesGuard } from "../auth/guards/roles.guard";
 import { JwtAuthGuard } from "../auth/guards";
@@ -17,6 +18,7 @@ import { RequireScope } from "../permissions/scope.decorator";
 import { UserRole, SeasonalStatus, RenewalIntent } from ".prisma/client";
 import { SeasonalsService } from "./seasonals.service";
 import { SeasonalPricingService } from "./seasonal-pricing.service";
+import type { AuthUser } from "../auth/auth.types";
 import {
   CreateSeasonalGuestDto,
   UpdateSeasonalGuestDto,
@@ -31,6 +33,8 @@ import {
   SeasonalGuestQueryDto,
 } from "./dto";
 
+type SeasonalsRequest = Request & { user?: AuthUser };
+
 @Controller("seasonals")
 export class SeasonalsController {
   constructor(
@@ -38,14 +42,23 @@ export class SeasonalsController {
     private readonly pricing: SeasonalPricingService
   ) {}
 
+  private requireUserId(req: SeasonalsRequest): string {
+    const userId = req.user?.id;
+    if (!userId) {
+      throw new UnauthorizedException("User authentication required");
+    }
+    return userId;
+  }
+
   // ==================== SEASONAL GUESTS ====================
 
   @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
   @Roles(UserRole.owner, UserRole.manager, UserRole.front_desk, UserRole.finance)
   @RequireScope({ resource: "reservations", action: "write" })
   @Post()
-  async createSeasonalGuest(@Req() req: Request, @Body() dto: CreateSeasonalGuestDto) {
-    return this.seasonals.create(dto, req.user?.id);
+  async createSeasonalGuest(@Req() req: SeasonalsRequest, @Body() dto: CreateSeasonalGuestDto) {
+    const userId = this.requireUserId(req);
+    return this.seasonals.create(dto, userId);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
@@ -57,14 +70,10 @@ export class SeasonalsController {
     @Query() query: SeasonalGuestQueryDto
   ) {
     const filters = {
-      status: query.status?.includes(",")
-        ? (query.status.split(",") as SeasonalStatus[])
-        : (query.status as SeasonalStatus | undefined),
-      renewalIntent: query.renewalIntent?.includes(",")
-        ? (query.renewalIntent.split(",") as RenewalIntent[])
-        : (query.renewalIntent as RenewalIntent | undefined),
-      paymentStatus: query.paymentStatus as "current" | "past_due" | "paid_ahead" | undefined,
-      contractStatus: query.contractStatus as "signed" | "pending" | "not_sent" | undefined,
+      status: parseSeasonalStatus(query.status),
+      renewalIntent: parseRenewalIntent(query.renewalIntent),
+      paymentStatus: parsePaymentStatus(query.paymentStatus),
+      contractStatus: parseContractStatus(query.contractStatus),
       siteId: query.siteId,
       tenureMin: query.tenureMin ? parseInt(query.tenureMin, 10) : undefined,
       tenureMax: query.tenureMax ? parseInt(query.tenureMax, 10) : undefined,
@@ -125,13 +134,14 @@ export class SeasonalsController {
   @Roles(UserRole.owner, UserRole.manager, UserRole.front_desk, UserRole.finance)
   @RequireScope({ resource: "reservations", action: "write" })
   @Post("payments")
-  async recordPayment(@Req() req: Request, @Body() dto: RecordPaymentDto) {
+  async recordPayment(@Req() req: SeasonalsRequest, @Body() dto: RecordPaymentDto) {
+    const userId = this.requireUserId(req);
     return this.seasonals.recordPayment(
       {
         ...dto,
         paidAt: dto.paidAt ? new Date(dto.paidAt) : undefined,
       },
-      req.user?.id
+      userId
     );
   }
 
@@ -157,7 +167,7 @@ export class SeasonalsController {
   @Post("rate-cards")
   async createRateCard(@Body() dto: CreateRateCardDto) {
     return this.seasonals.createRateCard({
-      campground: { connect: { id: dto.campgroundId } },
+      Campground: { connect: { id: dto.campgroundId } },
       name: dto.name,
       seasonYear: dto.seasonYear,
       baseRate: dto.baseRate,
@@ -238,15 +248,16 @@ export class SeasonalsController {
   @RequireScope({ resource: "reservations", action: "write" })
   @Post(":id/apply-pricing")
   async applyPricing(
-    @Req() req: Request,
+    @Req() req: SeasonalsRequest,
     @Param("id") id: string,
     @Body() dto: { rateCardId: string; seasonYear: number; manualAdjustment?: { amount: number; reason: string } }
   ) {
+    const userId = this.requireUserId(req);
     await this.pricing.applyPricingToGuest(
       id,
       dto.rateCardId,
       dto.seasonYear,
-      dto.manualAdjustment ? { ...dto.manualAdjustment, userId: req.user?.id } : undefined
+      dto.manualAdjustment ? { ...dto.manualAdjustment, userId } : undefined
     );
     return this.seasonals.findById(id);
   }
@@ -257,8 +268,9 @@ export class SeasonalsController {
   @Roles(UserRole.owner, UserRole.manager)
   @RequireScope({ resource: "reservations", action: "write" })
   @Post("messages/bulk")
-  async sendBulkMessage(@Req() req: Request, @Body() dto: BulkMessageDto) {
-    return this.seasonals.sendBulkMessage(dto, req.user?.id);
+  async sendBulkMessage(@Req() req: SeasonalsRequest, @Body() dto: BulkMessageDto) {
+    const userId = this.requireUserId(req);
+    return this.seasonals.sendBulkMessage(dto, userId);
   }
 
   // ==================== CONVERT RESERVATION TO SEASONAL ====================
@@ -269,14 +281,15 @@ export class SeasonalsController {
   @RequireScope({ resource: "reservations", action: "write" })
   @Post("convert-from-reservation/:reservationId")
   async convertReservationToSeasonal(
-    @Req() req: Request,
+    @Req() req: SeasonalsRequest,
     @Param("reservationId") reservationId: string,
     @Body() dto: { rateCardId?: string; isMetered?: boolean; paysInFull?: boolean; notes?: string }
   ) {
+    const userId = this.requireUserId(req);
     return this.seasonals.convertReservationToSeasonal(
       reservationId,
       dto,
-      req.user?.id
+      userId
     );
   }
 
@@ -285,13 +298,14 @@ export class SeasonalsController {
   @RequireScope({ resource: "reservations", action: "write" })
   @Post("link-reservation")
   async linkReservationToSeasonal(
-    @Req() req: Request,
+    @Req() req: SeasonalsRequest,
     @Body() dto: { reservationId: string; seasonalGuestId: string }
   ) {
+    const userId = this.requireUserId(req);
     return this.seasonals.linkReservationToSeasonal(
       dto.reservationId,
       dto.seasonalGuestId,
-      req.user?.id
+      userId
     );
   }
 
@@ -324,10 +338,11 @@ export class SeasonalsController {
   @RequireScope({ resource: "reservations", action: "write" })
   @Post("contracts/bulk")
   async sendBulkContracts(
-    @Req() req: Request,
+    @Req() req: SeasonalsRequest,
     @Body() dto: { seasonalGuestIds: string[]; templateId?: string; campgroundId: string }
   ) {
-    return this.seasonals.sendBulkContracts(dto, req.user?.id);
+    const userId = this.requireUserId(req);
+    return this.seasonals.sendBulkContracts(dto, userId);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
@@ -335,10 +350,11 @@ export class SeasonalsController {
   @RequireScope({ resource: "reservations", action: "write" })
   @Post("payments/bulk")
   async recordBulkPayments(
-    @Req() req: Request,
+    @Req() req: SeasonalsRequest,
     @Body() dto: { seasonalGuestIds: string[]; amountCents: number; method: string; note?: string }
   ) {
-    return this.seasonals.recordBulkPayments(dto, req.user?.id);
+    const userId = this.requireUserId(req);
+    return this.seasonals.recordBulkPayments(dto, userId);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
@@ -354,3 +370,28 @@ export class SeasonalsController {
     return this.seasonals.exportToCsv(campgroundId, seasonYear, ids);
   }
 }
+
+const SEASONAL_STATUS_SET = new Set<string>(Object.values(SeasonalStatus));
+const RENEWAL_INTENT_SET = new Set<string>(Object.values(RenewalIntent));
+const PAYMENT_STATUS_SET = new Set<string>(["current", "past_due", "paid_ahead"]);
+const CONTRACT_STATUS_SET = new Set<string>(["signed", "pending", "not_sent"]);
+
+const isSeasonalStatus = (value: string): value is SeasonalStatus => SEASONAL_STATUS_SET.has(value);
+const isRenewalIntent = (value: string): value is RenewalIntent => RENEWAL_INTENT_SET.has(value);
+const isPaymentStatus = (value: string): value is "current" | "past_due" | "paid_ahead" =>
+  PAYMENT_STATUS_SET.has(value);
+const isContractStatus = (value: string): value is "signed" | "pending" | "not_sent" =>
+  CONTRACT_STATUS_SET.has(value);
+
+const parseList = <T extends string>(value: string | undefined, guard: (entry: string) => entry is T) => {
+  if (!value) return undefined;
+  const parts = value.split(",").map((entry) => entry.trim()).filter(Boolean);
+  const filtered = parts.filter(guard);
+  if (!filtered.length) return undefined;
+  return filtered.length === 1 ? filtered[0] : filtered;
+};
+
+const parseSeasonalStatus = (value?: string) => parseList(value, isSeasonalStatus);
+const parseRenewalIntent = (value?: string) => parseList(value, isRenewalIntent);
+const parsePaymentStatus = (value?: string) => (value && isPaymentStatus(value) ? value : undefined);
+const parseContractStatus = (value?: string) => (value && isContractStatus(value) ? value : undefined);

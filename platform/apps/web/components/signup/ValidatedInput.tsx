@@ -44,6 +44,11 @@ export function ValidatedInput({
   const [showSuccess, setShowSuccess] = useState(false);
   const [touched, setTouched] = useState(false);
   const prefersReducedMotion = useReducedMotion();
+  const springTransition: { type: "spring"; stiffness: number; damping: number } = {
+    type: "spring",
+    stiffness: 500,
+    damping: 25,
+  };
 
   useEffect(() => {
     const valid = validators[validation](value);
@@ -86,7 +91,7 @@ export function ValidatedInput({
               initial={prefersReducedMotion ? { opacity: 0 } : { scale: 0, opacity: 0 }}
               animate={prefersReducedMotion ? { opacity: 1 } : { scale: 1, opacity: 1 }}
               exit={prefersReducedMotion ? { opacity: 0 } : { scale: 0, opacity: 0 }}
-              transition={prefersReducedMotion ? { duration: 0.1 } : { type: "spring" as const, stiffness: 500, damping: 25 }}
+              transition={prefersReducedMotion ? { duration: 0.1 } : springTransition}
               className="absolute right-3 top-1/2 -translate-y-1/2"
             >
               <Check className="h-5 w-5 text-emerald-400" />

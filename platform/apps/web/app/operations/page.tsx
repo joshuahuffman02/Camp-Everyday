@@ -11,6 +11,65 @@ type OpTaskCategory = "turnover" | "housekeeping" | "maintenance" | "inspection"
 type OpTaskState = "pending" | "assigned" | "in_progress" | "blocked" | "completed" | "verified" | "cancelled";
 type OpTaskPriority = "low" | "medium" | "high" | "urgent";
 type OpSlaStatus = "on_track" | "at_risk" | "breached";
+type OpTaskFilter = {
+  state?: OpTaskState;
+  category?: OpTaskCategory;
+  slaStatus?: OpSlaStatus;
+  assignedToTeamId?: string;
+};
+type TasksByState = Partial<Record<OpTaskState, OpTask[]>>;
+type SiteRecord = Awaited<ReturnType<typeof apiClient.getSites>>[number];
+
+const opTaskCategoryValues: OpTaskCategory[] = [
+  "turnover",
+  "housekeeping",
+  "maintenance",
+  "inspection",
+  "grounds",
+  "pool",
+  "front_desk",
+  "custom",
+];
+
+const opTaskStateValues: OpTaskState[] = [
+  "pending",
+  "assigned",
+  "in_progress",
+  "blocked",
+  "completed",
+  "verified",
+  "cancelled",
+];
+
+const opTaskPriorityValues: OpTaskPriority[] = ["low", "medium", "high", "urgent"];
+const opSlaStatusValues: OpSlaStatus[] = ["on_track", "at_risk", "breached"];
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const isStringArray = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((item) => typeof item === "string");
+
+const readString = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+const readNumber = (value: unknown): number | undefined =>
+  typeof value === "number" ? value : undefined;
+
+const readBoolean = (value: unknown): boolean | undefined =>
+  typeof value === "boolean" ? value : undefined;
+
+const isOpTaskCategory = (value: string): value is OpTaskCategory =>
+  opTaskCategoryValues.some((category) => category === value);
+
+const isOpTaskState = (value: string): value is OpTaskState =>
+  opTaskStateValues.some((state) => state === value);
+
+const isOpTaskPriority = (value: string): value is OpTaskPriority =>
+  opTaskPriorityValues.some((priority) => priority === value);
+
+const isOpSlaStatus = (value: string): value is OpSlaStatus =>
+  opSlaStatusValues.some((status) => status === value);
 
 interface OpTask {
   id: string;
@@ -139,6 +198,382 @@ interface Badge {
   earnedCount: number;
 }
 
+const parseChecklistItems = (value: unknown): ChecklistItem[] | undefined => {
+  if (!Array.isArray(value)) return undefined;
+  const items = value.reduce<ChecklistItem[]>((acc, item) => {
+    if (!isRecord(item)) return acc;
+    const id = readString(item.id);
+    const text = readString(item.text);
+    const completed = readBoolean(item.completed);
+    if (!id || !text || completed === undefined) return acc;
+    acc.push({ id, text, completed });
+    return acc;
+  }, []);
+  return items.length > 0 ? items : undefined;
+};
+
+const parseSiteInfo = (value: unknown): OpTask["site"] | undefined => {
+  if (!isRecord(value)) return undefined;
+  const id = readString(value.id);
+  const name = readString(value.name);
+  if (!id || !name) return undefined;
+  return { id, name };
+};
+
+const parseAssignedUser = (value: unknown): OpTask["assignedToUser"] | undefined => {
+  if (!isRecord(value)) return undefined;
+  const id = readString(value.id);
+  const firstName = readString(value.firstName);
+  const lastName = readString(value.lastName);
+  if (!id || !firstName || !lastName) return undefined;
+  return { id, firstName, lastName };
+};
+
+const parseAssignedTeam = (value: unknown): OpTask["assignedToTeam"] | undefined => {
+  if (!isRecord(value)) return undefined;
+  const id = readString(value.id);
+  const name = readString(value.name);
+  const color = readString(value.color);
+  if (!id || !name || !color) return undefined;
+  return { id, name, color };
+};
+
+const normalizeOpTask = (value: unknown): OpTask | null => {
+  if (!isRecord(value)) return null;
+  const id = readString(value.id);
+  const campgroundId = readString(value.campgroundId);
+  const categoryValue = readString(value.category);
+  const title = readString(value.title);
+  const priorityValue = readString(value.priority);
+  const stateValue = readString(value.state);
+  const createdAt = readString(value.createdAt);
+  const updatedAt = readString(value.updatedAt);
+
+  if (!id || !campgroundId || !categoryValue || !title || !priorityValue || !stateValue || !createdAt || !updatedAt) {
+    return null;
+  }
+  if (!isOpTaskCategory(categoryValue) || !isOpTaskPriority(priorityValue) || !isOpTaskState(stateValue)) {
+    return null;
+  }
+
+  const task: OpTask = {
+    id,
+    campgroundId,
+    category: categoryValue,
+    title,
+    priority: priorityValue,
+    state: stateValue,
+    createdAt,
+    updatedAt,
+  };
+
+  const description = readString(value.description);
+  if (description) task.description = description;
+  const siteId = readString(value.siteId);
+  if (siteId) task.siteId = siteId;
+  const site = parseSiteInfo(value.site);
+  if (site) task.site = site;
+  const locationDescription = readString(value.locationDescription);
+  if (locationDescription) task.locationDescription = locationDescription;
+  const reservationId = readString(value.reservationId);
+  if (reservationId) task.reservationId = reservationId;
+  const assignedToUserId = readString(value.assignedToUserId);
+  if (assignedToUserId) task.assignedToUserId = assignedToUserId;
+  const assignedToUser = parseAssignedUser(value.assignedToUser);
+  if (assignedToUser) task.assignedToUser = assignedToUser;
+  const assignedToTeamId = readString(value.assignedToTeamId);
+  if (assignedToTeamId) task.assignedToTeamId = assignedToTeamId;
+  const assignedToTeam = parseAssignedTeam(value.assignedToTeam);
+  if (assignedToTeam) task.assignedToTeam = assignedToTeam;
+  const slaDueAt = readString(value.slaDueAt);
+  if (slaDueAt) task.slaDueAt = slaDueAt;
+  const slaStatusValue = readString(value.slaStatus);
+  if (slaStatusValue && isOpSlaStatus(slaStatusValue)) {
+    task.slaStatus = slaStatusValue;
+  }
+  const checklist = parseChecklistItems(value.checklist);
+  if (checklist) task.checklist = checklist;
+  const checklistProgress = readNumber(value.checklistProgress);
+  if (checklistProgress !== undefined) task.checklistProgress = checklistProgress;
+  const photos = isStringArray(value.photos) ? value.photos : undefined;
+  if (photos) task.photos = photos;
+  const notes = readString(value.notes);
+  if (notes) task.notes = notes;
+  const sourceEvent = readString(value.sourceEvent);
+  if (sourceEvent) task.sourceEvent = sourceEvent;
+  const templateId = readString(value.templateId);
+  if (templateId) task.templateId = templateId;
+  const recurrenceRuleId = readString(value.recurrenceRuleId);
+  if (recurrenceRuleId) task.recurrenceRuleId = recurrenceRuleId;
+  const completedAt = readString(value.completedAt);
+  if (completedAt) task.completedAt = completedAt;
+  const completedById = readString(value.completedById);
+  if (completedById) task.completedById = completedById;
+
+  return task;
+};
+
+const normalizeOpTasks = (value: unknown): OpTask[] => {
+  if (!Array.isArray(value)) return [];
+  return value.reduce<OpTask[]>((acc, item) => {
+    const task = normalizeOpTask(item);
+    if (task) acc.push(task);
+    return acc;
+  }, []);
+};
+
+const parseChecklistTemplate = (value: unknown): Array<{ id: string; text: string }> | undefined => {
+  if (!Array.isArray(value)) return undefined;
+  const items = value.reduce<Array<{ id: string; text: string }>>((acc, item) => {
+    if (!isRecord(item)) return acc;
+    const id = readString(item.id);
+    const text = readString(item.text);
+    if (!id || !text) return acc;
+    acc.push({ id, text });
+    return acc;
+  }, []);
+  return items.length > 0 ? items : undefined;
+};
+
+const parseTemplateCount = (value: unknown): { tasks: number } | undefined => {
+  if (!isRecord(value)) return undefined;
+  const tasks = readNumber(value.tasks);
+  if (tasks === undefined) return undefined;
+  return { tasks };
+};
+
+const normalizeOpTemplate = (value: unknown): OpTemplate | null => {
+  if (!isRecord(value)) return null;
+  const id = readString(value.id);
+  const name = readString(value.name);
+  const categoryValue = readString(value.category);
+  const priorityValue = readString(value.priority);
+  const isActive = readBoolean(value.isActive);
+  if (!id || !name || !categoryValue || !priorityValue || isActive === undefined) return null;
+  if (!isOpTaskCategory(categoryValue) || !isOpTaskPriority(priorityValue)) return null;
+
+  const template: OpTemplate = {
+    id,
+    name,
+    category: categoryValue,
+    priority: priorityValue,
+    isActive,
+  };
+
+  const description = readString(value.description);
+  if (description) template.description = description;
+  const slaMinutes = readNumber(value.slaMinutes);
+  if (slaMinutes !== undefined) template.slaMinutes = slaMinutes;
+  const checklistTemplate = parseChecklistTemplate(value.checklistTemplate);
+  if (checklistTemplate) template.checklistTemplate = checklistTemplate;
+  const count = parseTemplateCount(value._count);
+  if (count) template._count = count;
+
+  return template;
+};
+
+const normalizeOpTemplates = (value: unknown): OpTemplate[] => {
+  if (!Array.isArray(value)) return [];
+  return value.reduce<OpTemplate[]>((acc, item) => {
+    const template = normalizeOpTemplate(item);
+    if (template) acc.push(template);
+    return acc;
+  }, []);
+};
+
+const parseTeamCount = (value: unknown): { tasks: number; members: number } | undefined => {
+  if (!isRecord(value)) return undefined;
+  const tasks = readNumber(value.tasks);
+  const members = readNumber(value.members);
+  if (tasks === undefined || members === undefined) return undefined;
+  return { tasks, members };
+};
+
+const normalizeOpTeam = (value: unknown): OpTeam | null => {
+  if (!isRecord(value)) return null;
+  const id = readString(value.id);
+  const name = readString(value.name);
+  const color = readString(value.color);
+  const isActive = readBoolean(value.isActive);
+  if (!id || !name || !color || isActive === undefined) return null;
+  const team: OpTeam = { id, name, color, isActive };
+  const count = parseTeamCount(value._count);
+  if (count) team._count = count;
+  return team;
+};
+
+const normalizeOpTeams = (value: unknown): OpTeam[] => {
+  if (!Array.isArray(value)) return [];
+  return value.reduce<OpTeam[]>((acc, item) => {
+    const team = normalizeOpTeam(item);
+    if (team) acc.push(team);
+    return acc;
+  }, []);
+};
+
+const parseSlaCurrent = (value: unknown): SlaDashboardMetrics["current"] | null => {
+  if (!isRecord(value)) return null;
+  const onTrack = readNumber(value.onTrack);
+  const atRisk = readNumber(value.atRisk);
+  const breached = readNumber(value.breached);
+  const total = readNumber(value.total);
+  if (onTrack === undefined || atRisk === undefined || breached === undefined || total === undefined) return null;
+  return { onTrack, atRisk, breached, total };
+};
+
+const parseSlaToday = (value: unknown): SlaDashboardMetrics["today"] | null => {
+  if (!isRecord(value)) return null;
+  const completed = readNumber(value.completed);
+  const onTime = readNumber(value.onTime);
+  const late = readNumber(value.late);
+  const complianceRate = readNumber(value.complianceRate);
+  if (completed === undefined || onTime === undefined || late === undefined || complianceRate === undefined) return null;
+  return { completed, onTime, late, complianceRate };
+};
+
+const parseSlaWeek = (value: unknown): SlaDashboardMetrics["week"] | null => {
+  if (!isRecord(value)) return null;
+  const completed = readNumber(value.completed);
+  if (completed === undefined) return null;
+  return { completed };
+};
+
+const normalizeSlaDashboardMetrics = (value: unknown): SlaDashboardMetrics | null => {
+  if (!isRecord(value)) return null;
+  const current = parseSlaCurrent(value.current);
+  const today = parseSlaToday(value.today);
+  const week = parseSlaWeek(value.week);
+  if (!current || !today || !week) return null;
+  return { current, today, week };
+};
+
+const normalizeLeaderboardEntry = (value: unknown): LeaderboardEntry | null => {
+  if (!isRecord(value)) return null;
+  const userId = readString(value.userId);
+  const userName = readString(value.userName);
+  const totalPoints = readNumber(value.totalPoints);
+  const periodPoints = readNumber(value.periodPoints);
+  const rank = readNumber(value.rank);
+  const level = readNumber(value.level);
+  const tasksCompleted = readNumber(value.tasksCompleted);
+  const streak = readNumber(value.streak);
+  const badges = readNumber(value.badges);
+  if (!userId || !userName || totalPoints === undefined || periodPoints === undefined || rank === undefined || level === undefined || tasksCompleted === undefined || streak === undefined || badges === undefined) {
+    return null;
+  }
+  return { userId, userName, totalPoints, periodPoints, rank, level, tasksCompleted, streak, badges };
+};
+
+const normalizeLeaderboard = (value: unknown): LeaderboardEntry[] => {
+  if (!Array.isArray(value)) return [];
+  return value.reduce<LeaderboardEntry[]>((acc, item) => {
+    const entry = normalizeLeaderboardEntry(item);
+    if (entry) acc.push(entry);
+    return acc;
+  }, []);
+};
+
+const normalizeStaffBadge = (value: unknown): StaffProfile["badges"][number] | null => {
+  if (!isRecord(value)) return null;
+  const id = readString(value.id);
+  const name = readString(value.name);
+  const icon = readString(value.icon);
+  const tier = readString(value.tier);
+  const earnedAt = readString(value.earnedAt);
+  if (!id || !name || !icon || !tier || !earnedAt) return null;
+  return { id, name, icon, tier, earnedAt };
+};
+
+const normalizeStaffActivity = (value: unknown): StaffProfile["recentActivity"][number] | null => {
+  if (!isRecord(value)) return null;
+  const date = readString(value.date);
+  const tasksCompleted = readNumber(value.tasksCompleted);
+  const pointsEarned = readNumber(value.pointsEarned);
+  if (!date || tasksCompleted === undefined || pointsEarned === undefined) return null;
+  return { date, tasksCompleted, pointsEarned };
+};
+
+const normalizeStaffProfile = (value: unknown): StaffProfile | null => {
+  if (!isRecord(value)) return null;
+  const userId = readString(value.userId);
+  const userName = readString(value.userName);
+  const level = readNumber(value.level);
+  const totalPoints = readNumber(value.totalPoints);
+  const weekPoints = readNumber(value.weekPoints);
+  const monthPoints = readNumber(value.monthPoints);
+  const xpToNextLevel = readNumber(value.xpToNextLevel);
+  const currentStreak = readNumber(value.currentStreak);
+  const longestStreak = readNumber(value.longestStreak);
+  const totalTasksCompleted = readNumber(value.totalTasksCompleted);
+  const slaComplianceRate = readNumber(value.slaComplianceRate);
+  if (!userId || !userName || level === undefined || totalPoints === undefined || weekPoints === undefined || monthPoints === undefined || xpToNextLevel === undefined || currentStreak === undefined || longestStreak === undefined || totalTasksCompleted === undefined || slaComplianceRate === undefined) {
+    return null;
+  }
+
+  const weeklyRank = readNumber(value.weeklyRank) ?? null;
+  const monthlyRank = readNumber(value.monthlyRank) ?? null;
+  const badgesValue = value.badges;
+  const badges = Array.isArray(badgesValue)
+    ? badgesValue.reduce<StaffProfile["badges"]>((acc, badge) => {
+      const normalized = normalizeStaffBadge(badge);
+      if (normalized) acc.push(normalized);
+      return acc;
+    }, [])
+    : [];
+  const activityValue = value.recentActivity;
+  const recentActivity = Array.isArray(activityValue)
+    ? activityValue.reduce<StaffProfile["recentActivity"]>((acc, entry) => {
+      const normalized = normalizeStaffActivity(entry);
+      if (normalized) acc.push(normalized);
+      return acc;
+    }, [])
+    : [];
+
+  return {
+    userId,
+    userName,
+    level,
+    totalPoints,
+    weekPoints,
+    monthPoints,
+    xpToNextLevel,
+    currentStreak,
+    longestStreak,
+    totalTasksCompleted,
+    slaComplianceRate,
+    weeklyRank,
+    monthlyRank,
+    badges,
+    recentActivity,
+  };
+};
+
+const normalizeBadge = (value: unknown): Badge | null => {
+  if (!isRecord(value)) return null;
+  const id = readString(value.id);
+  const code = readString(value.code);
+  const name = readString(value.name);
+  const description = readString(value.description);
+  const icon = readString(value.icon);
+  const category = readString(value.category);
+  const tier = readString(value.tier);
+  const points = readNumber(value.points);
+  const earnedCount = readNumber(value.earnedCount);
+  if (!id || !code || !name || !description || !icon || !category || !tier || points === undefined || earnedCount === undefined) {
+    return null;
+  }
+  return { id, code, name, description, icon, category, tier, points, earnedCount };
+};
+
+const normalizeBadges = (value: unknown): Badge[] => {
+  if (!Array.isArray(value)) return [];
+  return value.reduce<Badge[]>((acc, item) => {
+    const badge = normalizeBadge(item);
+    if (badge) acc.push(badge);
+    return acc;
+  }, []);
+};
+
 // Visual configuration
 const STATE_CONFIG: Record<OpTaskState, { label: string; color: string; bgColor: string }> = {
   pending: { label: "Pending", color: "text-status-warning", bgColor: "bg-status-warning/15 border-status-warning/30" },
@@ -174,7 +609,21 @@ const PRIORITY_CONFIG: Record<OpTaskPriority, { label: string; color: string; do
   urgent: { label: "Urgent", color: "text-red-600", dot: "bg-red-500" },
 };
 
+const TAB_ITEMS: Array<{ id: TabType; label: string; fullLabel: string; icon: string }> = [
+  { id: "board", label: "Tasks", fullLabel: "Task Board", icon: "" },
+  { id: "sla", label: "SLA", fullLabel: "SLA Dashboard", icon: "" },
+  { id: "templates", label: "Templates", fullLabel: "Templates & Automation", icon: "" },
+  { id: "teams", label: "Teams", fullLabel: "Teams", icon: "" },
+  { id: "leaderboard", label: "Ranks", fullLabel: "Leaderboard", icon: "" },
+];
+
 type TabType = "board" | "sla" | "templates" | "teams" | "leaderboard";
+type LeaderboardPeriod = "week" | "month" | "all_time";
+
+const leaderboardPeriodValues: LeaderboardPeriod[] = ["week", "month", "all_time"];
+
+const isLeaderboardPeriod = (value: string): value is LeaderboardPeriod =>
+  leaderboardPeriodValues.some((period) => period === value);
 
 export default function OperationsPage() {
   const [selectedCampgroundId, setSelectedCampgroundId] = useState<string | null>(null);
@@ -187,12 +636,7 @@ export default function OperationsPage() {
   const [myStats, setMyStats] = useState<StaffProfile | null>(null);
   const [badges, setBadges] = useState<Badge[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<{
-    state?: OpTaskState;
-    category?: OpTaskCategory;
-    slaStatus?: OpSlaStatus;
-    assignedToTeamId?: string;
-  }>({});
+  const [filter, setFilter] = useState<OpTaskFilter>({});
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showTeamModal, setShowTeamModal] = useState(false);
@@ -220,22 +664,22 @@ export default function OperationsPage() {
         ...filter,
         excludeCompleted: filter.state ? undefined : true,
       });
-      setTasks(tasksData as OpTask[]);
+      setTasks(normalizeOpTasks(tasksData));
 
       // Load additional data based on active tab
       if (activeTab === "sla") {
         const metricsData = await apiClient.getSlaDashboard(selectedCampgroundId);
-        setSlaMetrics(metricsData as SlaDashboardMetrics);
+        setSlaMetrics(normalizeSlaDashboardMetrics(metricsData));
       }
 
       if (activeTab === "templates" || showCreateModal) {
         const templatesData = await apiClient.getOpTemplates(selectedCampgroundId);
-        setTemplates(templatesData as OpTemplate[]);
+        setTemplates(normalizeOpTemplates(templatesData));
       }
 
       if (activeTab === "teams" || showCreateModal) {
         const teamsData = await apiClient.getOpTeams(selectedCampgroundId);
-        setTeams(teamsData as OpTeam[]);
+        setTeams(normalizeOpTeams(teamsData));
       }
 
       if (activeTab === "leaderboard") {
@@ -244,9 +688,9 @@ export default function OperationsPage() {
           apiClient.getMyGamificationStats(selectedCampgroundId).catch(() => null),
           apiClient.getBadges(selectedCampgroundId),
         ]);
-        setLeaderboard(leaderboardData as LeaderboardEntry[]);
-        setMyStats(myStatsData as StaffProfile | null);
-        setBadges(badgesData as Badge[]);
+        setLeaderboard(normalizeLeaderboard(leaderboardData));
+        setMyStats(myStatsData ? normalizeStaffProfile(myStatsData) : null);
+        setBadges(normalizeBadges(badgesData));
       }
     } catch (err) {
       console.error("Failed to load data:", err);
@@ -364,13 +808,7 @@ export default function OperationsPage() {
 
         {/* Tabs - horizontally scrollable on mobile */}
         <div className="flex gap-1 mb-6 border-b border-border overflow-x-auto scrollbar-hide -mx-4 px-4 md:mx-0 md:px-0">
-          {[
-            { id: "board" as const, label: "Tasks", fullLabel: "Task Board", icon: "" },
-            { id: "sla" as const, label: "SLA", fullLabel: "SLA Dashboard", icon: "" },
-            { id: "templates" as const, label: "Templates", fullLabel: "Templates & Automation", icon: "" },
-            { id: "teams" as const, label: "Teams", fullLabel: "Teams", icon: "" },
-            { id: "leaderboard" as const, label: "Ranks", fullLabel: "Leaderboard", icon: "" },
-          ].map(tab => (
+          {TAB_ITEMS.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
@@ -499,10 +937,10 @@ function TaskBoardTab({
   formatTimeRemaining,
 }: {
   tasks: OpTask[];
-  tasksByState: Record<string, OpTask[]>;
+  tasksByState: TasksByState;
   teams: OpTeam[];
-  filter: any;
-  setFilter: (f: any) => void;
+  filter: OpTaskFilter;
+  setFilter: (value: OpTaskFilter | ((current: OpTaskFilter) => OpTaskFilter)) => void;
   loading: boolean;
   updateTaskState: (id: string, state: OpTaskState) => void;
   formatDate: (d?: string) => string;
@@ -525,6 +963,14 @@ function TaskBoardTab({
     if (mobileStateFilter === 'all') return tasks;
     return tasks.filter(t => t.state === mobileStateFilter);
   }, [tasks, mobileStateFilter]);
+
+  const stateTabs: Array<{ id: OpTaskState | "all"; label: string; count: number }> = [
+    { id: "all", label: "All", count: tasks.length },
+    { id: "pending", label: "Pending", count: tasksByState.pending?.length || 0 },
+    { id: "assigned", label: "Assigned", count: tasksByState.assigned?.length || 0 },
+    { id: "in_progress", label: "In Progress", count: tasksByState.in_progress?.length || 0 },
+    { id: "blocked", label: "Blocked", count: tasksByState.blocked?.length || 0 },
+  ];
 
   return (
     <>
@@ -594,7 +1040,11 @@ function TaskBoardTab({
 
           <select
             value={filter.category ?? ""}
-            onChange={e => setFilter((f: any) => ({ ...f, category: e.target.value || undefined }))}
+            onChange={(e) => {
+              const value = e.target.value;
+              const category = value && isOpTaskCategory(value) ? value : undefined;
+              setFilter((current) => ({ ...current, category }));
+            }}
             className="px-2 md:px-3 py-2 bg-muted/30 border border-border rounded-lg text-sm min-h-[44px]"
           >
             <option value="">All Types</option>
@@ -605,7 +1055,11 @@ function TaskBoardTab({
 
           <select
             value={filter.slaStatus ?? ""}
-            onChange={e => setFilter((f: any) => ({ ...f, slaStatus: e.target.value || undefined }))}
+            onChange={(e) => {
+              const value = e.target.value;
+              const slaStatus = value && isOpSlaStatus(value) ? value : undefined;
+              setFilter((current) => ({ ...current, slaStatus }));
+            }}
             className="px-2 md:px-3 py-2 bg-muted/30 border border-border rounded-lg text-sm min-h-[44px]"
           >
             <option value="">All SLA</option>
@@ -617,7 +1071,10 @@ function TaskBoardTab({
           {teams.length > 0 && (
             <select
               value={filter.assignedToTeamId ?? ""}
-              onChange={e => setFilter((f: any) => ({ ...f, assignedToTeamId: e.target.value || undefined }))}
+              onChange={(e) => {
+                const value = e.target.value || undefined;
+                setFilter((current) => ({ ...current, assignedToTeamId: value }));
+              }}
               className="px-2 md:px-3 py-2 bg-muted/30 border border-border rounded-lg text-sm min-h-[44px] hidden sm:block"
             >
               <option value="">All Teams</option>
@@ -689,13 +1146,7 @@ function TaskBoardTab({
         <div className="space-y-3">
           {/* State filter tabs for list view */}
           <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0">
-            {[
-              { id: 'all' as const, label: 'All', count: tasks.length },
-              { id: 'pending' as const, label: 'Pending', count: tasksByState.pending?.length || 0 },
-              { id: 'assigned' as const, label: 'Assigned', count: tasksByState.assigned?.length || 0 },
-              { id: 'in_progress' as const, label: 'In Progress', count: tasksByState.in_progress?.length || 0 },
-              { id: 'blocked' as const, label: 'Blocked', count: tasksByState.blocked?.length || 0 },
-            ].map(tab => (
+            {stateTabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setMobileStateFilter(tab.id)}
@@ -1462,7 +1913,7 @@ function CreateTaskModal({
     async function loadSites() {
       try {
         const data = await apiClient.getSites(campgroundId);
-        setSites(data.map((s: any) => ({ id: s.id, name: s.siteNumber || s.name })));
+        setSites(data.map((site: SiteRecord) => ({ id: site.id, name: site.siteNumber || site.name })));
       } catch (err) {
         console.error("Failed to load sites:", err);
       }
@@ -1543,7 +1994,12 @@ function CreateTaskModal({
               <label className="block text-sm font-medium text-foreground mb-1">Category</label>
               <select
                 value={category}
-                onChange={e => setCategory(e.target.value as OpTaskCategory)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (isOpTaskCategory(value)) {
+                    setCategory(value);
+                  }
+                }}
                 className="w-full px-3 py-2 border border-border rounded-lg text-sm"
               >
                 {Object.entries(CATEGORY_CONFIG).map(([key, config]) => (
@@ -1555,7 +2011,12 @@ function CreateTaskModal({
               <label className="block text-sm font-medium text-foreground mb-1">Priority</label>
               <select
                 value={priority}
-                onChange={e => setPriority(e.target.value as OpTaskPriority)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (isOpTaskPriority(value)) {
+                    setPriority(value);
+                  }
+                }}
                 className="w-full px-3 py-2 border border-border rounded-lg text-sm"
               >
                 {Object.entries(PRIORITY_CONFIG).map(([key, config]) => (
@@ -1741,7 +2202,12 @@ function CreateTemplateModal({
               <label className="block text-sm font-medium text-foreground mb-1">Category</label>
               <select
                 value={category}
-                onChange={e => setCategory(e.target.value as OpTaskCategory)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (isOpTaskCategory(value)) {
+                    setCategory(value);
+                  }
+                }}
                 className="w-full px-3 py-2 border border-border rounded-lg text-sm"
               >
                 {Object.entries(CATEGORY_CONFIG).map(([key, config]) => (
@@ -1753,7 +2219,12 @@ function CreateTemplateModal({
               <label className="block text-sm font-medium text-foreground mb-1">Default Priority</label>
               <select
                 value={priority}
-                onChange={e => setPriority(e.target.value as OpTaskPriority)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (isOpTaskPriority(value)) {
+                    setPriority(value);
+                  }
+                }}
                 className="w-full px-3 py-2 border border-border rounded-lg text-sm"
               >
                 {Object.entries(PRIORITY_CONFIG).map(([key, config]) => (
@@ -1982,7 +2453,7 @@ function LeaderboardTab({
   loading: boolean;
   onRefresh: () => void;
 }) {
-  const [period, setPeriod] = useState<'week' | 'month' | 'all_time'>('week');
+  const [period, setPeriod] = useState<LeaderboardPeriod>("week");
   const [seeding, setSeeding] = useState(false);
 
   const seedBadges = async () => {
@@ -2097,7 +2568,12 @@ function LeaderboardTab({
           </h3>
           <select
             value={period}
-            onChange={e => setPeriod(e.target.value as 'week' | 'month' | 'all_time')}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (isLeaderboardPeriod(value)) {
+                setPeriod(value);
+              }
+            }}
             className="px-3 py-1.5 border border-border rounded-lg text-sm"
           >
             <option value="week">This Week</option>

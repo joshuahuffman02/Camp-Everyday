@@ -49,6 +49,7 @@ export class PaymentMethodController {
     constructor(
         private readonly customerService: CustomerService,
         private readonly paymentMethodService: PaymentMethodService,
+        private readonly savedCardService: SavedCardService,
     ) {}
 
     /**
@@ -186,11 +187,7 @@ export class PaymentMethodController {
         @Body() dto: ChargeSavedCardDto,
         @Headers("idempotency-key") idempotencyKey?: string,
     ) {
-        const savedCardService = new SavedCardService(
-            (this as any).prisma,
-            (this as any).stripe,
-        );
-        return savedCardService.chargeSavedCard(
+        return this.savedCardService.chargeSavedCard(
             campgroundId,
             guestId,
             paymentMethodId,

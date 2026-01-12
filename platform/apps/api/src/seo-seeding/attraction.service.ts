@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { AttractionType, Prisma } from "@prisma/client";
+import { randomUUID } from "crypto";
 
 /**
  * Attraction Service
@@ -68,6 +69,7 @@ export class AttractionService {
   async create(dto: CreateAttractionDto) {
     return this.prisma.attraction.create({
       data: {
+        id: randomUUID(),
         type: dto.type,
         name: dto.name,
         slug: dto.slug,
@@ -85,6 +87,7 @@ export class AttractionService {
         description: dto.description,
         activities: dto.activities || [],
         bestSeason: dto.bestSeason,
+        updatedAt: new Date(),
       },
     });
   }
@@ -105,7 +108,7 @@ export class AttractionService {
     const attraction = await this.prisma.attraction.findUnique({
       where: { slug },
       include: {
-        campgroundMappings: {
+        CampgroundAttraction: {
           where: {
             distanceMiles: { lte: maxDistance },
           },
@@ -113,7 +116,7 @@ export class AttractionService {
           skip: offset,
           orderBy: { distanceMiles: "asc" },
           include: {
-            campground: {
+            Campground: {
               select: {
                 id: true,
                 name: true,
@@ -148,18 +151,18 @@ export class AttractionService {
       activities: attraction.activities,
       bestSeason: attraction.bestSeason,
       nearbyCampgroundCount: attraction.nearbyCampgroundCount,
-      campgrounds: attraction.campgroundMappings
-        .filter((m) => !m.campground.deletedAt)
+      campgrounds: attraction.CampgroundAttraction
+        .filter((m) => !m.Campground.deletedAt)
         .map((m) => ({
-          id: m.campground.id,
-          name: m.campground.name,
-          slug: m.campground.slug,
-          heroImageUrl: m.campground.heroImageUrl,
-          city: m.campground.city,
-          state: m.campground.state,
-          reviewScore: m.campground.reviewScore?.toNumber() ?? null,
-          reviewCount: m.campground.reviewCount,
-          amenities: m.campground.amenities,
+          id: m.Campground.id,
+          name: m.Campground.name,
+          slug: m.Campground.slug,
+          heroImageUrl: m.Campground.heroImageUrl,
+          city: m.Campground.city,
+          state: m.Campground.state,
+          reviewScore: m.Campground.reviewScore?.toNumber() ?? null,
+          reviewCount: m.Campground.reviewCount,
+          amenities: m.Campground.amenities,
           distanceMiles: m.distanceMiles,
         })),
     };
@@ -260,6 +263,7 @@ export class AttractionService {
         where: { slug: park.slug },
         update: {},
         create: {
+          id: randomUUID(),
           type: "national_park",
           name: park.name,
           slug: park.slug,
@@ -271,6 +275,7 @@ export class AttractionService {
           metaTitle: `Camping near ${park.name} - Best Campgrounds & RV Parks`,
           metaDescription: `Find the best campgrounds and RV parks near ${park.name}. Book campsites close to the park for your next outdoor adventure.`,
           activities: ["hiking", "wildlife viewing", "photography", "camping"],
+          updatedAt: new Date(),
         },
       });
 
@@ -305,6 +310,7 @@ export class AttractionService {
         where: { slug: lake.slug },
         update: {},
         create: {
+          id: randomUUID(),
           type: "lake",
           name: lake.name,
           slug: lake.slug,
@@ -315,6 +321,7 @@ export class AttractionService {
           metaTitle: `Camping at ${lake.name} - Lakeside Campgrounds & RV Parks`,
           metaDescription: `Find waterfront campgrounds and RV parks at ${lake.name}. Enjoy swimming, fishing, boating, and stunning lake views.`,
           activities: ["swimming", "fishing", "boating", "kayaking", "camping"],
+          updatedAt: new Date(),
         },
       });
 

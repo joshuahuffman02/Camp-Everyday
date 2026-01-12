@@ -41,8 +41,8 @@ import { cn } from "../../../../../lib/utils";
 type LocationInventory = Awaited<ReturnType<typeof apiClient.getLocationInventory>>[0];
 
 export default function LocationInventoryPage() {
-    const params = useParams();
-    const locationId = params.id as string;
+    const params = useParams<{ id?: string }>();
+    const locationId = params.id ?? "";
     const queryClient = useQueryClient();
     const [campgroundId, setCampgroundId] = useState<string | null>(null);
 

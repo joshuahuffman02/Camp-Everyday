@@ -59,9 +59,9 @@ type EditorSite = {
 };
 
 type SiteMapData = {
-  config?: any | null;
-  sites?: Array<{ siteId: string; shapeId?: string | null; geometry?: any; centroid?: any; label?: string | null; rotation?: number | null }>;
-  shapes?: Array<{ id: string; name?: string | null; geometry?: any; centroid?: any; metadata?: any; assignedSiteId?: string | null }>;
+  config?: unknown | null;
+  sites?: Array<{ siteId: string; shapeId?: string | null; geometry?: unknown; centroid?: unknown; label?: string | null; rotation?: number | null }>;
+  shapes?: Array<{ id: string; name?: string | null; geometry?: unknown; centroid?: unknown; metadata?: unknown; assignedSiteId?: string | null }>;
 };
 
 type SiteMapEditorProps = {
@@ -77,9 +77,9 @@ type SiteMapEditorProps = {
 type ShapeDraft = {
   id: string;
   name?: string | null;
-  geometry: any;
-  centroid?: any;
-  metadata?: any;
+  geometry: unknown;
+  centroid?: unknown;
+  metadata?: unknown;
   isNew?: boolean;
 };
 
@@ -141,20 +141,23 @@ const translatePoints = (points: Point[], delta: Point): Point[] => {
   }));
 };
 
-const SPRING_CONFIG = {
-  type: "spring" as const,
+const SPRING_CONFIG: { type: "spring"; stiffness: number; damping: number } = {
+  type: "spring",
   stiffness: 200,
   damping: 20,
 };
 
-const isNumber = (value: any) => Number.isFinite(Number(value));
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
 
-const normalizePoint = (value: any): Point | null => {
+const isNumber = (value: unknown) => Number.isFinite(Number(value));
+
+const normalizePoint = (value: unknown): Point | null => {
   if (!value) return null;
   if (Array.isArray(value) && value.length >= 2 && isNumber(value[0]) && isNumber(value[1])) {
     return { x: Number(value[0]), y: Number(value[1]) };
   }
-  if (typeof value === "object") {
+  if (isRecord(value)) {
     const x = value.x ?? value.lng ?? value.longitude;
     const y = value.y ?? value.lat ?? value.latitude;
     if (isNumber(x) && isNumber(y)) {
@@ -164,31 +167,39 @@ const normalizePoint = (value: any): Point | null => {
   return null;
 };
 
-const extractPoints = (geometry: any): Point[] => {
+const isPoint = (value: Point | null): value is Point => value !== null;
+
+const extractPoints = (geometry: unknown): Point[] => {
   if (!geometry) return [];
   if (Array.isArray(geometry)) {
-    return geometry.map(normalizePoint).filter(Boolean) as Point[];
+    return geometry.map(normalizePoint).filter(isPoint);
   }
-  if (geometry.type === "Polygon" && Array.isArray(geometry.coordinates?.[0])) {
-    return geometry.coordinates[0].map(normalizePoint).filter(Boolean) as Point[];
-  }
-  if (geometry.type === "MultiPolygon" && Array.isArray(geometry.coordinates?.[0]?.[0])) {
-    return geometry.coordinates[0][0].map(normalizePoint).filter(Boolean) as Point[];
-  }
-  if (geometry.type === "LineString" && Array.isArray(geometry.coordinates)) {
-    return geometry.coordinates.map(normalizePoint).filter(Boolean) as Point[];
-  }
-  if (Array.isArray(geometry.points)) {
-    return geometry.points.map(normalizePoint).filter(Boolean) as Point[];
-  }
-  if (Array.isArray(geometry.coords)) {
-    return geometry.coords.map(normalizePoint).filter(Boolean) as Point[];
+  if (isRecord(geometry)) {
+    const type = geometry.type;
+    const coordinates = geometry.coordinates;
+    if (type === "Polygon" && Array.isArray(coordinates) && Array.isArray(coordinates[0])) {
+      return coordinates[0].map(normalizePoint).filter(isPoint);
+    }
+    if (type === "MultiPolygon" && Array.isArray(coordinates) && Array.isArray(coordinates[0]) && Array.isArray(coordinates[0][0])) {
+      return coordinates[0][0].map(normalizePoint).filter(isPoint);
+    }
+    if (type === "LineString" && Array.isArray(coordinates)) {
+      return coordinates.map(normalizePoint).filter(isPoint);
+    }
+    const points = geometry.points;
+    if (Array.isArray(points)) {
+      return points.map(normalizePoint).filter(isPoint);
+    }
+    const coords = geometry.coords;
+    if (Array.isArray(coords)) {
+      return coords.map(normalizePoint).filter(isPoint);
+    }
   }
   return [];
 };
 
-const extractRect = (geometry: any) => {
-  if (!geometry || typeof geometry !== "object") return null;
+const extractRect = (geometry: unknown) => {
+  if (!isRecord(geometry)) return null;
   const x = geometry.x ?? geometry.left ?? geometry.minX;
   const y = geometry.y ?? geometry.top ?? geometry.minY;
   const width = geometry.width ?? (isNumber(geometry.right) && isNumber(x) ? Number(geometry.right) - Number(x) : null);
@@ -199,7 +210,7 @@ const extractRect = (geometry: any) => {
   return null;
 };
 
-const geometryToPoints = (geometry: any): Point[] => {
+const geometryToPoints = (geometry: unknown): Point[] => {
   const rect = extractRect(geometry);
   if (rect) {
     return [
@@ -250,11 +261,12 @@ const centroidFromPoints = (points: Point[]): Point | null => {
   return { x: cx / (6 * area), y: cy / (6 * area) };
 };
 
-const getBoundsFromConfig = (bounds: any): Bounds | null => {
+const getBoundsFromConfig = (bounds: unknown): Bounds | null => {
   if (!bounds) return null;
   if (Array.isArray(bounds) && bounds.length >= 4 && bounds.every(isNumber)) {
     return { minX: Number(bounds[0]), minY: Number(bounds[1]), maxX: Number(bounds[2]), maxY: Number(bounds[3]) };
   }
+  if (!isRecord(bounds)) return null;
   const minX = bounds.minX ?? bounds.left ?? bounds.x;
   const minY = bounds.minY ?? bounds.top ?? bounds.y;
   const maxX = bounds.maxX ?? bounds.right ?? (isNumber(bounds.width) && isNumber(bounds.x) ? Number(bounds.x) + Number(bounds.width) : null);
@@ -688,7 +700,8 @@ export function SiteMapEditor({
     if (imageSize) {
       return { minX: 0, minY: 0, width: imageSize.width, height: imageSize.height };
     }
-    const configBounds = getBoundsFromConfig(mapData?.config?.bounds);
+    const config = isRecord(mapData?.config) ? mapData?.config : undefined;
+    const configBounds = getBoundsFromConfig(config?.bounds);
     if (configBounds) {
       return {
         minX: configBounds.minX,
@@ -709,7 +722,7 @@ export function SiteMapEditor({
       return { minX: minX - pad, minY: minY - pad, width: width + pad * 2, height: height + pad * 2 };
     }
     return { minX: 0, minY: 0, width: 1000, height: 600 };
-  }, [imageSize, mapData?.config?.bounds, mergedShapes]);
+  }, [imageSize, mapData?.config, mergedShapes]);
 
   const selectedShape = selectedShapeId ? mergedShapes.get(selectedShapeId) : undefined;
   const selectedGeometry = selectedShape?.geometry;
@@ -1018,7 +1031,7 @@ export function SiteMapEditor({
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
+      const target = event.target instanceof HTMLElement ? event.target : null;
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
         return;
       }

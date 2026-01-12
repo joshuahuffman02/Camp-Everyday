@@ -51,8 +51,8 @@ interface FeatureTriageProps {
   onSkip: () => void;
 }
 
-const SPRING_CONFIG = {
-  type: "spring" as const,
+const SPRING_CONFIG: { type: "spring"; stiffness: number; damping: number } = {
+  type: "spring",
   stiffness: 300,
   damping: 25,
 };
@@ -73,18 +73,27 @@ const CATEGORY_INFO: Record<
   admin: { label: "Admin", icon: Shield },
 };
 
+const createCategoryGroups = (): Record<PageCategory, SetupableFeature[]> => ({
+  operations: [],
+  guests: [],
+  finance: [],
+  marketing: [],
+  reports: [],
+  settings: [],
+  store: [],
+  staff: [],
+  admin: [],
+});
+
 // Group features by category
 function groupFeaturesByCategory(): Record<PageCategory, SetupableFeature[]> {
-  const groups: Partial<Record<PageCategory, SetupableFeature[]>> = {};
+  const groups = createCategoryGroups();
 
   for (const feature of SETUPABLE_FEATURES) {
-    if (!groups[feature.category]) {
-      groups[feature.category] = [];
-    }
-    groups[feature.category]!.push(feature);
+    groups[feature.category].push(feature);
   }
 
-  return groups as Record<PageCategory, SetupableFeature[]>;
+  return groups;
 }
 
 export function FeatureTriage({

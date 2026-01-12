@@ -41,8 +41,8 @@ interface TeamSetupProps {
   onSkip: () => void;
 }
 
-const SPRING_CONFIG = {
-  type: "spring" as const,
+const SPRING_CONFIG: { type: "spring"; stiffness: number; damping: number } = {
+  type: "spring",
   stiffness: 300,
   damping: 25,
 };
@@ -55,6 +55,18 @@ const ROLES = [
   { value: "marketing", label: "Marketing", description: "Promotions and communications", icon: User },
   { value: "readonly", label: "View Only", description: "Read-only access", icon: User },
 ];
+
+const roleValues: TeamMember["role"][] = [
+  "manager",
+  "front_desk",
+  "maintenance",
+  "finance",
+  "marketing",
+  "readonly",
+];
+
+const isTeamRole = (value: string): value is TeamMember["role"] =>
+  roleValues.some((role) => role === value);
 
 function generateId(): string {
   return `member_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -138,7 +150,11 @@ function TeamMemberCard({
         <Label className="text-xs text-slate-400">Role</Label>
         <Select
           value={member.role}
-          onValueChange={(value) => onUpdate({ ...member, role: value as TeamMember["role"] })}
+          onValueChange={(value) => {
+            if (isTeamRole(value)) {
+              onUpdate({ ...member, role: value });
+            }
+          }}
         >
           <SelectTrigger className="bg-slate-800/50 border-slate-600 text-white">
             <SelectValue />

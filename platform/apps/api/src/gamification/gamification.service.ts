@@ -2,10 +2,11 @@ import { ForbiddenException, Injectable } from "@nestjs/common";
 import { GamificationEventCategory, Prisma, UserRole } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { AwardXpDto, UpdateGamificationSettingsDto, UpsertXpRuleDto } from "./dto/gamification.dto";
+import { randomUUID } from "crypto";
 
 type PrismaClientLike = PrismaService | Prisma.TransactionClient;
 
-interface LevelProgress {
+export interface LevelProgress {
   level: number;
   name?: string | null;
   minXp: number;
@@ -14,35 +15,82 @@ interface LevelProgress {
   progressToNext: number; // 0-1
 }
 
+export function roleAllowed(setting: { enabledRoles?: UserRole[] }, role?: UserRole | null) {
+  if (!setting.enabledRoles || setting.enabledRoles.length === 0) return true;
+  if (!role) return false;
+  return setting.enabledRoles.includes(role);
+}
+
+export function resolveXpAmount(
+  inputXp: number | undefined,
+  rule?: { minXp: number; maxXp: number; defaultXp: number } | null
+) {
+  const base = inputXp ?? rule?.defaultXp ?? 10;
+  if (!rule) return base;
+  const clampedMin = rule.minXp ?? base;
+  const clampedMax = rule.maxXp ?? base;
+  return Math.min(clampedMax || base, Math.max(clampedMin || base, base));
+}
+
+export function computeLevel(
+  totalXp: number,
+  levels: { level: number; minXp: number; name?: string | null }[]
+): LevelProgress {
+  if (!levels || levels.length === 0) {
+    return { level: 1, minXp: 0, progressToNext: 0, nextLevel: null, nextMinXp: null, name: null };
+  }
+  const sorted = [...levels].sort((a, b) => a.minXp - b.minXp);
+  let current = sorted[0];
+  for (const lvl of sorted) {
+    if (lvl.minXp <= totalXp) current = lvl;
+    else break;
+  }
+  const next = sorted.find((lvl) => lvl.minXp > totalXp) ?? null;
+  const progressToNext = next
+    ? Math.min(1, Math.max(0, (totalXp - current.minXp) / Math.max(1, next.minXp - current.minXp)))
+    : 1;
+  return {
+    level: current.level,
+    name: current.name,
+    minXp: current.minXp,
+    nextLevel: next?.level ?? null,
+    nextMinXp: next?.minXp ?? null,
+    progressToNext
+  };
+}
+
+const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined => {
+  if (value === undefined || value === null) return undefined;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
+};
+
 @Injectable()
 export class GamificationService {
   constructor(private prisma: PrismaService) { }
 
   private defaultRules = [
-    { category: "task" as GamificationEventCategory, minXp: 5, maxXp: 25, defaultXp: 10 },
-    { category: "maintenance" as GamificationEventCategory, minXp: 10, maxXp: 40, defaultXp: 20 },
-    { category: "check_in" as GamificationEventCategory, minXp: 5, maxXp: 25, defaultXp: 15 },
-    { category: "reservation_quality" as GamificationEventCategory, minXp: 5, maxXp: 20, defaultXp: 10 },
-    { category: "checklist" as GamificationEventCategory, minXp: 2, maxXp: 10, defaultXp: 5 },
-    { category: "review_mention" as GamificationEventCategory, minXp: 15, maxXp: 50, defaultXp: 25 },
-    { category: "on_time_assignment" as GamificationEventCategory, minXp: 5, maxXp: 20, defaultXp: 10 },
-    { category: "assist" as GamificationEventCategory, minXp: 5, maxXp: 20, defaultXp: 10 },
-    { category: "manual" as GamificationEventCategory, minXp: 5, maxXp: 100, defaultXp: 25 },
-    { category: "other" as GamificationEventCategory, minXp: 1, maxXp: 10, defaultXp: 5 },
-    { category: "payment_collection" as GamificationEventCategory, minXp: 10, maxXp: 30, defaultXp: 15 },
+    { category: GamificationEventCategory.task, minXp: 5, maxXp: 25, defaultXp: 10 },
+    { category: GamificationEventCategory.maintenance, minXp: 10, maxXp: 40, defaultXp: 20 },
+    { category: GamificationEventCategory.check_in, minXp: 5, maxXp: 25, defaultXp: 15 },
+    { category: GamificationEventCategory.reservation_quality, minXp: 5, maxXp: 20, defaultXp: 10 },
+    { category: GamificationEventCategory.checklist, minXp: 2, maxXp: 10, defaultXp: 5 },
+    { category: GamificationEventCategory.review_mention, minXp: 15, maxXp: 50, defaultXp: 25 },
+    { category: GamificationEventCategory.on_time_assignment, minXp: 5, maxXp: 20, defaultXp: 10 },
+    { category: GamificationEventCategory.assist, minXp: 5, maxXp: 20, defaultXp: 10 },
+    { category: GamificationEventCategory.manual, minXp: 5, maxXp: 100, defaultXp: 25 },
+    { category: GamificationEventCategory.other, minXp: 1, maxXp: 10, defaultXp: 5 },
+    { category: GamificationEventCategory.payment_collection, minXp: 10, maxXp: 30, defaultXp: 15 },
   ];
 
   async getSettings(campgroundId: string) {
     const setting = await this.prisma.gamificationSetting.findUnique({
       where: { campgroundId }
     });
-    return setting ?? { campgroundId, enabled: false, enabledRoles: [] as UserRole[] };
-  }
-
-  private roleAllowed(setting: { enabledRoles?: UserRole[] }, role?: UserRole | null) {
-    if (!setting.enabledRoles || setting.enabledRoles.length === 0) return true;
-    if (!role) return false;
-    return setting.enabledRoles.includes(role);
+    return setting ?? { campgroundId, enabled: false, enabledRoles: [] };
   }
 
   private async getMembership(userId: string, campgroundId: string) {
@@ -54,7 +102,7 @@ export class GamificationService {
   private async assertManager(userId: string, campgroundId: string) {
     const membership = await this.getMembership(userId, campgroundId);
     const allowedRoles: UserRole[] = [UserRole.owner, UserRole.manager];
-    if (!membership || !allowedRoles.includes(membership.role as UserRole)) {
+    if (!membership || !allowedRoles.includes(membership.role)) {
       throw new ForbiddenException("Manager or owner role required for gamification settings");
     }
     return membership;
@@ -66,50 +114,21 @@ export class GamificationService {
     });
   }
 
-  private computeLevel(totalXp: number, levels: { level: number; minXp: number; name?: string | null }[]): LevelProgress {
-    if (!levels || levels.length === 0) {
-      return { level: 1, minXp: 0, progressToNext: 0, nextLevel: null, nextMinXp: null, name: null };
-    }
-    const sorted = [...levels].sort((a, b) => a.minXp - b.minXp);
-    let current = sorted[0];
-    for (const lvl of sorted) {
-      if (lvl.minXp <= totalXp) current = lvl;
-      else break;
-    }
-    const next = sorted.find(l => l.minXp > totalXp) ?? null;
-    const progressToNext = next
-      ? Math.min(1, Math.max(0, (totalXp - current.minXp) / Math.max(1, next.minXp - current.minXp)))
-      : 1;
-    return {
-      level: current.level,
-      name: current.name,
-      minXp: current.minXp,
-      nextLevel: next?.level ?? null,
-      nextMinXp: next?.minXp ?? null,
-      progressToNext
-    };
-  }
-
-  private resolveXpAmount(inputXp: number | undefined, rule?: { minXp: number; maxXp: number; defaultXp: number } | null) {
-    const base = inputXp ?? rule?.defaultXp ?? 10;
-    if (!rule) return base;
-    const clampedMin = rule.minXp ?? base;
-    const clampedMax = rule.maxXp ?? base;
-    return Math.min(clampedMax || base, Math.max(clampedMin || base, base));
-  }
-
   async updateSettings(userId: string, dto: UpdateGamificationSettingsDto) {
     await this.assertManager(userId, dto.campgroundId);
     const setting = await this.prisma.gamificationSetting.upsert({
       where: { campgroundId: dto.campgroundId },
       create: {
+        id: randomUUID(),
         campgroundId: dto.campgroundId,
         enabled: dto.enabled ?? false,
-        enabledRoles: dto.enabledRoles ?? []
+        enabledRoles: dto.enabledRoles ?? [],
+        updatedAt: new Date(),
       },
       update: {
         enabled: dto.enabled ?? false,
-        enabledRoles: dto.enabledRoles ?? []
+        enabledRoles: dto.enabledRoles ?? [],
+        updatedAt: new Date(),
       }
     });
 
@@ -118,6 +137,7 @@ export class GamificationService {
       if (existingRules === 0) {
         await this.prisma.xpRule.createMany({
           data: this.defaultRules.map((r) => ({
+            id: randomUUID(),
             campgroundId: dto.campgroundId,
             category: r.category,
             minXp: r.minXp,
@@ -152,13 +172,15 @@ export class GamificationService {
     return this.prisma.xpRule.upsert({
       where: { campgroundId_category: { campgroundId: dto.campgroundId, category: dto.category } },
       create: {
+        id: randomUUID(),
         campgroundId: dto.campgroundId,
         category: dto.category,
         minXp: dto.minXp ?? 0,
         maxXp: dto.maxXp ?? 0,
         defaultXp: dto.defaultXp ?? 0,
         isActive: dto.isActive ?? true,
-        createdById: userId
+        createdById: userId,
+        updatedAt: new Date(),
       },
       update: {
         minXp: dto.minXp ?? 0,
@@ -184,7 +206,7 @@ export class GamificationService {
     sourceType?: string;
     sourceId?: string;
     eventKey?: string;
-    metadata?: Prisma.InputJsonValue;
+    metadata?: unknown;
   }) {
     const [setting, membership, rule] = await Promise.all([
       this.getSettings(params.campgroundId),
@@ -202,11 +224,11 @@ export class GamificationService {
       return { skipped: true, reason: "Gamification is disabled for this campground", setting, membershipRole: membership.role };
     }
 
-    if (!this.roleAllowed(setting, membership.role)) {
+    if (!roleAllowed(setting, membership.role)) {
       return { skipped: true, reason: "Gamification disabled for this role", setting, membershipRole: membership.role };
     }
 
-    const xpAmount = this.resolveXpAmount(params.xpOverride, rule);
+    const xpAmount = resolveXpAmount(params.xpOverride, rule);
     if (xpAmount === 0) {
       return { skipped: true, reason: "XP resolved to zero; skipping", setting, membershipRole: membership.role };
     }
@@ -218,6 +240,7 @@ export class GamificationService {
       try {
         event = await tx.xpEvent.create({
           data: {
+            id: randomUUID(),
             campgroundId: params.campgroundId,
             userId: params.userId,
             membershipId: params.membershipId ?? membership.id,
@@ -227,10 +250,10 @@ export class GamificationService {
             sourceType: params.sourceType,
             sourceId: params.sourceId,
             eventKey: params.eventKey,
-            metadata: params.metadata
+            metadata: toJsonValue(params.metadata)
           }
         });
-      } catch (err: any) {
+      } catch (err: unknown) {
         const isUniqueKey = err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002" && params.eventKey;
         if (isUniqueKey) {
           event = await tx.xpEvent.findUnique({ where: { eventKey: params.eventKey } });
@@ -246,6 +269,7 @@ export class GamificationService {
       const balance = await tx.xpBalance.upsert({
         where: { campgroundId_userId: { campgroundId: params.campgroundId, userId: params.userId } },
         create: {
+          id: randomUUID(),
           campgroundId: params.campgroundId,
           userId: params.userId,
           totalXp: xpAmount,
@@ -258,7 +282,7 @@ export class GamificationService {
         }
       });
 
-      const levelInfo = this.computeLevel(balance.totalXp, levels);
+      const levelInfo = computeLevel(balance.totalXp, levels);
       const updatedBalance = await tx.xpBalance.update({
         where: { id: balance.id },
         data: { currentLevel: levelInfo.level }
@@ -296,7 +320,7 @@ export class GamificationService {
       return { enabled: false, allowed: false, membershipRole: null, setting };
     }
 
-    const allowed = this.roleAllowed(setting, membership.role);
+    const allowed = roleAllowed(setting, membership.role);
     if (!setting.enabled || !allowed) {
       return {
         enabled: false,
@@ -319,7 +343,7 @@ export class GamificationService {
     ]);
 
     const totalXp = balance?.totalXp ?? 0;
-    const level = this.computeLevel(totalXp, levels);
+    const level = computeLevel(totalXp, levels);
 
     return {
       enabled: true,
@@ -429,4 +453,3 @@ export class GamificationService {
     };
   }
 }
-

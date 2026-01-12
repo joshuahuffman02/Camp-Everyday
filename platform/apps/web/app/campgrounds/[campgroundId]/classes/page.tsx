@@ -76,8 +76,10 @@ import {
   reducedMotion as reducedMotionVariants,
 } from "../../../../lib/animations";
 
+type SiteType = "rv" | "tent" | "cabin" | "group" | "glamping";
+
 // Site type configuration with icons
-const siteTypeConfig: Record<string, { icon: React.ReactNode; label: string; color: string }> = {
+const siteTypeConfig: Record<SiteType, { icon: React.ReactNode; label: string; color: string }> = {
   rv: { icon: <Home className="h-4 w-4" />, label: "RV", color: "bg-status-info/15 text-status-info" },
   tent: { icon: <Tent className="h-4 w-4" />, label: "Tent", color: "bg-status-success/15 text-status-success" },
   cabin: { icon: <Home className="h-4 w-4" />, label: "Cabin", color: "bg-status-warning/15 text-status-warning" },
@@ -85,41 +87,23 @@ const siteTypeConfig: Record<string, { icon: React.ReactNode; label: string; col
   glamping: { icon: <Sparkles className="h-4 w-4" />, label: "Glamping", color: "bg-status-warning/15 text-status-warning" },
 };
 
-type Site = {
-  id: string;
-  siteClassId?: string | null;
-};
+type Site = Awaited<ReturnType<typeof apiClient.getSites>>[number];
 
-type SiteClass = {
-  id: string;
-  name: string;
-  description?: string;
-  defaultRate?: number;
-  siteType: "rv" | "tent" | "cabin" | "group" | "glamping";
-  maxOccupancy?: number;
-  hookupsPower?: boolean;
-  hookupsWater?: boolean;
-  hookupsSewer?: boolean;
-  amenityTags?: string[];
-  isActive?: boolean;
+type SiteClass = Awaited<ReturnType<typeof apiClient.getSiteClasses>>[number] & {
   // Extended fields from onboarding
   rentalType?: string;
-  rvOrientation?: string;
-  electricAmps?: number[];
   equipmentTypes?: string[];
   slideOutsAccepted?: string | null;
   occupantsIncluded?: number;
   extraAdultFee?: number | null;
   extraChildFee?: number | null;
-  meteredEnabled?: boolean;
-  meteredType?: string;
 };
 
 type SiteClassFormState = {
   name: string;
   description: string;
   defaultRate: number | "";
-  siteType: string;
+  siteType: SiteType;
   maxOccupancy: number | "";
   rigMaxLength: number | "";
   hookupsPower: boolean;
@@ -153,10 +137,22 @@ const defaultClassForm: SiteClassFormState = {
   isActive: true
 };
 
+const isSiteType = (value: string): value is SiteType =>
+  value === "rv" || value === "tent" || value === "cabin" || value === "group" || value === "glamping";
+
+type HookupKey = "hookupsPower" | "hookupsWater" | "hookupsSewer";
+
+const hookupOptions: Array<{ key: HookupKey; label: string; icon: React.ReactNode; color: string }> = [
+  { key: "hookupsPower", label: "Power", icon: <Zap className="h-4 w-4" />, color: "text-status-warning" },
+  { key: "hookupsWater", label: "Water", icon: <Droplet className="h-4 w-4" />, color: "text-status-info" },
+  { key: "hookupsSewer", label: "Sewer", icon: <Waves className="h-4 w-4" />, color: "text-muted-foreground" },
+];
+
 export default function SiteClassesPage() {
   const params = useParams();
   const router = useRouter();
-  const campgroundId = params?.campgroundId as string;
+  const rawCampgroundId = params?.campgroundId;
+  const campgroundId = Array.isArray(rawCampgroundId) ? rawCampgroundId[0] : rawCampgroundId ?? "";
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const prefersReducedMotion = useReducedMotion();
@@ -166,30 +162,29 @@ export default function SiteClassesPage() {
     queryFn: () => apiClient.getCampground(campgroundId),
     enabled: !!campgroundId
   });
-  const classesQuery = useQuery({
+  const classesQuery = useQuery<SiteClass[]>({
     queryKey: ["site-classes", campgroundId],
     queryFn: () => apiClient.getSiteClasses(campgroundId),
     enabled: !!campgroundId
   });
 
   // Fetch sites to show counts per class
-  const sitesQuery = useQuery({
+  const sitesQuery = useQuery<Site[]>({
     queryKey: ["sites", campgroundId],
     queryFn: () => apiClient.getSites(campgroundId),
     enabled: !!campgroundId
   });
 
   // Count sites per class
-  const sitesPerClass = useMemo(() => {
+  const sitesPerClass = useMemo<Record<string, number>>(() => {
     if (!sitesQuery.data) return {};
-    return sitesQuery.data.reduce((acc, site) => {
-      const typedSite = site as Site;
-      const classId = typedSite.siteClassId;
+    return sitesQuery.data.reduce<Record<string, number>>((acc, site) => {
+      const classId = site.siteClassId;
       if (classId) {
         acc[classId] = (acc[classId] || 0) + 1;
       }
       return acc;
-    }, {} as Record<string, number>);
+    }, {});
   }, [sitesQuery.data]);
 
   const [form, setForm] = useState<SiteClassFormState>(defaultClassForm);
@@ -221,7 +216,7 @@ export default function SiteClassesPage() {
       name: state.name,
       description: state.description || undefined,
       defaultRate: Math.round(Number(state.defaultRate) * 100),
-      siteType: state.siteType as "rv" | "tent" | "cabin" | "group" | "glamping",
+      siteType: state.siteType,
       maxOccupancy: Number(state.maxOccupancy || 0),
       rigMaxLength: parseOptionalNumber(state.rigMaxLength),
       hookupsPower: state.hookupsPower,
@@ -491,7 +486,14 @@ export default function SiteClassesPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="type" className="text-foreground">Site Type</Label>
-                      <Select value={form.siteType} onValueChange={(v) => setForm((s) => ({ ...s, siteType: v }))}>
+                      <Select
+                        value={form.siteType}
+                        onValueChange={(value) => {
+                          if (isSiteType(value)) {
+                            setForm((s) => ({ ...s, siteType: value }));
+                          }
+                        }}
+                      >
                         <SelectTrigger id="type" className="bg-background border-border">
                           <SelectValue />
                         </SelectTrigger>
@@ -527,28 +529,24 @@ export default function SiteClassesPage() {
                   {/* Hookups */}
                   <div className="flex flex-wrap items-center gap-4 p-3 rounded-lg bg-muted/50">
                     <span className="text-sm font-medium text-foreground">Hookups:</span>
-                    {[
-                      { key: "hookupsPower", label: "Power", icon: <Zap className="h-4 w-4" />, color: "text-status-warning" },
-                      { key: "hookupsWater", label: "Water", icon: <Droplet className="h-4 w-4" />, color: "text-status-info" },
-                      { key: "hookupsSewer", label: "Sewer", icon: <Waves className="h-4 w-4" />, color: "text-muted-foreground" },
-                    ].map((hookup) => (
+                    {hookupOptions.map((hookup) => (
                       <motion.button
                         key={hookup.key}
                         type="button"
-                        onClick={() => setForm((s) => ({ ...s, [hookup.key]: !s[hookup.key as keyof SiteClassFormState] }))}
+                        onClick={() => setForm((s) => ({ ...s, [hookup.key]: !s[hookup.key] }))}
                         className={cn(
                           "flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all",
-                          form[hookup.key as keyof SiteClassFormState]
+                          form[hookup.key]
                             ? "border-primary bg-primary/10"
                             : "border-border hover:border-muted-foreground/30"
                         )}
                         whileHover={prefersReducedMotion ? {} : { scale: 1.02 }}
                         whileTap={prefersReducedMotion ? {} : { scale: 0.98 }}
-                        aria-pressed={Boolean(form[hookup.key as keyof SiteClassFormState])}
+                        aria-pressed={form[hookup.key]}
                       >
                         <span className={hookup.color}>{hookup.icon}</span>
                         <span className="text-sm text-foreground">{hookup.label}</span>
-                        {form[hookup.key as keyof SiteClassFormState] && (
+                        {form[hookup.key] && (
                           <CheckCircle2 className="h-4 w-4 text-primary" />
                         )}
                       </motion.button>
@@ -772,24 +770,23 @@ export default function SiteClassesPage() {
                 animate="animate"
               >
                 {classesQuery.data?.map((cls, index) => {
-                  const typedCls = cls as SiteClass;
-                  const typeConfig = siteTypeConfig[typedCls.siteType] || siteTypeConfig.rv;
-                  const isInactive = typedCls.isActive === false;
-                  const siteCount = sitesPerClass[typedCls.id] || 0;
-                  const hasHookups = typedCls.hookupsPower || typedCls.hookupsWater || typedCls.hookupsSewer;
+                  const typeConfig = siteTypeConfig[cls.siteType] ?? siteTypeConfig.rv;
+                  const isInactive = cls.isActive === false;
+                  const siteCount = sitesPerClass[cls.id] || 0;
+                  const hasHookups = cls.hookupsPower || cls.hookupsWater || cls.hookupsSewer;
 
                   // Extended fields from onboarding
-                  const rentalType = typedCls.rentalType || "transient";
-                  const rvOrientation = typedCls.rvOrientation;
-                  const electricAmps = typedCls.electricAmps;
-                  const equipmentTypes = typedCls.equipmentTypes;
-                  const slideOutsAccepted = typedCls.slideOutsAccepted;
-                  const occupantsIncluded = typedCls.occupantsIncluded;
-                  const extraAdultFee = typedCls.extraAdultFee;
-                  const extraChildFee = typedCls.extraChildFee;
-                  const meteredEnabled = typedCls.meteredEnabled;
-                  const meteredType = typedCls.meteredType;
-                  const amenityTags = typedCls.amenityTags;
+                  const rentalType = cls.rentalType || "transient";
+                  const rvOrientation = cls.rvOrientation;
+                  const electricAmps = cls.electricAmps;
+                  const equipmentTypes = cls.equipmentTypes;
+                  const slideOutsAccepted = cls.slideOutsAccepted;
+                  const occupantsIncluded = cls.occupantsIncluded;
+                  const extraAdultFee = cls.extraAdultFee;
+                  const extraChildFee = cls.extraChildFee;
+                  const meteredEnabled = cls.meteredEnabled;
+                  const meteredType = cls.meteredType;
+                  const amenityTags = cls.amenityTags;
 
                   const rentalTypeLabels: Record<string, string> = {
                     transient: "Nightly",
@@ -806,7 +803,7 @@ export default function SiteClassesPage() {
 
                   return (
                     <motion.div
-                      key={typedCls.id}
+                      key={cls.id}
                       initial={prefersReducedMotion ? {} : { opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.05 }}
@@ -828,7 +825,7 @@ export default function SiteClassesPage() {
                                   {rentalTypeLabels[rentalType] || rentalType}
                                 </Badge>
                               )}
-                              {!typedCls.isActive && (
+                              {!cls.isActive && (
                                 <Badge variant="outline" className="text-xs text-muted-foreground">
                                   Inactive
                                 </Badge>

@@ -22,6 +22,7 @@ export interface ValidatedFormFieldProps {
   inputClassName?: string;
   hint?: string;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onValueChange?: (value: string) => void;
   onBlur?: () => void;
   transform?: (value: string) => string;
 }
@@ -41,6 +42,7 @@ export function ValidatedFormField({
   inputClassName,
   hint,
   onChange,
+  onValueChange,
   onBlur,
   transform,
 }: ValidatedFormFieldProps) {
@@ -56,14 +58,12 @@ export function ValidatedFormField({
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (transform) {
       const transformed = transform(e.target.value);
-      const syntheticEvent = {
-        ...e,
-        target: { ...e.target, value: transformed },
-      } as React.ChangeEvent<HTMLInputElement>;
-      onChange(syntheticEvent);
-    } else {
-      onChange(e);
+      if (transformed !== e.target.value) {
+        e.target.value = transformed;
+      }
     }
+    onChange(e);
+    onValueChange?.(e.target.value);
   };
 
   const hasError = !!error;
@@ -262,10 +262,7 @@ export function EmailFormField(props: Omit<ValidatedFormFieldProps, "type">) {
 
   const applySuggestion = () => {
     if (suggestion) {
-      const syntheticEvent = {
-        target: { value: suggestion },
-      } as React.ChangeEvent<HTMLInputElement>;
-      props.onChange(syntheticEvent);
+      props.onValueChange?.(suggestion);
       setSuggestion(null);
     }
   };

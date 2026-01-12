@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { HousekeepingService } from '../housekeeping/housekeeping.service';
+import { randomUUID } from "crypto";
 
 @Injectable()
 export class RoomMovesService {
@@ -21,8 +22,8 @@ export class RoomMovesService {
     const reservation = await this.prisma.reservation.findUnique({
       where: { id: data.reservationId },
       include: {
-        site: true,
-        campground: true,
+        Site: true,
+        Campground: true,
       },
     });
 
@@ -32,6 +33,10 @@ export class RoomMovesService {
 
     if (reservation.status !== 'checked_in') {
       throw new BadRequestException('Room moves can only be requested for checked-in reservations');
+    }
+
+    if (!reservation.siteId) {
+      throw new BadRequestException('Reservation is missing a site assignment');
     }
 
     const toSite = await this.prisma.site.findUnique({
@@ -63,24 +68,29 @@ export class RoomMovesService {
     }
 
     // Calculate price difference
-    const fromSiteClass = await this.prisma.siteClass.findUnique({
-      where: { id: reservation.site.siteClassId },
-    });
+    const fromSiteClassId = reservation.Site?.siteClassId;
+    const fromSiteClass = fromSiteClassId
+      ? await this.prisma.siteClass.findUnique({
+          where: { id: fromSiteClassId },
+        })
+      : null;
 
     let priceDifference = 0;
-    if (fromSiteClass && toSite.siteClass) {
+    if (fromSiteClass && toSite.SiteClass) {
       // Simplified calculation - would need to consider actual pricing
       const remainingNights = Math.ceil(
         (new Date(reservation.departureDate).getTime() - data.moveDate.getTime()) /
         (1000 * 60 * 60 * 24)
       );
       const fromRate = fromSiteClass.defaultRate ?? 0;
-      const toRate = toSite.siteClass.defaultRate ?? 0;
+      const toRate = toSite.SiteClass.defaultRate ?? 0;
       priceDifference = (toRate - fromRate) * remainingNights;
     }
 
     const moveRequest = await this.prisma.roomMoveRequest.create({
       data: {
+        id: randomUUID(),
+        campgroundId: reservation.campgroundId,
         reservationId: data.reservationId,
         fromSiteId: reservation.siteId,
         toSiteId: data.toSiteId,
@@ -91,14 +101,25 @@ export class RoomMovesService {
         status: 'requested',
         requestedById: data.requestedById,
         notes: data.notes,
+        updatedAt: new Date(),
       },
       include: {
-        fromSite: { select: { name: true } },
-        toSite: { select: { name: true } },
+        Site_RoomMoveRequest_fromSiteIdToSite: { select: { name: true } },
+        Site_RoomMoveRequest_toSiteIdToSite: { select: { name: true } },
       },
     });
 
-    return moveRequest;
+    const {
+      Site_RoomMoveRequest_fromSiteIdToSite,
+      Site_RoomMoveRequest_toSiteIdToSite,
+      ...moveRequestRest
+    } = moveRequest;
+
+    return {
+      ...moveRequestRest,
+      fromSite: Site_RoomMoveRequest_fromSiteIdToSite,
+      toSite: Site_RoomMoveRequest_toSiteIdToSite,
+    };
   }
 
   async approveMoveRequest(id: string, approvedById: string) {
@@ -127,7 +148,6 @@ export class RoomMovesService {
   async completeMoveRequest(id: string, completedById: string) {
     const moveRequest = await this.prisma.roomMoveRequest.findUnique({
       where: { id },
-      include: { Reservation: true, toSite: true },
     });
 
     if (!moveRequest) {
@@ -191,13 +211,13 @@ export class RoomMovesService {
     const moveRequest = await this.prisma.roomMoveRequest.findUnique({
       where: { id },
       include: {
-        reservation: {
+        Reservation: {
           include: {
-            guest: { select: { primaryFirstName: true, primaryLastName: true } },
+            Guest: { select: { primaryFirstName: true, primaryLastName: true } },
           },
         },
-        fromSite: { select: { name: true, siteClass: true } },
-        toSite: { select: { name: true, siteClass: true } },
+        Site_RoomMoveRequest_fromSiteIdToSite: { select: { name: true, SiteClass: true } },
+        Site_RoomMoveRequest_toSiteIdToSite: { select: { name: true, SiteClass: true } },
       },
     });
 
@@ -205,36 +225,76 @@ export class RoomMovesService {
       throw new NotFoundException('Move request not found');
     }
 
-    return moveRequest;
+    const {
+      Reservation,
+      Site_RoomMoveRequest_fromSiteIdToSite,
+      Site_RoomMoveRequest_toSiteIdToSite,
+      ...moveRequestRest
+    } = moveRequest;
+
+    return {
+      ...moveRequestRest,
+      reservation: Reservation,
+      fromSite: Site_RoomMoveRequest_fromSiteIdToSite,
+      toSite: Site_RoomMoveRequest_toSiteIdToSite,
+    };
   }
 
   async getMoveRequestsByReservation(reservationId: string) {
-    return this.prisma.roomMoveRequest.findMany({
+    const moveRequests = await this.prisma.roomMoveRequest.findMany({
       where: { reservationId },
       include: {
-        fromSite: { select: { name: true } },
-        toSite: { select: { name: true } },
+        Site_RoomMoveRequest_fromSiteIdToSite: { select: { name: true } },
+        Site_RoomMoveRequest_toSiteIdToSite: { select: { name: true } },
       },
       orderBy: { createdAt: 'desc' },
+    });
+
+    return moveRequests.map((moveRequest) => {
+      const {
+        Site_RoomMoveRequest_fromSiteIdToSite,
+        Site_RoomMoveRequest_toSiteIdToSite,
+        ...moveRequestRest
+      } = moveRequest;
+      return {
+        ...moveRequestRest,
+        fromSite: Site_RoomMoveRequest_fromSiteIdToSite,
+        toSite: Site_RoomMoveRequest_toSiteIdToSite,
+      };
     });
   }
 
   async getPendingMoveRequests(campgroundId: string) {
-    return this.prisma.roomMoveRequest.findMany({
+    const moveRequests = await this.prisma.roomMoveRequest.findMany({
       where: {
-        reservation: { campgroundId },
+        Reservation: { campgroundId },
         status: { in: ['requested', 'approved'] },
       },
       include: {
-        reservation: {
+        Reservation: {
           include: {
-            guest: { select: { primaryFirstName: true, primaryLastName: true } },
+            Guest: { select: { primaryFirstName: true, primaryLastName: true } },
           },
         },
-        fromSite: { select: { name: true } },
-        toSite: { select: { name: true } },
+        Site_RoomMoveRequest_fromSiteIdToSite: { select: { name: true } },
+        Site_RoomMoveRequest_toSiteIdToSite: { select: { name: true } },
       },
       orderBy: { moveDate: 'asc' },
+    });
+
+    return moveRequests.map((moveRequest) => {
+      const {
+        Reservation,
+        Site_RoomMoveRequest_fromSiteIdToSite,
+        Site_RoomMoveRequest_toSiteIdToSite,
+        ...moveRequestRest
+      } = moveRequest;
+      return {
+        ...moveRequestRest,
+        reservation: Reservation,
+        fromSite: Site_RoomMoveRequest_fromSiteIdToSite,
+        toSite: Site_RoomMoveRequest_toSiteIdToSite,
+      };
     });
   }
 
@@ -244,9 +304,9 @@ export class RoomMovesService {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    return this.prisma.roomMoveRequest.findMany({
+    const moveRequests = await this.prisma.roomMoveRequest.findMany({
       where: {
-        reservation: { campgroundId },
+        Reservation: { campgroundId },
         moveDate: {
           gte: today,
           lt: tomorrow,
@@ -254,15 +314,30 @@ export class RoomMovesService {
         status: 'approved',
       },
       include: {
-        reservation: {
+        Reservation: {
           include: {
-            guest: { select: { primaryFirstName: true, primaryLastName: true } },
+            Guest: { select: { primaryFirstName: true, primaryLastName: true } },
           },
         },
-        fromSite: { select: { name: true } },
-        toSite: { select: { name: true } },
+        Site_RoomMoveRequest_fromSiteIdToSite: { select: { name: true } },
+        Site_RoomMoveRequest_toSiteIdToSite: { select: { name: true } },
       },
       orderBy: { moveDate: 'asc' },
+    });
+
+    return moveRequests.map((moveRequest) => {
+      const {
+        Reservation,
+        Site_RoomMoveRequest_fromSiteIdToSite,
+        Site_RoomMoveRequest_toSiteIdToSite,
+        ...moveRequestRest
+      } = moveRequest;
+      return {
+        ...moveRequestRest,
+        reservation: Reservation,
+        fromSite: Site_RoomMoveRequest_fromSiteIdToSite,
+        toSite: Site_RoomMoveRequest_toSiteIdToSite,
+      };
     });
   }
 }

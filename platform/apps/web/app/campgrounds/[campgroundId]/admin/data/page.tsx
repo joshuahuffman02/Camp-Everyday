@@ -29,15 +29,63 @@ import {
     Clock
 } from "lucide-react";
 
-const SPRING_CONFIG = {
-    type: "spring" as const,
+const SPRING_CONFIG: { type: "spring"; stiffness: number; damping: number } = {
+    type: "spring",
     stiffness: 200,
     damping: 20,
 };
 
+const getErrorMessage = (error: unknown): string => {
+    if (error instanceof Error) return error.message;
+    if (typeof error === "string") return error;
+    return "Unexpected error";
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null;
+
+const isString = (value: unknown): value is string => typeof value === "string";
+
+const isNumber = (value: unknown): value is number =>
+    typeof value === "number" && Number.isFinite(value);
+
+const getString = (value: unknown): string | undefined =>
+    isString(value) ? value : undefined;
+
+const getNumber = (value: unknown): number | undefined =>
+    isNumber(value) ? value : undefined;
+
+const getStringArray = (value: unknown): string[] | undefined =>
+    Array.isArray(value) ? value.filter(isString) : undefined;
+
+const parseImportResult = (value: unknown): { validCount: number; errorCount: number; jobId?: string } => {
+    if (!isRecord(value)) {
+        return { validCount: 0, errorCount: 0 };
+    }
+    return {
+        validCount: getNumber(value.validCount) ?? 0,
+        errorCount: getNumber(value.errorCount) ?? 0,
+        jobId: getString(value.jobId),
+    };
+};
+
+const parseSchemaColumns = (value: unknown): string[] | undefined => {
+    if (!isRecord(value)) return undefined;
+    return getStringArray(value.csvColumns);
+};
+
+const parseExportResult = (value: unknown): { csv?: string; nextToken?: string } => {
+    if (!isRecord(value)) return {};
+    return {
+        csv: getString(value.csv),
+        nextToken: getString(value.nextToken),
+    };
+};
+
 export default function DataOperationsPage() {
     const params = useParams();
-    const campgroundId = params?.campgroundId as string;
+    const rawCampgroundId = params?.campgroundId;
+    const campgroundId = Array.isArray(rawCampgroundId) ? rawCampgroundId[0] : rawCampgroundId ?? "";
     const fileInputRef = useRef<HTMLInputElement | null>(null);
 
     // Import state
@@ -78,7 +126,7 @@ export default function DataOperationsPage() {
         setImportMessage(null);
         try {
             const raw = await file.text();
-            let payload: any = raw;
+            let payload: unknown = raw;
             if (importFormat === "json") {
                 try {
                     payload = JSON.parse(raw);
@@ -94,9 +142,10 @@ export default function DataOperationsPage() {
                 dryRun,
                 filename: file.name
             });
+            const importResult = parseImportResult(res);
             if (dryRun) {
-                const valid = res.validCount ?? 0;
-                const errors = res.errorCount ?? 0;
+                const valid = importResult.validCount;
+                const errors = importResult.errorCount;
                 if (errors === 0) {
                     setImportMessage({
                         type: "success",
@@ -108,16 +157,16 @@ export default function DataOperationsPage() {
                         text: `Found ${errors} errors in ${valid + errors} rows. Fix errors and try again.`
                     });
                 }
-            } else if (res.jobId) {
+            } else if (importResult.jobId) {
                 setImportMessage({
                     type: "success",
-                    text: `Import started! Job ID: ${res.jobId}. We'll process your data in the background.`
+                    text: `Import started! Job ID: ${importResult.jobId}. We'll process your data in the background.`
                 });
             } else {
                 setImportMessage({ type: "success", text: "Import completed successfully!" });
             }
-        } catch (err: any) {
-            setImportMessage({ type: "error", text: err?.message || "Import failed. Please try again." });
+        } catch (err) {
+            setImportMessage({ type: "error", text: getErrorMessage(err) || "Import failed. Please try again." });
         } finally {
             setImporting(false);
         }
@@ -129,7 +178,7 @@ export default function DataOperationsPage() {
         setImportMessage(null);
         try {
             const schema = await apiClient.getReservationImportSchema(campgroundId);
-            const headers: string[] = schema?.csvColumns ?? [
+            const headers: string[] = parseSchemaColumns(schema) ?? [
                 "campgroundId", "siteId", "guestId", "arrivalDate", "departureDate",
                 "adults", "totalAmount"
             ];
@@ -154,8 +203,8 @@ export default function DataOperationsPage() {
             const csv = `${line}\n${sample}\n`;
             downloadBlob(csv, "reservation-import-template.csv", "text/csv");
             setImportMessage({ type: "success", text: "Template downloaded! Fill it out and import above." });
-        } catch (err: any) {
-            setImportMessage({ type: "error", text: err?.message || "Failed to download template" });
+        } catch (err) {
+            setImportMessage({ type: "error", text: getErrorMessage(err) || "Failed to download template" });
         } finally {
             setImportSchemaLoading(false);
         }
@@ -170,19 +219,20 @@ export default function DataOperationsPage() {
                 format: exportFormat,
                 includePII: includePii
             });
-            if (exportFormat === "csv" && res.csv) {
-                downloadBlob(res.csv, `reservations-${campgroundId}.csv`, "text/csv");
+            const exportResult = parseExportResult(res);
+            if (exportFormat === "csv" && exportResult.csv) {
+                downloadBlob(exportResult.csv, `reservations-${campgroundId}.csv`, "text/csv");
             } else {
                 downloadBlob(JSON.stringify(res, null, 2), `reservations-${campgroundId}.json`, "application/json");
             }
             setExportMessage({
                 type: "success",
-                text: res.nextToken
+                text: exportResult.nextToken
                     ? "Downloaded first page. More data available - use export job for complete data."
                     : "Export downloaded successfully!"
             });
-        } catch (err: any) {
-            setExportMessage({ type: "error", text: err?.message || "Export failed" });
+        } catch (err) {
+            setExportMessage({ type: "error", text: getErrorMessage(err) || "Export failed" });
         } finally {
             setExporting(false);
         }
@@ -198,8 +248,8 @@ export default function DataOperationsPage() {
                 type: "success",
                 text: `Export job started! You'll receive an email when it's ready.`
             });
-        } catch (err: any) {
-            setExportMessage({ type: "error", text: err?.message || "Failed to queue export job" });
+        } catch (err) {
+            setExportMessage({ type: "error", text: getErrorMessage(err) || "Failed to queue export job" });
         } finally {
             setExporting(false);
         }

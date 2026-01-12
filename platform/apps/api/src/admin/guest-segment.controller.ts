@@ -19,7 +19,7 @@ interface CreateSegmentBody {
     name: string;
     description?: string;
     scope: SegmentScope;
-    criteria: any[];
+    criteria: SegmentCriteria[];
     isTemplate?: boolean;
     organizationId?: string;
     campgroundId?: string;
@@ -28,9 +28,17 @@ interface CreateSegmentBody {
 interface UpdateSegmentBody {
     name?: string;
     description?: string;
-    criteria?: any[];
+    criteria?: SegmentCriteria[];
     status?: SegmentStatus;
 }
+
+interface SegmentCriteria {
+    type: string;
+    operator: string;
+    value: string | string[] | number | boolean;
+}
+
+type AuthRequest = Request & { user: { id: string; email: string } };
 
 @Controller("admin/guest-segments")
 @UseGuards(JwtAuthGuard)
@@ -38,7 +46,7 @@ export class GuestSegmentController {
     constructor(private readonly segmentService: GuestSegmentService) { }
 
     @Post()
-    async create(@Body() body: CreateSegmentBody, @Req() req: Request) {
+    async create(@Body() body: CreateSegmentBody, @Req() req: AuthRequest) {
         return this.segmentService.create({
             ...body,
             createdById: req.user.id,
@@ -84,7 +92,7 @@ export class GuestSegmentController {
     }
 
     @Post(":id/duplicate")
-    async duplicate(@Param("id") id: string, @Req() req: Request) {
+    async duplicate(@Param("id") id: string, @Req() req: AuthRequest) {
         return this.segmentService.duplicate(id, req.user.id, req.user.email);
     }
 

@@ -1,8 +1,20 @@
 import { BadRequestException, Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { CreateHoldDto } from "./dto/create-hold.dto";
-import { ReservationStatus } from "@prisma/client";
+import { ReservationStatus, type Prisma } from "@prisma/client";
+import { randomUUID } from "crypto";
 import { WaitlistService } from "../waitlist/waitlist.service";
+
+type SiteHoldWithSite = Prisma.SiteHoldGetPayload<{
+  include: {
+    Site: {
+      select: {
+        id: true;
+        siteClassId: true;
+      };
+    };
+  };
+}>;
 
 @Injectable()
 export class HoldsService implements OnModuleInit, OnModuleDestroy {
@@ -93,6 +105,7 @@ export class HoldsService implements OnModuleInit, OnModuleDestroy {
 
     return this.prisma.siteHold.create({
       data: {
+        id: randomUUID(),
         campgroundId: dto.campgroundId,
         siteId: dto.siteId,
         arrivalDate: arrival,
@@ -141,7 +154,7 @@ export class HoldsService implements OnModuleInit, OnModuleDestroy {
     if (expired.length === 0) return 0;
 
     await Promise.all(
-      expired.map((hold: any) =>
+      expired.map((hold: SiteHoldWithSite) =>
         this.prisma.siteHold.update({
           where: { id: hold.id },
           data: { status: "expired" }
@@ -157,7 +170,7 @@ export class HoldsService implements OnModuleInit, OnModuleDestroy {
           hold.arrivalDate,
           hold.departureDate,
           hold.siteId,
-          hold.site?.siteClassId ?? undefined
+          hold.Site?.siteClassId ?? undefined
         );
       } catch (err) {
         // Swallow to avoid failing the batch; consider logging in the future
@@ -167,4 +180,3 @@ export class HoldsService implements OnModuleInit, OnModuleDestroy {
     return expired.length;
   }
 }
-

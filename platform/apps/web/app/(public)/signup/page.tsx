@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion, type Variants, type TargetAndTransition } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import {
   AnimatedCounter,
@@ -31,6 +31,7 @@ import {
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000/api";
 
 type EarlyAccessTier = "founders_circle" | "pioneer" | "trailblazer";
+type TierColor = "amber" | "emerald" | "violet";
 
 interface TierAvailability {
   tier: string;
@@ -45,7 +46,17 @@ interface TierAvailability {
   };
 }
 
-const tierConfig = {
+interface TierConfig {
+  name: string;
+  icon: typeof Crown;
+  color: TierColor;
+  highlight: string;
+  monthlyDisplay: string;
+  durationDisplay: string;
+  benefits: string[];
+}
+
+const tierConfig: Record<EarlyAccessTier, TierConfig> = {
   founders_circle: {
     name: "Founder's Circle",
     icon: Crown,
@@ -93,7 +104,16 @@ const tierConfig = {
   }
 };
 
-const colorStyles = {
+const colorStyles: Record<TierColor, {
+  border: string;
+  bg: string;
+  badge: string;
+  icon: string;
+  button: string;
+  ring: string;
+  text: string;
+  glow: string;
+}> = {
   amber: {
     border: "border-amber-500",
     bg: "bg-amber-500/10",
@@ -126,29 +146,35 @@ const colorStyles = {
   }
 };
 
+const tierOrder: EarlyAccessTier[] = ["founders_circle", "pioneer", "trailblazer"];
+
 // Motion configuration
-const motionConfig = {
-  stagger: {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: { staggerChildren: 0.1 }
-    }
+const staggerVariants: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.1 },
   },
-  card: {
-    hidden: { opacity: 0, y: 20 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { type: "spring" as const, stiffness: 260, damping: 20 }
-    }
+};
+
+const cardVariants: Variants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { type: "spring", stiffness: 260, damping: 20 },
   },
-  fadeSlide: {
-    initial: { opacity: 0, x: -20 },
-    animate: { opacity: 1, x: 0 },
-    exit: { opacity: 0, x: 20 }
-  }
-} as const;
+};
+
+const fadeSlideVariants: {
+  initial: TargetAndTransition;
+  animate: TargetAndTransition;
+  exit: TargetAndTransition;
+} = {
+  initial: { opacity: 0, x: -20 },
+  animate: { opacity: 1, x: 0 },
+  exit: { opacity: 0, x: 20 },
+};
 
 export default function SignupPage() {
   const router = useRouter();
@@ -425,21 +451,21 @@ export default function SignupPage() {
             /* Tier Selection */
             <motion.div
               key="tier-selection"
-              initial={prefersReducedMotion ? { opacity: 0 } : motionConfig.fadeSlide.initial}
-              animate={prefersReducedMotion ? { opacity: 1 } : motionConfig.fadeSlide.animate}
-              exit={prefersReducedMotion ? { opacity: 0 } : motionConfig.fadeSlide.exit}
+              initial={prefersReducedMotion ? { opacity: 0 } : fadeSlideVariants.initial}
+              animate={prefersReducedMotion ? { opacity: 1 } : fadeSlideVariants.animate}
+              exit={prefersReducedMotion ? { opacity: 0 } : fadeSlideVariants.exit}
               transition={{ duration: 0.3 }}
             >
               <motion.div
                 className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto"
-                variants={prefersReducedMotion ? undefined : motionConfig.stagger}
+                variants={prefersReducedMotion ? undefined : staggerVariants}
                 initial="hidden"
                 animate="visible"
               >
-                {(["founders_circle", "pioneer", "trailblazer"] as EarlyAccessTier[]).map((tierKey) => {
+                {tierOrder.map((tierKey) => {
                   const config = tierConfig[tierKey];
                   const tierData = availability.find((t) => t.tier === tierKey);
-                  const styles = colorStyles[config.color as keyof typeof colorStyles];
+                  const styles = colorStyles[config.color];
                   const isSoldOut = tierData?.isSoldOut ?? false;
                   const spotsRemaining = tierData?.remainingSpots ?? 0;
                   const bookingFee = tierData?.pricing?.bookingFeeCents
@@ -449,7 +475,7 @@ export default function SignupPage() {
                   return (
                     <motion.div
                       key={tierKey}
-                      variants={prefersReducedMotion ? undefined : motionConfig.card}
+                      variants={prefersReducedMotion ? undefined : cardVariants}
                       whileHover={
                         !isSoldOut && !prefersReducedMotion
                           ? {
@@ -557,7 +583,7 @@ export default function SignupPage() {
                     {(() => {
                       const config = tierConfig[selectedTier];
                       const Icon = config.icon;
-                      const styles = colorStyles[config.color as keyof typeof colorStyles];
+                      const styles = colorStyles[config.color];
                       return (
                         <>
                           <Icon className={`h-6 w-6 ${styles.icon}`} />

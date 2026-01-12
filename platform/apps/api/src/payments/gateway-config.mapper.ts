@@ -1,7 +1,7 @@
 import { CampgroundPaymentGatewayConfig, GatewayFeePreset } from "@prisma/client";
 import { isRecord } from "../utils/type-guards";
 
-type ConfigRecord = (CampgroundPaymentGatewayConfig & { feePreset?: GatewayFeePreset | null }) | null;
+type ConfigRecord = (CampgroundPaymentGatewayConfig & { GatewayFeePreset?: GatewayFeePreset | null }) | null;
 
 export interface GatewayConfigView {
   id: string;
@@ -30,8 +30,8 @@ export interface GatewayConfigView {
 export const GatewayConfigMapper = {
   toView(record: ConfigRecord): GatewayConfigView | null {
     if (!record) return null;
-    const percentBasisPoints = record.feePercentBasisPoints ?? record.feePreset?.percentBasisPoints ?? 0;
-    const flatFeeCents = record.feeFlatCents ?? record.feePreset?.flatFeeCents ?? 0;
+    const percentBasisPoints = record.feePercentBasisPoints ?? record.GatewayFeePreset?.percentBasisPoints ?? 0;
+    const flatFeeCents = record.feeFlatCents ?? record.GatewayFeePreset?.flatFeeCents ?? 0;
 
     return {
       id: record.id,
@@ -42,7 +42,7 @@ export const GatewayConfigMapper = {
       feePercentBasisPoints: record.feePercentBasisPoints ?? null,
       feeFlatCents: record.feeFlatCents ?? null,
       feePresetId: record.feePresetId ?? null,
-      feePresetLabel: record.feePreset?.label ?? null,
+      feePresetLabel: record.GatewayFeePreset?.label ?? null,
       effectiveFee: {
         percentBasisPoints,
         flatFeeCents

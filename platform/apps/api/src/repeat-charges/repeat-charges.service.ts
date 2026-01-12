@@ -2,8 +2,21 @@ import { Injectable, NotFoundException, BadRequestException, Logger } from '@nes
 import { PrismaService } from '../prisma/prisma.service';
 import { ChargeStatus, PaymentSchedule, ReservationStatus } from '@prisma/client';
 import { addDays, addMonths, addWeeks, startOfDay } from 'date-fns';
+import { randomUUID } from "crypto";
 import { StripeService } from '../payments/stripe.service';
 import { postBalancedLedgerEntries } from '../ledger/ledger-posting.util';
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null && !Array.isArray(value);
+
+const getStripeChargeId = (value: unknown): string | undefined => {
+    if (typeof value === "string") return value;
+    if (isRecord(value) && typeof value.id === "string") return value.id;
+    return undefined;
+};
+
+const getErrorMessage = (error: unknown): string =>
+    error instanceof Error ? error.message : "Unknown error";
 
 @Injectable()
 export class RepeatChargesService {
@@ -18,22 +31,22 @@ export class RepeatChargesService {
         const reservation = await this.prisma.reservation.findFirst({
             where: { id: reservationId, campgroundId },
             include: {
-                seasonalRate: true,
-                repeatCharges: true
+                SeasonalRate: true,
+                RepeatCharge: true
             }
         });
 
         if (!reservation) throw new NotFoundException('Reservation not found');
-        if (!reservation.seasonalRate) throw new BadRequestException('Reservation is not linked to a seasonal rate');
+        if (!reservation.SeasonalRate) throw new BadRequestException('Reservation is not linked to a seasonal rate');
 
-        const { paymentSchedule, amount, offseasonAmount, offseasonInterval } = reservation.seasonalRate;
+        const { paymentSchedule, amount, offseasonAmount, offseasonInterval } = reservation.SeasonalRate;
         const arrival = new Date(reservation.arrivalDate);
         const departure = new Date(reservation.departureDate);
 
         // If charges already exist, we might want to skip or be careful not to duplicate
-        if (reservation.repeatCharges.length > 0) {
+        if (reservation.RepeatCharge.length > 0) {
             // For now, just return existing charges
-            return reservation.repeatCharges;
+            return reservation.RepeatCharge;
         }
 
         const charges: { dueDate: Date; amount: number }[] = [];
@@ -87,6 +100,7 @@ export class RepeatChargesService {
         for (const charge of charges) {
             const created = await this.prisma.repeatCharge.create({
                 data: {
+                    id: randomUUID(),
                     reservationId,
                     dueDate: charge.dueDate,
                     amount: charge.amount,
@@ -103,7 +117,7 @@ export class RepeatChargesService {
         return this.prisma.repeatCharge.findMany({
             where: {
                 reservationId,
-                reservation: { campgroundId }
+                Reservation: { campgroundId }
             },
             orderBy: { dueDate: 'asc' }
         });
@@ -112,15 +126,15 @@ export class RepeatChargesService {
     async getAllCharges(campgroundId: string) {
         return this.prisma.repeatCharge.findMany({
             where: {
-                reservation: {
+                Reservation: {
                     campgroundId
                 }
             },
             include: {
-                reservation: {
+                Reservation: {
                     include: {
-                        guest: true,
-                        site: true
+                        Guest: true,
+                        Site: true
                     }
                 }
             },
@@ -132,20 +146,20 @@ export class RepeatChargesService {
         const charge = await this.prisma.repeatCharge.findFirst({
             where: {
                 id: chargeId,
-                reservation: { campgroundId }
+                Reservation: { campgroundId }
             },
             include: {
-                reservation: {
+                Reservation: {
                     include: {
-                        campground: {
+                        Campground: {
                             select: {
                                 stripeAccountId: true,
                                 perBookingFeeCents: true
                             }
                         },
-                        site: {
+                        Site: {
                             include: {
-                                siteClass: true
+                                SiteClass: true
                             }
                         }
                     }
@@ -202,7 +216,7 @@ export class RepeatChargesService {
                 ? originalIntent.payment_method
                 : originalIntent.payment_method.id;
 
-            if (!charge.reservation.campground.stripeAccountId) {
+            if (!charge.Reservation.Campground.stripeAccountId) {
                 const failureReason = 'Payment processing not configured for this campground';
                 await this.prisma.repeatCharge.update({
                     where: { id: chargeId },
@@ -215,7 +229,7 @@ export class RepeatChargesService {
                 throw new BadRequestException(failureReason);
             }
 
-            const applicationFeeCents = charge.reservation.campground.perBookingFeeCents || 0;
+            const applicationFeeCents = charge.Reservation.Campground.perBookingFeeCents || 0;
 
             // Charge the saved payment method
             const paymentIntent = await this.stripeService.chargeOffSession(
@@ -223,10 +237,10 @@ export class RepeatChargesService {
                 'usd',
                 customerId,
                 paymentMethodId,
-                charge.reservation.campground.stripeAccountId,
+                charge.Reservation.Campground.stripeAccountId,
                 {
                     reservationId: charge.reservationId,
-                    campgroundId: charge.reservation.campgroundId,
+                    campgroundId: charge.Reservation.campgroundId,
                     source: 'repeat_charge',
                     type: 'recurring_payment',
                     chargeId,
@@ -260,16 +274,18 @@ export class RepeatChargesService {
                 });
 
                 // Record the payment
+                const stripeChargeId = getStripeChargeId(paymentIntent.latest_charge);
                 const payment = await tx.payment.create({
                     data: {
-                        campgroundId: charge.reservation.campgroundId,
+                        id: randomUUID(),
+                        campgroundId: charge.Reservation.campgroundId,
                         reservationId: charge.reservationId,
                         amountCents: charge.amount,
                         method: 'card',
                         direction: 'charge',
                         note: `Repeat charge for ${charge.dueDate.toISOString().split('T')[0]}`,
                         stripePaymentIntentId: paymentIntent.id,
-                        stripeChargeId: paymentIntent.latest_charge as string | undefined,
+                        stripeChargeId,
                         applicationFeeCents,
                         capturedAt: new Date()
                     }
@@ -296,26 +312,26 @@ export class RepeatChargesService {
                 });
 
                 // Post balanced ledger entries
-                const revenueGl = charge.reservation.site?.siteClass?.glCode || 'SITE_REVENUE';
+                const revenueGl = charge.Reservation.Site?.SiteClass?.glCode || 'SITE_REVENUE';
                 const dedupeKey = `repeat_charge_${chargeId}_${payment.id}`;
 
                 await postBalancedLedgerEntries(tx, [
                     {
-                        campgroundId: charge.reservation.campgroundId,
+                        campgroundId: charge.Reservation.campgroundId,
                         reservationId: charge.reservationId,
                         glCode: 'CASH',
                         account: 'Cash',
-                        direction: 'debit' as const,
+                        direction: 'debit',
                         amountCents: charge.amount,
                         description: `Repeat charge payment for ${charge.dueDate.toISOString().split('T')[0]}`,
                         dedupeKey: `${dedupeKey}:debit`
                     },
                     {
-                        campgroundId: charge.reservation.campgroundId,
+                        campgroundId: charge.Reservation.campgroundId,
                         reservationId: charge.reservationId,
                         glCode: revenueGl,
                         account: 'Site Revenue',
-                        direction: 'credit' as const,
+                        direction: 'credit',
                         amountCents: charge.amount,
                         description: `Repeat charge payment for ${charge.dueDate.toISOString().split('T')[0]}`,
                         dedupeKey: `${dedupeKey}:credit`
@@ -326,8 +342,8 @@ export class RepeatChargesService {
             });
 
             return updated;
-        } catch (error: any) {
-            this.logger.error(`Payment failed for charge ${chargeId}: ${error.message}`, error.stack);
+        } catch (error: unknown) {
+            this.logger.error(`Payment failed for charge ${chargeId}: ${getErrorMessage(error)}`);
 
             // If not already marked as failed, update the charge status
             const currentCharge = await this.prisma.repeatCharge.findUnique({
@@ -341,7 +357,7 @@ export class RepeatChargesService {
                     data: {
                         status: ChargeStatus.failed,
                         failedAt: new Date(),
-                        failureReason: error.message || 'Payment processing error'
+                        failureReason: getErrorMessage(error)
                     }
                 });
             }

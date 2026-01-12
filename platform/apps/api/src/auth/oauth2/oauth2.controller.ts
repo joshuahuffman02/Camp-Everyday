@@ -177,7 +177,7 @@ export class OAuth2Controller {
         clientId: query.client_id,
         redirectUri: validatedRedirectUri,
         scope: scopes,
-        userId: user.sub,
+        userId: user.id,
         codeChallenge: query.code_challenge,
         codeChallengeMethod: query.code_challenge_method,
       });
@@ -189,10 +189,9 @@ export class OAuth2Controller {
       }
 
       return res.redirect(redirectUrl.toString());
-    } catch (error: any) {
-      const errorCode = error.response?.error || "server_error";
-      const errorDesc = error.response?.error_description || error.message;
-      return this.redirectWithError(res, validatedRedirectUri, errorCode, errorDesc, query.state);
+    } catch (error) {
+      const { code, description } = this.normalizeOAuthError(error);
+      return this.redirectWithError(res, validatedRedirectUri, code, description, query.state);
     }
   }
 
@@ -342,5 +341,34 @@ export class OAuth2Controller {
         error_description: errorDescription,
       });
     }
+  }
+
+  private normalizeOAuthError(error: unknown): { code: string; description: string } {
+    const defaultError = {
+      code: "server_error",
+      description: "An unexpected error occurred",
+    };
+
+    if (this.isRecord(error)) {
+      const response = error.response;
+      if (this.isRecord(response)) {
+        const code = typeof response.error === "string" ? response.error : defaultError.code;
+        const description =
+          typeof response.error_description === "string"
+            ? response.error_description
+            : defaultError.description;
+        return { code, description };
+      }
+    }
+
+    if (error instanceof Error) {
+      return { code: defaultError.code, description: error.message };
+    }
+
+    return defaultError;
+  }
+
+  private isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null;
   }
 }

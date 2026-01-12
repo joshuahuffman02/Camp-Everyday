@@ -1,6 +1,17 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TaskType, TaskState, SlaStatus } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
+import { randomUUID } from "crypto";
+
+const toJsonValue = (value: unknown): Prisma.InputJsonValue | undefined => {
+  if (value === undefined || value === null) return undefined;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return undefined;
+  }
+};
 
 @Injectable()
 export class TasksService {
@@ -33,7 +44,7 @@ export class TasksService {
     reservationId?: string;
     priority?: string;
     slaDueAt?: string;
-    checklist?: any;
+    checklist?: unknown;
     assignedToUserId?: string;
     assignedToTeamId?: string;
     notes?: string;
@@ -42,9 +53,11 @@ export class TasksService {
   }) {
     const slaDueAt = data.slaDueAt ? new Date(data.slaDueAt) : null;
     const slaStatus = this.computeSlaStatus(slaDueAt, 'pending');
+    const checklist = toJsonValue(data.checklist);
 
     return this.prisma.task.create({
       data: {
+        id: randomUUID(),
         tenantId: data.tenantId,
         type: data.type,
         state: 'pending',
@@ -55,10 +68,11 @@ export class TasksService {
         assignedToTeamId: data.assignedToTeamId,
         slaDueAt,
         slaStatus,
-        checklist: data.checklist,
+        checklist,
         notes: data.notes,
         source: data.source,
         createdBy: data.createdBy,
+        updatedAt: new Date(),
       },
     });
   }
@@ -105,8 +119,8 @@ export class TasksService {
       slaDueAt?: string;
       assignedToUserId?: string;
       assignedToTeamId?: string;
-      checklist?: any;
-      photos?: any;
+      checklist?: unknown;
+      photos?: unknown;
       notes?: string;
     },
   ) {
@@ -117,6 +131,8 @@ export class TasksService {
     const state = data.state ?? existing.state;
     const slaStatus = this.computeSlaStatus(slaDueAt, state);
 
+    const checklist = toJsonValue(data.checklist);
+    const photos = toJsonValue(data.photos);
     const updated = await this.prisma.task.update({
       where: { id },
       data: {
@@ -126,8 +142,8 @@ export class TasksService {
         slaStatus,
         assignedToUserId: data.assignedToUserId,
         assignedToTeamId: data.assignedToTeamId,
-        checklist: data.checklist,
-        photos: data.photos,
+        checklist,
+        photos,
         notes: data.notes,
       },
     });
@@ -152,9 +168,9 @@ export class TasksService {
         siteReadyAt: new Date(),
       },
       include: {
-        guest: true,
-        campground: true,
-        site: true,
+        Guest: true,
+        Campground: true,
+        Site: true,
       },
     });
 
@@ -162,12 +178,13 @@ export class TasksService {
     try {
       await this.prisma.communication.create({
         data: {
+          id: randomUUID(),
           campgroundId: reservation.campgroundId,
           guestId: reservation.guestId,
           reservationId: reservation.id,
           type: 'email',
-          subject: `Your site is ready at ${reservation.campground.name}`,
-          body: `Good news! Site ${reservation.site.siteNumber} is now ready for your arrival.`,
+          subject: `Your site is ready at ${reservation.Campground.name}`,
+          body: `Good news! Site ${reservation.Site.siteNumber} is now ready for your arrival.`,
           status: 'queued',
           direction: 'outbound',
         },
@@ -212,4 +229,3 @@ export class TasksService {
     }
   }
 }
-

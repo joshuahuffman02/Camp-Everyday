@@ -18,6 +18,11 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { apiClient } from "@/lib/api-client";
 
+type UtilityMeter = Awaited<ReturnType<typeof apiClient.listUtilityMeters>>[number];
+type UtilityMeterRead = Awaited<ReturnType<typeof apiClient.listUtilityMeterReads>>[number];
+type UtilityRatePlan = Awaited<ReturnType<typeof apiClient.listUtilityRatePlans>>[number];
+type SiteClass = Awaited<ReturnType<typeof apiClient.getSiteClasses>>[number];
+
 type MeterConfig = {
   billingMode?: string;
   billTo?: string;
@@ -40,19 +45,6 @@ type SiteClassDraft = {
   meteredAutoEmail?: boolean;
 };
 
-type RatePlan = {
-  id: string;
-  campgroundId: string;
-  type: string;
-  pricingMode: string;
-  baseRateCents: number;
-  tiers?: any;
-  demandFeeCents?: number | null;
-  minimumCents?: number | null;
-  effectiveFrom: string;
-  effectiveTo?: string | null;
-};
-
 const BILLING_MODES = [
   { value: "cycle", label: "Billing cycles" },
   { value: "per_reading", label: "Bill on each reading" },
@@ -61,9 +53,18 @@ const BILLING_MODES = [
 ];
 const EMPTY_SELECT_VALUE = "__empty";
 
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error && error.message ? error.message : "Unknown error";
+
 export default function UtilitiesBillingPage() {
-  const params = useParams();
-  const campgroundId = params?.campgroundId as string;
+  const params = useParams<{ campgroundId?: string }>();
+  const campgroundId = params?.campgroundId;
+  const requireCampgroundId = () => {
+    if (!campgroundId) {
+      throw new Error("Campground is required");
+    }
+    return campgroundId;
+  };
   const qc = useQueryClient();
   const [configDrafts, setConfigDrafts] = useState<Record<string, MeterConfig>>({});
   const [readDrafts, setReadDrafts] = useState<Record<string, ReadDraft>>({});
@@ -73,25 +74,25 @@ export default function UtilitiesBillingPage() {
   const [selectedClassId, setSelectedClassId] = useState<string>("");
   const [classDraft, setClassDraft] = useState<SiteClassDraft>({});
 
-  const metersQuery = useQuery({
+  const metersQuery = useQuery<UtilityMeter[]>({
     queryKey: ["utility-meters", campgroundId],
-    queryFn: () => apiClient.listUtilityMeters(campgroundId),
+    queryFn: () => apiClient.listUtilityMeters(requireCampgroundId()),
     enabled: !!campgroundId
   });
 
-  const siteClassesQuery = useQuery({
+  const siteClassesQuery = useQuery<SiteClass[]>({
     queryKey: ["site-classes", campgroundId],
-    queryFn: () => apiClient.getSiteClasses(campgroundId),
+    queryFn: () => apiClient.getSiteClasses(requireCampgroundId()),
     enabled: !!campgroundId
   });
 
-  const ratePlansQuery = useQuery({
+  const ratePlansQuery = useQuery<UtilityRatePlan[]>({
     queryKey: ["utility-rate-plans", campgroundId],
-    queryFn: () => apiClient.listUtilityRatePlans(campgroundId),
+    queryFn: () => apiClient.listUtilityRatePlans(requireCampgroundId()),
     enabled: !!campgroundId
   });
 
-  const lastReadsQuery = useQuery({
+  const lastReadsQuery = useQuery<Map<string, UtilityMeterRead | undefined>>({
     queryKey: ["utility-meter-reads-latest", campgroundId, metersQuery.data?.map((m) => m.id).join(",")],
     queryFn: async () => {
       const meters = metersQuery.data ?? [];
@@ -102,7 +103,7 @@ export default function UtilitiesBillingPage() {
           return { meterId: m.id, last };
         })
       );
-      const map = new Map<string, any>();
+      const map = new Map<string, UtilityMeterRead | undefined>();
       pairs.forEach((p) => map.set(p.meterId, p.last));
       return map;
     },
@@ -111,18 +112,18 @@ export default function UtilitiesBillingPage() {
 
   const updateMeterMutation = useMutation({
     mutationFn: ({ meterId, config }: { meterId: string; config: MeterConfig }) =>
-      apiClient.updateUtilityMeter(meterId, config, campgroundId),
+      apiClient.updateUtilityMeter(meterId, config, requireCampgroundId()),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["utility-meters", campgroundId] });
       setMessage("Meter updated.");
     },
-    onError: (err: any) => setMessage(err?.message || "Failed to update meter")
+    onError: (error) => setMessage(getErrorMessage(error) || "Failed to update meter")
   });
 
   const billMeterMutation = useMutation({
-    mutationFn: (meterId: string) => apiClient.billUtilityMeter(meterId, campgroundId),
+    mutationFn: (meterId: string) => apiClient.billUtilityMeter(meterId, requireCampgroundId()),
     onSuccess: () => setMessage("Invoice created from latest reading."),
-    onError: (err: any) => setMessage(err?.message || "Failed to bill meter")
+    onError: (error) => setMessage(getErrorMessage(error) || "Failed to bill meter")
   });
 
   const addReadMutation = useMutation({
@@ -131,36 +132,36 @@ export default function UtilitiesBillingPage() {
         readingValue: Number(draft.readingValue),
         readAt: draft.readAt || new Date().toISOString(),
         note: draft.note || undefined
-      }, campgroundId),
+      }, requireCampgroundId()),
     onSuccess: () => {
       setMessage("Reading saved.");
       qc.invalidateQueries({ queryKey: ["utility-meter-reads-latest", campgroundId] });
     },
-    onError: (err: any) => setMessage(err?.message || "Failed to save reading")
+    onError: (error) => setMessage(getErrorMessage(error) || "Failed to save reading")
   });
 
   const saveSiteClassMutation = useMutation({
     mutationFn: ({ id, draft }: { id: string; draft: SiteClassDraft }) =>
-      apiClient.updateSiteClass(id, draft, campgroundId),
+      apiClient.updateSiteClass(id, draft, requireCampgroundId()),
     onSuccess: () => setMessage("Site class metering defaults saved."),
-    onError: (err: any) => setMessage(err?.message || "Failed to save site class")
+    onError: (error) => setMessage(getErrorMessage(error) || "Failed to save site class")
   });
 
   const seedMetersMutation = useMutation({
-    mutationFn: (siteClassId: string) => apiClient.seedMetersForSiteClass(siteClassId, campgroundId),
+    mutationFn: (siteClassId: string) => apiClient.seedMetersForSiteClass(siteClassId, requireCampgroundId()),
     onSuccess: (res) => {
       setMessage(`Created ${res.created} meters (of ${res.totalSites} sites).`);
       qc.invalidateQueries({ queryKey: ["utility-meters", campgroundId] });
     },
-    onError: (err: any) => setMessage(err?.message || "Failed to seed meters")
+    onError: (error) => setMessage(getErrorMessage(error) || "Failed to seed meters")
   });
 
   const meters = metersQuery.data ?? [];
   const siteClasses = siteClassesQuery.data ?? [];
-  const ratePlans = (ratePlansQuery.data as RatePlan[] | undefined) ?? [];
+  const ratePlans = ratePlansQuery.data ?? [];
 
   const ratePlansByType = useMemo(() => {
-    const map = new Map<string, RatePlan[]>();
+    const map = new Map<string, UtilityRatePlan[]>();
     ratePlans.forEach((p) => {
       const arr = map.get(p.type) || [];
       arr.push(p);
@@ -248,7 +249,7 @@ export default function UtilitiesBillingPage() {
 
   const selectClass = (id: string) => {
     setSelectedClassId(id);
-    const sc = siteClasses.find((s: any) => s.id === id);
+    const sc = siteClasses.find((siteClass) => siteClass.id === id);
     if (sc) {
       setClassDraft({
         meteredEnabled: sc.meteredEnabled ?? false,
@@ -331,7 +332,7 @@ export default function UtilitiesBillingPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={EMPTY_SELECT_VALUE}>Select a site class</SelectItem>
-                  {siteClasses.map((sc: any) => (
+                  {siteClasses.map((sc) => (
                     <SelectItem key={sc.id} value={sc.id}>
                       {sc.name}
                     </SelectItem>
@@ -529,7 +530,8 @@ export default function UtilitiesBillingPage() {
                 };
               const billingMode = draft.billingMode ?? m.billingMode ?? "cycle";
               const billTo = draft.billTo ?? m.billTo ?? "reservation";
-              const multiplier = draft.multiplier ?? (m.multiplier as unknown as number) ?? 1;
+              const meterMultiplier = typeof m.multiplier === "number" ? m.multiplier : undefined;
+              const multiplier = draft.multiplier ?? meterMultiplier ?? 1;
               const autoEmail = draft.autoEmail ?? m.autoEmail ?? false;
               const active = draft.active ?? m.active ?? true;
               const last = lastReadsQuery.data?.get(m.id);

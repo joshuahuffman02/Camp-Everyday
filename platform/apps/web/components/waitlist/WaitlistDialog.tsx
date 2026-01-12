@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm, type FieldErrors, type Resolver } from "react-hook-form";
 import { apiClient, CreatePublicWaitlistSchema, type CreatePublicWaitlistDto } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,9 +34,40 @@ export function WaitlistDialog({
 }: WaitlistDialogProps) {
     const [open, setOpen] = useState(false);
     const { toast } = useToast();
+    const waitlistFieldKeys: Array<keyof CreatePublicWaitlistDto> = [
+        "campgroundId",
+        "siteId",
+        "siteClassId",
+        "arrivalDate",
+        "departureDate",
+        "firstName",
+        "lastName",
+        "email",
+        "phone",
+    ];
+    const waitlistFieldSet = new Set<string>(waitlistFieldKeys);
+    const isWaitlistField = (field: string): field is keyof CreatePublicWaitlistDto =>
+        waitlistFieldSet.has(field);
+
+    const resolver: Resolver<CreatePublicWaitlistDto> = async (values) => {
+        const result = CreatePublicWaitlistSchema.safeParse(values);
+        if (result.success) {
+            return { values: result.data, errors: {} };
+        }
+
+        const errors: FieldErrors<CreatePublicWaitlistDto> = {};
+        for (const issue of result.error.issues) {
+            const field = issue.path[0];
+            if (typeof field === "string" && isWaitlistField(field)) {
+                errors[field] = { type: issue.code, message: issue.message };
+            }
+        }
+
+        return { values: {}, errors };
+    };
+
     const form = useForm<CreatePublicWaitlistDto>({
-        // Type assertion needed due to Zod version compatibility with react-hook-form
-        resolver: zodResolver(CreatePublicWaitlistSchema as never),
+        resolver,
         defaultValues: {
             campgroundId,
             siteId: siteId || undefined,

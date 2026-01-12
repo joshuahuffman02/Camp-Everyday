@@ -5,6 +5,7 @@ import {
   ConflictException,
 } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { randomUUID } from "crypto";
 import {
   CreateFeatureQueueDto,
   BulkCreateFeatureQueueDto,
@@ -25,6 +26,16 @@ interface FeatureSetupQueue {
   createdAt: Date;
   updatedAt: Date;
 }
+
+type FeatureSetupQueueUpdateData = {
+  status?: FeatureSetupStatus;
+  completedAt?: Date | null;
+  skippedAt?: Date | null;
+  priority?: number;
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
 
 @Injectable()
 export class FeatureSetupQueueService {
@@ -102,14 +113,16 @@ export class FeatureSetupQueueService {
     try {
       return await this.prisma.featureSetupQueue.create({
         data: {
+          id: randomUUID(),
           campgroundId,
           featureKey: dto.featureKey,
-          status: dto.status || FeatureSetupStatus.setup_later,
-          priority: dto.priority || 0,
+          status: dto.status ?? FeatureSetupStatus.setup_later,
+          priority: dto.priority ?? 0,
+          updatedAt: new Date(),
         },
       });
-    } catch (error: any) {
-      if (error.code === "P2002") {
+    } catch (error: unknown) {
+      if (isRecord(error) && error.code === "P2002") {
         throw new ConflictException(
           `Feature "${dto.featureKey}" is already in the queue`
         );
@@ -131,10 +144,12 @@ export class FeatureSetupQueueService {
           },
         },
         create: {
+          id: randomUUID(),
           campgroundId,
           featureKey: feature.featureKey,
           status: feature.status,
           priority: feature.priority ?? index,
+          updatedAt: new Date(),
         },
         update: {
           status: feature.status,
@@ -216,7 +231,7 @@ export class FeatureSetupQueueService {
   ) {
     const item = await this.getQueueItem(campgroundId, featureKey);
 
-    const updateData: any = {};
+    const updateData: FeatureSetupQueueUpdateData = {};
 
     if (dto.status !== undefined) {
       updateData.status = dto.status;

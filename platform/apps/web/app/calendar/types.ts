@@ -28,6 +28,9 @@ export interface CalendarReservation extends Omit<Reservation, 'site' | 'guest'>
     siteNumber?: string | null;
     siteType?: string | null;
   };
+  channel?: string | null;
+  bookingChannel?: string | null;
+  pets?: number | null;
 }
 
 // Calendar site with display properties

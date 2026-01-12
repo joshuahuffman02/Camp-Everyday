@@ -41,7 +41,7 @@ export type ProviderPaymentRequest = {
 export type ProviderPaymentResult = {
   status: "pending" | "succeeded" | "failed";
   processorIds?: Record<string, unknown> | null;
-  raw?: any;
+  raw?: unknown;
 };
 
 export type ProviderWebhookVerification = {
@@ -70,7 +70,7 @@ export interface PosProviderAdapter {
   verifyWebhookSignature(input: ProviderWebhookVerification): Promise<boolean> | boolean;
   handlePaymentWebhook?(input: {
     integration: IntegrationRecord;
-    body: any;
+    body: unknown;
     headers?: Record<string, unknown>;
   }): Promise<ProviderWebhookResult>;
 

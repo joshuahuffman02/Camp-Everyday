@@ -8,6 +8,7 @@ import {
 import { Prisma, ExpirationTier } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { WebhookService } from "../developer-api/webhook.service";
+import { randomUUID } from "crypto";
 import {
     CreateBatchDto,
     UpdateBatchDto,
@@ -86,9 +87,10 @@ export class BatchInventoryService {
         }
 
         // Create batch with initial movement record
-        return this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-            const batch = await tx.inventoryBatch.create({
+        const batch = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+            const createdBatch = await tx.inventoryBatch.create({
                 data: {
+                    id: randomUUID(),
                     campgroundId,
                     productId: dto.productId,
                     locationId: dto.locationId,
@@ -106,7 +108,8 @@ export class BatchInventoryService {
             // Record the initial receipt movement
             await tx.batchMovement.create({
                 data: {
-                    batchId: batch.id,
+                    id: randomUUID(),
+                    batchId: createdBatch.id,
                     qty: dto.qtyReceived,
                     movementType: "receive",
                     referenceType: "manual",
@@ -116,7 +119,7 @@ export class BatchInventoryService {
                 },
             });
 
-            return batch;
+            return createdBatch;
         });
 
         // Emit webhook event for batch received
@@ -137,13 +140,13 @@ export class BatchInventoryService {
         const batch = await this.prisma.inventoryBatch.findUnique({
             where: { id },
             include: {
-                product: { select: { id: true, name: true, sku: true } },
-                location: { select: { id: true, name: true } },
-                movements: {
+                Product: { select: { id: true, name: true, sku: true } },
+                StoreLocation: { select: { id: true, name: true } },
+                BatchMovement: {
                     orderBy: { createdAt: "desc" },
                     take: 20,
                     include: {
-                        actor: { select: { id: true, firstName: true, lastName: true } },
+                        User: { select: { id: true, firstName: true, lastName: true } },
                     },
                 },
             },
@@ -178,8 +181,8 @@ export class BatchInventoryService {
         return this.prisma.inventoryBatch.findMany({
             where,
             include: {
-                product: { select: { id: true, name: true, sku: true } },
-                location: { select: { id: true, name: true } },
+                Product: { select: { id: true, name: true, sku: true } },
+                StoreLocation: { select: { id: true, name: true } },
             },
             orderBy: [
                 { expirationDate: "asc" }, // FEFO order
@@ -237,6 +240,7 @@ export class BatchInventoryService {
 
             await tx.batchMovement.create({
                 data: {
+                    id: randomUUID(),
                     batchId: id,
                     qty: dto.adjustment,
                     movementType: "adjustment",
@@ -262,7 +266,7 @@ export class BatchInventoryService {
         const batch = await this.prisma.inventoryBatch.findUnique({
             where: { id },
             include: {
-                product: { select: { id: true, name: true } },
+                Product: { select: { id: true, name: true } },
             },
         });
         if (!batch) throw new NotFoundException("Batch not found");
@@ -286,6 +290,7 @@ export class BatchInventoryService {
 
             await tx.batchMovement.create({
                 data: {
+                    id: randomUUID(),
                     batchId: id,
                     qty: -batch.qtyRemaining,
                     movementType: "disposal",
@@ -305,7 +310,7 @@ export class BatchInventoryService {
         await this.webhookService.emit("inventory.batch.depleted", batch.campgroundId, {
             batchId: batch.id,
             productId: batch.productId,
-            productName: batch.product.name,
+            productName: batch.Product.name,
             batchNumber: batch.batchNumber,
             locationId: batch.locationId,
             reason: "disposal",
@@ -426,7 +431,7 @@ export class BatchInventoryService {
                 const batch = await tx.inventoryBatch.findUnique({
                     where: { id: alloc.batchId },
                     include: {
-                        product: { select: { name: true } },
+                        Product: { select: { name: true } },
                     },
                 });
 
@@ -450,7 +455,7 @@ export class BatchInventoryService {
                     depletedBatches.push({
                         batchId: batch.id,
                         productId: batch.productId,
-                        productName: batch.product.name,
+                        productName: batch.Product.name,
                         locationId: batch.locationId,
                         batchNumber: batch.batchNumber,
                     });
@@ -459,6 +464,7 @@ export class BatchInventoryService {
                 // Create inventory movement
                 const movement = await tx.inventoryMovement.create({
                     data: {
+                        id: randomUUID(),
                         campgroundId,
                         productId: batch.productId,
                         locationId: batch.locationId,
@@ -476,6 +482,7 @@ export class BatchInventoryService {
                 // Create batch movement for detailed audit
                 await tx.batchMovement.create({
                     data: {
+                        id: randomUUID(),
                         batchId: alloc.batchId,
                         movementId: movement.id,
                         qty: -alloc.qty,
@@ -536,6 +543,7 @@ export class BatchInventoryService {
                 // Create inventory movement
                 const movement = await tx.inventoryMovement.create({
                     data: {
+                        id: randomUUID(),
                         campgroundId,
                         productId: batch.productId,
                         locationId: batch.locationId,
@@ -553,6 +561,7 @@ export class BatchInventoryService {
                 // Create batch movement
                 await tx.batchMovement.create({
                     data: {
+                        id: randomUUID(),
                         batchId: item.batchId,
                         movementId: movement.id,
                         qty: item.qty,
@@ -589,10 +598,10 @@ export class BatchInventoryService {
         const product = await this.prisma.product.findUnique({
             where: { id: batch.productId },
             include: {
-                expirationConfigs: true,
-                category: {
+                ProductExpirationConfig: true,
+                ProductCategory: {
                     include: {
-                        expirationConfigs: true,
+                        CategoryExpirationConfig: true,
                     },
                 },
             },
@@ -601,16 +610,16 @@ export class BatchInventoryService {
         if (!product) return ExpirationTier.fresh;
 
         // Product-level overrides take precedence
-        const productConfig = product.expirationConfigs?.[0];
-        const categoryConfig = product.category?.expirationConfigs?.[0];
+        const productConfig = product.ProductExpirationConfig?.[0];
+        const categoryConfig = product.ProductCategory?.CategoryExpirationConfig?.[0];
 
         const warningDays = productConfig?.warningDays
             ?? categoryConfig?.warningDays
-            ?? product.category?.defaultWarningDays
+            ?? product.ProductCategory?.defaultWarningDays
             ?? 7;
         const criticalDays = productConfig?.criticalDays
             ?? categoryConfig?.criticalDays
-            ?? product.category?.defaultCriticalDays
+            ?? product.ProductCategory?.defaultCriticalDays
             ?? 2;
 
         if (daysUntilExpiration <= criticalDays) return ExpirationTier.critical;
@@ -633,29 +642,36 @@ export class BatchInventoryService {
                 expirationDate: { not: null },
             },
             include: {
-                product: {
+                Product: {
                     include: {
-                        category: true,
-                        expirationConfigs: true,
+                        ProductCategory: true,
+                        ProductExpirationConfig: true,
                     },
                 },
             },
         });
 
-        const summary = {
-            fresh: 0,
-            warning: 0,
-            critical: 0,
-            expired: 0,
-            totalValue: 0,
-            batches: [] as Array<{
+        const summary: {
+            fresh: number;
+            warning: number;
+            critical: number;
+            expired: number;
+            totalValue: number;
+            batches: Array<{
                 batchId: string;
                 productName: string;
                 qty: number;
                 expirationDate: Date;
                 tier: ExpirationTier;
                 daysRemaining: number;
-            }>,
+            }>;
+        } = {
+            fresh: 0,
+            warning: 0,
+            critical: 0,
+            expired: 0,
+            totalValue: 0,
+            batches: [],
         };
 
         for (const batch of batches) {
@@ -669,7 +685,7 @@ export class BatchInventoryService {
             if (tier !== ExpirationTier.fresh) {
                 summary.batches.push({
                     batchId: batch.id,
-                    productName: batch.product.name,
+                    productName: batch.Product.name,
                     qty: batch.qtyRemaining,
                     expirationDate: batch.expirationDate!,
                     tier,

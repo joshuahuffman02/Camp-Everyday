@@ -2,14 +2,14 @@ import { IsString, IsOptional, IsNumber, Min, Max, IsIn } from "class-validator"
 
 export class CreateChannelDto {
   @IsString()
-  campgroundId: string;
+  campgroundId!: string;
 
   @IsString()
-  name: string;
+  name!: string;
 
   @IsString()
   @IsIn(["airbnb", "vrbo", "booking", "ical", "hipcamp", "tentrr", "harvest_hosts", "other"])
-  provider: string;
+  provider!: string;
 
   @IsOptional()
   @IsNumber()

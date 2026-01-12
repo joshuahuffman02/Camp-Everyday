@@ -6,29 +6,33 @@ import { Roles, RolesGuard } from "../auth/guards/roles.guard";
 import { ScopeGuard } from "../permissions/scope.guard";
 import { UserRole } from "@prisma/client";
 import type { Request } from "express";
+import type { AuthUser } from "../auth/auth.types";
+
+type CampgroundRequest = Request & { campgroundId?: string | null; user?: AuthUser | null };
 
 @UseGuards(JwtAuthGuard, RolesGuard, ScopeGuard)
 @Controller("holds")
 export class HoldsController {
   constructor(private readonly holds: HoldsService) { }
 
-  private requireCampgroundId(req: any, fallback?: string): string {
-    const campgroundId = fallback || req?.campgroundId || req?.headers?.["x-campground-id"];
+  private requireCampgroundId(req: CampgroundRequest, fallback?: string): string {
+    const headerValue = req.headers["x-campground-id"];
+    const headerCampgroundId = Array.isArray(headerValue) ? headerValue[0] : headerValue;
+    const campgroundId = fallback ?? req.campgroundId ?? headerCampgroundId;
     if (!campgroundId) {
       throw new BadRequestException("campgroundId is required");
     }
     return campgroundId;
   }
 
-  private assertCampgroundAccess(campgroundId: string, user: any): void {
+  private assertCampgroundAccess(campgroundId: string, user?: AuthUser | null): void {
     const isPlatformStaff = user?.platformRole === "platform_admin" ||
-                            user?.platformRole === "platform_superadmin" ||
                             user?.platformRole === "support_agent";
     if (isPlatformStaff) {
       return;
     }
 
-    const userCampgroundIds = user?.memberships?.map((m: any) => m.campgroundId) ?? [];
+    const userCampgroundIds = user?.memberships?.map((membership) => membership.campgroundId) ?? [];
     if (!userCampgroundIds.includes(campgroundId)) {
       throw new BadRequestException("You do not have access to this campground");
     }
@@ -36,7 +40,7 @@ export class HoldsController {
 
   @Post()
   @Roles(UserRole.owner, UserRole.manager, UserRole.front_desk)
-  create(@Body() dto: CreateHoldDto, @Req() req: Request) {
+  create(@Body() dto: CreateHoldDto, @Req() req: CampgroundRequest) {
     const requiredCampgroundId = this.requireCampgroundId(req, dto.campgroundId);
     this.assertCampgroundAccess(requiredCampgroundId, req.user);
     return this.holds.create({ ...dto, campgroundId: requiredCampgroundId });
@@ -44,7 +48,7 @@ export class HoldsController {
 
   @Get("campgrounds/:campgroundId")
   @Roles(UserRole.owner, UserRole.manager, UserRole.front_desk)
-  list(@Param("campgroundId") campgroundId: string, @Req() req: Request) {
+  list(@Param("campgroundId") campgroundId: string, @Req() req: CampgroundRequest) {
     const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
     this.assertCampgroundAccess(requiredCampgroundId, req.user);
     return this.holds.listByCampground(requiredCampgroundId);
@@ -55,7 +59,7 @@ export class HoldsController {
   release(
     @Param("id") id: string,
     @Query("campgroundId") campgroundId: string | undefined,
-    @Req() req: Request
+    @Req() req: CampgroundRequest
   ) {
     const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
     this.assertCampgroundAccess(requiredCampgroundId, req.user);
@@ -66,7 +70,7 @@ export class HoldsController {
   @Roles(UserRole.owner, UserRole.manager)
   expireStale(
     @Query("campgroundId") campgroundId: string | undefined,
-    @Req() req: Request
+    @Req() req: CampgroundRequest
   ) {
     const requiredCampgroundId = this.requireCampgroundId(req, campgroundId);
     this.assertCampgroundAccess(requiredCampgroundId, req.user);

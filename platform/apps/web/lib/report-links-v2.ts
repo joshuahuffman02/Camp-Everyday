@@ -52,7 +52,10 @@ export function buildReportHrefV2({ tab, subTab, dateRange, filters }: BuildRepo
   return `${basePath}${buildReportQueryV2({ dateRange, filters })}`;
 }
 
-export function normalizeReportSelectionV2(tab: string, subTab?: string | null) {
+export function normalizeReportSelectionV2(
+  tab: string,
+  subTab?: string | null
+): { tab: ReportTabV2; subTab: string | null } | null {
   const alias = TAB_ALIASES[tab];
   if (alias) {
     return {

@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../../../prisma/prisma.service";
 import { DateRange } from "../platform-analytics.service";
 
-interface GuestOverview {
+export interface GuestOverview {
   totalGuests: number;
   newGuests: number;
   returningGuests: number;
@@ -10,14 +10,14 @@ interface GuestOverview {
   averageStaysPerGuest: number;
 }
 
-interface ProgressionData {
+export interface ProgressionData {
   fromType: string;
   toType: string;
   count: number;
   percentage: number;
 }
 
-interface LifetimeValueTier {
+export interface LifetimeValueTier {
   tier: string;
   guestCount: number;
   totalRevenue: number;
@@ -38,7 +38,7 @@ export class GuestJourneyService {
     // Get all guests with reservations in period
     const guestsWithReservations = await this.prisma.guest.findMany({
       where: {
-        reservations: {
+        Reservation: {
           some: {
             createdAt: { gte: start, lte: end },
           },
@@ -47,7 +47,7 @@ export class GuestJourneyService {
       select: {
         id: true,
         createdAt: true,
-        _count: { select: { reservations: true } },
+        _count: { select: { Reservation: true } },
       },
     });
 
@@ -56,11 +56,11 @@ export class GuestJourneyService {
       (g) => g.createdAt >= start && g.createdAt <= end
     ).length;
     const returningGuests = guestsWithReservations.filter(
-      (g) => g._count.reservations > 1
+      (g) => g._count.Reservation > 1
     ).length;
 
     const totalStays = guestsWithReservations.reduce(
-      (sum, g) => sum + g._count.reservations,
+      (sum, g) => sum + g._count.Reservation,
       0
     );
 
@@ -114,7 +114,7 @@ export class GuestJourneyService {
     // Get guests with multiple reservations
     const guestsWithHistory = await this.prisma.guest.findMany({
       where: {
-        reservations: {
+        Reservation: {
           some: {
             createdAt: { lte: end },
           },
@@ -122,13 +122,13 @@ export class GuestJourneyService {
       },
       select: {
         id: true,
-        reservations: {
+        Reservation: {
           where: {
             status: { in: ["confirmed", "checked_in", "checked_out"] },
           },
           select: {
             createdAt: true,
-            site: { select: { siteType: true } },
+            Site: { select: { siteType: true } },
           },
           orderBy: { createdAt: "asc" },
         },
@@ -142,12 +142,12 @@ export class GuestJourneyService {
     let totalTransitions = 0;
 
     for (const guest of guestsWithHistory) {
-      const stays = guest.reservations.filter((r) => r.site?.siteType);
+      const stays = guest.Reservation.filter((r) => r.Site?.siteType);
       if (stays.length < 2) continue;
 
       for (let i = 1; i < stays.length; i++) {
-        const fromType = stays[i - 1].site!.siteType;
-        const toType = stays[i].site!.siteType;
+        const fromType = stays[i - 1].Site!.siteType;
+        const toType = stays[i].Site!.siteType;
 
         if (fromType === toType) continue;
 
@@ -191,7 +191,7 @@ export class GuestJourneyService {
     // Get all guests with their total spend
     const guests = await this.prisma.guest.findMany({
       where: {
-        reservations: {
+        Reservation: {
           some: {
             status: { in: ["confirmed", "checked_in", "checked_out"] },
             createdAt: { lte: end },
@@ -200,7 +200,7 @@ export class GuestJourneyService {
       },
       select: {
         id: true,
-        reservations: {
+        Reservation: {
           where: {
             status: { in: ["confirmed", "checked_in", "checked_out"] },
             createdAt: { lte: end },
@@ -213,8 +213,8 @@ export class GuestJourneyService {
     // Calculate LTV for each guest
     const guestLtvs = guests.map((g) => ({
       id: g.id,
-      ltv: g.reservations.reduce((sum, r) => sum + (r.totalAmount || 0), 0),
-      stayCount: g.reservations.length,
+      ltv: g.Reservation.reduce((sum, r) => sum + (r.totalAmount || 0), 0),
+      stayCount: g.Reservation.length,
     })).sort((a, b) => b.ltv - a.ltv);
 
     if (guestLtvs.length === 0) {
@@ -270,7 +270,7 @@ export class GuestJourneyService {
       select: {
         id: true,
         createdAt: true,
-        reservations: {
+        Reservation: {
           select: { createdAt: true },
           orderBy: { createdAt: "asc" },
         },
@@ -290,10 +290,10 @@ export class GuestJourneyService {
       cohorts[cohortMonth].total++;
 
       // Check if they returned within various time windows
-      const firstReservation = guest.reservations[0]?.createdAt;
+      const firstReservation = guest.Reservation[0]?.createdAt;
       if (!firstReservation) continue;
 
-      const subsequentReservations = guest.reservations.slice(1);
+      const subsequentReservations = guest.Reservation.slice(1);
       for (const res of subsequentReservations) {
         const daysSinceFirst = Math.floor(
           (res.createdAt.getTime() - firstReservation.getTime()) / (1000 * 60 * 60 * 24)

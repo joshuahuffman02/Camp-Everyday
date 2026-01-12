@@ -9,8 +9,8 @@ import { MapPin, Calendar, Wifi, CloudSun, Navigation, ArrowRight, ExternalLink 
 import { Button } from "../../../../components/ui/button";
 
 export default function WelcomePacket() {
-    const params = useParams();
-    const id = params.id as string;
+    const { id: idParam } = useParams<{ id?: string }>();
+    const id = idParam ?? "";
     const searchParams = useSearchParams();
     const token = searchParams.get("token") || "";
 

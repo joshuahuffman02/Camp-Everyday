@@ -50,6 +50,19 @@ type SeasonalRate = {
   color?: string;
 };
 
+type ApiSeasonalRate = Awaited<ReturnType<typeof apiClient.getSeasonalRates>>[number];
+
+const withColors = (rates: ApiSeasonalRate[]): SeasonalRate[] =>
+  rates.map((rate, index) => ({
+    ...rate,
+    color: PRESET_COLORS[index % PRESET_COLORS.length],
+  }));
+
+const rateTypes: SeasonalRate["rateType"][] = ["nightly", "weekly", "monthly", "seasonal"];
+const rateTypeSet = new Set<string>(rateTypes);
+const isRateType = (value: string): value is SeasonalRate["rateType"] =>
+  rateTypeSet.has(value);
+
 // Helper to calculate days between dates
 function calculateDays(startDate: string | null, endDate: string | null): number {
   if (!startDate || !endDate) return 0;
@@ -106,11 +119,7 @@ export default function RateGroupsPage() {
     apiClient.getSeasonalRates(id)
       .then((rates) => {
         // Assign colors to rates (API doesn't return color, so we assign from preset)
-        const ratesWithColors = rates.map((rate, index) => ({
-          ...rate,
-          color: PRESET_COLORS[index % PRESET_COLORS.length],
-        }));
-        setSeasonalRates(ratesWithColors);
+        setSeasonalRates(withColors(rates));
         setLoading(false);
       })
       .catch((err) => {
@@ -133,11 +142,7 @@ export default function RateGroupsPage() {
 
       // Reload rates
       const rates = await apiClient.getSeasonalRates(campgroundId);
-      const ratesWithColors = rates.map((rate, index) => ({
-        ...rate,
-        color: (rate as { color?: string }).color || PRESET_COLORS[index % PRESET_COLORS.length],
-      }));
-      setSeasonalRates(ratesWithColors);
+      setSeasonalRates(withColors(rates));
 
       setNewGroupName("");
       setNewGroupColor(PRESET_COLORS[0]);
@@ -163,11 +168,7 @@ export default function RateGroupsPage() {
 
       // Reload rates
       const rates = await apiClient.getSeasonalRates(campgroundId);
-      const ratesWithColors = rates.map((rate, index) => ({
-        ...rate,
-        color: (rate as { color?: string }).color || PRESET_COLORS[index % PRESET_COLORS.length],
-      }));
-      setSeasonalRates(ratesWithColors);
+      setSeasonalRates(withColors(rates));
     } catch (err) {
       console.error("Failed to update rate group:", err);
     } finally {
@@ -184,11 +185,7 @@ export default function RateGroupsPage() {
 
       // Reload rates
       const rates = await apiClient.getSeasonalRates(campgroundId);
-      const ratesWithColors = rates.map((rate, index) => ({
-        ...rate,
-        color: (rate as { color?: string }).color || PRESET_COLORS[index % PRESET_COLORS.length],
-      }));
-      setSeasonalRates(ratesWithColors);
+      setSeasonalRates(withColors(rates));
     } catch (err) {
       console.error("Failed to delete rate group:", err);
     } finally {
@@ -220,11 +217,7 @@ export default function RateGroupsPage() {
 
       // Reload rates
       const rates = await apiClient.getSeasonalRates(campgroundId);
-      const ratesWithColors = rates.map((r, index) => ({
-        ...r,
-        color: (r as { color?: string }).color || PRESET_COLORS[index % PRESET_COLORS.length],
-      }));
-      setSeasonalRates(ratesWithColors);
+      setSeasonalRates(withColors(rates));
     } catch (err) {
       console.error("Failed to duplicate rate group:", err);
     } finally {
@@ -254,11 +247,7 @@ export default function RateGroupsPage() {
 
       // Reload rates
       const rates = await apiClient.getSeasonalRates(campgroundId);
-      const ratesWithColors = rates.map((rate, index) => ({
-        ...rate,
-        color: (rate as { color?: string }).color || PRESET_COLORS[index % PRESET_COLORS.length],
-      }));
-      setSeasonalRates(ratesWithColors);
+      setSeasonalRates(withColors(rates));
 
       setIsDateDialogOpen(false);
       setEditingRate(null);
@@ -447,7 +436,14 @@ export default function RateGroupsPage() {
             </div>
             <div className="space-y-2">
               <Label>Rate Type</Label>
-              <Select value={newGroupRateType} onValueChange={(v: any) => setNewGroupRateType(v)}>
+              <Select
+                value={newGroupRateType}
+                onValueChange={(value) => {
+                  if (isRateType(value)) {
+                    setNewGroupRateType(value);
+                  }
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>

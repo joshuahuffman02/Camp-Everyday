@@ -26,6 +26,14 @@ import type {
     AssignmentFilter
 } from "./types";
 
+type GuestData = Awaited<ReturnType<typeof apiClient.getGuests>>[number];
+type Membership = Awaited<ReturnType<typeof apiClient.getWhoami>>["user"]["memberships"][number];
+
+const getReservationChannel = (reservation: CalendarReservation): string | undefined => {
+    const channel = reservation.channel || reservation.bookingChannel || reservation.source;
+    return channel ?? undefined;
+};
+
 export function useCalendarData() {
     const queryClient = useQueryClient();
     const { selection: ganttSelection, setSelection: setStoreSelection } = useGanttStore();
@@ -101,7 +109,7 @@ export function useCalendarData() {
         [campgroundsQuery.data, selectedCampground]
     );
 
-    const sitesQuery = useQuery({
+    const sitesQuery = useQuery<CalendarSite[]>({
         queryKey: ["calendar-sites", selectedCampground],
         queryFn: () => {
             loadTimers.current.sites = typeof performance !== "undefined" ? performance.now() : Date.now();
@@ -112,7 +120,7 @@ export function useCalendarData() {
         refetchInterval: 60_000
     });
 
-    const reservationsQuery = useQuery({
+    const reservationsQuery = useQuery<CalendarReservation[]>({
         queryKey: ["calendar-reservations", selectedCampground],
         queryFn: () => {
             loadTimers.current.reservations = typeof performance !== "undefined" ? performance.now() : Date.now();
@@ -123,7 +131,7 @@ export function useCalendarData() {
         refetchInterval: 60_000
     });
 
-    const guestsQuery = useQuery({
+    const guestsQuery = useQuery<GuestData[]>({
         queryKey: ["calendar-guests", selectedCampground],
         queryFn: () => apiClient.getGuests(selectedCampground),
         enabled: isReady && !!selectedCampground,
@@ -168,11 +176,7 @@ export function useCalendarData() {
     }, [isReady, selectedCampground, campgroundsQuery.data]);
 
     // Permissions
-    interface Membership {
-        campgroundId: string;
-        role: string;
-    }
-    const memberships = (whoami?.user?.memberships ?? []) as Membership[];
+    const memberships = whoami?.user?.memberships ?? [];
     const hasCampgroundAccess = selectedCampground
         ? memberships.some((m) => m.campgroundId === selectedCampground)
         : memberships.length > 0;
@@ -201,17 +205,9 @@ export function useCalendarData() {
         [reservationsQuery.data]
     );
 
-    interface GuestData {
-        id: string;
-        primaryFirstName?: string | null;
-        primaryLastName?: string | null;
-        email?: string | null;
-        phone?: string | null;
-    }
-
     const guestLookup = useMemo(() => {
         const map = new Map<string, { firstName: string; lastName: string; email: string; phone: string; fullName: string }>();
-        ((guestsQuery.data || []) as GuestData[]).forEach((guest) => {
+        (guestsQuery.data ?? []).forEach((guest) => {
             const firstName = (guest.primaryFirstName || "").toLowerCase();
             const lastName = (guest.primaryLastName || "").toLowerCase();
             const email = (guest.email || "").toLowerCase();
@@ -231,14 +227,7 @@ export function useCalendarData() {
             if (assignmentFilter === "assigned" && !res.siteId) return false;
             if (assignmentFilter === "unassigned" && res.siteId) return false;
             if (channelFilter !== "all") {
-                interface ReservationWithChannel {
-                    channel?: string;
-                    bookingChannel?: string;
-                    source?: string;
-                }
-                const channel = (res as unknown as ReservationWithChannel).channel ||
-                               (res as unknown as ReservationWithChannel).bookingChannel ||
-                               (res as unknown as ReservationWithChannel).source;
+                const channel = getReservationChannel(res);
                 if (channel !== channelFilter) return false;
             }
             if (arrivalsNowOnly) {
@@ -337,7 +326,7 @@ export function useCalendarData() {
     const selectRange = async (siteId: string, arrival: Date, departure: Date) => {
         const arrivalStr = formatLocalDateInput(arrival);
         const departureStr = formatLocalDateInput(departure);
-        const site = (sitesQuery.data || []).find((s) => s.id === siteId) as CalendarSite | undefined;
+        const site = (sitesQuery.data ?? []).find((s) => s.id === siteId);
 
         if (!site || !selectedCampground) return;
 

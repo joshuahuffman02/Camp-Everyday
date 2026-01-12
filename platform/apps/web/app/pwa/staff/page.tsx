@@ -24,6 +24,41 @@ type Arrival = {
   status: string;
 };
 
+type Reservation = Awaited<ReturnType<typeof apiClient.getCampgroundReservations>>[number];
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const isTaskStatus = (value: unknown): value is Task["status"] =>
+  value === "open" || value === "in_progress" || value === "closed";
+
+const toTask = (value: unknown): Task | null => {
+  if (!isRecord(value) || typeof value.id !== "string") return null;
+  const siteName =
+    isRecord(value.site) && typeof value.site.name === "string" ? value.site.name : undefined;
+  const status = isTaskStatus(value.status) ? value.status : "open";
+  return {
+    id: value.id,
+    title: typeof value.title === "string" && value.title ? value.title : "Task",
+    siteName,
+    dueAt: typeof value.dueDate === "string" ? value.dueDate : undefined,
+    status,
+  };
+};
+
+const toArrival = (reservation: Reservation): Arrival => {
+  const guestFirst = reservation.guest?.primaryFirstName ?? "";
+  const guestLast = reservation.guest?.primaryLastName ?? "";
+  const guestName = `${guestFirst} ${guestLast}`.trim() || "Guest";
+  return {
+    id: reservation.id,
+    guest: guestName,
+    site: reservation.site?.name ?? "Unassigned",
+    arrivalDate: reservation.arrivalDate,
+    status: reservation.status,
+  };
+};
+
 export default function StaffPwaPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [arrivals, setArrivals] = useState<Arrival[]>([]);
@@ -74,52 +109,27 @@ export default function StaffPwaPage() {
       try {
         // Reuse existing endpoints: maintenance for tasks, reservations for arrivals
         const [maintenance, reservations] = await Promise.all([
-          apiClient.getMaintenance?.().catch(() => []),
-          apiClient.getCampgroundReservations?.().catch(() => []),
+          apiClient.getMaintenance().catch(() => []),
+          apiClient.getCampgroundReservations().catch(() => []),
         ]);
 
         if (!isMounted) return;
 
-        setTasks(
-          (maintenance || []).slice(0, 8).map((m: any) => ({
-            id: m.id,
-            title: m.title || "Task",
-            siteName: m.site?.name,
-            dueAt: m.dueDate,
-            status: m.status || "open",
-          }))
-        );
+        const maintenanceTasks = (maintenance ?? [])
+          .map(toTask)
+          .filter((task): task is Task => task !== null)
+          .slice(0, 8);
 
-        setArrivals(
-          (reservations || [])
-            .filter((r: any) => r.status === "confirmed" || r.status === "pending")
-            .slice(0, 8)
-            .map((r: any) => ({
-              id: r.id,
-              guest: `${r.guest?.firstName ?? ""} ${r.guest?.lastName ?? ""}`.trim() || "Guest",
-              site: r.site?.name ?? "Unassigned",
-              arrivalDate: r.arrivalDate,
-              status: r.status,
-            }))
-        );
+        const arrivalList = (reservations ?? [])
+          .filter((reservation) => reservation.status === "confirmed" || reservation.status === "pending")
+          .slice(0, 8)
+          .map(toArrival);
+
+        setTasks(maintenanceTasks);
+        setArrivals(arrivalList);
         saveCache({
-          tasks: (maintenance || []).slice(0, 8).map((m: any) => ({
-            id: m.id,
-            title: m.title || "Task",
-            siteName: m.site?.name,
-            dueAt: m.dueDate,
-            status: m.status || "open",
-          })),
-          arrivals: (reservations || [])
-            .filter((r: any) => r.status === "confirmed" || r.status === "pending")
-            .slice(0, 8)
-            .map((r: any) => ({
-              id: r.id,
-              guest: `${r.guest?.firstName ?? ""} ${r.guest?.lastName ?? ""}`.trim() || "Guest",
-              site: r.site?.name ?? "Unassigned",
-              arrivalDate: r.arrivalDate,
-              status: r.status,
-            })),
+          tasks: maintenanceTasks,
+          arrivals: arrivalList,
         });
         setUsedCache(false);
         recordTelemetry({
@@ -127,12 +137,13 @@ export default function StaffPwaPage() {
           type: "sync",
           status: "success",
           message: "Arrivals/tasks refreshed online",
-          meta: { tasks: (maintenance || []).length, arrivals: (reservations || []).length },
+          meta: { tasks: (maintenance ?? []).length, arrivals: (reservations ?? []).length },
         });
         void registerBackgroundSync();
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (!isMounted) return;
-        setError(e?.message || "Failed to load");
+        const message = e instanceof Error ? e.message : "Failed to load";
+        setError(message);
         if (cached) {
           setTasks(cached.tasks);
           setArrivals(cached.arrivals);
@@ -142,7 +153,7 @@ export default function StaffPwaPage() {
             type: "cache",
             status: "pending",
             message: "Using cached arrivals/tasks after load failure",
-            meta: { error: e?.message },
+            meta: { error: message },
           });
         }
       } finally {
@@ -267,4 +278,3 @@ export default function StaffPwaPage() {
     </div>
   );
 }
-

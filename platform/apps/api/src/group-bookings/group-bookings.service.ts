@@ -1,5 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import type { Prisma } from "@prisma/client";
+import { randomUUID } from "crypto";
 
 @Injectable()
 export class GroupBookingsService {
@@ -20,6 +22,7 @@ export class GroupBookingsService {
   }) {
     return this.prisma.groupBooking.create({
       data: {
+        id: randomUUID(),
         campgroundId: data.campgroundId,
         groupName: data.groupName,
         primaryGuestId: data.primaryGuestId,
@@ -32,13 +35,17 @@ export class GroupBookingsService {
         groupArrivalTime: data.groupArrivalTime,
         groupDepartureTime: data.groupDepartureTime,
         assignmentStatus: 'pending',
+        updatedAt: new Date(),
       },
       include: {
-        primaryGuest: {
+        Guest: {
           select: { primaryFirstName: true, primaryLastName: true, email: true },
         },
       },
-    });
+    }).then(({ Guest, ...group }) => ({
+      ...group,
+      primaryGuest: Guest,
+    }));
   }
 
   async findAll(campgroundId: string, filters?: {
@@ -47,7 +54,7 @@ export class GroupBookingsService {
     startDate?: Date;
     endDate?: Date;
   }) {
-    const where: any = { campgroundId };
+    const where: Prisma.GroupBookingWhereInput = { campgroundId };
 
     if (filters?.groupType) {
       where.groupType = filters.groupType;
@@ -56,34 +63,41 @@ export class GroupBookingsService {
       where.assignmentStatus = filters.assignmentStatus;
     }
 
-    return this.prisma.groupBooking.findMany({
+    const groups = await this.prisma.groupBooking.findMany({
       where,
       include: {
-        primaryGuest: {
+        Guest: {
           select: { primaryFirstName: true, primaryLastName: true },
         },
-        reservations: {
+        Reservation: {
           include: {
-            site: { select: { name: true } },
-            guest: { select: { primaryFirstName: true, primaryLastName: true } },
+            Site: { select: { name: true } },
+            Guest: { select: { primaryFirstName: true, primaryLastName: true } },
           },
         },
-        _count: { select: { reservations: true } },
+        _count: { select: { Reservation: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    return groups.map(({ Guest, Reservation, _count, ...group }) => ({
+      ...group,
+      primaryGuest: Guest,
+      reservations: Reservation,
+      _count: _count ? { reservations: _count.Reservation } : undefined,
+    }));
   }
 
   async findOne(id: string) {
     const groupBooking = await this.prisma.groupBooking.findUnique({
       where: { id },
       include: {
-        primaryGuest: true,
-        campground: { select: { name: true } },
-        reservations: {
+        Guest: true,
+        Campground: { select: { name: true } },
+        Reservation: {
           include: {
-            site: { select: { name: true, zone: true } },
-            guest: { select: { primaryFirstName: true, primaryLastName: true, email: true } },
+            Site: { select: { name: true, zone: true } },
+            Guest: { select: { primaryFirstName: true, primaryLastName: true, email: true } },
           },
           orderBy: { arrivalDate: 'asc' },
         },
@@ -94,7 +108,13 @@ export class GroupBookingsService {
       throw new NotFoundException('Group booking not found');
     }
 
-    return groupBooking;
+    const { Guest, Campground, Reservation, ...group } = groupBooking;
+    return {
+      ...group,
+      primaryGuest: Guest,
+      campground: Campground,
+      reservations: Reservation,
+    };
   }
 
   async update(id: string, data: Partial<{
@@ -118,14 +138,14 @@ export class GroupBookingsService {
     // Check if group has reservations
     const group = await this.prisma.groupBooking.findUnique({
       where: { id },
-      include: { _count: { select: { reservations: true } } },
+      include: { _count: { select: { Reservation: true } } },
     });
 
     if (!group) {
       throw new NotFoundException('Group booking not found');
     }
 
-    if (group._count.reservations > 0) {
+    if (group._count.Reservation > 0) {
       throw new BadRequestException(
         'Cannot delete a group with reservations. Remove reservations first.'
       );
@@ -178,8 +198,8 @@ export class GroupBookingsService {
         ...(group.preferredZone ? { zone: group.preferredZone } : {}),
       },
       include: {
-        siteClass: true,
-        structureAttributes: true,
+        SiteClass: true,
+        StructureAttributes: true,
       },
       orderBy: [
         { zone: 'asc' },
@@ -262,7 +282,7 @@ export class GroupBookingsService {
   }
 
   async getGroupStats(campgroundId: string, dateRange?: { start: Date; end: Date }) {
-    const where: any = { campgroundId };
+    const where: Prisma.GroupBookingWhereInput = { campgroundId };
 
     if (dateRange) {
       where.createdAt = {
@@ -274,7 +294,7 @@ export class GroupBookingsService {
     const groups = await this.prisma.groupBooking.findMany({
       where,
       include: {
-        _count: { select: { reservations: true } },
+        _count: { select: { Reservation: true } },
       },
     });
 
@@ -285,7 +305,7 @@ export class GroupBookingsService {
     for (const group of groups) {
       byType[group.groupType] = (byType[group.groupType] || 0) + 1;
       byStatus[group.assignmentStatus] = (byStatus[group.assignmentStatus] || 0) + 1;
-      totalRooms += group._count.reservations;
+      totalRooms += group._count.Reservation;
     }
 
     return {

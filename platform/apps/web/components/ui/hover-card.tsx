@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 
 interface HoverCardProps {
-  children: React.ReactNode;
+  children: React.ReactElement;
   content: React.ReactNode;
   className?: string;
   side?: "top" | "bottom";
@@ -93,7 +93,7 @@ export function HoverCard({
   }, []);
 
   // Clone children to attach ref and event handlers
-  const childElement = React.Children.only(children) as React.ReactElement;
+  const childElement = React.Children.only(children);
 
   const triggerElement = (
     <div

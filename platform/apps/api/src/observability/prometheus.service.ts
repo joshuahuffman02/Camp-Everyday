@@ -343,8 +343,9 @@ export class PrometheusService implements OnModuleInit {
       this.setGauge("nodejs_heap_size_bytes", memUsage.heapTotal, { type: "total" });
       this.setGauge("nodejs_heap_size_bytes", memUsage.external, { type: "external" });
       this.setGauge("nodejs_heap_size_bytes", memUsage.rss, { type: "rss" });
-    } catch (err: any) {
-      this.logger.warn(`Failed to update metrics from snapshot: ${err?.message || err}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`Failed to update metrics from snapshot: ${message}`);
     }
   }
 

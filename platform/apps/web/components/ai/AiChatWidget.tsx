@@ -131,9 +131,9 @@ export function AiChatWidget({ campgroundId, campgroundName }: AiChatWidgetProps
         setMessages((prev) => [...prev, userMessage]);
 
         // Prepare history for API (excluding the message we just added optimistically)
-        const history = messages.map(m => ({
-            role: m.role as 'user' | 'assistant',
-            content: m.content
+        const history = messages.map((m) => ({
+            role: m.role,
+            content: m.content,
         }));
 
         chatMutation.mutate({ message: input.trim(), history });
