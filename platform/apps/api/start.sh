@@ -32,27 +32,67 @@ node /app/scripts/link-prisma-client.js || echo "Link script not found, skipping
 echo "=== Running database migrations ==="
 echo "DIRECT_URL set: $([ -n "$DIRECT_URL" ] && echo 'yes' || echo 'NO - migrations may hang!')"
 
-# Run migrations with 5-minute timeout (complex migrations can take time)
-# If migrations fail, we MUST NOT start the app (schema mismatch causes P2022 errors)
 cd /app/platform/apps/api
-if timeout 300 npx prisma migrate deploy; then
+
+# Get the latest migration name for potential rollback
+LAST_MIGRATION=$(ls -1 prisma/migrations/ 2>/dev/null | grep -E '^[0-9]+' | sort | tail -1)
+echo "Latest migration: ${LAST_MIGRATION:-none}"
+
+# ONE-TIME FIX: Reset the SEO migration that was killed by timeout
+# This migration was marked as "applied" but didn't complete, causing P2022 errors
+# Remove this block after staging is fixed (around Jan 15, 2026)
+SEO_MIGRATION="20251231083410_add_seo_claims_infrastructure"
+echo "Checking if $SEO_MIGRATION needs to be reset..."
+if npx prisma migrate status 2>&1 | grep -q "$SEO_MIGRATION"; then
+    # Check if the claimStatus column exists (one of the first columns added by this migration)
+    CHECK_COL=$(echo "SELECT column_name FROM information_schema.columns WHERE table_name = 'Campground' AND column_name = 'claimStatus';" | timeout 10 npx prisma db execute --stdin 2>&1 || echo "")
+    if ! echo "$CHECK_COL" | grep -q "claimStatus"; then
+        echo "DETECTED: SEO migration is marked applied but columns are missing!"
+        echo "Marking migration as rolled-back to force re-apply..."
+        npx prisma migrate resolve --rolled-back "$SEO_MIGRATION" || echo "Could not rollback (may already be pending)"
+    else
+        echo "SEO migration columns verified - schema is complete"
+    fi
+else
+    echo "SEO migration status check skipped"
+fi
+
+# Run migrations with 10-minute timeout (large SEO migration needs time)
+if timeout 600 npx prisma migrate deploy; then
     echo "Migrations completed successfully"
 else
     MIGRATE_EXIT=$?
-    if [ $MIGRATE_EXIT -eq 124 ]; then
-        echo "ERROR: Migrations timed out after 5 minutes"
-    else
-        echo "Migrations exited with code $MIGRATE_EXIT (may be no pending migrations, which is OK)"
-    fi
+    echo "Migrations exited with code $MIGRATE_EXIT"
 
-    # Check if there are pending migrations that didn't apply
-    echo "Checking migration status..."
-    if timeout 30 npx prisma migrate status 2>&1 | grep -q "have not yet been applied"; then
-        echo "FATAL: There are pending migrations that failed to apply. Cannot start app."
-        echo "Schema mismatch will cause P2022 errors. Exiting."
-        exit 1
+    # Exit codes: 124 = timeout killed it, 143 = SIGTERM (128+15)
+    if [ $MIGRATE_EXIT -eq 124 ] || [ $MIGRATE_EXIT -eq 143 ]; then
+        echo "Migration was killed (timeout or SIGTERM). This may leave DB in inconsistent state."
+        echo "Marking last migration as rolled-back so it can be re-applied..."
+
+        if [ -n "$LAST_MIGRATION" ]; then
+            # Mark the migration as rolled back so Prisma will try again
+            if npx prisma migrate resolve --rolled-back "$LAST_MIGRATION" 2>&1; then
+                echo "Marked $LAST_MIGRATION as rolled back. Retrying migration..."
+                if timeout 600 npx prisma migrate deploy; then
+                    echo "Migration retry succeeded!"
+                else
+                    echo "FATAL: Migration retry also failed. Cannot start app."
+                    exit 1
+                fi
+            else
+                echo "WARNING: Could not mark migration as rolled back (may not have been applied yet)"
+            fi
+        fi
+    else
+        # Non-timeout failure - check pending status
+        echo "Checking migration status..."
+        if timeout 30 npx prisma migrate status 2>&1 | grep -q "have not yet been applied"; then
+            echo "FATAL: There are pending migrations that failed to apply. Cannot start app."
+            echo "Schema mismatch will cause P2022 errors. Exiting."
+            exit 1
+        fi
+        echo "No pending migrations - safe to start app"
     fi
-    echo "No pending migrations - safe to start app"
 fi
 
 echo "=== Starting app ==="
