@@ -38,13 +38,22 @@ cd /app/platform/apps/api
 LAST_MIGRATION=$(ls -1 prisma/migrations/ 2>/dev/null | grep -E '^[0-9]+' | sort | tail -1)
 echo "Latest migration: ${LAST_MIGRATION:-none}"
 
-# ONE-TIME FIX: Reset the SEO migration that was killed by timeout
+# ONE-TIME FIX: Delete the SEO migration record that was killed by timeout
 # This migration was marked as "applied" but didn't complete, causing P2022 errors
 # The migration is idempotent (uses ADD COLUMN IF NOT EXISTS), so safe to re-run
 # Remove this block after staging is fixed (around Jan 15, 2026)
 SEO_MIGRATION="20251231083410_add_seo_claims_infrastructure"
-echo "Unconditionally marking $SEO_MIGRATION as rolled-back to force re-apply..."
-npx prisma migrate resolve --rolled-back "$SEO_MIGRATION" 2>&1 || echo "Could not rollback (may already be pending or not applied)"
+echo "Deleting $SEO_MIGRATION record from _prisma_migrations to force re-apply..."
+
+# Use node with pg driver to delete the record directly (faster than prisma db execute)
+timeout 15 node -e "
+const { Client } = require('pg');
+const client = new Client({ connectionString: process.env.DIRECT_URL || process.env.DATABASE_URL });
+client.connect()
+  .then(() => client.query('DELETE FROM \"_prisma_migrations\" WHERE migration_name = \$1', ['$SEO_MIGRATION']))
+  .then(r => { console.log('Deleted', r.rowCount, 'migration record(s)'); return client.end(); })
+  .catch(e => { console.error('Failed to delete migration record:', e.message); process.exit(0); });
+" 2>&1 || echo "Migration record deletion timed out or failed (continuing anyway)"
 
 # Run migrations with 10-minute timeout (large SEO migration needs time)
 if timeout 600 npx prisma migrate deploy; then
