@@ -25,6 +25,7 @@ interface AnomalyConfig {
 @Injectable()
 export class AnomalyDetectionService {
   private readonly logger = new Logger(AnomalyDetectionService.name);
+  private readonly isEnabled = (process.env.DISABLE_HEAVY_JOBS ?? "false").toLowerCase() !== "true";
 
   // Anomaly detection configurations
   private readonly configs: AnomalyConfig[] = [
@@ -42,6 +43,11 @@ export class AnomalyDetectionService {
    */
   @Cron(CronExpression.EVERY_HOUR)
   async detectAnomalies() {
+    if (!this.isEnabled) {
+      this.logger.debug("Anomaly detection skipped (DISABLE_HEAVY_JOBS=true)");
+      return;
+    }
+
     try {
       // Get all active campgrounds
       const campgrounds = await this.prisma.campground.findMany({
