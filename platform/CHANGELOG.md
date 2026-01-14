@@ -2,6 +2,9 @@
 
 ## [Unreleased] - Phase 1-4 Implementation
 
+### Security
+- Upgrade Node.js runtime to 25.3.0 to include the async_hooks stack overflow DoS mitigation.
+
 ### Added
 
 #### Phase 1: Pricing & Payments
@@ -172,4 +175,3 @@ pnpm prisma db push --accept-data-loss  # For dev sync
 # OR
 pnpm prisma migrate dev --name phase4_notifications_waitlist  # For migration record
 ```
-

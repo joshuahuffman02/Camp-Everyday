@@ -60,8 +60,9 @@ describe("SupportAnalyticsPage", () => {
     render(<SupportAnalyticsPage />);
 
     expect(await screen.findByText(/Support analytics/i)).toBeInTheDocument();
-    expect(await screen.findByText(/SLA compliance/i)).toBeInTheDocument();
-    expect(await screen.findByText(/Needs attention/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Stub data/i)).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /SLA compliance/i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /Needs attention/i })).toBeInTheDocument();
     expect(await screen.findByText(/Example overdue ticket/i)).toBeInTheDocument();
   });
 });
