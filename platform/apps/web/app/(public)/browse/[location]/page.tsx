@@ -7,6 +7,9 @@ import { generatePageMetadata, getBaseUrl } from "@/lib/seo";
 import { Breadcrumbs, BreadcrumbItem } from "@/components/seo";
 import { LocationLinks, RelatedCampgrounds } from "@/components/seo/InternalLinks";
 
+// Use ISR - pages generated on-demand and cached for 1 hour
+export const revalidate = 3600;
+
 type Props = {
   params: Promise<{ location: string }>;
 };
@@ -334,25 +337,12 @@ export default async function LocationPage({ params }: Props) {
 }
 
 /**
- * Generate static params for common locations
- * This enables ISR for popular locations
+ * Generate static params for location pages
+ * Returns empty array to use on-demand ISR instead of build-time generation
+ * This prevents build timeouts while still caching pages after first visit
  */
-export async function generateStaticParams() {
-  try {
-    const campgrounds = await apiClient.getPublicCampgrounds();
-
-    // Get unique states
-    const states = new Set<string>();
-    campgrounds.forEach((cg) => {
-      if (cg.state) {
-        states.add(cg.state.toLowerCase().replace(/\s+/g, "-"));
-      }
-    });
-
-    return Array.from(states).map((state) => ({
-      location: state,
-    }));
-  } catch {
-    return [];
-  }
+export function generateStaticParams() {
+  // Return empty array - pages will be generated on-demand with ISR
+  // This avoids build timeouts from API calls during static generation
+  return [];
 }
