@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { IntegrationsClient } from ".";
 
-const fetchMock = vi.fn();
+const { fetchMock } = vi.hoisted(() => ({
+  fetchMock: vi.fn()
+}));
 
 vi.mock("cross-fetch", () => ({ default: fetchMock }));
 
