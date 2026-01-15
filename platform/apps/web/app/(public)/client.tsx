@@ -498,7 +498,7 @@ export function HomeClient() {
             <InlineActivityFeed className="border-b border-slate-100" />
 
             {/* This Week's Top Pick - Featured Campground (warm variant) */}
-            <FeaturedCampground variant="warm" />
+            <FeaturedCampground variant="warm" excludeId={heroFeatured?.id} />
 
             {/* Category Navigation - Airbnb-style tabs */}
             <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm border-b border-slate-100 shadow-sm">

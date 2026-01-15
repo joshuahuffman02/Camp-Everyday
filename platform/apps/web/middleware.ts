@@ -14,6 +14,7 @@ const PUBLIC_PATHS = [
   "/robots.txt",
   "/sitemap.xml",
   "/brand",
+  "/pricing",
 ];
 
 const PUBLIC_PREFIXES = [
@@ -46,12 +47,6 @@ export default auth((req) => {
   }
 
   // Redirects for legacy routes
-  if (pathname === "/pricing" || pathname.startsWith("/pricing/")) {
-    const target = new URL("/settings/pricing-rules", req.url);
-    target.search = req.nextUrl.search;
-    return NextResponse.redirect(target);
-  }
-
   if (pathname === "/finance/overview") {
     const target = req.nextUrl.clone();
     target.pathname = "/finance";

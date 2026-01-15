@@ -12,9 +12,11 @@ import { useReducedMotionSafe } from "@/hooks/use-reduced-motion-safe";
 interface FeaturedCampgroundProps {
   variant?: "refined" | "warm" | "bold";
   className?: string;
+  /** ID of campground to exclude (e.g., the one shown in hero banner) */
+  excludeId?: string | null;
 }
 
-export function FeaturedCampground({ variant = "refined", className }: FeaturedCampgroundProps) {
+export function FeaturedCampground({ variant = "refined", className, excludeId }: FeaturedCampgroundProps) {
   const prefersReducedMotion = useReducedMotionSafe();
 
   // Fetch real campground data
@@ -26,6 +28,8 @@ export function FeaturedCampground({ variant = "refined", className }: FeaturedC
   });
 
   const eligibleCampgrounds = campgrounds?.filter((c) => {
+    // Exclude the campground shown in the hero banner to avoid duplication
+    if (excludeId && c.id === excludeId) return false;
     const hasHero = Boolean(c.heroImageUrl);
     const hasGallery = (c.photos?.length ?? 0) > 0;
     return !c.isExternal && hasHero && hasGallery;

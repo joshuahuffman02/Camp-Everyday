@@ -143,8 +143,6 @@ export const CalendarRow = memo(function CalendarRow({
                         const startIdx = Math.max(0, diffInDays(blackoutStart, start));
                         const endIdx = Math.min(dayCount, diffInDays(blackoutEnd, start) + 1); // +1 because end is inclusive
 
-                        console.log('[CalendarRow] Blackout:', blackout.id, 'startIdx:', startIdx, 'endIdx:', endIdx, 'visible range check:', endIdx > 0 && startIdx < dayCount);
-
                         if (endIdx <= 0 || startIdx >= dayCount) return null;
 
                         const span = Math.max(1, endIdx - startIdx);

@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import Link from 'next/link';
-import { Facebook, Instagram, Linkedin, Mail, Phone, Heart } from 'lucide-react';
+import { Facebook, Instagram, Linkedin, Mail, Heart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { XLogo } from '@/components/icons/XLogo';
 
@@ -103,10 +103,6 @@ export function Footer() {
 
               {/* Contact Info */}
               <div className="space-y-2">
-                <a href="tel:+1234567890" className="flex items-center gap-2 text-muted-foreground hover:text-keepr-clay transition-colors">
-                  <Phone className="h-4 w-4" />
-                  <span className="text-sm">(800) 555-CAMP</span>
-                </a>
                 <a href="mailto:hello@keeprstay.com" className="flex items-center gap-2 text-muted-foreground hover:text-keepr-clay transition-colors">
                   <Mail className="h-4 w-4" />
                   <span className="text-sm">hello@keeprstay.com</span>
