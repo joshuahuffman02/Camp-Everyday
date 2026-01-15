@@ -4,7 +4,7 @@
   "private": true,
   "packageManager": "pnpm@7.33.6",
   "engines": {
-    "node": "25.3.0",
+    "node": ">=20",
     "pnpm": "7.33.6"
   },
   "scripts": {
