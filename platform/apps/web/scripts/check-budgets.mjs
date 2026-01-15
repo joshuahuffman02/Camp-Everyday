@@ -43,7 +43,14 @@ async function checkBudgets() {
     failures.push(`Total JS ${totalJsBytes} bytes exceeds budget ${config.maxTotalJs}`);
   }
 
+  // Framework routes to exclude from per-route budget (shared chunks, not real pages)
+  const frameworkRoutes = ["/_app", "/_error", "/_document"];
+
   for (const [route, chunks] of Object.entries(manifest.pages)) {
+    // Skip framework routes - they contain shared chunks used across all pages
+    if (frameworkRoutes.includes(route)) {
+      continue;
+    }
     const routeSize = await sumSizes(chunks.map(chunkPath));
     if (routeSize > config.maxRouteJs) {
       failures.push(`Route ${route} JS ${routeSize} bytes exceeds per-route budget ${config.maxRouteJs}`);
