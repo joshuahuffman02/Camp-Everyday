@@ -1316,6 +1316,25 @@ const AiCopilotResponseSchema = z.object({
   activity: z.array(z.unknown()).optional(),
 });
 
+const AiUiElementSchema = z.object({
+  key: z.string(),
+  type: z.string(),
+  props: z.record(z.unknown()),
+  children: z.array(z.string()).optional(),
+  parentKey: z.string().nullable().optional(),
+  visible: z.unknown().optional(),
+});
+
+const AiUiTreeSchema = z.object({
+  root: z.string(),
+  elements: z.record(AiUiElementSchema),
+});
+
+const AiUiBuilderResponseSchema = z.object({
+  tree: AiUiTreeSchema,
+  warnings: z.array(z.string()).optional(),
+});
+
 // ---------------------------------------------------------------------------
 // Enterprise scale & internationalization schemas
 // ---------------------------------------------------------------------------
@@ -2174,6 +2193,19 @@ export const apiClient = {
     });
     const data = await parseResponse(res, UnknownSchema);
     return AiCopilotResponseSchema.parse(data);
+  },
+  async generateAiUiTree(payload: {
+    campgroundId: string;
+    builder: "dashboard" | "report" | "workflow";
+    prompt: string;
+  }) {
+    const res = await fetch(`${API_BASE}/ai/campgrounds/${payload.campgroundId}/ui-builder`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...scopedHeaders() },
+      body: JSON.stringify({ builder: payload.builder, prompt: payload.prompt })
+    });
+    const data = await parseResponse(res, UnknownSchema);
+    return AiUiBuilderResponseSchema.parse(data);
   },
   async upsertOtaMapping(channelId: string, payload: {
     externalId: string;

@@ -98,6 +98,7 @@
 - **Template Builder** at `/settings/templates` for email/SMS with preview, variables palette, categories, and delete/save flows.
 - **Guest Portal Self-Service** at `/portal/manage` (date change, site change request, guest count update, cancel/pay balance link).
 - **Calendar Settings** at `/calendar/settings` (color schemes, display toggles, auto-refresh intervals, shortcuts, export stubs).
+- **AI UI Builder** at `/ai/ui-builder` for generating dashboard, report, and workflow layouts with json-render.
 - **SMS Safeguards**: Feature flag + Twilio credential check; logs telemetry and falls back to no-op when disabled/misconfigured.
 - **Scheduled Notifications Cron**: `processScheduledNotifications` runs every minute via `@nestjs/schedule` (dev-ready).
 
@@ -126,6 +127,7 @@
 | `/operations` | Housekeeping/task kanban board |
 | `/groups` | Group booking management |
 | `/analytics` | Real-time metrics dashboard |
+| `/ai/ui-builder` | AI UI builder for dashboards, reports, and workflows |
 
 ### API Endpoints
 - `GET/POST/PATCH/DELETE /campgrounds/:id/pricing-rules-v2`
@@ -141,6 +143,7 @@
 - `GET /campgrounds/:id/waitlist/stats`
 - `POST /reservations/:id/self-checkin`
 - `POST /reservations/:id/self-checkout`
+- `POST /ai/campgrounds/:campgroundId/ui-builder`
 
 ### Known Gaps / TODO
 - **SMS Provider**: Requires Twilio credentials (`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`). Falls back to no-op with logging if not configured.

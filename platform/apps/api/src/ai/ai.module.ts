@@ -28,12 +28,14 @@ import { AiCampaignService } from './ai-campaign.service';
 import { AiYieldService } from './ai-yield.service';
 import { AiDemandForecastService } from './ai-demand-forecast.service';
 import { AiSmartComposeService } from './ai-smart-compose.service';
+import { AiUiBuilderService } from "./ai-ui-builder.service";
 // AI Monitoring & Edge Cases
 import { AiCostTrackingService } from './ai-cost-tracking.service';
 import { AiEdgeCasesService } from './ai-edge-cases.service';
 import { AiExecutorService } from './ai-executor.service';
 import { AiService } from './ai.service';
 import { AiController } from './ai.controller';
+import { AiUiBuilderController } from "./ai-ui-builder.controller";
 import { PromptSanitizerService } from './prompt-sanitizer.service';
 import { AiAutopilotController } from './ai-autopilot.controller';
 import { AiMonitoringController } from './ai-monitoring.controller';
@@ -67,7 +69,7 @@ import { AnomaliesModule } from '../anomalies/anomalies.module';
     EmailModule,
     AnomaliesModule,
   ],
-  controllers: [AiController, AiAutopilotController, AiMonitoringController],
+  controllers: [AiController, AiAutopilotController, AiMonitoringController, AiUiBuilderController],
   providers: [
     AiPrivacyService,
     AiProviderService,
@@ -99,6 +101,7 @@ import { AnomaliesModule } from '../anomalies/anomalies.module';
     AiYieldService,
     AiDemandForecastService,
     AiSmartComposeService,
+    AiUiBuilderService,
     // AI Monitoring & Edge Cases
     AiCostTrackingService,
     AiEdgeCasesService,
@@ -139,6 +142,7 @@ import { AnomaliesModule } from '../anomalies/anomalies.module';
     AiYieldService,
     AiDemandForecastService,
     AiSmartComposeService,
+    AiUiBuilderService,
     // AI Monitoring & Edge Cases
     AiCostTrackingService,
     AiEdgeCasesService,

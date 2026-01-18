@@ -25,5 +25,19 @@ Use this guide when a request spans hours or touches multiple systems (API, web,
 
 Keep this template near the top of any large task PR so reviewers immediately understand how the work was validated.
 
+## Plan: AI UI Builder (json-render)
+- Objective: Add a json-render powered AI UI builder for analytics dashboards, report composers, and staff workflows in Keepr.
+- Background: json-render source at `/Users/josh/Documents/GitHub/github extra stuff/json-render-main`; use published `@json-render/react` renderer with Keepr AI provider endpoints.
+- Scope: `platform/apps/api/src/ai`, `platform/apps/web/app/ai`, `platform/apps/web/components/ai`, `platform/apps/web/lib/page-registry.ts`.
+- Steps:
+  1. Add AI UI builder API endpoint with prompt sanitization, schema validation, and fallback tree.
+  2. Add web builder page and component registry for dashboard/report/workflow templates.
+  3. Wire page registry entry and run verification commands.
+- Risks & Mitigations: prompt injection -> use `PromptSanitizerService`; malformed JSON -> validate + fallback; catalog/registry drift -> document follow-up for shared catalog.
+- Verification: `pnpm --dir platform/apps/api test:smoke`, `pnpm lint:web`.
+- Documentation / Follow-up: note catalog sharing plan in docs; update repo summary if new commands or structure change.
+- Status: Completed; changelog updated and verification run.
+
 ## Recent living-doc updates
 - **2026-01-12**: `docs/repo_summary.md` now highlights `docs/architecture.mmd`, `docs/frontend.mmd`, and this `docs/exec_plans.md` file as the go-to living references for architecture, UX, and cross-system execution plans; refresh all three whenever a major entry point, environment, or verification command changes.
+- **2026-01-18**: Added `scripts/status.sh` as the local `/status` helper for Codex environment snapshots; updated repo summary to document the helper command.

@@ -1442,6 +1442,14 @@ export const PAGE_REGISTRY: PageDefinition[] = [
     keywords: ["ai", "chat", "copilot", "ask", "help"],
   },
   {
+    href: "/ai/ui-builder",
+    label: "AI UI Builder",
+    icon: "sparkles",
+    category: "operations",
+    description: "Generate dashboards, reports, and workflows from prompts",
+    keywords: ["ai", "ui", "builder", "json-render", "layout", "workflow", "dashboard"],
+  },
+  {
     href: "/ai/pricing",
     label: "Dynamic Pricing AI",
     icon: "pricing",
