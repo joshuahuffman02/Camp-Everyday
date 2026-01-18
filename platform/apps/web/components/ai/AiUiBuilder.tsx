@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { JSONUIProvider, Renderer } from "@json-render/react";
+import type { AiUiBuilderTree } from "@/lib/api-client";
 import { useAuth } from "@/hooks/use-auth";
 import { apiClient } from "@/lib/api-client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,20 +13,6 @@ import { useToast } from "@/components/ui/use-toast";
 import { AI_UI_BUILDER_CONFIGS, type AiUiBuilderId } from "./ai-ui-builder-config";
 import { jsonRenderRegistry } from "./json-render-registry";
 
-type JsonRenderElement = {
-  key: string;
-  type: string;
-  props: Record<string, unknown>;
-  children?: string[];
-  parentKey?: string | null;
-  visible?: unknown;
-};
-
-type JsonRenderTree = {
-  root: string;
-  elements: Record<string, JsonRenderElement>;
-};
-
 type AiUiBuilderProps = {
   builderId: AiUiBuilderId;
 };
@@ -35,7 +22,7 @@ export function AiUiBuilder({ builderId }: AiUiBuilderProps) {
   const { campgroundId } = useAuth();
   const { toast } = useToast();
   const [prompt, setPrompt] = useState("");
-  const [tree, setTree] = useState<JsonRenderTree | null>(null);
+  const [tree, setTree] = useState<AiUiBuilderTree | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);

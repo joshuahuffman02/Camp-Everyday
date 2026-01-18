@@ -1316,16 +1316,94 @@ const AiCopilotResponseSchema = z.object({
   activity: z.array(z.unknown()).optional(),
 });
 
-const AiUiElementSchema = z.object({
+type JsonRenderDynamicValue =
+  | string
+  | number
+  | boolean
+  | null
+  | { path: string };
+
+type JsonRenderDynamicNumberValue =
+  | number
+  | { path: string };
+
+type JsonRenderLogicExpression =
+  | { and: JsonRenderLogicExpression[] }
+  | { or: JsonRenderLogicExpression[] }
+  | { not: JsonRenderLogicExpression }
+  | { path: string }
+  | { eq: [JsonRenderDynamicValue, JsonRenderDynamicValue] }
+  | { neq: [JsonRenderDynamicValue, JsonRenderDynamicValue] }
+  | { gt: [JsonRenderDynamicNumberValue, JsonRenderDynamicNumberValue] }
+  | { gte: [JsonRenderDynamicNumberValue, JsonRenderDynamicNumberValue] }
+  | { lt: [JsonRenderDynamicNumberValue, JsonRenderDynamicNumberValue] }
+  | { lte: [JsonRenderDynamicNumberValue, JsonRenderDynamicNumberValue] };
+
+type JsonRenderVisibilityCondition =
+  | boolean
+  | { path: string }
+  | { auth: "signedIn" | "signedOut" }
+  | JsonRenderLogicExpression;
+
+type JsonRenderElement = {
+  key: string;
+  type: string;
+  props: Record<string, unknown>;
+  children?: string[];
+  parentKey?: string | null;
+  visible?: JsonRenderVisibilityCondition;
+};
+
+type JsonRenderTree = {
+  root: string;
+  elements: Record<string, JsonRenderElement>;
+};
+
+const JsonRenderDynamicValueSchema = z.union([
+  z.string(),
+  z.number(),
+  z.boolean(),
+  z.null(),
+  z.object({ path: z.string() }),
+]);
+
+const JsonRenderDynamicNumberValueSchema = z.union([
+  z.number(),
+  z.object({ path: z.string() }),
+]);
+
+const JsonRenderLogicExpressionSchema: z.ZodType<JsonRenderLogicExpression> = z.lazy(() =>
+  z.union([
+    z.object({ and: z.array(JsonRenderLogicExpressionSchema) }),
+    z.object({ or: z.array(JsonRenderLogicExpressionSchema) }),
+    z.object({ not: JsonRenderLogicExpressionSchema }),
+    z.object({ path: z.string() }),
+    z.object({ eq: z.tuple([JsonRenderDynamicValueSchema, JsonRenderDynamicValueSchema]) }),
+    z.object({ neq: z.tuple([JsonRenderDynamicValueSchema, JsonRenderDynamicValueSchema]) }),
+    z.object({ gt: z.tuple([JsonRenderDynamicNumberValueSchema, JsonRenderDynamicNumberValueSchema]) }),
+    z.object({ gte: z.tuple([JsonRenderDynamicNumberValueSchema, JsonRenderDynamicNumberValueSchema]) }),
+    z.object({ lt: z.tuple([JsonRenderDynamicNumberValueSchema, JsonRenderDynamicNumberValueSchema]) }),
+    z.object({ lte: z.tuple([JsonRenderDynamicNumberValueSchema, JsonRenderDynamicNumberValueSchema]) }),
+  ])
+);
+
+const JsonRenderVisibilityConditionSchema: z.ZodType<JsonRenderVisibilityCondition> = z.union([
+  z.boolean(),
+  z.object({ path: z.string() }),
+  z.object({ auth: z.enum(["signedIn", "signedOut"]) }),
+  JsonRenderLogicExpressionSchema,
+]);
+
+const AiUiElementSchema: z.ZodType<JsonRenderElement> = z.object({
   key: z.string(),
   type: z.string(),
   props: z.record(z.unknown()),
   children: z.array(z.string()).optional(),
   parentKey: z.string().nullable().optional(),
-  visible: z.unknown().optional(),
+  visible: JsonRenderVisibilityConditionSchema.optional(),
 });
 
-const AiUiTreeSchema = z.object({
+const AiUiTreeSchema: z.ZodType<JsonRenderTree> = z.object({
   root: z.string(),
   elements: z.record(AiUiElementSchema),
 });
@@ -1334,6 +1412,8 @@ const AiUiBuilderResponseSchema = z.object({
   tree: AiUiTreeSchema,
   warnings: z.array(z.string()).optional(),
 });
+
+export type AiUiBuilderTree = JsonRenderTree;
 
 // ---------------------------------------------------------------------------
 // Enterprise scale & internationalization schemas

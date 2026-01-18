@@ -1,7 +1,5 @@
 "use client";
 
-import type { Action } from "@json-render/core";
-import { getByPath } from "@json-render/core";
 import type { ComponentRenderProps } from "@json-render/react";
 import { useData, useDataBinding, useDataValue } from "@json-render/react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,6 +25,38 @@ type JsonRenderProps = ComponentRenderProps<Record<string, unknown>>;
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+type JsonRenderDynamicValue =
+  | string
+  | number
+  | boolean
+  | null
+  | { path: string };
+
+type ActionConfirm = {
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  variant?: "default" | "danger";
+};
+
+type ActionOnSuccess =
+  | { navigate: string }
+  | { set: Record<string, unknown> }
+  | { action: string };
+
+type ActionOnError =
+  | { set: Record<string, unknown> }
+  | { action: string };
+
+type ActionPayload = {
+  name: string;
+  params?: Record<string, JsonRenderDynamicValue>;
+  confirm?: ActionConfirm;
+  onSuccess?: ActionOnSuccess;
+  onError?: ActionOnError;
+};
+
 const getString = (value: unknown) => (typeof value === "string" ? value : undefined);
 const getNumber = (value: unknown) => (typeof value === "number" ? value : undefined);
 const getBoolean = (value: unknown) => (typeof value === "boolean" ? value : undefined);
@@ -39,6 +69,18 @@ const getRecordArray = (value: unknown): Record<string, unknown>[] => {
 const getStringArray = (value: unknown): string[] => {
   if (!Array.isArray(value)) return [];
   return value.filter((entry): entry is string => typeof entry === "string");
+};
+
+const normalizeChartRow = (row: Record<string, unknown>): Record<string, string | number | null> => {
+  const normalized: Record<string, string | number | null> = {};
+  for (const [key, value] of Object.entries(row)) {
+    if (typeof value === "string" || typeof value === "number" || value === null) {
+      normalized[key] = value;
+    } else {
+      normalized[key] = null;
+    }
+  }
+  return normalized;
 };
 
 const formatValue = (value: unknown, format?: string) => {
@@ -63,6 +105,23 @@ const formatValue = (value: unknown, format?: string) => {
   return String(value);
 };
 
+const getByPath = (data: Record<string, unknown>, path: string) => {
+  if (!path || path === "/") return data;
+  const segments = path.split("/").filter(Boolean);
+  let current: unknown = data;
+  for (const segment of segments) {
+    if (Array.isArray(current)) {
+      const index = Number(segment);
+      if (!Number.isInteger(index)) return undefined;
+      current = current[index];
+      continue;
+    }
+    if (!isRecord(current)) return undefined;
+    current = current[segment];
+  }
+  return current;
+};
+
 const interpolateText = (template: string, data: Record<string, unknown>) =>
   template.replace(/\$\{([^}]+)\}/g, (_, path) => {
     const value = getByPath(data, String(path).trim());
@@ -70,7 +129,7 @@ const interpolateText = (template: string, data: Record<string, unknown>) =>
     return String(value);
   });
 
-const isAction = (value: unknown): value is Action =>
+const isAction = (value: unknown): value is ActionPayload =>
   isRecord(value) && typeof value.name === "string";
 
 const GAP_CLASS: Record<number, string> = {
@@ -100,7 +159,9 @@ const GRID_CLASS: Record<number, string> = {
   4: "grid-cols-1 md:grid-cols-2 lg:grid-cols-4",
 };
 
-const BadgeToneVariant: Record<string, string> = {
+type BadgeVariant = "default" | "success" | "warning" | "error";
+
+const BadgeToneVariant: Record<string, BadgeVariant> = {
   default: "default",
   success: "success",
   warning: "warning",
@@ -170,7 +231,7 @@ const Chart = ({ element }: JsonRenderProps) => {
   const chartType = getString(element.props.chartType);
   const height = getNumber(element.props.height);
   const rawData = useDataValue(dataPath);
-  const data = getRecordArray(rawData).map((entry) => entry);
+  const data = getRecordArray(rawData).map((entry) => normalizeChartRow(entry));
   const series = getRecordArray(element.props.series).map((entry) => ({
     key: getString(entry.key) ?? "value",
     color: getString(entry.color) ?? "#10b981",
@@ -258,18 +319,23 @@ const List = ({ element }: JsonRenderProps) => {
             </div>
           ))}
         {recordItems.length > 0 &&
-          recordItems.map((item, idx) => (
-            <div key={`record-${idx}`} className="rounded-lg border border-border bg-muted/40 p-3">
-              <div className="text-sm font-medium text-foreground">
-                {formatValue(item[primaryKey], "string")}
-              </div>
-              {item[secondaryKey] && (
-                <div className="text-xs text-muted-foreground">
-                  {formatValue(item[secondaryKey], "string")}
+          recordItems.map((item, idx) => {
+            const secondaryValue = item[secondaryKey];
+            const hasSecondary =
+              typeof secondaryValue === "string" || typeof secondaryValue === "number";
+            return (
+              <div key={`record-${idx}`} className="rounded-lg border border-border bg-muted/40 p-3">
+                <div className="text-sm font-medium text-foreground">
+                  {formatValue(item[primaryKey], "string")}
                 </div>
-              )}
-            </div>
-          ))}
+                {hasSecondary && (
+                  <div className="text-xs text-muted-foreground">
+                    {formatValue(secondaryValue, "string")}
+                  </div>
+                )}
+              </div>
+            );
+          })}
       </CardContent>
     </Card>
   );
