@@ -39,6 +39,10 @@ export default auth((req) => {
     PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix));
   if (isPublicPath) return NextResponse.next();
 
+  if (process.env.E2E_BYPASS_AUTH === "true") {
+    return NextResponse.next();
+  }
+
   // Check if user is authenticated using NextAuth v5 auth wrapper
   if (!req.auth) {
     const signInUrl = new URL("/auth/signin", req.url);

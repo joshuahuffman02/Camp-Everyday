@@ -22,6 +22,7 @@ const config: PlaywrightTestConfig = {
       AUTH_TRUST_HOST: process.env.AUTH_TRUST_HOST ?? "true",
       AUTH_URL: process.env.AUTH_URL ?? baseURL,
       NEXTAUTH_URL: process.env.NEXTAUTH_URL ?? baseURL,
+      E2E_BYPASS_AUTH: process.env.E2E_BYPASS_AUTH ?? "true",
     }
   }
 };

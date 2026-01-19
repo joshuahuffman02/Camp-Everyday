@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
-import { Send, MessageCircle, Wifi, WifiOff, History, Paperclip, X, Loader2, AlertTriangle, FileText, Sparkles } from "lucide-react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { Send, MessageCircle, Wifi, WifiOff, History, Paperclip, X, Loader2, AlertTriangle, FileText, Sparkles, ArrowDown } from "lucide-react";
 import { API_BASE } from "@/lib/api-config";
 import { cn } from "@/lib/utils";
 import { ChatShell } from "./ChatShell";
@@ -41,6 +41,7 @@ const CHAT_ATTACHMENT_EXTENSION_MAP: Record<string, string> = {
   ".webp": "image/webp",
   ".pdf": "application/pdf",
 };
+const CHAT_SCROLL_BOTTOM_THRESHOLD = 120;
 
 const generateSessionId = () =>
   `chat_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
@@ -132,7 +133,10 @@ export function ChatWidget({
   const [conversationQuery, setConversationQuery] = useState("");
   const [conversationFilterId, setConversationFilterId] = useState("all");
   const [showArtifacts, setShowArtifacts] = useState(false);
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isAtBottomRef = useRef(true);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const attachmentsRef = useRef<AttachmentItem[]>([]);
@@ -215,19 +219,54 @@ export function ChatWidget({
     [messages]
   );
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
+    messagesEndRef.current?.scrollIntoView({ behavior, block: "end" });
   };
 
+  const updateScrollState = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const distanceFromBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
+    const atBottom = distanceFromBottom <= CHAT_SCROLL_BOTTOM_THRESHOLD;
+    isAtBottomRef.current = atBottom;
+    setShowJumpToLatest(!atBottom);
+  }, []);
+
+  const handleMessageScroll = useCallback(() => {
+    updateScrollState();
+  }, [updateScrollState]);
+
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, isTyping]);
+    if (!isOpen) return;
+    if (!isAtBottomRef.current) return;
+    const frame = requestAnimationFrame(() => scrollToBottom("auto"));
+    return () => cancelAnimationFrame(frame);
+  }, [isOpen, isTyping, messages]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const frame = requestAnimationFrame(() => updateScrollState());
+    return () => cancelAnimationFrame(frame);
+  }, [isOpen, updateScrollState]);
 
   useEffect(() => {
     if (isOpen && inputRef.current) {
       inputRef.current.focus();
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || isMinimized) return;
+    if (typeof window === "undefined") return;
+    const media = window.matchMedia("(max-width: 640px)");
+    if (!media.matches) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [isMinimized, isOpen]);
 
   useEffect(() => {
     attachmentsRef.current = attachmentItems;
@@ -600,6 +639,11 @@ export function ChatWidget({
     return "No conversations yet.";
   }, [conversationList.error, conversationFilterId, conversationQuery]);
 
+  const handleJumpToLatest = () => {
+    scrollToBottom("smooth");
+    setShowJumpToLatest(false);
+  };
+
   return (
     <ChatShell
       isOpen={isOpen}
@@ -651,7 +695,7 @@ export function ChatWidget({
       }
       className={className}
     >
-      <div className="relative flex-1 flex flex-col">
+      <div className="relative flex-1 min-h-0 flex flex-col">
         <ChatMessageList
           messages={messages}
           isTyping={isTyping}
@@ -664,7 +708,26 @@ export function ChatWidget({
           feedbackById={feedbackById}
           emptyState={emptyState}
           bottomRef={messagesEndRef}
+          containerRef={scrollContainerRef}
+          onScroll={handleMessageScroll}
         />
+        {showJumpToLatest && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
+            <button
+              type="button"
+              onClick={handleJumpToLatest}
+              className={cn(
+                "pointer-events-auto inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-xs shadow-sm transition hover:bg-muted",
+                accent === "guest" ? "text-emerald-700" : "text-blue-700"
+              )}
+              data-testid="chat-jump-to-latest"
+              aria-label="Jump to latest message"
+            >
+              <ArrowDown className="h-3.5 w-3.5" />
+              Jump to latest
+            </button>
+          </div>
+        )}
         <ChatHistoryPanel
           isOpen={showHistory}
           onClose={() => setShowHistory(false)}

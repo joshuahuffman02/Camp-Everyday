@@ -18,6 +18,8 @@ type ChatMessageListProps = {
   ticketHref?: string;
   emptyState?: ReactNode;
   bottomRef?: RefObject<HTMLDivElement>;
+  containerRef?: RefObject<HTMLDivElement>;
+  onScroll?: () => void;
 };
 
 export function ChatMessageList({
@@ -34,9 +36,16 @@ export function ChatMessageList({
   ticketHref,
   emptyState,
   bottomRef,
+  containerRef,
+  onScroll,
 }: ChatMessageListProps) {
   return (
-    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+    <div
+      ref={containerRef}
+      onScroll={onScroll}
+      className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 space-y-4"
+      data-testid="chat-message-list"
+    >
       {messages.length === 0 && emptyState}
       {messages.map((message) => (
         <ChatMessage

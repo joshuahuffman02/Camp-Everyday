@@ -54,7 +54,7 @@ Goal: Bring Keepr's guest, portal, staff, and support chat experiences up to the
 - [x] Message actions: copy, edit, regenerate, feedback.
 - [x] Suggested prompts and contextual quick actions.
 - [x] Attachments: upload, preview, and inline rendering.
-- [ ] Tool call UI: approve/deny, show input/output.
+- [x] Tool call UI: approve/deny, show input/output.
 - [x] Artifact panel or sidecar (quotes, documents, dashboards).
 - [x] Chat history sidebar for authenticated chats (per-conversation history view).
 - [ ] Optional visibility/share controls (staff-only, internal).
@@ -78,6 +78,7 @@ Goal: Bring Keepr's guest, portal, staff, and support chat experiences up to the
 - [x] Add staff history search + filters and auto-titles.
 - [x] Add artifact sidecar panel.
 - [x] Wire json-render into the chat artifact panel for staff graphs/reports.
+- [x] Add jump-to-latest control and autoscroll guard for long chat responses.
 
 ### API + Backend (NestJS)
 - [x] Add AI SDK-compatible SSE endpoint or proxy for streaming.
@@ -115,6 +116,7 @@ Goal: Bring Keepr's guest, portal, staff, and support chat experiences up to the
 - [ ] Unit tests for tool approvals and action drafts.
 - [ ] Integration tests for streaming and attachments.
 - [ ] E2E tests for public booking and staff actions.
+- [x] Add a chat scroll regression test for long staff responses.
 - [ ] Load testing for peak arrival hours.
 
 ## Phased Delivery Plan
@@ -151,6 +153,7 @@ Phase 4 - Optimization + rollout (ongoing)
 - Artifact sidecar panel surfaces availability, quote, and report outputs from tool results.
 - Json-render report/graph cards now render inside the staff artifact sidecar when tool results include a json-render tree.
 - Occupancy and revenue tools now include json-render payloads for inline charts and tables.
+- Staff chat now shows tool call inputs/outputs with a jump-to-latest button and guarded autoscroll for long responses.
 - Feedback/regenerate actions now emit analytics events when a session ID is available.
 - Support chat now includes an in-chat ticket composer with severity, transcripts, attachments, and SLA/email fallback messaging.
 

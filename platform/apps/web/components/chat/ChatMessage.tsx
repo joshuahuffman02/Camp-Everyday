@@ -8,6 +8,7 @@ import { SuggestedPrompts } from "./SuggestedPrompts";
 import type {
   ChatAccent,
   ChatActionRequired,
+  ChatToolCall,
   ChatToolResult,
   UnifiedChatMessage,
 } from "./types";
@@ -37,6 +38,14 @@ const getString = (value: unknown, fallback = ""): string =>
 
 const getNumber = (value: unknown, fallback = 0): number =>
   typeof value === "number" ? value : fallback;
+
+const formatJson = (value: unknown) => {
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+};
 
 function ToolResultDisplay({ result }: { result: ChatToolResult }) {
   if (result.error) {
@@ -172,7 +181,60 @@ function ToolResultDisplay({ result }: { result: ChatToolResult }) {
     );
   }
 
-  return null;
+  const raw = formatJson(data);
+  return (
+    <div className="rounded-lg border border-border bg-card/60 p-2">
+      <div className="text-[11px] font-semibold text-muted-foreground mb-1">Output</div>
+      <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-md bg-muted/40 p-2 text-[11px] text-foreground">
+        {raw}
+      </pre>
+    </div>
+  );
+}
+
+function ToolCallCard({
+  call,
+  result,
+}: {
+  call: ChatToolCall;
+  result?: ChatToolResult;
+}) {
+  const argsJson = formatJson(call.args);
+  const hasArgs = argsJson !== "{}";
+  const statusLabel = result?.error
+    ? "Failed"
+    : result
+      ? "Completed"
+      : "Running";
+  const statusClass = result?.error
+    ? "text-red-600"
+    : result
+      ? "text-emerald-600"
+      : "text-muted-foreground";
+
+  return (
+    <div className="rounded-xl border border-border bg-card/60">
+      <div className="flex items-center justify-between border-b border-border px-3 py-2 text-xs">
+        <div className="font-semibold text-foreground">Tool: {call.name}</div>
+        <div className={cn("font-medium", statusClass)}>{statusLabel}</div>
+      </div>
+      <div className="px-3 py-2">
+        <div className="text-[11px] font-semibold text-muted-foreground mb-1">Input</div>
+        {hasArgs ? (
+          <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-md bg-muted/40 p-2 text-[11px] text-foreground">
+            {argsJson}
+          </pre>
+        ) : (
+          <div className="text-[11px] text-muted-foreground">No parameters.</div>
+        )}
+      </div>
+      {result && (
+        <div className="px-3 pb-3">
+          <ToolResultDisplay result={result} />
+        </div>
+      )}
+    </div>
+  );
 }
 
 function ActionCard({
@@ -216,6 +278,7 @@ export function ChatMessage({
   role,
   content,
   attachments,
+  toolCalls,
   toolResults,
   actionRequired,
   recommendations,
@@ -283,6 +346,10 @@ export function ChatMessage({
   const ticketCtaLabel = resolvedAccent === "support" ? "Create ticket" : "Contact Support";
   const actionClass =
     "rounded-md p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground";
+  const toolCallIds = new Set((toolCalls ?? []).map((call) => call.id));
+  const orphanedToolResults = (toolResults ?? []).filter(
+    (result) => !toolCallIds.has(result.toolCallId)
+  );
 
   const handleCopy = useMemo(
     () => async () => {
@@ -455,10 +522,20 @@ export function ChatMessage({
           </div>
         )}
 
-        {/* Tool results */}
-        {toolResults && toolResults.length > 0 && (
+        {/* Tool calls */}
+        {toolCalls && toolCalls.length > 0 && (
           <div className="mt-3 space-y-2">
-            {toolResults.map((result) => (
+            {toolCalls.map((call) => {
+              const result = toolResults?.find((item) => item.toolCallId === call.id);
+              return <ToolCallCard key={call.id} call={call} result={result} />;
+            })}
+          </div>
+        )}
+
+        {/* Tool results (unmatched) */}
+        {orphanedToolResults.length > 0 && (
+          <div className="mt-3 space-y-2">
+            {orphanedToolResults.map((result) => (
               <ToolResultDisplay key={result.toolCallId} result={result} />
             ))}
           </div>

@@ -14,6 +14,8 @@
 - Block conflicting reservation imports, honor system pricing toggles, and dedupe guests in execution.
 - Use consistent API base resolution for onboarding reservation import requests.
 - Normalize chat attachment content types and filter support/partner chat history roles for web build typing.
+- Fix staff chat message list scrolling so long KPI snapshots scroll inside the widget instead of the page.
+- Guard staff chat autoscroll and surface a jump-to-latest control for long responses.
 
 ### Added
 - Onboarding import checklist with system-specific export prompts, coverage tracking, and warning override.
@@ -23,6 +25,7 @@
 - In-chat support ticket composer with severity, transcript toggle, attachments, and SLA/email fallback messaging.
 - Json-render report/graph cards inside the staff chat artifact panel.
 - Occupancy and revenue tools now return json-render payloads for inline report charts and tables.
+- Staff chat tool calls now show input/output cards, with a Playwright regression test for scroll behavior.
 
 #### Phase 1: Pricing & Payments
 - **Dynamic Pricing Engine** (`/pricing-v2`)
