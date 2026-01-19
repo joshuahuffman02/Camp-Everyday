@@ -1,11 +1,15 @@
-import { Controller, Get, Post, Patch, Param, Body, UseGuards, Req, ForbiddenException, Logger } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Body, UseGuards, Req, ForbiddenException, Logger, BadRequestException, Query } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
+import { AuthGuard } from '@nestjs/passport';
 import { JwtAuthGuard } from '../auth/guards';
 import { RolesGuard, Roles } from '../auth/guards/roles.guard';
-import { UserRole } from '@prisma/client';
+import { AiConsentType, Guest, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { FeatureFlagService } from "../admin/feature-flag.service";
 import { AiFeatureGateService } from './ai-feature-gate.service';
 import { AiBookingAssistService } from './ai-booking-assist.service';
 import { AiSupportService } from './ai-support.service';
+import { AiPrivacyService } from './ai-privacy.service';
 import { AiPartnerService, type ActionType, type ImpactArea, type PartnerMembership, type PartnerUser, type SensitivityLevel } from './ai-partner.service';
 import { AiSentimentService } from './ai-sentiment.service';
 import { AiMorningBriefingService } from './ai-morning-briefing.service';
@@ -45,6 +49,13 @@ interface SupportChatDto {
   context?: string;
 }
 
+interface ConsentDto {
+  consentType: AiConsentType;
+  granted?: boolean;
+  sessionId?: string;
+  source?: string;
+}
+
 interface PartnerChatDto {
   sessionId?: string;
   message: string;
@@ -73,6 +84,12 @@ const toNullableString = (value: unknown): string | null | undefined => {
   if (value === null) return null;
   return typeof value === "string" ? value : undefined;
 };
+
+const isConsentType = (value: unknown): value is AiConsentType =>
+  value === AiConsentType.booking_assist ||
+  value === AiConsentType.personalization ||
+  value === AiConsentType.communications ||
+  value === AiConsentType.analytics;
 
 const getMemberships = (value: unknown): PartnerMembership[] | undefined => {
   if (!Array.isArray(value)) return undefined;
@@ -109,6 +126,12 @@ const getUserId = (value: unknown): string | undefined => {
   return typeof id === "string" ? id : undefined;
 };
 
+const isGuestUser = (value: unknown): value is Guest =>
+  isRecord(value) && typeof value.id === "string";
+
+const PUBLIC_CHAT_FLAG_KEY = "chat_widget_public";
+const SUPPORT_CHAT_FLAG_KEY = "chat_widget_support";
+
 const getQueryString = (value: unknown): string | undefined => {
   if (typeof value === "string") return value;
   if (Array.isArray(value) && typeof value[0] === "string") return value[0];
@@ -131,7 +154,16 @@ export class AiController {
     private readonly campaignService: AiCampaignService,
     private readonly smartComposeService: AiSmartComposeService,
     private readonly aiService: AiService,
+    private readonly privacy: AiPrivacyService,
+    private readonly flags: FeatureFlagService,
   ) { }
+
+  private async assertChatEnabled(flagKey: string, campgroundId?: string) {
+    const enabled = await this.flags.isEnabledOrDefault(flagKey, campgroundId, true);
+    if (!enabled) {
+      throw new ForbiddenException("Chat is disabled for this surface.");
+    }
+  }
 
   // ==================== PUBLIC ENDPOINTS ====================
 
@@ -139,10 +171,23 @@ export class AiController {
    * Public endpoint for booking assistant chat (no auth required)
    */
   @Post('public/campgrounds/:campgroundId/chat')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   async bookingChat(
     @Param('campgroundId') campgroundId: string,
     @Body() body: BookingChatDto,
   ) {
+    await this.assertChatEnabled(PUBLIC_CHAT_FLAG_KEY, campgroundId);
+    if (!body?.sessionId) {
+      throw new BadRequestException('sessionId is required');
+    }
+    if (!body?.message || body.message.trim().length === 0) {
+      throw new BadRequestException('Message is required');
+    }
+    if (body.message.length > 4000) {
+      throw new BadRequestException('Message is too long');
+    }
+    const history = Array.isArray(body.history) ? body.history.slice(-12) : undefined;
+
     try {
       return await this.bookingAssist.chat({
         campgroundId,
@@ -152,7 +197,7 @@ export class AiController {
         partySize: body.partySize,
         rigInfo: body.rigInfo,
         preferences: body.preferences,
-        history: body.history,
+        history,
         sessionOnly: true,
       });
     } catch (error) {
@@ -170,7 +215,9 @@ export class AiController {
    * Check if booking assist is enabled for a campground (public)
    */
   @Get('public/campgrounds/:campgroundId/status')
+  @Throttle({ default: { limit: 120, ttl: 60000 } })
   async getPublicAiStatus(@Param('campgroundId') campgroundId: string) {
+    await this.assertChatEnabled(PUBLIC_CHAT_FLAG_KEY, campgroundId);
     const campground = await this.prisma.campground.findUnique({
       where: { id: campgroundId },
       select: {
@@ -184,6 +231,135 @@ export class AiController {
     };
   }
 
+  /**
+   * Public consent status (session-only booking assist).
+   */
+  @Get('public/campgrounds/:campgroundId/consent')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  async getPublicConsent(
+    @Param('campgroundId') campgroundId: string,
+    @Query('sessionId') sessionId?: string,
+    @Query('consentType') consentType?: AiConsentType,
+  ) {
+    await this.assertChatEnabled(PUBLIC_CHAT_FLAG_KEY, campgroundId);
+    if (!sessionId) {
+      throw new BadRequestException('sessionId is required');
+    }
+    if (!isConsentType(consentType)) {
+      throw new BadRequestException('Invalid consentType');
+    }
+
+    const granted = await this.gate.hasConsent(campgroundId, consentType, undefined, sessionId);
+    return { consentType, granted };
+  }
+
+  /**
+   * Public consent update (session-only booking assist).
+   */
+  @Post('public/campgrounds/:campgroundId/consent')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  async updatePublicConsent(
+    @Param('campgroundId') campgroundId: string,
+    @Body() body: ConsentDto,
+    @Req() req: Request,
+  ) {
+    await this.assertChatEnabled(PUBLIC_CHAT_FLAG_KEY, campgroundId);
+    if (!body?.sessionId) {
+      throw new BadRequestException('sessionId is required');
+    }
+    if (!isConsentType(body.consentType)) {
+      throw new BadRequestException('Invalid consentType');
+    }
+
+    const granted = body.granted !== false;
+    const ipHash = this.getIpHash(req);
+    const userAgent = req.headers['user-agent'];
+    const source = typeof body.source === 'string' ? body.source.slice(0, 80) : undefined;
+
+    if (granted) {
+      await this.gate.recordConsent({
+        campgroundId,
+        consentType: body.consentType,
+        sessionId: body.sessionId,
+        ipHash,
+        userAgent,
+        source: source ?? 'booking_widget',
+      });
+    } else {
+      await this.gate.revokeConsent(campgroundId, body.consentType, undefined, body.sessionId);
+    }
+
+    return { consentType: body.consentType, granted };
+  }
+
+  // ==================== PORTAL GUEST CONSENT ====================
+
+  /**
+   * Get consent records for a guest (portal).
+   */
+  @UseGuards(AuthGuard('guest-jwt'))
+  @Get('portal/campgrounds/:campgroundId/consent')
+  async getGuestConsent(
+    @Param('campgroundId') campgroundId: string,
+    @Req() req: Request,
+  ) {
+    const guest = req.user;
+    if (!isGuestUser(guest)) {
+      throw new ForbiddenException('Invalid guest session');
+    }
+    await this.assertGuestAccess(guest.id, campgroundId);
+    const records = await this.gate.getConsentRecords(campgroundId, guest.id);
+    return {
+      consents: records.map((record) => ({
+        consentType: record.consentType,
+        granted: record.granted,
+        grantedAt: record.grantedAt,
+        revokedAt: record.revokedAt,
+        source: record.source ?? undefined,
+      })),
+    };
+  }
+
+  /**
+   * Update consent for a guest (portal).
+   */
+  @UseGuards(AuthGuard('guest-jwt'))
+  @Post('portal/campgrounds/:campgroundId/consent')
+  async updateGuestConsent(
+    @Param('campgroundId') campgroundId: string,
+    @Body() body: ConsentDto,
+    @Req() req: Request,
+  ) {
+    const guest = req.user;
+    if (!isGuestUser(guest)) {
+      throw new ForbiddenException('Invalid guest session');
+    }
+    await this.assertGuestAccess(guest.id, campgroundId);
+    if (!isConsentType(body.consentType)) {
+      throw new BadRequestException('Invalid consentType');
+    }
+    const granted = body.granted !== false;
+    const ipHash = this.getIpHash(req);
+    const userAgent = req.headers['user-agent'];
+    const source = typeof body.source === 'string' ? body.source.slice(0, 80) : undefined;
+
+    if (granted) {
+      await this.gate.recordConsent({
+        campgroundId,
+        consentType: body.consentType,
+        guestId: guest.id,
+        sessionId: body.sessionId,
+        ipHash,
+        userAgent,
+        source: source ?? 'guest_portal',
+      });
+    } else {
+      await this.gate.revokeConsent(campgroundId, body.consentType, guest.id, body.sessionId);
+    }
+
+    return { consentType: body.consentType, granted };
+  }
+
   // ==================== AUTHENTICATED ENDPOINTS ====================
 
   /**
@@ -192,17 +368,29 @@ export class AiController {
    */
   @UseGuards(JwtAuthGuard)
   @Post('support/chat')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   async supportChat(
     @Body() body: SupportChatDto,
     @Req() req: Request,
   ) {
+    await this.assertChatEnabled(SUPPORT_CHAT_FLAG_KEY);
     const userId = getUserId(req.user);
+    if (!body?.sessionId) {
+      throw new BadRequestException('sessionId is required');
+    }
+    if (!body?.message || body.message.trim().length === 0) {
+      throw new BadRequestException('Message is required');
+    }
+    if (body.message.length > 4000) {
+      throw new BadRequestException('Message is too long');
+    }
+    const history = Array.isArray(body.history) ? body.history.slice(-12) : undefined;
 
     try {
       return await this.supportService.chat({
         sessionId: body.sessionId,
         message: body.message,
-        history: body.history,
+        history,
         context: body.context,
         userId,
       });
@@ -1024,5 +1212,26 @@ export class AiController {
       },
       userId
     );
+  }
+
+  private async assertGuestAccess(guestId: string, campgroundId: string): Promise<void> {
+    const reservation = await this.prisma.reservation.findFirst({
+      where: { guestId, campgroundId },
+      select: { id: true },
+    });
+
+    if (!reservation) {
+      throw new ForbiddenException('You do not have access to this campground');
+    }
+  }
+
+  private getIpHash(req: Request): string | undefined {
+    const forwarded = req.headers['x-forwarded-for'];
+    const raw = Array.isArray(forwarded)
+      ? forwarded[0]
+      : typeof forwarded === 'string'
+        ? forwarded.split(',')[0].trim()
+        : req.ip;
+    return raw ? this.privacy.hashIp(raw) : undefined;
   }
 }

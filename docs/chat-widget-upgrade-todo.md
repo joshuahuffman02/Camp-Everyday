@@ -202,25 +202,26 @@ Step 4 - AI modes and safety guardrails
 - [x] Add "explain the action" summaries for staff approvals.
 
 Step 5 - Security, compliance, and observability
-- [ ] Enforce scoped access (campground and role based).
-- [ ] Add rate limiting and abuse detection.
-- [ ] Redact PII from logs and telemetry.
-- [ ] Provide opt-out and consent flows for guests.
-- [ ] Track chat engagement and conversion metrics.
-- [ ] Add error/latency metrics for streaming and tools.
-- [ ] Add per-model cost tracking and budget alerts.
+- [x] Enforce scoped access (campground and role based).
+- [x] Add rate limiting and abuse detection.
+- [x] Redact PII from logs and telemetry.
+- [x] Provide opt-out and consent flows for guests.
+- [x] Track chat engagement and conversion metrics.
+- [x] Add error/latency metrics for streaming and tools.
+- [x] Add per-model cost tracking and budget alerts.
 
 Step 6 - QA and rollout
-- [ ] Unit tests for tool approvals and action drafts.
-- [ ] Integration tests for streaming and attachments.
-- [ ] E2E tests for public booking and staff actions.
-- [ ] Load testing for peak arrival hours.
-- [ ] Performance tuning for streaming and rendering.
-- [ ] Rollout via feature flags by surface and campground.
+- [x] Unit tests for tool approvals and action drafts.
+- [x] Integration tests for streaming and attachments.
+- [x] E2E tests for public booking and staff actions.
+- [x] Load testing for peak arrival hours.
+- [x] Performance tuning for streaming and rendering.
+- [x] Rollout via feature flags by surface and campground.
 
 ## Known Issues (Reported)
 - [x] Staff KPI snapshot responses can be long; chat panel now captures scroll to avoid page scrolling.
 - [x] Scroll bleed on long KPI responses mitigated; follow up with device QA to confirm.
+- [ ] KPI snapshot summaries can contradict availability (e.g., 0% occupancy vs "full"); add QA checks on summary phrasing.
 
 ## Progress Notes
 - Phase 0 shipped: shared chat shell, unified message rendering, and prompt suggestions across public booking, portal, staff, and support.
@@ -240,6 +241,7 @@ Step 6 - QA and rollout
 - Public booking chat now skips persistence (consent + interaction logs) for session-only behavior.
 - Mode-specific system prompts now cover public guest, portal guest, staff ops, and support with PII guardrails.
 - Staff approvals now include a short action summary, and staff can place/list/release site holds via chat tools.
+- Streaming chat now avoids duplicate content when SSE emits meta + text, and tool result facts reduce contradictory summaries.
 - Long responses now collapse with a max-height scroll area and a Show more/less toggle.
 - Added E2E coverage to ensure page scroll stays locked while scrolling inside chat.
 - Json-render report summaries now surface in chat messages with a quick "Open report" action.
@@ -254,6 +256,13 @@ Step 6 - QA and rollout
 - Hardened nested long-message scroll containment to reduce page scroll bleed when long responses collapse into scroll areas.
 - Added Playwright coverage to ensure long message scroll areas do not scroll the page.
 - Documented chat rendering and microcopy rules plus mobile/kiosk UX guidelines in `docs/chat-widget-ux-rules.md`.
+- Added guest consent/opt-out endpoints plus sessionId propagation for chat engagement tracking.
+- Tool execution and streaming now emit chat latency/error metrics (action/tool/stream).
+- Tool logging now redacts PII, and AI budget warnings emit when usage approaches monthly caps.
+- Added unit tests for action approvals and Playwright coverage for streaming, attachments, public booking, and staff actions.
+- Added feature flag gating keys: `chat_widget_staff`, `chat_widget_portal`, `chat_widget_public`, `chat_widget_support`.
+- Added k6 load test script for peak arrival chat traffic (`platform/docs/phase3/k6-chat-arrivals.js`).
+- Memoized chat message rendering and stabilized handler callbacks to reduce re-renders during streaming.
 
 ## Verification Commands
 - `pnpm lint:web`

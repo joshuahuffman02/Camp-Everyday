@@ -13,6 +13,7 @@ import { UploadsModule } from '../uploads/uploads.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
 import { AuditModule } from '../audit/audit.module';
 import { HoldsModule } from '../holds/holds.module';
+import { AdminModule } from '../admin/admin.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { HoldsModule } from '../holds/holds.module';
     AnalyticsModule,
     AuditModule,
     HoldsModule,
+    AdminModule,
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({

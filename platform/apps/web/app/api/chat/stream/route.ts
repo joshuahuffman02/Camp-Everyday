@@ -118,6 +118,7 @@ export async function POST(request: Request) {
     endpoint = `/chat/portal/${campgroundId}/message`;
     payload = {
       conversationId,
+      sessionId,
       message: trimmedMessage,
       attachments,
       visibility: resolvedVisibility,
@@ -127,6 +128,7 @@ export async function POST(request: Request) {
     endpoint = `/chat/campgrounds/${campgroundId}/message`;
     payload = {
       conversationId,
+      sessionId,
       message: trimmedMessage,
       attachments,
       visibility: resolvedVisibility,
@@ -183,8 +185,6 @@ export async function POST(request: Request) {
       }
     }
   }
-
-  meta.content = content;
 
   const stream = new ReadableStream({
     async start(controller) {

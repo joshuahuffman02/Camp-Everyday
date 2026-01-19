@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode, type WheelEvent } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode, type WheelEvent } from "react";
 import { ArrowDown, ArrowUp, Bot, User, ExternalLink, Check, AlertCircle, Copy, PencilLine, RotateCcw, ThumbsUp, ThumbsDown, FileText, ChevronDown } from "lucide-react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -709,7 +709,7 @@ function ActionCard({
   );
 }
 
-export function ChatMessage({
+export const ChatMessage = memo(function ChatMessage({
   id,
   role,
   content,
@@ -1350,4 +1350,4 @@ export function ChatMessage({
       )}
     </div>
   );
-}
+});

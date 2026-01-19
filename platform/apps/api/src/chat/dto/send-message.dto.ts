@@ -13,6 +13,7 @@ const attachmentSchema = z.object({
 
 export const sendMessageSchema = z.object({
   conversationId: z.string().optional(),
+  sessionId: z.string().max(128).optional(),
   message: z.string().max(4000).optional(),
   attachments: z.array(attachmentSchema).optional(),
   visibility: z.enum(["public", "internal"]).optional(),
@@ -33,6 +34,11 @@ export class SendMessageDto {
   @IsString()
   @IsUUID()
   conversationId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  sessionId?: string;
 
   @ValidateIf((value) => !value.attachments || value.attachments.length === 0)
   @IsString()

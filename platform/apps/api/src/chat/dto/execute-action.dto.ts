@@ -1,4 +1,4 @@
-import { IsString, IsUUID, IsObject, IsOptional } from 'class-validator';
+import { IsString, IsUUID, IsObject, IsOptional, MaxLength } from 'class-validator';
 import { z } from 'zod';
 
 // Zod schema for validation
@@ -7,6 +7,7 @@ export const executeActionSchema = z.object({
   actionId: z.string(),
   selectedOption: z.string().optional(),
   formData: z.record(z.unknown()).optional(),
+  sessionId: z.string().max(128).optional(),
 });
 
 export type ExecuteActionInput = z.infer<typeof executeActionSchema>;
@@ -27,6 +28,11 @@ export class ExecuteActionDto {
   @IsOptional()
   @IsObject()
   formData?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  sessionId?: string;
 }
 
 // Response type

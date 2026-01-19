@@ -1,6 +1,7 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiPrivacyService } from './ai-privacy.service';
+import { AiCostTrackingService } from './ai-cost-tracking.service';
 import { AiFeatureType } from '@prisma/client';
 import { randomUUID } from 'crypto';
 
@@ -92,10 +93,13 @@ interface LocalAiResponse {
 @Injectable()
 export class AiProviderService {
     private readonly logger = new Logger(AiProviderService.name);
+    private readonly budgetAlertCooldownMs = 6 * 60 * 60 * 1000;
+    private readonly budgetAlertState = new Map<string, { status: 'ok' | 'warning' | 'exceeded'; lastNotifiedAt: number }>();
 
     constructor(
         private readonly prisma: PrismaService,
         private readonly privacy: AiPrivacyService,
+        private readonly costTracking: AiCostTrackingService,
     ) { }
 
     /**
@@ -159,6 +163,8 @@ export class AiProviderService {
                         aiTotalTokensUsed: { increment: response.tokensUsed },
                     },
                 });
+
+                await this.maybeEmitBudgetAlert(request.campgroundId);
             }
 
             return {
@@ -259,6 +265,8 @@ export class AiProviderService {
                         aiTotalTokensUsed: { increment: response.tokensUsed },
                     },
                 });
+
+                await this.maybeEmitBudgetAlert(request.campgroundId);
             }
 
             return {
@@ -567,6 +575,36 @@ export class AiProviderService {
         const outputCost = (outputTokens / 1000) * modelCosts.output;
 
         return Math.round((inputCost + outputCost) * 100) / 100; // Round to 2 decimal cents
+    }
+
+    private shouldNotifyBudget(campgroundId: string, status: 'ok' | 'warning' | 'exceeded'): boolean {
+        const now = Date.now();
+        const previous = this.budgetAlertState.get(campgroundId);
+        if (!previous) {
+            this.budgetAlertState.set(campgroundId, { status, lastNotifiedAt: now });
+            return true;
+        }
+        if (previous.status !== status) {
+            this.budgetAlertState.set(campgroundId, { status, lastNotifiedAt: now });
+            return true;
+        }
+        if (now - previous.lastNotifiedAt > this.budgetAlertCooldownMs) {
+            this.budgetAlertState.set(campgroundId, { status, lastNotifiedAt: now });
+            return true;
+        }
+        return false;
+    }
+
+    private async maybeEmitBudgetAlert(campgroundId: string): Promise<void> {
+        const status = await this.costTracking.checkBudgetStatus(campgroundId);
+        if (!status.budgetCents || status.status === 'ok') return;
+        if (!this.shouldNotifyBudget(campgroundId, status.status)) return;
+
+        this.logger.warn(
+            `AI budget ${status.status} for campground ${campgroundId}: ` +
+            `${status.usedPercent}% used ($${(status.usedCents / 100).toFixed(2)} of $${(status.budgetCents / 100).toFixed(2)}), ` +
+            `projected $${(status.projectedMonthEndCents / 100).toFixed(2)}`
+        );
     }
 
     private normalizeModelName(model: string): string {

@@ -153,6 +153,9 @@ const getMessageVisibility = (value: unknown): ChatMessageVisibility | undefined
 const getString = (value: unknown): string | undefined =>
   typeof value === 'string' ? value : undefined;
 
+const getNumber = (value: unknown): number | undefined =>
+  typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+
 const buildMessageMetadata = (
   attachments?: ChatAttachment[],
   visibility?: ChatMessageVisibility,
@@ -433,10 +436,12 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
     dto: SendMessageDto,
     context: ChatContext,
   ): Promise<ChatMessageResponse> {
+    const startedAt = Date.now();
     const message = dto.message?.trim() ?? '';
     const { conversationId: existingConversationId } = dto;
     const attachments = normalizeAttachments(dto.attachments);
     const visibility = dto.visibility === 'internal' ? 'internal' : undefined;
+    const sessionId = dto.sessionId;
     if (!message && !attachments) {
       throw new BadRequestException('Message or attachment required');
     }
@@ -460,6 +465,18 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
       },
     });
     await this.ensureConversationTitle(conversation.id, conversation.title, message, attachments);
+
+    await this.trackChatAction({
+      sessionId,
+      context,
+      actionType: 'chat_message_sent',
+      metadata: {
+        conversationId: conversation.id,
+        messageLength: message.length,
+        attachmentCount: attachments?.length ?? 0,
+        visibility: visibility ?? 'public',
+      },
+    });
 
     if (visibility === 'internal') {
       const internalReply = await this.prisma.chatMessage.create({
@@ -498,6 +515,10 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
     // Build system prompt
     const systemPrompt = this.buildSystemPrompt(context);
 
+    let aiLatencyMs: number | undefined;
+    let followUpLatencyMs: number | undefined;
+    let toolLatencyMs: number | undefined;
+
     try {
       // Call AI with tools
       const aiResponse = await this.aiProvider.getToolCompletion({
@@ -516,6 +537,7 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
         maxTokens: 1000,
         temperature: 0.7,
       });
+      aiLatencyMs = aiResponse.latencyMs;
 
       // Process tool calls if any
       let toolCalls: ToolCall[] = [];
@@ -524,11 +546,14 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
       let finalContent = aiResponse.content;
 
       if (aiResponse.toolCalls && aiResponse.toolCalls.length > 0) {
+        const toolStart = Date.now();
         const toolProcessResult = await this.processToolCalls(
           aiResponse.toolCalls,
           context,
           conversation.id,
+          sessionId,
         );
+        toolLatencyMs = Date.now() - toolStart;
         toolCalls = toolProcessResult.toolCalls;
         toolResults = toolProcessResult.toolResults;
         actionRequired = toolProcessResult.actionRequired;
@@ -543,6 +568,7 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
             maxTokens: 500,
             temperature: 0.7,
           });
+          followUpLatencyMs = followUp.latencyMs;
           finalContent = followUp.content;
         }
       }
@@ -565,6 +591,20 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
         data: { updatedAt: new Date() },
       });
 
+      await this.trackChatAction({
+        sessionId,
+        context,
+        actionType: 'chat_response_latency',
+        metadata: {
+          conversationId: conversation.id,
+          totalLatencyMs: Date.now() - startedAt,
+          aiLatencyMs,
+          followUpLatencyMs,
+          toolLatencyMs,
+          toolCount: toolCalls.length,
+        },
+      });
+
       return {
         conversationId: conversation.id,
         messageId: assistantMessage.id,
@@ -578,6 +618,16 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
       };
     } catch (error) {
       this.logger.error('Chat error:', error);
+
+      await this.trackChatAction({
+        sessionId,
+        context,
+        actionType: 'chat_error',
+        metadata: {
+          phase: 'send',
+          errorType: error instanceof Error ? error.name : 'UnknownError',
+        },
+      });
 
       // Save error as system message
       await this.prisma.chatMessage.create({
@@ -602,10 +652,12 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
     dto: SendMessageDto,
     context: ChatContext,
   ): Promise<void> {
+    const startedAt = Date.now();
     const message = dto.message?.trim() ?? '';
     const { conversationId: existingConversationId } = dto;
     const attachments = normalizeAttachments(dto.attachments);
     const visibility = dto.visibility === 'internal' ? 'internal' : undefined;
+    const sessionId = dto.sessionId;
     if (!message && !attachments) {
       throw new BadRequestException('Message or attachment required');
     }
@@ -629,6 +681,18 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
       },
     });
     await this.ensureConversationTitle(conversation.id, conversation.title, message, attachments);
+
+    await this.trackChatAction({
+      sessionId,
+      context,
+      actionType: 'chat_message_sent',
+      metadata: {
+        conversationId: conversation.id,
+        messageLength: message.length,
+        attachmentCount: attachments?.length ?? 0,
+        visibility: visibility ?? 'public',
+      },
+    });
 
     if (visibility === 'internal') {
       const internalReply = await this.prisma.chatMessage.create({
@@ -667,6 +731,11 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
     // Build system prompt
     const systemPrompt = this.buildSystemPrompt(context);
 
+    let aiLatencyMs: number | undefined;
+    let followUpLatencyMs: number | undefined;
+    let toolLatencyMs: number | undefined;
+    let streamLatencyMs: number | undefined;
+
     try {
       // Call AI with tools
       const aiResponse = await this.aiProvider.getToolCompletion({
@@ -685,6 +754,7 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
         maxTokens: 1000,
         temperature: 0.7,
       });
+      aiLatencyMs = aiResponse.latencyMs;
 
       // Process tool calls if any
       let toolCalls: ToolCall[] = [];
@@ -714,11 +784,14 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
           });
         }
 
+        const toolStart = Date.now();
         const toolProcessResult = await this.processToolCalls(
           aiResponse.toolCalls,
           context,
           conversation.id,
+          sessionId,
         );
+        toolLatencyMs = Date.now() - toolStart;
         toolCalls = toolProcessResult.toolCalls;
         toolResults = toolProcessResult.toolResults;
         actionRequired = toolProcessResult.actionRequired;
@@ -768,6 +841,21 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
               toolResults,
             }),
           });
+          await this.trackChatAction({
+            sessionId,
+            context,
+            actionType: 'chat_stream_latency',
+            metadata: {
+              conversationId: conversation.id,
+              totalLatencyMs: Date.now() - startedAt,
+              aiLatencyMs,
+              followUpLatencyMs,
+              toolLatencyMs,
+              streamLatencyMs,
+              toolCount: toolCalls.length,
+              status: 'action_required',
+            },
+          });
           return;
         }
 
@@ -781,13 +869,16 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
             maxTokens: 500,
             temperature: 0.7,
           });
+          followUpLatencyMs = followUp.latencyMs;
           finalContent = followUp.content;
         }
       }
 
       // Stream the final content as tokens (simulate streaming by chunking)
       if (finalContent) {
+        const streamStart = Date.now();
         await this.streamContentAsTokens(conversation.id, finalContent);
+        streamLatencyMs = Date.now() - streamStart;
       }
 
       // Save assistant message
@@ -817,6 +908,22 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
         toolResults: toolResults.length > 0 ? toolResults : undefined,
         parts: buildMessageParts({ content: finalContent, toolCalls, toolResults }),
       });
+
+      await this.trackChatAction({
+        sessionId,
+        context,
+        actionType: 'chat_stream_latency',
+        metadata: {
+          conversationId: conversation.id,
+          totalLatencyMs: Date.now() - startedAt,
+          aiLatencyMs,
+          followUpLatencyMs,
+          toolLatencyMs,
+          streamLatencyMs,
+          toolCount: toolCalls.length,
+          status: 'complete',
+        },
+      });
     } catch (error) {
       this.logger.error('Chat stream error:', error);
 
@@ -837,6 +944,16 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
           role: ChatMessageRole.system,
           content: 'I encountered an error processing your request. Please try again.',
           metadata: { error: error instanceof Error ? error.message : 'Unknown error' },
+        },
+      });
+
+      await this.trackChatAction({
+        sessionId,
+        context,
+        actionType: 'chat_stream_error',
+        metadata: {
+          conversationId: conversation.id,
+          errorType: error instanceof Error ? error.name : 'UnknownError',
         },
       });
     }
@@ -877,6 +994,8 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
     context: ChatContext,
   ): Promise<ExecuteActionResponse> {
     const { conversationId, actionId, selectedOption, formData } = dto;
+    const actionStart = Date.now();
+    const sessionId = dto.sessionId;
 
     // Verify conversation access
     await this.getConversation(conversationId, context);
@@ -926,6 +1045,19 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
         },
       });
 
+      await this.trackChatAction({
+        sessionId,
+        context,
+        actionType: 'chat_action_execute',
+        metadata: {
+          conversationId,
+          actionId,
+          toolName: pendingAction.tool,
+          status: 'success',
+          durationMs: Date.now() - actionStart,
+        },
+      });
+
       return {
         success: true,
         message: resultMessage,
@@ -933,6 +1065,20 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
       };
     } catch (error) {
       this.logger.error('Action execution error:', error);
+
+      await this.trackChatAction({
+        sessionId,
+        context,
+        actionType: 'chat_action_execute',
+        metadata: {
+          conversationId,
+          actionId,
+          toolName: pendingAction.tool,
+          status: 'error',
+          durationMs: Date.now() - actionStart,
+          errorType: error instanceof Error ? error.name : 'UnknownError',
+        },
+      });
 
       return {
         success: false,
@@ -951,6 +1097,8 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
   ): Promise<ExecuteToolResponse> {
     const { tool, args, conversationId } = dto;
     const originalArgs = args ?? {};
+    const toolStart = Date.now();
+    const sessionId = dto.sessionId;
 
     if (conversationId) {
       await this.getConversation(conversationId, context);
@@ -959,6 +1107,17 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
     try {
       const preValidateResult = await this.toolsService.runPreValidate(tool, originalArgs, context);
       if (preValidateResult && !preValidateResult.valid) {
+        await this.trackChatAction({
+          sessionId,
+          context,
+          actionType: 'chat_tool_execute',
+          metadata: {
+            conversationId,
+            toolName: tool,
+            status: 'prevalidate_failed',
+            durationMs: Date.now() - toolStart,
+          },
+        });
         return {
           success: false,
           message: preValidateResult.message || 'Validation failed',
@@ -986,6 +1145,18 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
         });
       }
 
+      await this.trackChatAction({
+        sessionId,
+        context,
+        actionType: 'chat_tool_execute',
+        metadata: {
+          conversationId,
+          toolName: tool,
+          status: 'success',
+          durationMs: Date.now() - toolStart,
+        },
+      });
+
       return {
         success: true,
         message: resultMessage,
@@ -993,6 +1164,18 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
       };
     } catch (error) {
       this.logger.error('Tool execution error:', error);
+      await this.trackChatAction({
+        sessionId,
+        context,
+        actionType: 'chat_tool_execute',
+        metadata: {
+          conversationId,
+          toolName: tool,
+          status: 'error',
+          durationMs: Date.now() - toolStart,
+          errorType: error instanceof Error ? error.name : 'UnknownError',
+        },
+      });
       return {
         success: false,
         message: 'Failed to execute tool',
@@ -1424,6 +1607,7 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
           aiResponse.toolCalls,
           context,
           conversation.id,
+          dto.sessionId,
         );
         toolCalls = toolProcessResult.toolCalls;
         toolResults = toolProcessResult.toolResults;
@@ -1729,6 +1913,96 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
   /**
    * Format history with tool results
    */
+  private buildToolFacts(toolResults: ToolResult[]): string[] {
+    const facts: string[] = [];
+    let totalAvailable: number | undefined;
+    let nights: number | undefined;
+    let totalSites: number | undefined;
+    let avgOccupancy: string | undefined;
+    let occupancyRange: { start?: string; end?: string } = {};
+    let revenueTotal: string | undefined;
+    let revenueRange: { start?: string; end?: string } = {};
+
+    for (const result of toolResults) {
+      const payload = isRecord(result.result) ? result.result : null;
+      if (!payload) continue;
+
+      const available = getNumber(payload.totalAvailable);
+      if (available !== undefined) totalAvailable = available;
+
+      const nightsValue = getNumber(payload.nights);
+      if (nightsValue !== undefined) nights = nightsValue;
+
+      if (isRecord(payload.occupancy)) {
+        const occupancy = payload.occupancy;
+        const sitesValue = getNumber(occupancy.totalSites);
+        if (sitesValue !== undefined) totalSites = sitesValue;
+
+        const averageLabel =
+          getString(occupancy.averageOccupancy) ?? getString(occupancy.averagePercent);
+        if (averageLabel) avgOccupancy = averageLabel;
+
+        if (isRecord(occupancy.dateRange)) {
+          occupancyRange = {
+            start: getString(occupancy.dateRange.start),
+            end: getString(occupancy.dateRange.end),
+          };
+        }
+      }
+
+      if (isRecord(payload.revenue)) {
+        const revenue = payload.revenue;
+        const totalLabel = getString(revenue.total);
+        if (totalLabel) revenueTotal = totalLabel;
+        if (isRecord(revenue.dateRange)) {
+          revenueRange = {
+            start: getString(revenue.dateRange.start),
+            end: getString(revenue.dateRange.end),
+          };
+        }
+      }
+    }
+
+    if (totalSites !== undefined) {
+      facts.push(
+        totalSites === 0
+          ? 'Active sites: 0 (no active sites configured).'
+          : `Active sites: ${totalSites}.`
+      );
+    }
+
+    if (totalAvailable !== undefined) {
+      const availabilityLabel =
+        totalAvailable === 0
+          ? 'Availability: 0 sites available for the requested dates.'
+          : `Availability: ${totalAvailable} sites available for the requested dates.`;
+      const clarifiedAvailability =
+        totalSites === 0
+          ? 'Availability: 0 sites available because there are no active sites configured.'
+          : availabilityLabel;
+      const nightsSuffix = nights ? ` (${nights} night${nights !== 1 ? 's' : ''})` : '';
+      facts.push(`${clarifiedAvailability}${nightsSuffix}`);
+    }
+
+    if (avgOccupancy) {
+      const rangeLabel =
+        occupancyRange.start && occupancyRange.end
+          ? ` (${occupancyRange.start} to ${occupancyRange.end})`
+          : '';
+      facts.push(`Average occupancy${rangeLabel}: ${avgOccupancy}.`);
+    }
+
+    if (revenueTotal) {
+      const rangeLabel =
+        revenueRange.start && revenueRange.end
+          ? ` (${revenueRange.start} to ${revenueRange.end})`
+          : '';
+      facts.push(`Total revenue${rangeLabel}: ${revenueTotal}.`);
+    }
+
+    return facts;
+  }
+
   private formatHistoryWithToolResults(
     history: ChatMessage[],
     message: string,
@@ -1743,7 +2017,11 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
       return `Tool "${tc.name}" was called with args ${JSON.stringify(tc.args)} and returned: ${JSON.stringify(result?.result || 'error')}`;
     }).join('\n');
 
-    return `${base}\n\nTool Results:\n${toolInfo}\n\nProvide a natural response based on these results.`;
+    const facts = this.buildToolFacts(toolResults);
+    const factBlock =
+      facts.length > 0 ? `\n\nFACTS (do not contradict):\n- ${facts.join('\n- ')}` : '';
+
+    return `${base}\n\nTool Results:\n${toolInfo}${factBlock}\n\nProvide a natural response based on these results.`;
   }
 
   /**
@@ -1824,6 +2102,7 @@ Staff guardrails:
     rawToolCalls: { id?: string; name: string; arguments: string }[],
     context: ChatContext,
     conversationId: string,
+    sessionId?: string,
   ): Promise<{
     toolCalls: ToolCall[];
     toolResults: ToolResult[];
@@ -1834,6 +2113,7 @@ Staff guardrails:
     let actionRequired: ActionRequired | undefined;
 
     for (const rawCall of rawToolCalls) {
+      const toolStart = Date.now();
       // Use crypto.randomUUID() for secure, unpredictable IDs
       const toolCallId = rawCall.id || `tc_${randomUUID()}`;
       let args: Record<string, unknown>;
@@ -1857,6 +2137,17 @@ Staff guardrails:
       const preValidateResult = await this.toolsService.runPreValidate(rawCall.name, args, context);
 
       if (preValidateResult && !preValidateResult.valid) {
+        await this.trackChatAction({
+          sessionId,
+          context,
+          actionType: 'chat_tool_execute',
+          metadata: {
+            conversationId,
+            toolName: rawCall.name,
+            status: 'prevalidate_failed',
+            durationMs: Date.now() - toolStart,
+          },
+        });
         // PreValidate failed - return error immediately
         toolResults.push({
           toolCallId,
@@ -1906,16 +2197,51 @@ Staff guardrails:
           toolCallId,
           result: { pending: true, message: 'Awaiting user confirmation' },
         });
+
+        await this.trackChatAction({
+          sessionId,
+          context,
+          actionType: 'chat_tool_execute',
+          metadata: {
+            conversationId,
+            toolName: rawCall.name,
+            status: 'requires_confirmation',
+            durationMs: Date.now() - toolStart,
+          },
+        });
       } else {
         // Execute tool directly (with merged args from preValidate)
         try {
           const result = await this.toolsService.executeTool(rawCall.name, mergedArgs, context);
           toolResults.push({ toolCallId, result });
+          await this.trackChatAction({
+            sessionId,
+            context,
+            actionType: 'chat_tool_execute',
+            metadata: {
+              conversationId,
+              toolName: rawCall.name,
+              status: 'success',
+              durationMs: Date.now() - toolStart,
+            },
+          });
         } catch (error) {
           toolResults.push({
             toolCallId,
             result: null,
             error: error instanceof Error ? error.message : 'Tool execution failed',
+          });
+          await this.trackChatAction({
+            sessionId,
+            context,
+            actionType: 'chat_tool_execute',
+            metadata: {
+              conversationId,
+              toolName: rawCall.name,
+              status: 'error',
+              durationMs: Date.now() - toolStart,
+              errorType: error instanceof Error ? error.name : 'UnknownError',
+            },
           });
         }
       }

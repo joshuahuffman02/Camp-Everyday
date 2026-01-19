@@ -210,6 +210,8 @@ export function useChatStreamSse({
 
   const messagesRef = useRef(messages);
   const streamingMessageIdRef = useRef<string | null>(null);
+  const hasStreamedTextRef = useRef(false);
+  const hasMetaContentRef = useRef(false);
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -229,6 +231,8 @@ export function useChatStreamSse({
   const ensureStreamingMessage = useCallback(
     (meta?: ChatStreamMeta) => {
       if (streamingMessageIdRef.current) return;
+      hasStreamedTextRef.current = false;
+      hasMetaContentRef.current = false;
       const id = meta?.messageId ?? `assistant_${Date.now()}`;
       streamingMessageIdRef.current = id;
       setMessages((prev) => [
@@ -258,9 +262,15 @@ export function useChatStreamSse({
         setConversationId(meta.conversationId);
       }
       ensureStreamingMessage(meta);
+      if (typeof meta.content === "string" && meta.content.length > 0 && !hasStreamedTextRef.current) {
+        hasMetaContentRef.current = true;
+      }
       updateStreamingMessage((message) => ({
         ...message,
-        content: meta.content ?? message.content,
+        content:
+          typeof meta.content === "string" && meta.content.length > 0 && !hasStreamedTextRef.current
+            ? meta.content
+            : message.content,
         toolCalls: meta.toolCalls ?? message.toolCalls,
         toolResults: meta.toolResults ?? message.toolResults,
         actionRequired: meta.actionRequired ?? message.actionRequired,
@@ -278,7 +288,9 @@ export function useChatStreamSse({
 
   const handleText = useCallback(
     (value: string) => {
+      if (hasMetaContentRef.current) return;
       ensureStreamingMessage();
+      hasStreamedTextRef.current = true;
       updateStreamingMessage((message) => ({
         ...message,
         content: `${message.content}${value}`,
@@ -388,6 +400,8 @@ export function useChatStreamSse({
               setIsTyping(false);
               setIsSending(false);
               streamingMessageIdRef.current = null;
+              hasStreamedTextRef.current = false;
+              hasMetaContentRef.current = false;
             }
           }
         }
@@ -395,11 +409,15 @@ export function useChatStreamSse({
         setIsTyping(false);
         setIsSending(false);
         streamingMessageIdRef.current = null;
+        hasStreamedTextRef.current = false;
+        hasMetaContentRef.current = false;
       } catch (error) {
         setIsConnected(false);
         setIsTyping(false);
         setIsSending(false);
         streamingMessageIdRef.current = null;
+        hasStreamedTextRef.current = false;
+        hasMetaContentRef.current = false;
         const errorMessage: UnifiedChatMessage = {
           id: `error_${Date.now()}`,
           role: "system",
@@ -438,6 +456,7 @@ export function useChatStreamSse({
             conversationId,
             actionId,
             selectedOption: optionId,
+            sessionId,
           }),
         });
 

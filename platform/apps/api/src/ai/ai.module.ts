@@ -52,6 +52,7 @@ import { SeasonalRatesModule } from '../seasonal-rates/seasonal-rates.module';
 import { OperationsModule } from '../operations/operations.module';
 import { EmailModule } from '../email/email.module';
 import { AnomaliesModule } from '../anomalies/anomalies.module';
+import { AdminModule } from "../admin/admin.module";
 
 @Module({
   imports: [
@@ -68,6 +69,7 @@ import { AnomaliesModule } from '../anomalies/anomalies.module';
     forwardRef(() => SeasonalRatesModule),
     EmailModule,
     AnomaliesModule,
+    AdminModule,
   ],
   controllers: [AiController, AiAutopilotController, AiMonitoringController, AiUiBuilderController],
   providers: [

@@ -384,6 +384,7 @@ export function useChatStream({ campgroundId, isGuest, guestId, authToken, sessi
         headers: getHeaders(),
         body: JSON.stringify({
           conversationId: conversationIdRef.current,
+          sessionId,
           message: payload.message,
           attachments: payload.attachments,
           visibility: payload.visibility,
@@ -478,6 +479,7 @@ export function useChatStream({ campgroundId, isGuest, guestId, authToken, sessi
           conversationId: currentConversationId,
           actionId,
           selectedOption: optionId,
+          sessionId,
         }),
       });
 

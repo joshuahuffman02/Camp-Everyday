@@ -4,6 +4,8 @@
 
 ### Security
 - Upgrade Node.js runtime to 25.3.0 to include the async_hooks stack overflow DoS mitigation.
+- Enforce role-scoped access on staff chat endpoints and add rate limits for public/support AI chat.
+- Add guest consent/opt-out endpoints with hashed IP capture for AI chat consent records.
 
 ### Fixed
 - Finalize campground onboarding launch by setting bookability and ensuring an owner membership is present.
@@ -33,10 +35,13 @@
 - Harden nested long-response scroll containment to reduce page scroll bleed when message content scrolls.
 - Capture non-passive wheel/touch scroll events in the chat message list to prevent page scroll bleed on trackpad/touch.
 - Guard staff chat autoscroll and surface a jump-to-latest control for long responses.
+- Prevent SSE chat responses from duplicating content when meta and text chunks are emitted together.
+- Add tool result fact blocks in chat prompts to reduce contradictory KPI summaries.
 - Stabilize analytics and gamification smoke tests by avoiding networkidle waits and aligning routes/UI selectors.
 - Align staff/admin dashboard navigation spacing, including admin mobile header controls, with the desktop sidebar spacing guide.
 - Chat tool cards now render availability/balance/task summaries even when tool outputs include a message string.
 - Fix API OpenTelemetry bootstrap to use resource helpers compatible with the current SDK and tighten chat task query typing.
+- Redact PII from chat tool execution logs.
 
 ### Added
 - Onboarding import checklist with system-specific export prompts, coverage tracking, and warning override.
@@ -74,6 +79,12 @@
 - Staff chat approvals now include short action summaries, and staff can manage site holds via chat tools.
 - Chat now supports reservation change requests for guests and open task summaries for staff.
 - Chat tool mutations now emit audit log entries for traceability.
+- Chat telemetry now tracks message sends, tool executions, action approvals, and stream latency/error signals via session IDs.
+- Public/staff/guest chat payloads now propagate session IDs for engagement tracking and consent flows.
+- AI cost tracking now emits budget warning signals when usage approaches monthly caps.
+- Chat surfaces now honor feature flags by surface/campground (`chat_widget_staff`, `chat_widget_portal`, `chat_widget_public`, `chat_widget_support`).
+- Added Playwright coverage for chat streaming, attachments, public booking flows, and staff action approvals.
+- Added k6 load test script for peak chat traffic (`platform/docs/phase3/k6-chat-arrivals.js`).
 
 #### Phase 1: Pricing & Payments
 - **Dynamic Pricing Engine** (`/pricing-v2`)

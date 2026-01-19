@@ -331,7 +331,7 @@ export function ChatWidget({
     }
   }, [isOpen, initialMessage, messages.length, sendMessage]);
 
-  const clearAttachments = () => {
+  const clearAttachments = useCallback(() => {
     setAttachmentItems((prev) => {
       prev.forEach((item) => {
         if (item.previewUrl) {
@@ -340,7 +340,7 @@ export function ChatWidget({
       });
       return [];
     });
-  };
+  }, [setAttachmentItems]);
 
   const removeAttachment = (id: string) => {
     setAttachmentItems((prev) => {
@@ -466,7 +466,7 @@ export function ChatWidget({
       });
   };
 
-  const handleSend = () => {
+  const handleSend = useCallback(() => {
     if (!canSend) return;
     const visibility = showVisibilityToggle ? visibilityRef.current : undefined;
     sendMessage(trimmedInput, {
@@ -475,50 +475,50 @@ export function ChatWidget({
     });
     setInput("");
     clearAttachments();
-  };
+  }, [canSend, clearAttachments, readyAttachments, sendMessage, showVisibilityToggle, trimmedInput]);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
-  };
+  }, [handleSend]);
 
-  const handleQuickAction = (action: string) => {
+  const handleQuickAction = useCallback((action: string) => {
     visibilityRef.current = "public";
     setMessageVisibility("public");
     sendMessage(action, { visibility: "public" });
-  };
+  }, [sendMessage, setMessageVisibility]);
 
-  const handleQuickReply = (question: string) => {
+  const handleQuickReply = useCallback((question: string) => {
     visibilityRef.current = "public";
     setMessageVisibility("public");
     setInput(question);
     inputRef.current?.focus();
-  };
+  }, [setInput, setMessageVisibility]);
 
-  const handleEditMessage = (_messageId: string, content: string) => {
+  const handleEditMessage = useCallback((_messageId: string, content: string) => {
     setInput(content);
     inputRef.current?.focus();
-  };
+  }, [setInput]);
 
-  const handleRegenerate = (messageId: string) => {
+  const handleRegenerate = useCallback((messageId: string) => {
     regenerateMessage(messageId);
-  };
+  }, [regenerateMessage]);
 
-  const handleFeedback = (messageId: string, value: "up" | "down") => {
+  const handleFeedback = useCallback((messageId: string, value: "up" | "down") => {
     setFeedbackById((prev) => ({
       ...prev,
       [messageId]: value,
     }));
     submitFeedback(messageId, value);
-  };
+  }, [submitFeedback]);
 
-  const handleActionSelect = (actionId: string, optionId: string) => {
+  const handleActionSelect = useCallback((actionId: string, optionId: string) => {
     executeAction(actionId, optionId);
-  };
+  }, [executeAction]);
 
-  const handleToggleHistory = () => {
+  const handleToggleHistory = useCallback(() => {
     setShowHistory((prev) => {
       const next = !prev;
       if (next) {
@@ -527,20 +527,20 @@ export function ChatWidget({
       }
       return next;
     });
-  };
+  }, [setHistoryView, setShowArtifacts, setShowHistory]);
 
-  const handleToggleArtifacts = () => {
+  const handleToggleArtifacts = useCallback(() => {
     setShowArtifacts((prev) => {
       const next = !prev;
       if (next) setShowHistory(false);
       return next;
     });
-  };
+  }, [setShowArtifacts, setShowHistory]);
 
-  const handleShowArtifacts = () => {
+  const handleShowArtifacts = useCallback(() => {
     setShowHistory(false);
     setShowArtifacts(true);
-  };
+  }, [setShowArtifacts, setShowHistory]);
 
   const latestReportMessageId = useMemo(() => {
     for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -555,16 +555,16 @@ export function ChatWidget({
     return null;
   }, [messages]);
 
-  const handleSearchChange = (value: string) => {
+  const handleSearchChange = useCallback((value: string) => {
     setConversationQuery(value);
     if (historyView !== "list") {
       setHistoryView("list");
     }
-  };
+  }, [historyView]);
 
-  const handleFilterChange = (id: string) => {
+  const handleFilterChange = useCallback((id: string) => {
     setConversationFilterId(id);
-  };
+  }, [setConversationFilterId]);
 
   const accent: ChatAccent = isGuest ? "guest" : "staff";
   const quickActions = isGuest ? PROMPTS.guest : PROMPTS.staff;

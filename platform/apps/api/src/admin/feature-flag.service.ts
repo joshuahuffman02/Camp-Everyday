@@ -53,6 +53,16 @@ export class FeatureFlagService {
         }));
     }
 
+    async isEnabledOrDefault(
+        key: string,
+        campgroundId?: string,
+        defaultEnabled: boolean = true
+    ): Promise<boolean> {
+        const flag = await this.findByKey(key);
+        if (!flag) return defaultEnabled;
+        return this.isFlagEnabled(flag, campgroundId);
+    }
+
     async create(data: FeatureFlagCreateInput) {
         return this.prisma.featureFlag.create({
             data: {

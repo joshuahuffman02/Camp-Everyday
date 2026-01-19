@@ -7,6 +7,7 @@ import { randomUUID } from 'crypto';
 import type { Request } from "express";
 import { AuditService } from '../audit/audit.service';
 import { HoldsService } from '../holds/holds.service';
+import { AiPrivacyService } from '../ai/ai-privacy.service';
 
 // Date string validation (YYYY-MM-DD format)
 const dateStringSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format. Use YYYY-MM-DD');
@@ -391,6 +392,7 @@ export class ChatToolsService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly holds: HoldsService,
+    private readonly privacy: AiPrivacyService,
   ) {
     this.registerTools();
   }
@@ -2819,6 +2821,25 @@ export class ChatToolsService {
   /**
    * Execute a tool
    */
+  private redactLogValue(value: unknown, depth = 0): unknown {
+    if (depth > 4) return '[truncated]';
+    if (typeof value === 'string') {
+      const { anonymizedText } = this.privacy.anonymize(value, 'minimal');
+      return anonymizedText.length > 180 ? `${anonymizedText.slice(0, 180)}...` : anonymizedText;
+    }
+    if (!isRecord(value)) {
+      if (Array.isArray(value)) {
+        return value.slice(0, 10).map((entry) => this.redactLogValue(entry, depth + 1));
+      }
+      return value;
+    }
+    const result: Record<string, unknown> = {};
+    for (const [key, entry] of Object.entries(value)) {
+      result[key] = this.redactLogValue(entry, depth + 1);
+    }
+    return result;
+  }
+
   async executeTool(
     name: string,
     args: Record<string, unknown>,
@@ -2852,7 +2873,8 @@ export class ChatToolsService {
       }
     }
 
-    this.logger.log(`Executing tool: ${name} with args: ${JSON.stringify(args)}`);
+    const redactedArgs = this.redactLogValue(args);
+    this.logger.log(`Executing tool: ${name} with args: ${JSON.stringify(redactedArgs)}`);
 
     const result = await tool.execute(args, context, this.prisma);
     await this.recordToolAudit(name, args, context, result);
@@ -3026,6 +3048,15 @@ export class ChatToolsService {
           ? ` starting ${args.startDate}`
           : '';
         return `Block ${siteName}${dateInfo} for "${args.reason}"?`;
+      }
+      case 'create_hold': {
+        const siteName = getString(args._siteName) ?? getString(args.siteName) ?? getString(args.siteId);
+        const arrivalDate = getString(args.arrivalDate);
+        const departureDate = getString(args.departureDate);
+        if (siteName && arrivalDate && departureDate) {
+          return `Place a hold on ${siteName} from ${arrivalDate} to ${departureDate}?`;
+        }
+        return 'Place a temporary site hold?';
       }
       default:
         return `Execute ${toolName}?`;

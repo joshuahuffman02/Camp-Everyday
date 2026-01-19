@@ -181,6 +181,7 @@ export function useChat({ campgroundId, isGuest, guestId, authToken, sessionId }
         headers: getHeaders(),
         body: JSON.stringify({
           conversationId,
+          sessionId,
           message: payload.message,
           attachments: payload.attachments,
           visibility: payload.visibility,
@@ -265,6 +266,7 @@ export function useChat({ campgroundId, isGuest, guestId, authToken, sessionId }
           conversationId,
           actionId,
           selectedOption: optionId,
+          sessionId,
         }),
       });
 
