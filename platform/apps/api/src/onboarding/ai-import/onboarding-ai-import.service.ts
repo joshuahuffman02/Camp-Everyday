@@ -2,6 +2,14 @@ import { Injectable, Logger, BadRequestException, NotFoundException } from '@nes
 import { PrismaService } from '../../prisma/prisma.service';
 import { OnboardingTokenGateService } from '../onboarding-token-gate.service';
 import { DocumentClassifierService, ClassificationResult, TargetEntity } from './document-classifier.service';
+import {
+    COVERAGE_REQUIREMENTS,
+    IMPORT_SYSTEMS,
+    resolveImportSystem,
+    type CoverageGroupKey,
+    type CoverageStatus,
+    type OnboardingImportSystemKey,
+} from './onboarding-import-requirements';
 import { ImportDraftStatus, Prisma, SiteType } from '@prisma/client';
 import OpenAI from 'openai';
 import { v4 as uuidv4 } from 'uuid';
@@ -126,6 +134,43 @@ export interface UploadResult {
     status: ImportDraftStatus;
 }
 
+type CoverageGroupSummary = {
+    key: CoverageGroupKey;
+    label: string;
+    description: string;
+    required: boolean;
+    status: CoverageStatus;
+    missingFields: string[];
+    matchedFields: string[];
+};
+
+type CoverageFormSummary = {
+    key: string;
+    label: string;
+    description: string;
+    covers: CoverageGroupKey[];
+    fileTypes: string[];
+    status: CoverageStatus;
+    missingCoverage: CoverageGroupKey[];
+};
+
+type CoverageDocumentSummary = {
+    documentId: string;
+    fileName: string | null;
+    targetEntity: string;
+    status: ImportDraftStatus;
+    createdAt: Date;
+};
+
+export type CoverageSummary = {
+    system: { key: OnboardingImportSystemKey; label: string };
+    systems: Array<{ key: OnboardingImportSystemKey; label: string }>;
+    coverage: CoverageGroupSummary[];
+    forms: CoverageFormSummary[];
+    requiredComplete: boolean;
+    documents: CoverageDocumentSummary[];
+};
+
 type DraftPreview = {
     documentId: string;
     fileName: string | null;
@@ -236,7 +281,9 @@ export class OnboardingAiImportService {
         const documentType = this.classifier.detectDocumentType(file.originalname, file.mimetype);
 
         // Save file to temp storage
-        const filePath = path.join(this.uploadDir, `${sessionId}_${documentId}_${file.originalname}`);
+        const baseName = path.basename(file.originalname || "upload");
+        const safeName = baseName.replace(/[^a-zA-Z0-9._-]/g, "_") || "upload";
+        const filePath = path.join(this.uploadDir, `${sessionId}_${documentId}_${safeName}`);
         fs.writeFileSync(filePath, file.buffer);
 
         // Parse content based on type
@@ -511,6 +558,131 @@ export class OnboardingAiImportService {
         };
     }
 
+    async getCoverageSummary(sessionId: string, systemKey?: string): Promise<CoverageSummary> {
+        const system = resolveImportSystem(systemKey);
+        const systems = IMPORT_SYSTEMS.map((option) => ({
+            key: option.key,
+            label: option.label,
+        }));
+
+        const drafts = await this.prisma.onboardingImportDraft.findMany({
+            where: { sessionId },
+            select: {
+                documentId: true,
+                fileName: true,
+                targetEntity: true,
+                status: true,
+                createdAt: true,
+                extractedData: true,
+            },
+            orderBy: { createdAt: 'desc' },
+        });
+
+        const columnsByEntity = new Map<TargetEntity, Set<string>>();
+        for (const draft of drafts) {
+            if (!isTargetEntity(draft.targetEntity)) continue;
+            const extractedData = this.parseExtractedData(draft.extractedData);
+            if (extractedData.columns.length === 0) continue;
+            const existing = columnsByEntity.get(draft.targetEntity) ?? new Set<string>();
+            for (const column of extractedData.columns) {
+                existing.add(column);
+            }
+            columnsByEntity.set(draft.targetEntity, existing);
+        }
+
+        const collectColumns = (entities: TargetEntity[]) => {
+            const normalized = new Set<string>();
+            for (const entity of entities) {
+                const columns = columnsByEntity.get(entity);
+                if (!columns) continue;
+                for (const column of columns) {
+                    const normalizedColumn = this.normalizeCoverageColumn(column);
+                    if (normalizedColumn) normalized.add(normalizedColumn);
+                }
+            }
+            return Array.from(normalized);
+        };
+
+        const coverage: CoverageGroupSummary[] = COVERAGE_REQUIREMENTS.map((requirement) => {
+            const normalizedColumns = collectColumns(requirement.entities);
+            const missingFields: string[] = [];
+            const matchedFields: string[] = [];
+
+            for (const field of requirement.fields) {
+                const aliases = field.aliases.map((alias) => this.normalizeCoverageColumn(alias));
+                const hasMatch = normalizedColumns.some((column) =>
+                    aliases.some((alias) => column.includes(alias) || alias.includes(column))
+                );
+                if (hasMatch) {
+                    matchedFields.push(field.label);
+                } else {
+                    missingFields.push(field.label);
+                }
+            }
+
+            let status: CoverageStatus = 'missing';
+            if (matchedFields.length === requirement.fields.length) {
+                status = 'complete';
+            } else if (matchedFields.length > 0) {
+                status = 'partial';
+            }
+
+            return {
+                key: requirement.key,
+                label: requirement.label,
+                description: requirement.description,
+                required: requirement.required,
+                status,
+                missingFields,
+                matchedFields,
+            };
+        });
+
+        const coverageByKey = new Map<CoverageGroupKey, CoverageGroupSummary>(
+            coverage.map((group) => [group.key, group])
+        );
+
+        const forms: CoverageFormSummary[] = system.forms.map((form) => {
+            const missingCoverage = form.covers.filter((key) => coverageByKey.get(key)?.status !== 'complete');
+            let status: CoverageStatus = 'missing';
+            if (missingCoverage.length === 0) {
+                status = 'complete';
+            } else if (missingCoverage.length < form.covers.length) {
+                status = 'partial';
+            }
+            return {
+                key: form.key,
+                label: form.label,
+                description: form.description,
+                covers: form.covers,
+                fileTypes: form.fileTypes,
+                status,
+                missingCoverage,
+            };
+        });
+
+        const requiredComplete = coverage
+            .filter((group) => group.required)
+            .every((group) => group.status === 'complete');
+
+        const documents: CoverageDocumentSummary[] = drafts.map((draft) => ({
+            documentId: draft.documentId,
+            fileName: draft.fileName ?? null,
+            targetEntity: draft.targetEntity,
+            status: draft.status,
+            createdAt: draft.createdAt,
+        }));
+
+        return {
+            system: { key: system.key, label: system.label },
+            systems,
+            coverage,
+            forms,
+            requiredComplete,
+            documents,
+        };
+    }
+
     /**
      * Apply corrections and confirm import
      */
@@ -719,6 +891,14 @@ Be concise and helpful. If users want to change data, explain how to use the inl
         const summary = isExtractionSummary(value.summary) ? value.summary : null;
 
         return { columns, columnMapping, rows, summary };
+    }
+
+    private normalizeCoverageColumn(value: string): string {
+        return value
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, '_')
+            .replace(/_+/g, '_')
+            .replace(/^_+|_+$/g, '');
     }
 
     private coerceFieldValue(value: unknown): FieldValue {

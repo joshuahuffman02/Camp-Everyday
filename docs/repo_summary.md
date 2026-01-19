@@ -21,6 +21,7 @@ Keepr is a pnpm 7.33.6 workspace that pairs a NestJS API (`platform/apps/api`) w
 - `pnpm prisma:reset-seed` resets migrations, generates Prisma client, and seeds optional data.
 - CI helpers include `pnpm ci`, `pnpm ci:sdk`, and `pnpm ci:e2e` for linting, API smoke tests, SDK tests, builds, budgets, and Playwright runs.
 - Deployments use Dockerfiles at the root and inside `platform/services/*`, and `vercel.json` maps `/api/*` to the NestJS serverless bundle while serving the web app from `platform/apps/web`.
+- `scripts/status.sh` prints the local Codex model/sandbox snapshot; `/status` can be symlinked to it for agent workflow parity.
 
 ## Environment
 - `platform/apps/api/.env` needs `PLATFORM_DATABASE_URL`, optional `PLATFORM_REDIS_URL`, and `JWT_SECRET`.

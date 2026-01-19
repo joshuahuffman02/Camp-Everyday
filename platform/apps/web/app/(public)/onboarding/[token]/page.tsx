@@ -13,7 +13,7 @@ import type { ParkProfileData } from "./steps/ParkProfile";
 import { OperationalHours, OperationalHoursData } from "./steps/OperationalHours";
 import { StripeConnect } from "./steps/StripeConnect";
 import { ImportOrManual } from "./steps/ImportOrManual";
-import { DataImport } from "./steps/DataImport";
+import { DataImport, type DataImportCompletion, type DataImportDraft } from "./steps/DataImport";
 import { SiteClasses, type SiteClassData } from "./steps/SiteClasses";
 import { SitesBuilder, type SiteData } from "./steps/SitesBuilder";
 import { RatePeriods, RatePeriod } from "./steps/RatePeriods";
@@ -112,6 +112,14 @@ interface WizardState {
   bookingRules?: BookingRulesData;
   waiversDocuments?: WaiversDocumentsData;
   communicationSetup?: CommunicationSetupData;
+  dataImport?: {
+    importSystemKey?: string;
+    overrideAccepted?: boolean;
+    requiredComplete?: boolean;
+    missingRequired?: Array<{ key: string; missingFields: string[] }>;
+    sitesCreated?: number;
+    siteClassesCreated?: number;
+  };
   // Menu and feature discovery
   pinnedPages?: string[];
   completedFeatures?: string[];
@@ -193,6 +201,25 @@ const getArrayField = (record: Record<string, unknown> | undefined, key: string)
   if (!record) return undefined;
   const value = record[key];
   return Array.isArray(value) ? value : undefined;
+};
+
+const isMissingRequiredEqual = (
+  left?: Array<{ key: string; missingFields: string[] }>,
+  right?: Array<{ key: string; missingFields: string[] }>
+) => {
+  if (left === right) return true;
+  if (!left || !right) return false;
+  if (left.length !== right.length) return false;
+  for (let i = 0; i < left.length; i += 1) {
+    const leftEntry = left[i];
+    const rightEntry = right[i];
+    if (leftEntry.key !== rightEntry.key) return false;
+    if (leftEntry.missingFields.length !== rightEntry.missingFields.length) return false;
+    for (let j = 0; j < leftEntry.missingFields.length; j += 1) {
+      if (leftEntry.missingFields[j] !== rightEntry.missingFields[j]) return false;
+    }
+  }
+  return true;
 };
 
 const isRatePeriodDateRange = (value: unknown): value is RatePeriod["dateRanges"][number] =>
@@ -542,25 +569,73 @@ export default function OnboardingPage() {
       getString(data.inventoryPath);
     const inventoryPathData =
       inventoryPathRaw === "import" || inventoryPathRaw === "manual" ? inventoryPathRaw : null;
-
-    const operationalHoursRaw =
-      getRecord(data.operational_hours) ?? getRecord(data.operationalHours);
-    const operationalHoursData = isOperationalHoursData(operationalHoursRaw)
-      ? operationalHoursRaw
+    const dataImportRecord = getRecord(data.data_import);
+    const missingRequiredRaw = dataImportRecord
+      ? getArrayField(dataImportRecord, "missingRequired")
+      : undefined;
+    const missingRequiredData = missingRequiredRaw
+      ? missingRequiredRaw
+          .map((entry) => {
+            const record = getRecord(entry);
+            if (!record) return null;
+            const key = getString(record.key);
+            const missingFields = (getArrayField(record, "missingFields") || []).filter(
+              isString
+            );
+            if (!key) return null;
+            return { key, missingFields };
+          })
+          .filter(
+            (entry): entry is { key: string; missingFields: string[] } => entry !== null
+          )
+      : undefined;
+    const dataImportData = dataImportRecord
+      ? {
+          importSystemKey: getString(dataImportRecord.importSystemKey),
+          overrideAccepted: isBoolean(dataImportRecord.overrideAccepted)
+            ? dataImportRecord.overrideAccepted
+            : undefined,
+          requiredComplete: isBoolean(dataImportRecord.requiredComplete)
+            ? dataImportRecord.requiredComplete
+            : undefined,
+          missingRequired: missingRequiredData,
+          sitesCreated: isNumber(dataImportRecord.sitesCreated)
+            ? dataImportRecord.sitesCreated
+            : undefined,
+          siteClassesCreated: isNumber(dataImportRecord.siteClassesCreated)
+            ? dataImportRecord.siteClassesCreated
+            : undefined,
+        }
       : undefined;
 
-    const bookingRulesRaw =
+    const operationalHoursRecord =
+      getRecord(data.operational_hours) ?? getRecord(data.operationalHours);
+    const operationalHoursCandidate =
+      getRecordField(operationalHoursRecord, "operationalHours") ?? operationalHoursRecord;
+    const operationalHoursData = isOperationalHoursData(operationalHoursCandidate)
+      ? operationalHoursCandidate
+      : undefined;
+
+    const bookingRulesRecord =
       getRecord(data.booking_rules) ?? getRecord(data.bookingRules);
-    const bookingRulesData = isBookingRulesData(bookingRulesRaw) ? bookingRulesRaw : undefined;
+    const bookingRulesCandidate =
+      getRecordField(bookingRulesRecord, "bookingRules") ?? bookingRulesRecord;
+    const bookingRulesData = isBookingRulesData(bookingRulesCandidate) ? bookingRulesCandidate : undefined;
 
-    const waiversDocumentsRaw =
+    const waiversDocumentsRecord =
       getRecord(data.waivers_documents) ?? getRecord(data.waiversDocuments);
-    const waiversDocumentsData = isWaiversDocumentsData(waiversDocumentsRaw) ? waiversDocumentsRaw : undefined;
+    const waiversDocumentsCandidate =
+      getRecordField(waiversDocumentsRecord, "waiversDocuments") ?? waiversDocumentsRecord;
+    const waiversDocumentsData = isWaiversDocumentsData(waiversDocumentsCandidate)
+      ? waiversDocumentsCandidate
+      : undefined;
 
-    const communicationSetupRaw =
+    const communicationSetupRecord =
       getRecord(data.communication_setup) ?? getRecord(data.communicationSetup);
-    const communicationSetupData = isCommunicationSetupData(communicationSetupRaw)
-      ? communicationSetupRaw
+    const communicationSetupCandidate =
+      getRecordField(communicationSetupRecord, "communicationSetup") ?? communicationSetupRecord;
+    const communicationSetupData = isCommunicationSetupData(communicationSetupCandidate)
+      ? communicationSetupCandidate
       : undefined;
 
     const smartQuizRaw = getRecord(data.smart_quiz);
@@ -624,6 +699,7 @@ export default function OnboardingPage() {
       bookingRules: bookingRulesData,
       waiversDocuments: waiversDocumentsData,
       communicationSetup: communicationSetupData,
+      dataImport: dataImportData,
       smartQuiz: smartQuizData,
       featureTriage: featureTriageData,
       featureRecommendations: featureRecommendationsData,
@@ -697,6 +773,41 @@ export default function OnboardingPage() {
       currentStep: step,
       direction,
     }));
+  }, []);
+
+  const handleDataImportDraftChange = useCallback((draft: DataImportDraft) => {
+    setState((prev) => {
+      const existing = prev.dataImport ?? {};
+      const next = {
+        ...existing,
+        importSystemKey: draft.importSystemKey,
+        overrideAccepted: draft.overrideAccepted,
+      };
+      if (draft.requiredComplete !== undefined) {
+        next.requiredComplete = draft.requiredComplete;
+      }
+      if (draft.missingRequired !== undefined) {
+        next.missingRequired = draft.missingRequired;
+      }
+
+      const requiredCompleteUnchanged =
+        draft.requiredComplete === undefined || existing.requiredComplete === next.requiredComplete;
+      const missingRequiredUnchanged =
+        draft.missingRequired === undefined ||
+        isMissingRequiredEqual(existing.missingRequired, next.missingRequired);
+      if (
+        existing.importSystemKey === next.importSystemKey &&
+        existing.overrideAccepted === next.overrideAccepted &&
+        requiredCompleteUnchanged &&
+        missingRequiredUnchanged
+      ) {
+        return prev;
+      }
+      return {
+        ...prev,
+        dataImport: next,
+      };
+    });
   }, []);
 
   const completeStep = useCallback((step: OnboardingStepKey) => {
@@ -890,10 +1001,30 @@ export default function OnboardingPage() {
     }, 2000);
   };
 
-  const handleDataImportComplete = (result: { sitesCreated: number; siteClassesCreated: number }) => {
+  const handleDataImportComplete = async (result: DataImportCompletion) => {
+    await saveMutation.mutateAsync({
+      step: "data_import",
+      data: {
+        importSystemKey: result.importSystemKey,
+        overrideAccepted: result.overrideAccepted,
+        requiredComplete: result.requiredComplete,
+        missingRequired: result.missingRequired,
+        sitesCreated: result.sitesCreated,
+        siteClassesCreated: result.siteClassesCreated,
+      },
+    });
+
     // Update state with imported data counts
     setState((prev) => ({
       ...prev,
+      dataImport: {
+        importSystemKey: result.importSystemKey,
+        overrideAccepted: result.overrideAccepted,
+        requiredComplete: result.requiredComplete,
+        missingRequired: result.missingRequired,
+        sitesCreated: result.sitesCreated,
+        siteClassesCreated: result.siteClassesCreated,
+      },
       sites: Array(result.sitesCreated).fill({ id: "imported", name: "", siteNumber: "", siteClassId: "" }),
       siteClasses: prev.siteClasses || Array(result.siteClassesCreated).fill({ id: "imported", name: "", siteType: "", defaultRate: 0 }),
     }));
@@ -994,7 +1125,7 @@ export default function OnboardingPage() {
   const handleOperationalHoursSave = async (data: OperationalHoursData) => {
     await saveMutation.mutateAsync({
       step: "operational_hours",
-      data: { operationalHours: data },
+      data: { ...data },
     });
     setState((prev) => ({
       ...prev,
@@ -1007,7 +1138,7 @@ export default function OnboardingPage() {
   const handleBookingRulesSave = async (data: BookingRulesData) => {
     await saveMutation.mutateAsync({
       step: "booking_rules",
-      data: { bookingRules: data },
+      data: { ...data },
     });
     setState((prev) => ({
       ...prev,
@@ -1038,7 +1169,7 @@ export default function OnboardingPage() {
   const handleWaiversDocumentsSave = async (data: WaiversDocumentsData) => {
     await saveMutation.mutateAsync({
       step: "waivers_documents",
-      data: { waiversDocuments: data },
+      data: { ...data },
     });
     setState((prev) => ({
       ...prev,
@@ -1092,7 +1223,7 @@ export default function OnboardingPage() {
   const handleCommunicationSetupSave = async (data: CommunicationSetupData) => {
     await saveMutation.mutateAsync({
       step: "communication_setup",
-      data: { communicationSetup: data },
+      data: { ...data },
     });
     setState((prev) => ({
       ...prev,
@@ -1425,6 +1556,17 @@ export default function OnboardingPage() {
               // Skip import and go to manual site class creation
               goToStep("site_classes");
             }}
+            onDraftChange={handleDataImportDraftChange}
+            initialSystemKey={state.dataImport?.importSystemKey}
+            initialOverrideAccepted={state.dataImport?.overrideAccepted}
+            initialImportTotals={
+              state.dataImport
+                ? {
+                    sitesCreated: state.dataImport.sitesCreated ?? 0,
+                    siteClassesCreated: state.dataImport.siteClassesCreated ?? 0,
+                  }
+                : undefined
+            }
           />
         );
 
@@ -1735,6 +1877,7 @@ export default function OnboardingPage() {
               id: sc.id,
               name: sc.name,
             }))}
+            dataImport={state.dataImport}
           />
         );
 

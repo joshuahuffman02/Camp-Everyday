@@ -128,6 +128,24 @@ export class OnboardingAiImportController {
     }
 
     /**
+     * Get coverage summary for required onboarding imports
+     */
+    @Get('coverage')
+    async getCoverage(
+        @Param('sessionId') sessionId: string,
+        @Headers('x-onboarding-token') tokenHeader: string,
+        @Query('token') tokenQuery: string,
+        @Query('system') systemKey?: string,
+    ) {
+        const token = this.getToken(tokenHeader, tokenQuery);
+
+        // Validate session
+        await this.onboarding.getSession(sessionId, token);
+
+        return this.aiImport.getCoverageSummary(sessionId, systemKey);
+    }
+
+    /**
      * Confirm and execute the import
      */
     @Post('confirm')

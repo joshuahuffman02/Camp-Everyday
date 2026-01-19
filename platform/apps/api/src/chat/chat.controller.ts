@@ -10,18 +10,25 @@ import {
   Param,
   HttpCode,
   HttpStatus,
+  BadRequestException,
 } from '@nestjs/common';
 import type { Request as ExpressRequest } from "express";
 import { AuthGuard } from '@nestjs/passport';
 import { Throttle } from '@nestjs/throttler';
 import { ChatService } from './chat.service';
+import { UploadsService } from '../uploads/uploads.service';
 import { SendMessageDto, ChatMessageResponse } from './dto/send-message.dto';
 import { ExecuteActionDto, ExecuteActionResponse } from './dto/execute-action.dto';
 import { GetHistoryDto, ConversationHistoryResponse } from './dto/get-history.dto';
+import { GetConversationsDto, ConversationListResponse } from './dto/get-conversations.dto';
+import { SubmitFeedbackDto, SubmitFeedbackResponse } from './dto/submit-feedback.dto';
+import { RegenerateMessageDto } from './dto/regenerate-message.dto';
+import { SignChatAttachmentDto, SignChatAttachmentResponse } from './dto/sign-attachment.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ScopeGuard } from '../auth/guards/scope.guard';
 import { ChatParticipantType, Guest } from '@prisma/client';
 import type { AuthUser } from "../auth/auth.types";
+import * as path from "path";
 
 // Types for authenticated staff requests
 type StaffAuthenticatedRequest = Omit<ExpressRequest, "user"> & { user: AuthUser };
@@ -29,11 +36,24 @@ type StaffAuthenticatedRequest = Omit<ExpressRequest, "user"> & { user: AuthUser
 // Types for authenticated guest requests
 type GuestAuthenticatedRequest = Omit<ExpressRequest, "user"> & { user: Guest };
 
+const CHAT_ATTACHMENT_ALLOWED_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.pdf'];
+const CHAT_ATTACHMENT_ALLOWED_CONTENT_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'application/pdf',
+];
+const CHAT_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024;
+
 @Controller('chat')
 export class ChatController {
   private readonly logger = new Logger(ChatController.name);
 
-  constructor(private readonly chatService: ChatService) {}
+  constructor(
+    private readonly chatService: ChatService,
+    private readonly uploads: UploadsService,
+  ) {}
 
   /**
    * Get staff role for campground from memberships
@@ -41,6 +61,34 @@ export class ChatController {
   private getStaffRole(req: StaffAuthenticatedRequest, campgroundId: string): string | undefined {
     const membership = req.user.memberships?.find(m => m.campgroundId === campgroundId);
     return membership?.role ?? req.user.role ?? undefined;
+  }
+
+  private validateAttachmentPayload(dto: SignChatAttachmentDto) {
+    if (dto.size > CHAT_ATTACHMENT_MAX_BYTES) {
+      throw new BadRequestException("Attachment too large");
+    }
+
+    const ext = path.extname(dto.filename).toLowerCase();
+    if (!CHAT_ATTACHMENT_ALLOWED_EXTENSIONS.includes(ext)) {
+      throw new BadRequestException("Attachment type not allowed");
+    }
+
+    if (!CHAT_ATTACHMENT_ALLOWED_CONTENT_TYPES.includes(dto.contentType)) {
+      throw new BadRequestException("Attachment content type not allowed");
+    }
+
+    const extensionContentTypeMap: Record<string, string[]> = {
+      '.jpg': ['image/jpeg'],
+      '.jpeg': ['image/jpeg'],
+      '.png': ['image/png'],
+      '.gif': ['image/gif'],
+      '.webp': ['image/webp'],
+      '.pdf': ['application/pdf'],
+    };
+    const allowedTypesForExt = extensionContentTypeMap[ext] ?? [];
+    if (!allowedTypesForExt.includes(dto.contentType)) {
+      throw new BadRequestException("Attachment content type does not match file extension");
+    }
   }
 
   /**
@@ -95,6 +143,37 @@ export class ChatController {
   }
 
   /**
+   * Staff attachment sign endpoint
+   * POST /chat/campgrounds/:campgroundId/attachments/sign
+   */
+  @Post('/campgrounds/:campgroundId/attachments/sign')
+  @UseGuards(JwtAuthGuard, ScopeGuard)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  @HttpCode(HttpStatus.OK)
+  async signStaffAttachment(
+    @Param('campgroundId') campgroundId: string,
+    @Body() dto: SignChatAttachmentDto,
+    @Req() req: StaffAuthenticatedRequest,
+  ): Promise<SignChatAttachmentResponse> {
+    this.validateAttachmentPayload(dto);
+
+    const signed = await this.uploads.signUpload(dto.filename, dto.contentType);
+    let downloadUrl: string | undefined;
+    try {
+      downloadUrl = await this.uploads.getSignedUrl(signed.key);
+    } catch {
+      downloadUrl = undefined;
+    }
+
+    return {
+      uploadUrl: signed.uploadUrl,
+      storageKey: signed.key,
+      publicUrl: signed.publicUrl,
+      downloadUrl,
+    };
+  }
+
+  /**
    * Staff action execution endpoint
    * POST /campgrounds/:campgroundId/chat/action
    */
@@ -127,6 +206,67 @@ export class ChatController {
     @Req() req: StaffAuthenticatedRequest,
   ): Promise<ConversationHistoryResponse> {
     return this.chatService.getHistory(dto, {
+      campgroundId,
+      participantType: ChatParticipantType.staff,
+      participantId: req.user.id,
+      role: this.getStaffRole(req, campgroundId),
+    });
+  }
+
+  /**
+   * Staff feedback endpoint
+   * POST /chat/campgrounds/:campgroundId/feedback
+   */
+  @Post('/campgrounds/:campgroundId/feedback')
+  @UseGuards(JwtAuthGuard, ScopeGuard)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  @HttpCode(HttpStatus.OK)
+  async submitStaffFeedback(
+    @Param('campgroundId') campgroundId: string,
+    @Body() dto: SubmitFeedbackDto,
+    @Req() req: StaffAuthenticatedRequest,
+  ): Promise<SubmitFeedbackResponse> {
+    return this.chatService.submitFeedback(dto, {
+      campgroundId,
+      participantType: ChatParticipantType.staff,
+      participantId: req.user.id,
+      role: this.getStaffRole(req, campgroundId),
+    });
+  }
+
+  /**
+   * Staff regenerate endpoint
+   * POST /chat/campgrounds/:campgroundId/regenerate
+   */
+  @Post('/campgrounds/:campgroundId/regenerate')
+  @UseGuards(JwtAuthGuard, ScopeGuard)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @HttpCode(HttpStatus.OK)
+  async regenerateStaffMessage(
+    @Param('campgroundId') campgroundId: string,
+    @Body() dto: RegenerateMessageDto,
+    @Req() req: StaffAuthenticatedRequest,
+  ): Promise<ChatMessageResponse> {
+    return this.chatService.regenerateMessage(dto, {
+      campgroundId,
+      participantType: ChatParticipantType.staff,
+      participantId: req.user.id,
+      role: this.getStaffRole(req, campgroundId),
+    });
+  }
+
+  /**
+   * Staff conversation list endpoint
+   * GET /campgrounds/:campgroundId/chat/conversations
+   */
+  @Get('/campgrounds/:campgroundId/conversations')
+  @UseGuards(JwtAuthGuard, ScopeGuard)
+  async getStaffConversations(
+    @Param('campgroundId') campgroundId: string,
+    @Query() dto: GetConversationsDto,
+    @Req() req: StaffAuthenticatedRequest,
+  ): Promise<ConversationListResponse> {
+    return this.chatService.getConversations(dto, {
       campgroundId,
       participantType: ChatParticipantType.staff,
       participantId: req.user.id,
@@ -193,6 +333,40 @@ export class ChatController {
   }
 
   /**
+   * Guest attachment sign endpoint
+   * POST /chat/portal/:campgroundId/attachments/sign
+   */
+  @Post('/portal/:campgroundId/attachments/sign')
+  @UseGuards(AuthGuard('guest-jwt'))
+  @Throttle({ default: { limit: 15, ttl: 60000 } })
+  @HttpCode(HttpStatus.OK)
+  async signGuestAttachment(
+    @Param('campgroundId') campgroundId: string,
+    @Body() dto: SignChatAttachmentDto,
+    @Req() req: GuestAuthenticatedRequest,
+  ): Promise<SignChatAttachmentResponse> {
+    const guest = req.user;
+
+    await this.chatService.assertGuestAccess(guest.id, campgroundId);
+    this.validateAttachmentPayload(dto);
+
+    const signed = await this.uploads.signUpload(dto.filename, dto.contentType);
+    let downloadUrl: string | undefined;
+    try {
+      downloadUrl = await this.uploads.getSignedUrl(signed.key);
+    } catch {
+      downloadUrl = undefined;
+    }
+
+    return {
+      uploadUrl: signed.uploadUrl,
+      storageKey: signed.key,
+      publicUrl: signed.publicUrl,
+      downloadUrl,
+    };
+  }
+
+  /**
    * Guest action execution endpoint
    * POST /portal/:campgroundId/chat/action
    */
@@ -232,6 +406,76 @@ export class ChatController {
     await this.chatService.assertGuestAccess(guest.id, campgroundId);
 
     return this.chatService.getHistory(dto, {
+      campgroundId,
+      participantType: ChatParticipantType.guest,
+      participantId: guest.id,
+    });
+  }
+
+  /**
+   * Guest feedback endpoint
+   * POST /chat/portal/:campgroundId/feedback
+   */
+  @Post('/portal/:campgroundId/feedback')
+  @UseGuards(AuthGuard('guest-jwt'))
+  @Throttle({ default: { limit: 15, ttl: 60000 } })
+  @HttpCode(HttpStatus.OK)
+  async submitGuestFeedback(
+    @Param('campgroundId') campgroundId: string,
+    @Body() dto: SubmitFeedbackDto,
+    @Req() req: GuestAuthenticatedRequest,
+  ): Promise<SubmitFeedbackResponse> {
+    const guest = req.user;
+
+    await this.chatService.assertGuestAccess(guest.id, campgroundId);
+
+    return this.chatService.submitFeedback(dto, {
+      campgroundId,
+      participantType: ChatParticipantType.guest,
+      participantId: guest.id,
+    });
+  }
+
+  /**
+   * Guest regenerate endpoint
+   * POST /chat/portal/:campgroundId/regenerate
+   */
+  @Post('/portal/:campgroundId/regenerate')
+  @UseGuards(AuthGuard('guest-jwt'))
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @HttpCode(HttpStatus.OK)
+  async regenerateGuestMessage(
+    @Param('campgroundId') campgroundId: string,
+    @Body() dto: RegenerateMessageDto,
+    @Req() req: GuestAuthenticatedRequest,
+  ): Promise<ChatMessageResponse> {
+    const guest = req.user;
+
+    await this.chatService.assertGuestAccess(guest.id, campgroundId);
+
+    return this.chatService.regenerateMessage(dto, {
+      campgroundId,
+      participantType: ChatParticipantType.guest,
+      participantId: guest.id,
+    });
+  }
+
+  /**
+   * Guest conversation list endpoint
+   * GET /portal/:campgroundId/chat/conversations
+   */
+  @Get('/portal/:campgroundId/conversations')
+  @UseGuards(AuthGuard('guest-jwt'))
+  async getGuestConversations(
+    @Param('campgroundId') campgroundId: string,
+    @Query() dto: GetConversationsDto,
+    @Req() req: GuestAuthenticatedRequest,
+  ): Promise<ConversationListResponse> {
+    const guest = req.user;
+
+    await this.chatService.assertGuestAccess(guest.id, campgroundId);
+
+    return this.chatService.getConversations(dto, {
       campgroundId,
       participantType: ChatParticipantType.guest,
       participantId: guest.id,

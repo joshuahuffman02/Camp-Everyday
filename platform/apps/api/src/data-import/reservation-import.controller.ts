@@ -198,16 +198,34 @@ export class ReservationImportController {
   ): Promise<void> {
     // If onboarding token provided, validate it matches the campground
     if (onboardingToken) {
+      const now = new Date();
       const invite = await this.prisma.onboardingInvite.findUnique({
         where: { token: onboardingToken },
-        select: { campgroundId: true },
+        select: {
+          campgroundId: true,
+          expiresAt: true,
+          OnboardingSession: {
+            select: { campgroundId: true, expiresAt: true },
+          },
+        },
       });
 
-      if (!invite) {
-        throw new BadRequestException("Invalid onboarding token");
+      if (!invite || invite.expiresAt < now) {
+        throw new BadRequestException("Invalid or expired onboarding token");
       }
 
-      if (invite.campgroundId !== campgroundId) {
+      if (invite.OnboardingSession?.expiresAt && invite.OnboardingSession.expiresAt < now) {
+        throw new BadRequestException("Onboarding session expired");
+      }
+
+      const scopedCampgroundId =
+        invite.campgroundId || invite.OnboardingSession?.campgroundId;
+
+      if (!scopedCampgroundId) {
+        throw new BadRequestException("Onboarding invite is not linked to a campground yet");
+      }
+
+      if (scopedCampgroundId !== campgroundId) {
         throw new BadRequestException("Token does not match campground");
       }
 

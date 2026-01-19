@@ -5,7 +5,20 @@
 ### Security
 - Upgrade Node.js runtime to 25.3.0 to include the async_hooks stack overflow DoS mitigation.
 
+### Fixed
+- Finalize campground onboarding launch by setting bookability and ensuring an owner membership is present.
+- Align onboarding step payloads for operational hours, booking rules, waivers, and communications.
+- Restrict onboarding invite creation/resend to authorized campground or organization members.
+- Sanitize onboarding AI import filenames before writing to disk.
+- Enforce onboarding reservation import token scope/expiry and filter imports to active sites.
+- Block conflicting reservation imports, honor system pricing toggles, and dedupe guests in execution.
+- Use consistent API base resolution for onboarding reservation import requests.
+
 ### Added
+- Onboarding import checklist with system-specific export prompts, coverage tracking, and warning override.
+- Persist onboarding import system selection/override metadata on completion and highlight next exports to grab.
+- Draft-save onboarding import selections immediately and show import coverage metadata on Review/Launch.
+- Sync onboarding import draft coverage into wizard state and include checklist status in go-live warnings.
 
 #### Phase 1: Pricing & Payments
 - **Dynamic Pricing Engine** (`/pricing-v2`)
@@ -99,6 +112,7 @@
 - **Guest Portal Self-Service** at `/portal/manage` (date change, site change request, guest count update, cancel/pay balance link).
 - **Calendar Settings** at `/calendar/settings` (color schemes, display toggles, auto-refresh intervals, shortcuts, export stubs).
 - **AI UI Builder** at `/ai/ui-builder` for generating dashboard, report, and workflow layouts with json-render.
+- **AI UI Builder UX upgrades** with prompt presets, loading/empty states, and saved layout drafts per campground.
 - **SMS Safeguards**: Feature flag + Twilio credential check; logs telemetry and falls back to no-op when disabled/misconfigured.
 - **Scheduled Notifications Cron**: `processScheduledNotifications` runs every minute via `@nestjs/schedule` (dev-ready).
 

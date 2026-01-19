@@ -41,6 +41,15 @@ export class UpdateOnboardingStepDto {
   token?: string;
 }
 
+export class UpdateOnboardingDraftDto {
+  @IsObject()
+  payload!: Record<string, unknown>;
+
+  @IsOptional()
+  @IsString()
+  token?: string;
+}
+
 export class AccountProfileDto {
   @IsString()
   campgroundName!: string;

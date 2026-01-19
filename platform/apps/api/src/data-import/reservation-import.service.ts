@@ -3,6 +3,8 @@ import { randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { CsvParserService, FieldMapping } from "./parsers/csv-parser.service";
 
+const BLOCKED_SITE_STATUSES = ["maintenance", "inactive"];
+
 // ============ Types ============
 
 export interface ReservationImportColumnMapping {
@@ -219,7 +221,10 @@ export class ReservationImportService {
       where: { id: campgroundId },
       include: {
         SiteClass: { where: { isActive: true } },
-        Site: { select: { id: true, name: true, siteNumber: true, siteClassId: true } },
+        Site: {
+          where: { isActive: true, status: { notIn: BLOCKED_SITE_STATUSES } },
+          select: { id: true, name: true, siteNumber: true, siteClassId: true },
+        },
       },
     });
 
@@ -283,7 +288,7 @@ export class ReservationImportService {
 
     // 4. Prefetch site classes with default rates for pricing
     const siteClassesWithRates = await this.prisma.siteClass.findMany({
-      where: { campgroundId },
+      where: { campgroundId, isActive: true },
       select: { id: true, name: true, defaultRate: true },
     });
     const siteClassRateMap = new Map(siteClassesWithRates.map(sc => [sc.id, sc.defaultRate]));
@@ -421,6 +426,90 @@ export class ReservationImportService {
       createdGuestIds: [],
     };
 
+    const activeSites = await this.prisma.site.findMany({
+      where: {
+        campgroundId,
+        isActive: true,
+        status: { notIn: BLOCKED_SITE_STATUSES },
+      },
+      select: { id: true, siteClassId: true },
+    });
+    const activeSiteClassMap = new Map(
+      activeSites.map((site) => [site.id, site.siteClassId])
+    );
+
+    const siteClassRates = await this.prisma.siteClass.findMany({
+      where: { campgroundId, isActive: true },
+      select: { id: true, defaultRate: true },
+    });
+    const siteClassRateMap = new Map(
+      siteClassRates.map((siteClass) => [siteClass.id, siteClass.defaultRate])
+    );
+
+    const createdGuestByEmail = new Map<string, string>();
+    const importedReservationRanges = new Map<
+      string,
+      Array<{ arrivalDate: Date; departureDate: Date }>
+    >();
+
+    const conflictMap = new Map<
+      string,
+      Array<{ arrivalDate: Date; departureDate: Date }>
+    >();
+    if (parsedRows.length > 0) {
+      const allArrivalDates = parsedRows.map((p) => p.stay.arrivalDate);
+      const allDepartureDates = parsedRows.map((p) => p.stay.departureDate);
+      const minArrival = new Date(
+        Math.min(...allArrivalDates.map((d) => d.getTime()))
+      );
+      const maxDeparture = new Date(
+        Math.max(...allDepartureDates.map((d) => d.getTime()))
+      );
+
+      const conflictingReservations = await this.prisma.reservation.findMany({
+        where: {
+          campgroundId,
+          status: { notIn: ["cancelled"] },
+          arrivalDate: { lt: maxDeparture },
+          departureDate: { gt: minArrival },
+        },
+        select: { siteId: true, arrivalDate: true, departureDate: true },
+      });
+
+      for (const reservation of conflictingReservations) {
+        const existing = conflictMap.get(reservation.siteId) ?? [];
+        existing.push({
+          arrivalDate: reservation.arrivalDate,
+          departureDate: reservation.departureDate,
+        });
+        conflictMap.set(reservation.siteId, existing);
+      }
+    }
+
+    const hasConflict = (siteId: string, arrivalDate: Date, departureDate: Date) => {
+      const existing = conflictMap.get(siteId);
+      if (existing?.some((r) => r.arrivalDate < departureDate && r.departureDate > arrivalDate)) {
+        return true;
+      }
+      const pending = importedReservationRanges.get(siteId);
+      if (pending?.some((r) => r.arrivalDate < departureDate && r.departureDate > arrivalDate)) {
+        return true;
+      }
+      return false;
+    };
+
+    const getSystemPricingTotal = (
+      siteId: string,
+      siteClassId: string | null | undefined,
+      nights: number
+    ) => {
+      const resolvedClassId = siteClassId ?? activeSiteClassMap.get(siteId) ?? null;
+      if (!resolvedClassId) return null;
+      const rate = siteClassRateMap.get(resolvedClassId);
+      if (rate === undefined) return null;
+      return rate * nights;
+    };
+
     // Process each row
     for (const execRow of executeRows) {
       if (execRow.skip) {
@@ -443,19 +532,25 @@ export class ReservationImportService {
             result.errors.push({ rowIndex: execRow.rowIndex, error: "Guest email is required" });
             continue;
           }
-          const guest = await this.prisma.guest.create({
-            data: {
-              id: randomUUID(),
-              primaryFirstName: execRow.createGuest.firstName,
-              primaryLastName: execRow.createGuest.lastName,
-              email: normalizedEmail,
-              emailNormalized: normalizedEmail,
-              phone: execRow.createGuest.phone || null,
-              phoneNormalized: execRow.createGuest.phone?.replace(/[^0-9+]/g, "") || null,
-            },
-          });
-          guestId = guest.id;
-          result.createdGuestIds.push(guest.id);
+          const cachedGuestId = createdGuestByEmail.get(normalizedEmail);
+          if (cachedGuestId) {
+            guestId = cachedGuestId;
+          } else {
+            const guest = await this.prisma.guest.create({
+              data: {
+                id: randomUUID(),
+                primaryFirstName: execRow.createGuest.firstName,
+                primaryLastName: execRow.createGuest.lastName,
+                email: normalizedEmail,
+                emailNormalized: normalizedEmail,
+                phone: execRow.createGuest.phone || null,
+                phoneNormalized: execRow.createGuest.phone?.replace(/[^0-9+]/g, "") || null,
+              },
+            });
+            guestId = guest.id;
+            result.createdGuestIds.push(guest.id);
+            createdGuestByEmail.set(normalizedEmail, guest.id);
+          }
         }
 
         if (!guestId) {
@@ -468,13 +563,42 @@ export class ReservationImportService {
           continue;
         }
 
+        const hasActiveSite = activeSiteClassMap.has(execRow.siteId);
+        const activeSiteClassId = activeSiteClassMap.get(execRow.siteId) ?? null;
+        if (!hasActiveSite) {
+          result.errors.push({ rowIndex: execRow.rowIndex, error: "Selected site is inactive or unavailable" });
+          continue;
+        }
+
+        if (hasConflict(execRow.siteId, parsed.stay.arrivalDate, parsed.stay.departureDate)) {
+          result.errors.push({ rowIndex: execRow.rowIndex, error: "Site has overlapping reservation" });
+          continue;
+        }
+
         // Determine pricing
         let totalAmountCents = parsed.pricing.totalAmountCents || 0;
         if (execRow.manualTotalOverrideCents !== undefined) {
           totalAmountCents = execRow.manualTotalOverrideCents;
         } else if (execRow.useSystemPricing) {
-          // Would need to recalculate - for now use CSV
-          // In production, call pricing service here
+          const msPerDay = 1000 * 60 * 60 * 24;
+          const nights = parsed.stay.nights > 0
+            ? parsed.stay.nights
+            : Math.max(
+                1,
+                Math.ceil(
+                  (parsed.stay.departureDate.getTime() - parsed.stay.arrivalDate.getTime()) / msPerDay
+                )
+              );
+          const systemTotal = getSystemPricingTotal(
+            execRow.siteId,
+            execRow.siteClassId ?? activeSiteClassId,
+            nights
+          );
+          if (systemTotal === null) {
+            result.errors.push({ rowIndex: execRow.rowIndex, error: "System pricing unavailable for selected site" });
+            continue;
+          }
+          totalAmountCents = systemTotal;
         }
 
         const paidAmountCents = parsed.pricing.paidAmountCents || 0;
@@ -512,6 +636,12 @@ export class ReservationImportService {
 
         result.createdReservationIds.push(reservation.id);
         result.imported++;
+        const existingRanges = importedReservationRanges.get(execRow.siteId) ?? [];
+        existingRanges.push({
+          arrivalDate: parsed.stay.arrivalDate,
+          departureDate: parsed.stay.departureDate,
+        });
+        importedReservationRanges.set(execRow.siteId, existingRanges);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         result.errors.push({
@@ -893,7 +1023,8 @@ export class ReservationImportService {
       where: {
         campgroundId,
         siteClassId,
-        status: "active",
+        isActive: true,
+        status: { notIn: BLOCKED_SITE_STATUSES },
       },
       select: { id: true, name: true, siteNumber: true },
     });

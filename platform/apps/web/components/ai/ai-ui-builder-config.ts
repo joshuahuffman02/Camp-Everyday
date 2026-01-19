@@ -6,6 +6,11 @@ export type AiUiBuilderConfig = {
   description: string;
   promptPlaceholder: string;
   suggestions: string[];
+  presets: {
+    title: string;
+    description: string;
+    prompt: string;
+  }[];
   dataModel: Record<string, unknown>;
 };
 
@@ -95,6 +100,26 @@ export const AI_UI_BUILDER_CONFIGS: Record<AiUiBuilderId, AiUiBuilderConfig> = {
       "Show a compact dashboard with top site classes and cancellation rate.",
       "Build a manager view focusing on RevPAR, ADR, and bookings today.",
     ],
+    presets: [
+      {
+        title: "Morning ops brief",
+        description: "KPI snapshot with arrivals and a 7-day occupancy trend.",
+        prompt:
+          "Build a morning ops dashboard with occupancy, ADR, RevPAR, arrivals today, and a 7-day occupancy trend chart.",
+      },
+      {
+        title: "Revenue focus",
+        description: "Highlight revenue MTD, RevPAR, and top site classes.",
+        prompt:
+          "Create a revenue dashboard with revenue MTD, RevPAR, cancellation rate, and a revenue trend chart plus a top site classes table.",
+      },
+      {
+        title: "Weekend watch",
+        description: "Track weekend occupancy and cancellation risk.",
+        prompt:
+          "Design a weekend watch dashboard highlighting occupancy rate, cancellation rate, and a trend chart for the next 7 days.",
+      },
+    ],
     dataModel: dashboardData,
   },
   report: {
@@ -107,6 +132,26 @@ export const AI_UI_BUILDER_CONFIGS: Record<AiUiBuilderId, AiUiBuilderConfig> = {
       "Build a layout that highlights revenue, nights, and occupancy trends.",
       "Compose a table-first report with an export button and summary row.",
     ],
+    presets: [
+      {
+        title: "Channel performance",
+        description: "Filter by channel and summarize revenue impact.",
+        prompt:
+          "Compose a report layout with channel and date filters, summary KPIs, and a results table for daily revenue and bookings.",
+      },
+      {
+        title: "Stay length summary",
+        description: "Summarize nights, revenue, and average stay.",
+        prompt:
+          "Build a report view with date and site class filters, summary metrics for nights and revenue, and a detailed daily table.",
+      },
+      {
+        title: "Occupancy audit",
+        description: "Combine summary metrics with a trend chart.",
+        prompt:
+          "Create a report layout with summary KPIs, an occupancy trend chart, and a table of daily bookings and revenue.",
+      },
+    ],
     dataModel: reportData,
   },
   workflow: {
@@ -118,6 +163,26 @@ export const AI_UI_BUILDER_CONFIGS: Record<AiUiBuilderId, AiUiBuilderConfig> = {
       "Create a housekeeping workflow with checklist items and a notes field.",
       "Design a workflow for late arrivals with steps and a primary action.",
       "Build a maintenance workflow with task checklist and assignment button.",
+    ],
+    presets: [
+      {
+        title: "Arrival checklist",
+        description: "Guest-facing steps with notes and save action.",
+        prompt:
+          "Build an arrival workflow with a checklist, guest name header, notes field, and a save workflow action.",
+      },
+      {
+        title: "Maintenance triage",
+        description: "Checklist plus assignment action for staff.",
+        prompt:
+          "Design a maintenance workflow with a checklist, notes field, and an assign task action button.",
+      },
+      {
+        title: "Housekeeping turnover",
+        description: "Fast checklist and mark complete action.",
+        prompt:
+          "Create a housekeeping turnover workflow with a checklist, notes, and a mark complete action.",
+      },
     ],
     dataModel: workflowData,
   },

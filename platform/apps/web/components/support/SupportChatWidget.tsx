@@ -2,18 +2,21 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { X, Send, Bot, User, LifeBuoy, ExternalLink, Ticket, ShieldCheck } from "lucide-react";
+import { Send, LifeBuoy, ExternalLink, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { apiClient } from "@/lib/api-client";
 import { API_BASE } from "@/lib/api-config";
+import {
+  ChatMessage,
+  ChatMessageList,
+  ChatShell,
+  PROMPTS,
+  SuggestedPrompts,
+} from "@/components/chat";
+import type { ChatAccent, UnifiedChatMessage } from "@/components/chat";
+import { cn } from "@/lib/utils";
 
-interface SupportMessage {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  helpArticles?: { title: string; url: string }[];
-  showTicketPrompt?: boolean;
-}
+type SupportMessage = UnifiedChatMessage;
 
 type EvidenceLink = { label: string; url: string };
 
@@ -38,16 +41,13 @@ type ActionDraft = {
   result?: Record<string, unknown>;
 };
 
-interface PartnerMessage {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
+type PartnerMessage = UnifiedChatMessage & {
   actionDrafts?: ActionDraft[];
   confirmations?: { id: string; prompt: string }[];
   denials?: { reason: string; guidance?: string }[];
   questions?: string[];
   evidenceLinks?: EvidenceLink[];
-}
+};
 
 function generateSessionId() {
   return `support_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -599,52 +599,46 @@ export function SupportChatWidget() {
   const isSupportMode = mode === "support";
   const activeInput = isSupportMode ? supportInput : partnerInput;
   const isPending = isSupportMode ? supportChatMutation.isPending : partnerChatMutation.isPending;
+  const accent: ChatAccent = isSupportMode ? "support" : "partner";
 
-  if (!isOpen) {
-    return (
-      <button
-        type="button"
-        onClick={() => setIsOpen(true)}
-        className={`fixed bottom-6 right-6 w-14 h-14 rounded-full shadow-xl hover:shadow-2xl hover:scale-105 transition-all flex items-center justify-center z-[9999] ${
-          isSupportMode
-            ? "bg-status-info text-status-info-foreground"
-            : "bg-action-primary text-action-primary-foreground"
-        }`}
-        aria-label="Open Host assistant"
-      >
-        <LifeBuoy className="w-6 h-6" />
-      </button>
-    );
-  }
+  const handleSupportQuickReply = (question: string) => {
+    setSupportInput(question);
+  };
+
+  const supportEmptyState = (
+    <div className="text-center py-8">
+      <h3 className="font-semibold text-foreground mb-1">Support desk</h3>
+      <p className="text-sm text-muted-foreground mb-6">
+        Ask about settings, billing, or day-to-day workflows.
+      </p>
+      <SuggestedPrompts prompts={PROMPTS.support} onSelect={handleSupportQuickReply} accent={accent} />
+    </div>
+  );
+
+  const partnerEmptyState = (
+    <div className="text-center py-8">
+      <h3 className="font-semibold text-foreground mb-1">Staff actions</h3>
+      <p className="text-sm text-muted-foreground mb-6">
+        Draft actions and approvals for operations, maintenance, and guest messaging.
+      </p>
+      <SuggestedPrompts prompts={PROMPTS.partner} onSelect={handlePartnerQuickReply} accent={accent} />
+    </div>
+  );
 
   return (
-    <div className="fixed bottom-6 right-6 w-96 h-[540px] bg-card rounded-2xl shadow-2xl flex flex-col overflow-hidden z-50 border border-border">
-      {/* Header */}
-      <div
-        className={`p-4 flex items-center justify-between ${
-          isSupportMode
-            ? "bg-status-info text-status-info-foreground"
-            : "bg-action-primary text-action-primary-foreground"
-        }`}
-      >
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-card/20 rounded-full flex items-center justify-center">
-            {isSupportMode ? <LifeBuoy className="w-5 h-5" /> : <ShieldCheck className="w-5 h-5" />}
-          </div>
-          <div>
-            <div className="font-semibold">Host</div>
-            <div className="text-xs text-white/80">{isSupportMode ? "Support desk" : "Staff actions and drafts"}</div>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={() => setIsOpen(false)}
-          className="p-2 hover:bg-card/10 rounded-lg transition-colors"
-        >
-          <X className="w-5 h-5" />
-        </button>
-      </div>
-
+    <ChatShell
+      isOpen={isOpen}
+      onOpen={() => setIsOpen(true)}
+      onClose={() => setIsOpen(false)}
+      position="bottom-right"
+      accent={accent}
+      title="Host"
+      subtitle={isSupportMode ? "Support desk" : "Staff actions and drafts"}
+      launcherLabel="Open Host assistant"
+      icon={isSupportMode ? <LifeBuoy className="w-6 h-6" /> : <ShieldCheck className="w-6 h-6" />}
+      allowMinimize={false}
+      heightClassName="h-[540px]"
+    >
       <div className="border-b border-border px-4 py-2 flex items-center gap-2 text-xs">
         <button
           type="button"
@@ -692,399 +686,279 @@ export function SupportChatWidget() {
         </div>
       )}
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {isSupportMode ? (
-          supportMessages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-            >
-              {msg.role === "assistant" && (
-                <div className="w-8 h-8 bg-status-info/15 rounded-full flex items-center justify-center flex-shrink-0">
-                  <Bot className="w-4 h-4 text-status-info" />
-                </div>
-              )}
-              <div
-                className={`max-w-[75%] p-3 rounded-2xl ${
-                  msg.role === "user"
-                    ? "bg-status-info text-white rounded-br-md"
-                    : "bg-muted text-foreground rounded-bl-md"
-                }`}
-              >
-                <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-
-                {msg.helpArticles && msg.helpArticles.length > 0 && (
-                  <div className="mt-3 space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground">Related articles:</p>
-                    {msg.helpArticles.map((article, idx) => (
-                      <Link
-                        key={idx}
-                        href={article.url}
-                        className="flex items-center gap-2 bg-card rounded-lg p-2 border border-border text-sm text-status-info hover:bg-status-info/15 transition-colors"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                        {article.title}
-                      </Link>
-                    ))}
-                  </div>
-                )}
-
-                {msg.showTicketPrompt && (
-                  <div className="mt-3 pt-3 border-t border-border">
-                    <p className="text-xs text-muted-foreground mb-2">Need more help?</p>
-                    <Link
-                      href="/dashboard/help/contact"
-                      className="inline-flex items-center gap-2 bg-status-info text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-status-info/80 transition-colors"
-                    >
-                      <Ticket className="w-4 h-4" />
-                      Submit a Ticket
-                    </Link>
-                  </div>
-                )}
-              </div>
-              {msg.role === "user" && (
-                <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center flex-shrink-0">
-                  <User className="w-4 h-4 text-muted-foreground" />
-                </div>
-              )}
-            </div>
-          ))
-        ) : (
-          partnerMessages.map((msg) => {
-            const hasActionDrafts = (msg.actionDrafts?.length ?? 0) > 0;
-            const bubbleWidth = msg.role === "user" ? "max-w-[75%]" : hasActionDrafts ? "max-w-[90%]" : "max-w-[75%]";
-            const bubbleStyle =
-              msg.role === "user"
-                ? "bg-status-success text-white rounded-br-md"
-                : hasActionDrafts
-                  ? "bg-muted text-foreground rounded-bl-md border border-border"
-                  : "bg-muted text-foreground rounded-bl-md";
-            const bubblePadding = hasActionDrafts ? "p-4" : "p-3";
-
-            return (
-              <div
-                key={msg.id}
-                className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-              >
-                {msg.role === "assistant" && (
-                  <div className="w-8 h-8 bg-status-success/15 rounded-full flex items-center justify-center flex-shrink-0">
-                    <Bot className="w-4 h-4 text-status-success" />
-                  </div>
-                )}
-                <div className={`${bubbleWidth} ${bubblePadding} rounded-2xl ${bubbleStyle}`}>
-                  <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-
-                {msg.denials?.length ? (
-                  <div className="mt-3 rounded-lg border border-status-error/30 bg-status-error/15 px-3 py-2 text-xs text-status-error">
-                    {msg.denials.map((denial, idx) => (
-                      <div key={`${denial.reason}-${idx}`}>
-                        {denial.reason}
-                        {denial.guidance ? ` - ${denial.guidance}` : ""}
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-
-                {msg.questions?.length ? (
-                  <div className="mt-3 space-y-2">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Needs input</div>
-                    <div className="flex flex-wrap gap-2">
-                      {msg.questions.map((question, idx) => (
-                        <button
-                          key={`${question}-${idx}`}
-                          type="button"
-                          onClick={() => handlePartnerQuickReply(question)}
-                          className="rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground hover:border-status-success hover:text-status-success"
-                        >
-                          {question}
-                        </button>
+      {isSupportMode ? (
+        <ChatMessageList
+          messages={supportMessages}
+          isTyping={isPending}
+          accent={accent}
+          emptyState={supportEmptyState}
+          bottomRef={messagesEndRef}
+        />
+      ) : (
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {partnerMessages.length === 0 ? (
+            partnerEmptyState
+          ) : (
+            partnerMessages.map((msg) => (
+              <div key={msg.id} className="space-y-2">
+                <ChatMessage {...msg} accent={accent} />
+                <div className={cn(msg.role === "assistant" ? "ml-11" : "mr-11")}>
+                  {msg.denials?.length ? (
+                    <div className="mt-3 rounded-lg border border-status-error/30 bg-status-error/15 px-3 py-2 text-xs text-status-error">
+                      {msg.denials.map((denial, idx) => (
+                        <div key={`${denial.reason}-${idx}`}>
+                          {denial.reason}
+                          {denial.guidance ? ` - ${denial.guidance}` : ""}
+                        </div>
                       ))}
                     </div>
-                  </div>
-                ) : null}
+                  ) : null}
 
-                {msg.actionDrafts?.length ? (
-                  <div className="mt-3 space-y-3">
-                    {msg.actionDrafts.map((draft) => {
-                      // For read-only executed actions, just show evidence links (no technical card)
-                      const isReadOnlyExecuted = draft.action === "read" && draft.status === "executed";
+                  {msg.questions?.length ? (
+                    <div className="mt-3 space-y-2">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Needs input
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {msg.questions.map((question, idx) => (
+                          <button
+                            key={`${question}-${idx}`}
+                            type="button"
+                            onClick={() => handlePartnerQuickReply(question)}
+                            className="rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground hover:border-status-success hover:text-status-success"
+                          >
+                            {question}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
 
-                      if (isReadOnlyExecuted) {
-                        // Simple display: just evidence links
-                        if (!draft.evidenceLinks?.length) return null;
-                        return (
-                          <div key={draft.id} className="flex flex-wrap gap-2">
-                            {draft.evidenceLinks.map((link) => (
-                              <Link
-                                key={`${link.label}-${link.url}`}
-                                href={link.url}
-                                className="inline-flex items-center gap-1.5 rounded-full border border-status-success/30 bg-status-success/10 px-3 py-1.5 text-xs font-medium text-status-success hover:bg-status-success/20 transition-colors"
-                              >
-                                <ExternalLink className="w-3 h-3" />
-                                {link.label}
-                              </Link>
-                            ))}
-                          </div>
-                        );
-                      }
+                  {msg.actionDrafts?.length ? (
+                    <div className="mt-3 space-y-3">
+                      {msg.actionDrafts.map((draft) => {
+                        const isReadOnlyExecuted = draft.action === "read" && draft.status === "executed";
 
-                      // Full display for write actions or pending/denied actions
-                      const statusClass =
-                        draft.status === "executed"
-                          ? "bg-status-success/15 text-status-success"
-                          : draft.status === "denied"
-                            ? "bg-status-error/15 text-status-error"
-                            : "bg-status-warning/15 text-status-warning";
-                      const impactClass =
-                        draft.impact?.level === "high"
-                          ? "bg-status-error/15 text-status-error"
-                          : draft.impact?.level === "medium"
-                            ? "bg-status-warning/15 text-status-warning"
-                            : "bg-status-success/15 text-status-success";
-                      const summary = buildActionSummary(draft);
-                      const { items: highlights, usedKeys } = buildActionHighlights(draft);
-                      const detailParams = Object.entries(draft.parameters ?? {}).filter(([key]) => !usedKeys.has(key));
-
-                      return (
-                        <div key={draft.id} className="rounded-xl border border-border bg-card p-3 text-xs text-muted-foreground">
-                          <div className="flex flex-wrap items-start justify-between gap-2">
-                            <div>
-                              <div className="text-sm font-semibold text-foreground">
-                                {ACTION_LABELS[draft.actionType] || draft.actionType}
-                              </div>
-                              {summary ? <div className="mt-1 text-xs text-muted-foreground">{summary}</div> : null}
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              {draft.requiresConfirmation && (
-                                <span className="rounded-full bg-status-warning/15 px-2 py-0.5 text-[11px] text-status-warning">
-                                  Confirm to run
-                                </span>
-                              )}
-                              <span className={`rounded-full px-2 py-0.5 text-[11px] ${statusClass}`}>
-                                {draft.status}
-                              </span>
-                            </div>
-                          </div>
-
-                          {highlights.length ? (
-                            <div className="mt-3 rounded-lg border border-border bg-muted px-3 py-2 text-[11px]">
-                              <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                Key details
-                              </div>
-                              <div className="mt-2 space-y-1">
-                                {highlights.map((item) => (
-                                  <div key={`${draft.id}-${item.key}`} className="flex items-center justify-between gap-4">
-                                    <span className="text-muted-foreground">{item.label}</span>
-                                    <span className="text-foreground">{item.value}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          ) : null}
-
-                          {draft.impact && (
-                            <div className="mt-2 rounded-lg border border-border bg-muted px-3 py-2 text-xs">
-                              <div className="flex items-center justify-between">
-                                <span className="font-semibold text-foreground">Impact</span>
-                                <span className={`rounded-full px-2 py-0.5 text-[11px] ${impactClass}`}>
-                                  {draft.impact.level}
-                                </span>
-                              </div>
-                              <p className="mt-1 text-muted-foreground">{draft.impact.summary}</p>
-                              {draft.impact.warnings?.length ? (
-                                <div className="mt-2 space-y-1 text-status-warning">
-                                  {draft.impact.warnings.map((warning) => (
-                                    <div key={warning}>- {warning}</div>
-                                  ))}
-                                </div>
-                              ) : null}
-                              {draft.impact.saferAlternative ? (
-                                <div className="mt-2 text-status-success">
-                                  Safer alternative: {draft.impact.saferAlternative}
-                                </div>
-                              ) : null}
-                            </div>
-                          )}
-
-                          {draft.evidenceLinks?.length ? (
-                            <div className="mt-2 flex flex-wrap gap-2">
+                        if (isReadOnlyExecuted) {
+                          if (!draft.evidenceLinks?.length) return null;
+                          return (
+                            <div key={draft.id} className="flex flex-wrap gap-2">
                               {draft.evidenceLinks.map((link) => (
                                 <Link
                                   key={`${link.label}-${link.url}`}
                                   href={link.url}
-                                  className="inline-flex items-center gap-1.5 rounded-full border border-status-success/30 bg-status-success/10 px-3 py-1 text-[11px] text-status-success hover:bg-status-success/20"
+                                  className="inline-flex items-center gap-1.5 rounded-full border border-status-success/30 bg-status-success/10 px-3 py-1.5 text-xs font-medium text-status-success hover:bg-status-success/20 transition-colors"
                                 >
                                   <ExternalLink className="w-3 h-3" />
                                   {link.label}
                                 </Link>
                               ))}
                             </div>
-                          ) : null}
+                          );
+                        }
 
-                          {draft.requiresConfirmation && (
-                            <div className="mt-3 flex flex-wrap items-center gap-2">
-                              {EXECUTABLE_ACTIONS.has(draft.actionType) ? (
-                                <button
-                                  type="button"
-                                  onClick={() => handleConfirmDraft(draft)}
-                                  disabled={confirmPartnerMutation.isPending && confirmingDraftId === draft.id}
-                                  className="rounded-full bg-status-success px-3 py-1 text-[11px] font-semibold text-white shadow-sm transition hover:bg-status-success/80 disabled:opacity-60"
-                                >
-                                  {confirmingDraftId === draft.id ? "Confirming..." : "Confirm & run"}
-                                </button>
-                              ) : (
-                                <span className="text-[11px] text-muted-foreground">
-                                  Review this draft in the linked screen to continue.
-                                </span>
-                              )}
-                              <span className="text-[11px] text-muted-foreground">Runs with your permissions.</span>
-                            </div>
-                          )}
+                        const statusClass =
+                          draft.status === "executed"
+                            ? "bg-status-success/15 text-status-success"
+                            : draft.status === "denied"
+                              ? "bg-status-error/15 text-status-error"
+                              : "bg-status-warning/15 text-status-warning";
+                        const impactClass =
+                          draft.impact?.level === "high"
+                            ? "bg-status-error/15 text-status-error"
+                            : draft.impact?.level === "medium"
+                              ? "bg-status-warning/15 text-status-warning"
+                              : "bg-status-success/15 text-status-success";
+                        const summary = buildActionSummary(draft);
+                        const { items: highlights, usedKeys } = buildActionHighlights(draft);
+                        const detailParams = Object.entries(draft.parameters ?? {}).filter(([key]) => !usedKeys.has(key));
 
-                          {(draft.sensitivity || detailParams.length > 0) && (
-                            <details className="mt-3 text-[11px] text-muted-foreground">
-                              <summary className="cursor-pointer select-none">Technical details</summary>
-                              <div className="mt-2 space-y-1">
-                                <div className="flex items-center justify-between gap-4">
-                                  <span>Action</span>
-                                  <span className="text-foreground">{draft.action}</span>
+                        return (
+                          <div key={draft.id} className="rounded-xl border border-border bg-card p-3 text-xs text-muted-foreground">
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div>
+                                <div className="text-sm font-semibold text-foreground">
+                                  {ACTION_LABELS[draft.actionType] || draft.actionType}
                                 </div>
-                                <div className="flex items-center justify-between gap-4">
-                                  <span>Resource</span>
-                                  <span className="text-foreground">{draft.resource}</span>
-                                </div>
-                                {draft.sensitivity && (
-                                  <div className="flex items-center justify-between gap-4">
-                                    <span>Sensitivity</span>
-                                    <span className="text-foreground">{draft.sensitivity}</span>
-                                  </div>
+                                {summary ? <div className="mt-1 text-xs text-muted-foreground">{summary}</div> : null}
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                {draft.requiresConfirmation && (
+                                  <span className="rounded-full bg-status-warning/15 px-2 py-0.5 text-[11px] text-status-warning">
+                                    Confirm to run
+                                  </span>
                                 )}
-                                {detailParams.length > 0 && (
-                                  <div className="mt-2 space-y-1">
-                                    {detailParams.map(([key, value]) => (
-                                      <div key={key} className="flex items-center justify-between gap-4">
-                                        <span>{key}</span>
-                                        <span className="text-foreground">{formatValue(value)}</span>
-                                      </div>
+                                <span className={`rounded-full px-2 py-0.5 text-[11px] ${statusClass}`}>
+                                  {draft.status}
+                                </span>
+                              </div>
+                            </div>
+
+                            {highlights.length ? (
+                              <div className="mt-3 rounded-lg border border-border bg-muted px-3 py-2 text-[11px]">
+                                <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                  Key details
+                                </div>
+                                <div className="mt-2 space-y-1">
+                                  {highlights.map((item) => (
+                                    <div key={`${draft.id}-${item.key}`} className="flex items-center justify-between gap-4">
+                                      <span className="text-muted-foreground">{item.label}</span>
+                                      <span className="text-foreground">{item.value}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
+
+                            {draft.impact && (
+                              <div className="mt-2 rounded-lg border border-border bg-muted px-3 py-2 text-xs">
+                                <div className="flex items-center justify-between">
+                                  <span className="font-semibold text-foreground">Impact</span>
+                                  <span className={`rounded-full px-2 py-0.5 text-[11px] ${impactClass}`}>
+                                    {draft.impact.level}
+                                  </span>
+                                </div>
+                                <p className="mt-1 text-muted-foreground">{draft.impact.summary}</p>
+                                {draft.impact.warnings?.length ? (
+                                  <div className="mt-2 space-y-1 text-status-warning">
+                                    {draft.impact.warnings.map((warning) => (
+                                      <div key={warning}>- {warning}</div>
                                     ))}
                                   </div>
-                                )}
+                                ) : null}
+                                {draft.impact.saferAlternative ? (
+                                  <div className="mt-2 text-status-success">
+                                    Safer alternative: {draft.impact.saferAlternative}
+                                  </div>
+                                ) : null}
                               </div>
-                            </details>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : null}
+                            )}
 
-                {msg.confirmations?.length ? (
-                  <div className="mt-3 rounded-lg border border-status-warning/30 bg-status-warning/15 px-3 py-2 text-xs text-status-warning">
-                    {msg.confirmations.map((confirmation) => (
-                      <div key={confirmation.id}>{confirmation.prompt}</div>
-                    ))}
-                  </div>
-                ) : null}
+                            {draft.evidenceLinks?.length ? (
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {draft.evidenceLinks.map((link) => (
+                                  <Link
+                                    key={`${link.label}-${link.url}`}
+                                    href={link.url}
+                                    className="inline-flex items-center gap-1.5 rounded-full border border-status-success/30 bg-status-success/10 px-3 py-1 text-[11px] text-status-success hover:bg-status-success/20"
+                                  >
+                                    <ExternalLink className="w-3 h-3" />
+                                    {link.label}
+                                  </Link>
+                                ))}
+                              </div>
+                            ) : null}
 
-                {msg.evidenceLinks?.length ? (
-                  <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
-                    {msg.evidenceLinks.map((link) => (
-                      <Link
-                        key={`${link.label}-${link.url}`}
-                        href={link.url}
-                        className="rounded-full border border-border bg-card px-3 py-1 text-muted-foreground hover:border-status-success hover:text-status-success"
-                      >
-                        {link.label}
-                      </Link>
-                    ))}
-                  </div>
-                ) : null}
+                            {draft.requiresConfirmation && (
+                              <div className="mt-3 flex flex-wrap items-center gap-2">
+                                {EXECUTABLE_ACTIONS.has(draft.actionType) ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleConfirmDraft(draft)}
+                                    disabled={confirmPartnerMutation.isPending && confirmingDraftId === draft.id}
+                                    className="rounded-full bg-status-success px-3 py-1 text-[11px] font-semibold text-white shadow-sm transition hover:bg-status-success/80 disabled:opacity-60"
+                                  >
+                                    {confirmingDraftId === draft.id ? "Confirming..." : "Confirm & run"}
+                                  </button>
+                                ) : (
+                                  <span className="text-[11px] text-muted-foreground">
+                                    Review this draft in the linked screen to continue.
+                                  </span>
+                                )}
+                                <span className="text-[11px] text-muted-foreground">Runs with your permissions.</span>
+                              </div>
+                            )}
+
+                            {(draft.sensitivity || detailParams.length > 0) && (
+                              <details className="mt-3 text-[11px] text-muted-foreground">
+                                <summary className="cursor-pointer select-none">Technical details</summary>
+                                <div className="mt-2 space-y-1">
+                                  <div className="flex items-center justify-between gap-4">
+                                    <span>Action</span>
+                                    <span className="text-foreground">{draft.action}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between gap-4">
+                                    <span>Resource</span>
+                                    <span className="text-foreground">{draft.resource}</span>
+                                  </div>
+                                  {draft.sensitivity && (
+                                    <div className="flex items-center justify-between gap-4">
+                                      <span>Sensitivity</span>
+                                      <span className="text-foreground">{draft.sensitivity}</span>
+                                    </div>
+                                  )}
+                                  {detailParams.length > 0 && (
+                                    <div className="mt-2 space-y-1">
+                                      {detailParams.map(([key, value]) => (
+                                        <div key={key} className="flex items-center justify-between gap-4">
+                                          <span>{key}</span>
+                                          <span className="text-foreground">{formatValue(value)}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </details>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+
+                  {msg.confirmations?.length ? (
+                    <div className="mt-3 rounded-lg border border-status-warning/30 bg-status-warning/15 px-3 py-2 text-xs text-status-warning">
+                      {msg.confirmations.map((confirmation) => (
+                        <div key={confirmation.id}>{confirmation.prompt}</div>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {msg.evidenceLinks?.length ? (
+                    <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+                      {msg.evidenceLinks.map((link) => (
+                        <Link
+                          key={`${link.label}-${link.url}`}
+                          href={link.url}
+                          className="rounded-full border border-border bg-card px-3 py-1 text-muted-foreground hover:border-status-success hover:text-status-success"
+                        >
+                          {link.label}
+                        </Link>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
-                {msg.role === "user" && (
-                  <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center flex-shrink-0">
-                    <User className="w-4 h-4 text-muted-foreground" />
-                  </div>
-                )}
               </div>
-            );
-          })
-        )}
+            ))
+          )}
 
-        {isPending && (
-          <div className="flex gap-3 justify-start">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-              isSupportMode ? "bg-status-info/15" : "bg-status-success/15"
-            }`}>
-              <Bot className={`w-4 h-4 ${isSupportMode ? "text-status-info" : "text-status-success"}`} />
-            </div>
-            <div className="bg-muted rounded-2xl rounded-bl-md p-3">
-              <div className="flex gap-1">
-                <div className="w-2 h-2 bg-muted rounded-full animate-bounce" />
-                <div className="w-2 h-2 bg-muted rounded-full animate-bounce [animation-delay:0.1s]" />
-                <div className="w-2 h-2 bg-muted rounded-full animate-bounce [animation-delay:0.2s]" />
-              </div>
-            </div>
-          </div>
-        )}
+          {isPending && <ChatMessage id="typing" role="assistant" content="" isLoading={true} accent={accent} />}
+          <div ref={messagesEndRef} />
+        </div>
+      )}
 
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Quick Actions */}
-      <div className="px-4 py-2 border-t border-border flex gap-2 overflow-x-auto">
-        {isSupportMode ? (
-          [
-            { label: "Help Center", href: "/dashboard/help" },
-            { label: "FAQs", href: "/dashboard/help/faq" },
-            { label: "Contact", href: "/dashboard/help/contact" },
-          ].map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="flex-shrink-0 px-3 py-1.5 bg-muted text-muted-foreground text-xs font-medium rounded-full hover:bg-muted transition-colors"
-            >
-              {link.label}
-            </Link>
-          ))
-        ) : (
-          [
-            "Check availability for next weekend",
-            "Block site 12 for maintenance June 10-20",
-            "Create maintenance ticket for site 7: broken pedestal",
-            "Move reservation ABC123 to site 4 July 10-12",
-            "Refund reservation ABC123 5000 cents",
-            "Log guest note for reservation ABC123: late arrival",
-          ].map((prompt) => (
-            <button
-              key={prompt}
-              type="button"
-              onClick={() => setPartnerInput(prompt)}
-              className="flex-shrink-0 px-3 py-1.5 bg-muted text-muted-foreground text-xs font-medium rounded-full hover:bg-muted transition-colors"
-            >
-              {prompt}
-            </button>
-          ))
-        )}
-      </div>
-
-      {/* Input */}
       <div className="p-4 border-t border-border">
         <div className="flex gap-2">
           <input
             type="text"
             value={activeInput}
-            onChange={(e) => {
+            onChange={(event) => {
               if (isSupportMode) {
-                setSupportInput(e.target.value);
+                setSupportInput(event.target.value);
               } else {
-                setPartnerInput(e.target.value);
+                setPartnerInput(event.target.value);
               }
             }}
             onKeyDown={handleKeyDown}
-            placeholder={isSupportMode ? "Ask a question..." : "Ask for actions, maintenance, billing, messaging, or drafts..."}
+            placeholder={
+              isSupportMode
+                ? "Ask a question..."
+                : "Ask for actions, maintenance, billing, messaging, or drafts..."
+            }
             className={`flex-1 px-4 py-2 border border-border rounded-xl focus:outline-none focus:ring-2 text-sm ${
-              isSupportMode ? "focus:ring-status-info/20 focus:border-status-info" : "focus:ring-status-success/20 focus:border-status-success"
+              isSupportMode
+                ? "focus:ring-status-info/20 focus:border-status-info"
+                : "focus:ring-status-success/20 focus:border-status-success"
             }`}
             disabled={isPending}
           />
@@ -1100,6 +974,6 @@ export function SupportChatWidget() {
           </button>
         </div>
       </div>
-    </div>
+    </ChatShell>
   );
 }

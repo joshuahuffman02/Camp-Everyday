@@ -575,7 +575,7 @@ export class OnboardingService {
 
       // Update campground with operational hours when operational_hours step is saved
       if (step === OnboardingStep.operational_hours && campgroundId) {
-        const hoursData = sanitizedRecord;
+        const hoursData = isRecord(sanitizedRecord.operationalHours) ? sanitizedRecord.operationalHours : sanitizedRecord;
         const checkInTime = toString(hoursData.checkInTime) ?? "15:00";
         const checkOutTime = toString(hoursData.checkOutTime) ?? "11:00";
         const quietHoursEnabled = toBoolean(hoursData.quietHoursEnabled) ?? false;
@@ -595,7 +595,7 @@ export class OnboardingService {
 
       // Update campground with booking rules when booking_rules step is saved
       if (step === OnboardingStep.booking_rules && campgroundId) {
-        const rulesData = sanitizedRecord;
+        const rulesData = isRecord(sanitizedRecord.bookingRules) ? sanitizedRecord.bookingRules : sanitizedRecord;
         const longTermEnabled = toBoolean(rulesData.longTermEnabled) ?? false;
         const longTermMinNights = toNumber(rulesData.longTermMinNights) ?? 28;
         const longTermAutoApply = toBoolean(rulesData.longTermAutoApply) ?? true;
@@ -626,7 +626,7 @@ export class OnboardingService {
 
       // Create waiver template when waivers_documents step is saved
       if (step === OnboardingStep.waivers_documents && campgroundId) {
-        const waiverData = sanitizedRecord;
+        const waiverData = isRecord(sanitizedRecord.waiversDocuments) ? sanitizedRecord.waiversDocuments : sanitizedRecord;
         const requireWaiver = toBoolean(waiverData.requireWaiver) ?? false;
         const waiverContent = toString(waiverData.waiverContent);
         const useDefaultWaiver = toBoolean(waiverData.useDefaultWaiver) ?? false;
@@ -659,7 +659,7 @@ I have read and understand this waiver and agree to its terms.`;
 
       // Update campground with communication settings when communication_setup step is saved
       if (step === OnboardingStep.communication_setup && campgroundId) {
-        const commData = sanitizedRecord;
+        const commData = isRecord(sanitizedRecord.communicationSetup) ? sanitizedRecord.communicationSetup : sanitizedRecord;
         const enableNpsSurvey = toBoolean(commData.enableNpsSurvey) ?? false;
         const npsSendHour = toNumber(commData.npsSendHour) ?? 9;
         const useCustomDomain = toBoolean(commData.useCustomDomain) ?? false;
@@ -760,6 +760,10 @@ I have read and understand this waiver and agree to its terms.`;
         }
       }
 
+      if (step === OnboardingStep.review_launch && campgroundId) {
+        await this.finalizeLaunch(session, campgroundId);
+      }
+
       const sessionDataForSave = toRecord(session.data);
       const updatedData = { ...sessionDataForSave, [step]: sanitizedRecord };
       const completedSteps = Array.from(completed);
@@ -792,6 +796,35 @@ I have read and understand this waiver and agree to its terms.`;
       if (idempotencyKey) await this.idempotency.fail(idempotencyKey).catch(() => null);
       throw error;
     }
+  }
+
+  async saveDraft(
+    sessionId: string,
+    token: string,
+    step: OnboardingStep,
+    payload: unknown,
+  ) {
+    if (step !== OnboardingStep.data_import) {
+      throw new BadRequestException("Draft updates are only supported for data_import");
+    }
+
+    const session = await this.requireSession(sessionId, token);
+    const sanitized = this.validatePayload(step, payload);
+    const sanitizedRecord = toRecord(sanitized);
+    const sessionDataForSave = toRecord(session.data);
+    const existingStepData = toRecord(sessionDataForSave[step]);
+    const mergedStepData = { ...existingStepData, ...sanitizedRecord };
+    const updatedData = { ...sessionDataForSave, [step]: mergedStepData };
+
+    const updated = await this.prisma.onboardingSession.update({
+      where: { id: sessionId },
+      data: {
+        data: toNullableJsonInput(updatedData),
+      },
+    });
+
+    const progress = this.buildProgress(updated);
+    return { session: updated, progress };
   }
 
   private buildProgress(session: {
@@ -891,6 +924,62 @@ I have read and understand this waiver and agree to its terms.`;
       endpoint,
       sequence,
       rateAction: "apply"
+    });
+  }
+
+  private async finalizeLaunch(
+    session: { inviteId: string; data?: unknown },
+    campgroundId: string
+  ) {
+    await this.prisma.campground.update({
+      where: { id: campgroundId },
+      data: { isBookable: true },
+    });
+
+    const sessionData = toRecord(session.data);
+    let ownerUserId = toString(sessionData.userId);
+
+    if (!ownerUserId) {
+      const invite = await this.prisma.onboardingInvite.findUnique({
+        where: { id: session.inviteId },
+        select: { email: true },
+      });
+      const inviteEmail = invite?.email?.toLowerCase();
+      if (inviteEmail) {
+        const user = await this.prisma.user.findUnique({
+          where: { email: inviteEmail },
+          select: { id: true },
+        });
+        ownerUserId = user?.id;
+      }
+    }
+
+    if (!ownerUserId) {
+      this.logger.warn(`Onboarding launch missing owner user for campground ${campgroundId}`);
+      return;
+    }
+
+    const existingMembership = await this.prisma.campgroundMembership.findFirst({
+      where: { userId: ownerUserId, campgroundId },
+    });
+
+    if (existingMembership) {
+      if (existingMembership.role !== UserRole.owner) {
+        await this.prisma.campgroundMembership.update({
+          where: { id: existingMembership.id },
+          data: { role: UserRole.owner },
+        });
+      }
+      return;
+    }
+
+    await this.prisma.campgroundMembership.create({
+      data: {
+        id: randomUUID(),
+        userId: ownerUserId,
+        campgroundId,
+        role: UserRole.owner,
+      },
     });
   }
 

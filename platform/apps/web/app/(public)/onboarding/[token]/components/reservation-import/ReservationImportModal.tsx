@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { apiUrl } from "@/lib/api-config";
 import { cn } from "@/lib/utils";
 import type {
   ReservationImportModalProps,
@@ -41,7 +42,6 @@ import type {
   RowOverride,
 } from "./types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000";
 const stepOrder: ImportStep[] = [1, 2, 3, 4];
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -94,7 +94,7 @@ export function ReservationImportModal({
     setError(null);
     try {
       const res = await fetch(
-        `${API_BASE}/campgrounds/${campgroundId}/import/reservations/upload`,
+        apiUrl(`/campgrounds/${campgroundId}/import/reservations/upload`),
         {
           method: "POST",
           headers: {
@@ -145,7 +145,7 @@ export function ReservationImportModal({
     setError(null);
     try {
       const res = await fetch(
-        `${API_BASE}/campgrounds/${campgroundId}/import/reservations/preview`,
+        apiUrl(`/campgrounds/${campgroundId}/import/reservations/preview`),
         {
           method: "POST",
           headers: {
@@ -206,12 +206,12 @@ export function ReservationImportModal({
           } : undefined,
           useSystemPricing: override.useSystemPricing ?? false,
           manualTotalOverrideCents: override.manualTotalOverrideCents,
-          skip: override.skip ?? false,
+          skip: Boolean(m.site.conflict) || Boolean(override.skip),
         };
       });
 
       const res = await fetch(
-        `${API_BASE}/campgrounds/${campgroundId}/import/reservations/execute`,
+        apiUrl(`/campgrounds/${campgroundId}/import/reservations/execute`),
         {
           method: "POST",
           headers: {
@@ -802,10 +802,13 @@ function Step3Preview({
                   <td className="px-2 py-3">
                     <input
                       type="checkbox"
-                      checked={override.skip || false}
-                      onChange={(e) =>
-                        onUpdateRow(match.rowIndex, { skip: e.target.checked })
-                      }
+                      checked={Boolean(match.site.conflict) || Boolean(override.skip)}
+                      disabled={Boolean(match.site.conflict)}
+                      onChange={(e) => {
+                        if (!match.site.conflict) {
+                          onUpdateRow(match.rowIndex, { skip: e.target.checked });
+                        }
+                      }}
                       className="w-4 h-4 rounded border-slate-600 bg-slate-800"
                     />
                   </td>

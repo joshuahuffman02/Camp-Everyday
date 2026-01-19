@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { API_BASE } from "@/lib/api-config";
+import type { ChatAttachment, UnifiedChatMessage } from "../types";
 
 interface ActionOption {
   id: string;
@@ -35,6 +36,7 @@ interface ChatMessage {
   conversationId: string;
   role: "user" | "assistant" | "tool" | "system";
   content: string;
+  attachments?: ChatAttachment[];
   toolCalls?: ToolCall[];
   toolResults?: ToolResult[];
   actionRequired?: ActionRequired;
@@ -52,11 +54,21 @@ interface SendMessageResponse {
   createdAt: string;
 }
 
+type SendMessagePayload = {
+  message: string;
+  attachments?: ChatAttachment[];
+};
+
 interface ExecuteActionResponse {
   success: boolean;
   message: string;
   result?: unknown;
   error?: string;
+}
+
+interface SubmitFeedbackResponse {
+  success: boolean;
+  message: string;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -115,14 +127,25 @@ const toExecuteActionResponse = (value: unknown): ExecuteActionResponse => {
   };
 };
 
+const toSubmitFeedbackResponse = (value: unknown): SubmitFeedbackResponse => {
+  if (!isRecord(value)) {
+    return { success: false, message: "Feedback failed" };
+  }
+  return {
+    success: typeof value.success === "boolean" ? value.success : false,
+    message: getString(value.message) ?? "Feedback saved",
+  };
+};
+
 interface UseChatOptions {
   campgroundId: string;
   isGuest: boolean;
   guestId?: string;
   authToken?: string | null;
+  sessionId?: string;
 }
 
-export function useChat({ campgroundId, isGuest, guestId, authToken }: UseChatOptions) {
+export function useChat({ campgroundId, isGuest, guestId, authToken, sessionId }: UseChatOptions) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
@@ -141,7 +164,7 @@ export function useChat({ campgroundId, isGuest, guestId, authToken }: UseChatOp
   }, [authToken, guestId]);
 
   const sendMessageMutation = useMutation({
-    mutationFn: async (message: string): Promise<SendMessageResponse> => {
+    mutationFn: async (payload: SendMessagePayload): Promise<SendMessageResponse> => {
       const endpoint = isGuest
         ? `${API_BASE}/chat/portal/${campgroundId}/message`
         : `${API_BASE}/chat/campgrounds/${campgroundId}/message`;
@@ -151,7 +174,8 @@ export function useChat({ campgroundId, isGuest, guestId, authToken }: UseChatOp
         headers: getHeaders(),
         body: JSON.stringify({
           conversationId,
-          message,
+          message: payload.message,
+          attachments: payload.attachments,
           context: {},
         }),
       });
@@ -164,13 +188,14 @@ export function useChat({ campgroundId, isGuest, guestId, authToken }: UseChatOp
       const data: unknown = await res.json();
       return toSendMessageResponse(data);
     },
-    onMutate: (message) => {
+    onMutate: (payload) => {
       // Add user message optimistically
       const userMessage: ChatMessage = {
         id: `user_${Date.now()}`,
         conversationId: conversationId || "",
         role: "user",
-        content: message,
+        content: payload.message,
+        attachments: payload.attachments,
         createdAt: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, userMessage]);
@@ -264,10 +289,113 @@ export function useChat({ campgroundId, isGuest, guestId, authToken }: UseChatOp
     },
   });
 
+  const feedbackMutation = useMutation({
+    mutationFn: async ({
+      messageId,
+      value,
+    }: {
+      messageId: string;
+      value: "up" | "down";
+    }): Promise<SubmitFeedbackResponse> => {
+      const endpoint = isGuest
+        ? `${API_BASE}/chat/portal/${campgroundId}/feedback`
+        : `${API_BASE}/chat/campgrounds/${campgroundId}/feedback`;
+
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify({
+          messageId,
+          value,
+          sessionId,
+        }),
+      });
+
+      if (!res.ok) {
+        const error = await res.text();
+        throw new Error(error || "Failed to submit feedback");
+      }
+
+      const data: unknown = await res.json();
+      return toSubmitFeedbackResponse(data);
+    },
+    onError: (error) => {
+      const errorMessage: ChatMessage = {
+        id: `error_${Date.now()}`,
+        conversationId: conversationId || "",
+        role: "system",
+        content: error instanceof Error ? error.message : "Failed to submit feedback",
+        createdAt: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    },
+  });
+
+  const regenerateMutation = useMutation({
+    mutationFn: async (messageId: string): Promise<SendMessageResponse> => {
+      const endpoint = isGuest
+        ? `${API_BASE}/chat/portal/${campgroundId}/regenerate`
+        : `${API_BASE}/chat/campgrounds/${campgroundId}/regenerate`;
+
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify({
+          messageId,
+          sessionId,
+        }),
+      });
+
+      if (!res.ok) {
+        const error = await res.text();
+        throw new Error(error || "Failed to regenerate message");
+      }
+
+      const data: unknown = await res.json();
+      return toSendMessageResponse(data);
+    },
+    onMutate: () => {
+      setIsTyping(true);
+    },
+    onSuccess: (data) => {
+      setConversationId(data.conversationId);
+
+      const assistantMessage: ChatMessage = {
+        id: data.messageId,
+        conversationId: data.conversationId,
+        role: "assistant",
+        content: data.content,
+        toolCalls: data.toolCalls,
+        toolResults: data.toolResults,
+        actionRequired: data.actionRequired,
+        createdAt: data.createdAt,
+      };
+
+      setMessages((prev) => [...prev, assistantMessage]);
+      setIsTyping(false);
+    },
+    onError: (error) => {
+      const errorMessage: ChatMessage = {
+        id: `error_${Date.now()}`,
+        conversationId: conversationId || "",
+        role: "system",
+        content: error instanceof Error ? error.message : "Failed to regenerate message",
+        createdAt: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+      setIsTyping(false);
+    },
+  });
+
   const sendMessage = useCallback(
-    (message: string) => {
-      if (!message.trim()) return;
-      sendMessageMutation.mutate(message);
+    (message: string, options?: { attachments?: ChatAttachment[] }) => {
+      const trimmed = message.trim();
+      const attachments = options?.attachments;
+      if (!trimmed && (!attachments || attachments.length === 0)) return;
+      sendMessageMutation.mutate({
+        message: trimmed,
+        attachments,
+      });
     },
     [sendMessageMutation]
   );
@@ -279,19 +407,60 @@ export function useChat({ campgroundId, isGuest, guestId, authToken }: UseChatOp
     [executeActionMutation]
   );
 
+  const submitFeedback = useCallback(
+    (messageId: string, value: "up" | "down") => {
+      feedbackMutation.mutate({ messageId, value });
+    },
+    [feedbackMutation]
+  );
+
+  const regenerateMessage = useCallback(
+    (messageId: string) => {
+      regenerateMutation.mutate(messageId);
+    },
+    [regenerateMutation]
+  );
+
   const clearMessages = useCallback(() => {
     setMessages([]);
     setConversationId(null);
+  }, []);
+
+  const replaceMessages = useCallback(
+    (nextMessages: UnifiedChatMessage[]) => {
+      const mapped = nextMessages.map((message) => ({
+        id: message.id,
+        conversationId: conversationId || "",
+        role: message.role,
+        content: message.content,
+        attachments: message.attachments,
+        toolCalls: message.toolCalls,
+        toolResults: message.toolResults,
+        actionRequired: message.actionRequired,
+        createdAt: message.createdAt ?? new Date().toISOString(),
+      }));
+      setMessages(mapped);
+      setIsTyping(false);
+    },
+    [conversationId]
+  );
+
+  const setActiveConversation = useCallback((id: string | null) => {
+    setConversationId(id);
   }, []);
 
   return {
     messages,
     conversationId,
     isTyping,
-    isSending: sendMessageMutation.isPending,
+    isSending: sendMessageMutation.isPending || regenerateMutation.isPending,
     isExecuting: executeActionMutation.isPending,
     sendMessage,
     executeAction,
+    submitFeedback,
+    regenerateMessage,
     clearMessages,
+    replaceMessages,
+    setActiveConversation,
   };
 }

@@ -1,15 +1,28 @@
-import { IsString, IsOptional, IsObject, MaxLength, IsUUID, IsEnum } from 'class-validator';
+import { IsString, IsOptional, IsObject, MaxLength, IsUUID, IsArray, ValidateNested, IsInt, Min, Max, ValidateIf, MinLength } from 'class-validator';
+import { Type } from 'class-transformer';
 import { z } from 'zod';
 
 // Zod schema for validation
+const attachmentSchema = z.object({
+  name: z.string().min(1).max(255),
+  contentType: z.string().min(1).max(128),
+  size: z.number().int().min(1).max(10 * 1024 * 1024),
+  storageKey: z.string().optional(),
+  url: z.string().optional(),
+});
+
 export const sendMessageSchema = z.object({
   conversationId: z.string().optional(),
-  message: z.string().min(1).max(4000),
+  message: z.string().max(4000).optional(),
+  attachments: z.array(attachmentSchema).optional(),
   context: z.object({
     reservationId: z.string().optional(),
     currentPage: z.string().optional(),
   }).optional(),
-});
+}).refine((value) => {
+  const message = value.message?.trim() ?? "";
+  return message.length > 0 || (value.attachments?.length ?? 0) > 0;
+}, { message: "Message or attachment required", path: ["message"] });
 
 export type SendMessageInput = z.infer<typeof sendMessageSchema>;
 
@@ -20,9 +33,17 @@ export class SendMessageDto {
   @IsUUID()
   conversationId?: string;
 
+  @ValidateIf((value) => !value.attachments || value.attachments.length === 0)
   @IsString()
+  @MinLength(1)
   @MaxLength(4000)
-  message!: string;
+  message?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ChatAttachmentDto)
+  attachments?: ChatAttachmentDto[];
 
   @IsOptional()
   @IsObject()
@@ -42,6 +63,40 @@ export interface ChatMessageResponse {
   toolResults?: ToolResult[];
   actionRequired?: ActionRequired;
   createdAt: string;
+}
+
+export interface ChatAttachment {
+  name: string;
+  contentType: string;
+  size: number;
+  storageKey?: string;
+  url?: string;
+  downloadUrl?: string;
+}
+
+export class ChatAttachmentDto {
+  @IsString()
+  @MaxLength(255)
+  name!: string;
+
+  @IsString()
+  @MaxLength(128)
+  contentType!: string;
+
+  @IsInt()
+  @Min(1)
+  @Max(10 * 1024 * 1024)
+  size!: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(512)
+  storageKey?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(512)
+  url?: string;
 }
 
 export interface ToolCall {

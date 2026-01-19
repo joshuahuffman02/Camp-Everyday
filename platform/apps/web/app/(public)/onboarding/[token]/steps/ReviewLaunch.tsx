@@ -62,6 +62,15 @@ interface GoLiveCheckResult {
   };
 }
 
+interface DataImportSummary {
+  importSystemKey?: string;
+  overrideAccepted?: boolean;
+  requiredComplete?: boolean;
+  missingRequired?: Array<{ key: string; missingFields: string[] }>;
+  sitesCreated?: number;
+  siteClassesCreated?: number;
+}
+
 interface ReviewLaunchProps {
   summary: SetupSummary;
   onLaunch: () => Promise<void>;
@@ -75,6 +84,7 @@ interface ReviewLaunchProps {
   token?: string;
   sites?: Array<{ id: string; name: string; siteNumber: string; siteClassId?: string }>;
   siteClasses?: Array<{ id: string; name: string }>;
+  dataImport?: DataImportSummary;
 }
 
 const SPRING_CONFIG: { type: "spring"; stiffness: number; damping: number } = {
@@ -144,6 +154,7 @@ export function ReviewLaunch({
   token,
   sites = [],
   siteClasses = [],
+  dataImport,
 }: ReviewLaunchProps) {
   const prefersReducedMotion = useReducedMotion();
   const [launching, setLaunching] = useState(false);
@@ -152,6 +163,56 @@ export function ReviewLaunch({
   const [importedCount, setImportedCount] = useState(0);
   const [goLiveCheck, setGoLiveCheck] = useState<GoLiveCheckResult | null>(null);
   const [checkLoading, setCheckLoading] = useState(false);
+  const importSystemLabels: Record<string, string> = {
+    campspot: "Campspot",
+    newbook: "Newbook",
+    rms_cloud: "RMS Cloud",
+    campground_master: "Campground Master",
+    resnexus: "ResNexus",
+    other: "Other / Not Sure",
+  };
+  const coverageLabels: Record<string, string> = {
+    sites: "Sites and inventory",
+    reservations: "Reservations and guest stays",
+    rates: "Rates and seasons",
+    accounting: "Accounting totals and taxes",
+  };
+  const importSourceLabel = dataImport?.importSystemKey
+    ? importSystemLabels[dataImport.importSystemKey] || dataImport.importSystemKey
+    : null;
+  const hasMissingRequired = Boolean(
+    dataImport?.missingRequired?.some((entry) => entry.missingFields.length > 0)
+  );
+  const importStatus = dataImport?.requiredComplete
+    ? { label: "Complete", color: "text-emerald-400", badge: "bg-emerald-500/20" }
+    : dataImport?.overrideAccepted
+      ? { label: "Override accepted", color: "text-amber-300", badge: "bg-amber-500/20" }
+      : { label: "Incomplete", color: "text-red-300", badge: "bg-red-500/20" };
+
+  const missingCoverageLabels = (dataImport?.missingRequired || [])
+    .map((entry) => coverageLabels[entry.key] || entry.key)
+    .filter((label) => label.length > 0);
+  const shouldWarnImport = Boolean(
+    dataImport && (dataImport.requiredComplete === false || hasMissingRequired)
+  );
+  const importWarningMessage = shouldWarnImport
+    ? hasMissingRequired
+      ? `Data import missing required exports: ${missingCoverageLabels.join(", ")}.`
+      : "Data import checklist is incomplete."
+    : null;
+  const importWarnings: GoLiveIssue[] = importWarningMessage
+    ? [
+        {
+          code: dataImport?.overrideAccepted ? "data_import_override" : "data_import_incomplete",
+          message: dataImport?.overrideAccepted
+            ? `${importWarningMessage} Override accepted.`
+            : importWarningMessage,
+          stepToFix: "data_import",
+          autoFixable: false,
+          severity: "warning",
+        },
+      ]
+    : [];
 
   // Fetch go-live check on mount
   useEffect(() => {
@@ -197,6 +258,9 @@ export function ReviewLaunch({
     }
   };
 
+  const blockers = goLiveCheck?.blockers ?? [];
+  const warnings = [...(goLiveCheck?.warnings ?? []), ...importWarnings];
+  const showChecks = blockers.length > 0 || warnings.length > 0;
   const canLaunch = !goLiveCheck || goLiveCheck.canLaunch;
 
   return (
@@ -265,6 +329,80 @@ export function ReviewLaunch({
           )}
         </div>
 
+        {dataImport && (
+          <motion.div
+            initial={prefersReducedMotion ? {} : { opacity: 0, y: 8 }}
+            animate={prefersReducedMotion ? {} : { opacity: 1, y: 0 }}
+            transition={{ delay: 0.36 }}
+            className="rounded-xl border border-slate-700 bg-slate-800/30 p-4 space-y-3"
+          >
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
+                  <Upload className="w-5 h-5 text-blue-400" />
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-slate-500">
+                    Data import source
+                  </p>
+                  <p className="font-medium text-white">
+                    {importSourceLabel || "Not captured"}
+                  </p>
+                  {(dataImport.sitesCreated || dataImport.siteClassesCreated) && (
+                    <p className="text-xs text-slate-400">
+                      Imported {dataImport.sitesCreated ?? 0} sites ·{" "}
+                      {dataImport.siteClassesCreated ?? 0} site types
+                    </p>
+                  )}
+                </div>
+              </div>
+              <span
+                className={cn(
+                  "text-xs font-semibold uppercase px-2 py-1 rounded-full w-fit",
+                  importStatus.badge,
+                  importStatus.color
+                )}
+              >
+                {importStatus.label}
+              </span>
+            </div>
+
+            {hasMissingRequired && (
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200 space-y-2">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4" />
+                  <span className="font-semibold">Missing required exports</span>
+                </div>
+                <ul className="space-y-1">
+                  {(dataImport.missingRequired || []).map((entry) => (
+                    <li key={entry.key}>
+                      {coverageLabels[entry.key] || entry.key}:{" "}
+                      {entry.missingFields.length > 0
+                        ? entry.missingFields.join(", ")
+                        : "Missing export"}
+                    </li>
+                  ))}
+                </ul>
+                {dataImport.overrideAccepted && (
+                  <p className="text-amber-200">
+                    Override accepted. Accounting checks may be incomplete.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {onGoToStep && (
+              <Button
+                variant="outline"
+                onClick={() => onGoToStep("data_import")}
+                className="w-full border-slate-700 text-slate-200 hover:bg-slate-800"
+              >
+                Review import checklist
+              </Button>
+            )}
+          </motion.div>
+        )}
+
         {/* Go-Live Check: Blockers and Warnings */}
         {checkLoading && (
           <motion.div
@@ -277,7 +415,7 @@ export function ReviewLaunch({
           </motion.div>
         )}
 
-        {goLiveCheck && (goLiveCheck.blockers.length > 0 || goLiveCheck.warnings.length > 0) && (
+        {showChecks && (
           <motion.div
             initial={prefersReducedMotion ? {} : { opacity: 0, y: 10 }}
             animate={prefersReducedMotion ? {} : { opacity: 1, y: 0 }}
@@ -285,7 +423,7 @@ export function ReviewLaunch({
             className="space-y-4"
           >
             {/* Blockers */}
-            {goLiveCheck.blockers.length > 0 && (
+            {blockers.length > 0 && (
               <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
                 <div className="flex items-center gap-2 mb-3">
                   <AlertCircle className="w-5 h-5 text-red-400" />
@@ -294,7 +432,7 @@ export function ReviewLaunch({
                   </h3>
                 </div>
                 <ul className="space-y-2">
-                  {goLiveCheck.blockers.map((blocker) => (
+                  {blockers.map((blocker) => (
                     <li
                       key={blocker.code}
                       className="flex items-center justify-between text-sm"
@@ -315,7 +453,7 @@ export function ReviewLaunch({
             )}
 
             {/* Warnings */}
-            {goLiveCheck.warnings.length > 0 && (
+            {warnings.length > 0 && (
               <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4">
                 <div className="flex items-center gap-2 mb-3">
                   <AlertTriangle className="w-5 h-5 text-amber-400" />
@@ -324,7 +462,7 @@ export function ReviewLaunch({
                   </h3>
                 </div>
                 <ul className="space-y-2">
-                  {goLiveCheck.warnings.map((warning) => (
+                  {warnings.map((warning) => (
                     <li
                       key={warning.code}
                       className="flex items-center justify-between text-sm"

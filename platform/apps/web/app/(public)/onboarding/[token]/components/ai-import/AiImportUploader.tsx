@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Upload,
@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { apiUrl } from "@/lib/api-config";
 import { cn } from "@/lib/utils";
 
 interface ClassificationResult {
@@ -40,6 +41,7 @@ interface AiImportUploaderProps {
   onUploadComplete: (result: UploadResult) => void;
   onError?: (error: string) => void;
   disabled?: boolean;
+  resetKey?: number;
 }
 
 const FILE_ICONS: Record<string, typeof FileSpreadsheet> = {
@@ -63,11 +65,18 @@ export function AiImportUploader({
   onUploadComplete,
   onError,
   disabled = false,
+  resetKey,
 }: AiImportUploaderProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<UploadResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (resetKey === undefined) return;
+    setUploadedFile(null);
+    setError(null);
+  }, [resetKey]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -112,9 +121,8 @@ export function AiImportUploader({
       formData.append("file", file);
       formData.append("token", token);
 
-      const apiBase = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:4000/api";
       const response = await fetch(
-        `${apiBase}/onboarding/session/${sessionId}/ai-import/upload`,
+        apiUrl(`/onboarding/session/${sessionId}/ai-import/upload`),
         {
           method: "POST",
           headers: {

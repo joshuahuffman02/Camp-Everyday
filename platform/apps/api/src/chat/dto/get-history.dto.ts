@@ -1,7 +1,7 @@
 import { IsString, IsOptional, IsInt, Min, Max, IsUUID } from 'class-validator';
 import { Type } from 'class-transformer';
 import { z } from 'zod';
-import type { ToolCall, ToolResult } from './send-message.dto';
+import type { ToolCall, ToolResult, ChatAttachment } from './send-message.dto';
 
 // Zod schema for validation
 export const getHistorySchema = z.object({
@@ -45,5 +45,6 @@ export interface MessageHistoryItem {
   content: string;
   toolCalls?: ToolCall[];
   toolResults?: ToolResult[];
+  attachments?: ChatAttachment[];
   createdAt: string;
 }

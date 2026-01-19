@@ -2,13 +2,18 @@ import { BadRequestException, Body, Controller, Get, Headers, Param, Patch, Post
 import { JwtAuthGuard } from "../auth/guards";
 import { OnboardingService } from "./onboarding.service";
 import { OnboardingStep } from "@prisma/client";
-import { CreateOnboardingInviteDto, StartOnboardingDto, UpdateOnboardingStepDto } from "./dto";
+import { CreateOnboardingInviteDto, StartOnboardingDto, UpdateOnboardingDraftDto, UpdateOnboardingStepDto } from "./dto";
 import { StripeService } from "../payments/stripe.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { OnboardingTokenGateService } from "./onboarding-token-gate.service";
 import { OnboardingGoLiveCheckService } from "./onboarding-go-live-check.service";
 import { EmailService } from "../email/email.service";
 import type { Request } from "express";
+import type { AuthUser } from "../auth/auth.types";
+
+type OnboardingRequest = Request & {
+  user?: AuthUser;
+};
 
 const isOnboardingStep = (value: string): value is OnboardingStep =>
   Object.values(OnboardingStep).some((step) => step === value);
@@ -26,15 +31,65 @@ export class OnboardingController {
     private readonly email: EmailService,
   ) {}
 
+  private isPlatformStaff(user?: AuthUser): boolean {
+    return user?.platformRole === "platform_admin" || user?.platformRole === "support_agent";
+  }
+
+  private async assertInviteAccess(
+    scope: { campgroundId?: string | null; organizationId?: string | null },
+    user?: AuthUser,
+  ) {
+    if (this.isPlatformStaff(user)) return;
+    if (!user) throw new BadRequestException("Authenticated user required");
+
+    const campgroundId = scope.campgroundId ?? undefined;
+    const organizationId = scope.organizationId ?? undefined;
+    const membershipIds = user.memberships?.map((m) => m.campgroundId) ?? [];
+
+    if (campgroundId) {
+      if (!membershipIds.includes(campgroundId)) {
+        throw new BadRequestException("You do not have access to this campground");
+      }
+      return;
+    }
+
+    if (organizationId) {
+      if (membershipIds.length === 0) {
+        throw new BadRequestException("You do not have access to this organization");
+      }
+      const match = await this.prisma.campground.findFirst({
+        where: {
+          id: { in: membershipIds },
+          organizationId,
+        },
+        select: { id: true },
+      });
+      if (!match) {
+        throw new BadRequestException("You do not have access to this organization");
+      }
+      return;
+    }
+
+    throw new BadRequestException("campgroundId or organizationId is required");
+  }
+
   @UseGuards(JwtAuthGuard)
   @Post("invitations")
-  createInvite(@Body() dto: CreateOnboardingInviteDto, @Req() req: Request) {
+  async createInvite(@Body() dto: CreateOnboardingInviteDto, @Req() req: OnboardingRequest) {
+    await this.assertInviteAccess(dto, req.user);
     return this.onboarding.createInvite(dto, req.user);
   }
 
   @UseGuards(JwtAuthGuard)
   @Post("invitations/:id/resend")
-  resendInvite(@Param("id") id: string, @Req() req: Request) {
+  async resendInvite(@Param("id") id: string, @Req() req: OnboardingRequest) {
+    const invite = await this.prisma.onboardingInvite.findUnique({
+      where: { id },
+      select: { campgroundId: true, organizationId: true },
+    });
+    if (invite) {
+      await this.assertInviteAccess(invite, req.user);
+    }
     return this.onboarding.resendInvite(id, req.user);
   }
 
@@ -65,6 +120,17 @@ export class OnboardingController {
     }
     const sequence = clientSeq ?? altSeq ?? undefined;
     return this.onboarding.saveStep(id, token, dto.step, dto.payload, idempotencyKey, sequence);
+  }
+
+  @Patch("session/:id/data-import/draft")
+  saveDataImportDraft(
+    @Param("id") id: string,
+    @Body() dto: UpdateOnboardingDraftDto,
+    @Headers("x-onboarding-token") tokenHeader: string,
+  ) {
+    const token = dto.token ?? tokenHeader;
+    if (!token) throw new BadRequestException("Missing onboarding token");
+    return this.onboarding.saveDraft(id, token, OnboardingStep.data_import, dto.payload);
   }
 
   /**

@@ -67,6 +67,8 @@ export function DashboardChatWidget() {
       isGuest={false}
       authToken={authToken}
       position="bottom-right"
+      useStreaming={true}
+      streamingTransport="sse"
     />
   );
 }

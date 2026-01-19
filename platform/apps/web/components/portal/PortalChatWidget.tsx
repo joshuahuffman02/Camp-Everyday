@@ -126,6 +126,8 @@ export function PortalChatWidget() {
       guestId={guestId}
       authToken={token}
       position="bottom-right"
+      useStreaming={true}
+      streamingTransport="sse"
     />
   );
 }

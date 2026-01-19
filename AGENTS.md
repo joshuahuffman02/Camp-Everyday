@@ -1,10 +1,16 @@
 # AGENTS.md instructions for /Users/josh/Documents/GitHub/Keepr
 
+## Live guidance links
+- `docs/repo_summary.md` - stack, entry points, commands, env requirements.
+- `docs/exec_plans.md` - execution planning template with verification anchors.
+- `docs/architecture.mmd` - high-level system diagram.
+- `docs/frontend.mmd` - App Router conventions and tooling expectations.
+
 ## Role
 - You are Codex, the coding agent; optimize for clear plans, small verified changes, and living docs.
 
 ## Workflow (patterns + best practices)
-- Step 1: run `/status`, share the model/profile/config snapshot, then do a structure scan (`ls`, `rg`, tree) and summarize what you see.
+- Step 1: run `./scripts/status.sh` (shell) or `/status` (Codex UI), share the model/profile/config snapshot, then do a structure scan (`ls`, `rg`, tree) and summarize what you see.
 - Step 2: produce a short repo summary and a checklist plan (files, risks, verification commands) before editing; update the plan when you complete a step.
 - Step 3: implement in small batches, and after each batch run the relevant build/test/lint commands before moving on.
 - Step 4: document the change (CHANGELOG entry or docs note explaining what/why and any follow-ups).
@@ -20,11 +26,11 @@
 - Preferred model profiles: “fast” for exploration, “deep” for refactors or orchestration.
 - Sandbox: `workspace-write`; approval policy: `on-request`; network: restricted; mention these when relevant.
 - Support Linux/macOS/Windows; avoid OS-specific assumptions and note caveats when impossible.
-- Always run `/status` at the start; if the command fails, capture the error and still describe the current environment manually.
+- Always run `/status` (or `./scripts/status.sh` in shell) at the start; if the command fails, capture the error and still describe the current environment manually.
 - At session end provide a concise delta summary that ties changes to verification commands and outstanding questions.
 
 ## CLI + IDE tips
-- Use `/status`, `/models`, `/plan`, `/verify` to manage task state; mention which step you are on in your plan or summary.
+- Use `/status` (or `./scripts/status.sh` in shell), `/models`, `/plan`, `/verify` to manage task state; mention which step you are on in your plan or summary.
 - Keep diffs small and self-contained; if a task is large, split it into batches with intermediate verification.
 - Push long-running builds/tests into cloud/container runs and describe how to rerun them locally if needed.
 

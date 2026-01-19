@@ -197,6 +197,10 @@ pnpm --dir platform/apps/api prisma:migrate
 2. Run migrations on staging: Railway auto-runs on deploy
 3. Check Supabase dashboard for branch status
 
+### E2E Auth UntrustedHost
+
+If Playwright logs `UntrustedHost` errors, set `AUTH_TRUST_HOST=true` and `AUTH_URL` (or `NEXTAUTH_URL`) to the local base URL (e.g. `http://localhost:3000`). The Playwright config injects these for the web server during `pnpm --dir platform/apps/web test:e2e`, but manual runs may still need them.
+
 ## URLs Reference
 
 | Environment | Frontend | API | Health Check |

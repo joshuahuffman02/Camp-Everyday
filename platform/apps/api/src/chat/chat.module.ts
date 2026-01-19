@@ -9,6 +9,8 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { AiModule } from '../ai/ai.module';
 import { AuthModule } from '../auth/auth.module';
 import { GuestAuthModule } from '../guest-auth/guest-auth.module';
+import { UploadsModule } from '../uploads/uploads.module';
+import { AnalyticsModule } from '../analytics/analytics.module';
 
 @Module({
   imports: [
@@ -16,6 +18,8 @@ import { GuestAuthModule } from '../guest-auth/guest-auth.module';
     forwardRef(() => AiModule),
     forwardRef(() => AuthModule),
     GuestAuthModule,
+    UploadsModule,
+    AnalyticsModule,
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({

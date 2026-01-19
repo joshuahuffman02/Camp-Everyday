@@ -2,7 +2,8 @@ import { Injectable, Logger, NotFoundException, ForbiddenException, BadRequestEx
 import { PrismaService } from '../prisma/prisma.service';
 import { AiProviderService } from '../ai/ai-provider.service';
 import { RedisService } from '../redis/redis.service';
-import { AiFeatureType, ChatParticipantType, ChatMessageRole } from '@prisma/client';
+import { UploadsService } from '../uploads/uploads.service';
+import { AiFeatureType, ChatParticipantType, ChatMessageRole, AnalyticsEventName } from '@prisma/client';
 import type { ChatMessage, Prisma } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import {
@@ -11,6 +12,7 @@ import {
   ToolCall,
   ToolResult,
   ActionRequired,
+  ChatAttachment,
 } from './dto/send-message.dto';
 import {
   ExecuteActionDto,
@@ -21,8 +23,17 @@ import {
   ConversationHistoryResponse,
   MessageHistoryItem,
 } from './dto/get-history.dto';
+import {
+  GetConversationsDto,
+  ConversationListResponse,
+  ConversationSummary,
+} from './dto/get-conversations.dto';
+import { SubmitFeedbackDto, SubmitFeedbackResponse } from './dto/submit-feedback.dto';
+import { RegenerateMessageDto } from './dto/regenerate-message.dto';
 import { ChatToolsService } from './chat-tools.service';
 import { ChatGateway } from './chat.gateway';
+import { AnalyticsService } from '../analytics/analytics.service';
+import { EnhancedAnalyticsService } from '../analytics/enhanced-analytics.service';
 
 interface ChatContext {
   campgroundId: string;
@@ -97,6 +108,41 @@ const parseToolCalls = (value: unknown): ToolCall[] | undefined =>
 const parseToolResults = (value: unknown): ToolResult[] | undefined =>
   Array.isArray(value) ? value.filter(isToolResult) : undefined;
 
+const CHAT_ATTACHMENT_ALLOWED_CONTENT_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'application/pdf',
+]);
+const CHAT_ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024;
+
+const isChatAttachment = (value: unknown): value is ChatAttachment =>
+  isRecord(value) &&
+  typeof value.name === 'string' &&
+  typeof value.contentType === 'string' &&
+  typeof value.size === 'number' &&
+  Number.isFinite(value.size) &&
+  value.size > 0 &&
+  value.size <= CHAT_ATTACHMENT_MAX_BYTES &&
+  (value.storageKey === undefined || typeof value.storageKey === 'string') &&
+  (value.url === undefined || typeof value.url === 'string');
+
+const normalizeAttachments = (value: unknown): ChatAttachment[] | undefined => {
+  if (!Array.isArray(value)) return undefined;
+  const attachments = value
+    .filter(isChatAttachment)
+    .filter((attachment) => CHAT_ATTACHMENT_ALLOWED_CONTENT_TYPES.has(attachment.contentType))
+    .map((attachment) => ({
+      name: attachment.name.trim().slice(0, 255),
+      contentType: attachment.contentType,
+      size: attachment.size,
+      storageKey: attachment.storageKey,
+      url: attachment.url,
+    }));
+  return attachments.length > 0 ? attachments : undefined;
+};
+
 const isPendingActionType = (value: unknown): value is PendingAction["type"] =>
   value === "confirmation" || value === "form" || value === "selection";
 
@@ -125,6 +171,9 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
     private readonly toolsService: ChatToolsService,
     private readonly chatGateway: ChatGateway,
     private readonly redis: RedisService,
+    private readonly uploads: UploadsService,
+    private readonly analytics: AnalyticsService,
+    private readonly enhancedAnalytics: EnhancedAnalyticsService,
   ) {}
 
   async assertGuestAccess(guestId: string, campgroundId: string): Promise<void> {
@@ -231,7 +280,12 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
     dto: SendMessageDto,
     context: ChatContext,
   ): Promise<ChatMessageResponse> {
-    const { message, conversationId: existingConversationId } = dto;
+    const message = dto.message?.trim() ?? '';
+    const { conversationId: existingConversationId } = dto;
+    const attachments = normalizeAttachments(dto.attachments);
+    if (!message && !attachments) {
+      throw new BadRequestException('Message or attachment required');
+    }
 
     // Get or create conversation
     let conversation = existingConversationId
@@ -245,8 +299,10 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
         conversationId: conversation.id,
         role: ChatMessageRole.user,
         content: message,
+        metadata: attachments ? toJsonValue({ attachments }) : undefined,
       },
     });
+    await this.ensureConversationTitle(conversation.id, conversation.title, message, attachments);
 
     // Build conversation history for context
     const history = await this.buildConversationHistory(conversation.id);
@@ -263,7 +319,7 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
         campgroundId: context.campgroundId,
         featureType: AiFeatureType.booking_assist,
         systemPrompt,
-        userPrompt: this.formatHistoryForAI(history, message),
+        userPrompt: this.formatHistoryForAI(history, message, attachments),
         tools: tools.map(t => ({
           type: 'function',
           function: {
@@ -298,7 +354,7 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
             campgroundId: context.campgroundId,
             featureType: AiFeatureType.booking_assist,
             systemPrompt,
-            userPrompt: this.formatHistoryWithToolResults(history, message, toolCalls, toolResults),
+            userPrompt: this.formatHistoryWithToolResults(history, message, toolCalls, toolResults, attachments),
             maxTokens: 500,
             temperature: 0.7,
           });
@@ -360,7 +416,12 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
     dto: SendMessageDto,
     context: ChatContext,
   ): Promise<void> {
-    const { message, conversationId: existingConversationId } = dto;
+    const message = dto.message?.trim() ?? '';
+    const { conversationId: existingConversationId } = dto;
+    const attachments = normalizeAttachments(dto.attachments);
+    if (!message && !attachments) {
+      throw new BadRequestException('Message or attachment required');
+    }
 
     // Get or create conversation
     let conversation = existingConversationId
@@ -374,8 +435,10 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
         conversationId: conversation.id,
         role: ChatMessageRole.user,
         content: message,
+        metadata: attachments ? toJsonValue({ attachments }) : undefined,
       },
     });
+    await this.ensureConversationTitle(conversation.id, conversation.title, message, attachments);
 
     // Emit typing indicator
     this.chatGateway.emitTyping(conversation.id, true);
@@ -395,7 +458,7 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
         campgroundId: context.campgroundId,
         featureType: AiFeatureType.booking_assist,
         systemPrompt,
-        userPrompt: this.formatHistoryForAI(history, message),
+        userPrompt: this.formatHistoryForAI(history, message, attachments),
         tools: tools.map(t => ({
           type: 'function',
           function: {
@@ -494,7 +557,7 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
             campgroundId: context.campgroundId,
             featureType: AiFeatureType.booking_assist,
             systemPrompt,
-            userPrompt: this.formatHistoryWithToolResults(history, message, toolCalls, toolResults),
+            userPrompt: this.formatHistoryWithToolResults(history, message, toolCalls, toolResults, attachments),
             maxTokens: 500,
             temperature: 0.7,
           });
@@ -714,14 +777,23 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
     // Reverse to get chronological order
     messages.reverse();
 
-    const formattedMessages: MessageHistoryItem[] = messages.map(m => ({
-      id: m.id,
-      role: normalizeMessageRole(m.role),
-      content: m.content,
-      toolCalls: parseToolCalls(m.toolCalls),
-      toolResults: parseToolResults(m.toolResults),
-      createdAt: m.createdAt.toISOString(),
-    }));
+    const formattedMessages: MessageHistoryItem[] = await Promise.all(
+      messages.map(async (m) => {
+        const metadata = isRecord(m.metadata) ? m.metadata : undefined;
+        const attachments = normalizeAttachments(metadata?.attachments);
+        const hydratedAttachments = await this.hydrateAttachments(attachments);
+
+        return {
+          id: m.id,
+          role: normalizeMessageRole(m.role),
+          content: m.content,
+          toolCalls: parseToolCalls(m.toolCalls),
+          toolResults: parseToolResults(m.toolResults),
+          attachments: hydratedAttachments,
+          createdAt: m.createdAt.toISOString(),
+        };
+      })
+    );
 
     return {
       conversationId: conversation.id,
@@ -729,6 +801,317 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
       hasMore,
       nextCursor: hasMore && messages.length > 0 ? messages[0].id : undefined,
     };
+  }
+
+  /**
+   * Get conversation list for history resume
+   */
+  async getConversations(
+    dto: GetConversationsDto,
+    context: ChatContext,
+  ): Promise<ConversationListResponse> {
+    const { limit = 20, before, since, query } = dto;
+    let beforeDate: Date | undefined;
+    let sinceDate: Date | undefined;
+
+    if (before) {
+      const parsed = new Date(before);
+      if (Number.isNaN(parsed.getTime())) {
+        throw new BadRequestException('Invalid before cursor');
+      }
+      beforeDate = parsed;
+    }
+    if (since) {
+      const parsed = new Date(since);
+      if (Number.isNaN(parsed.getTime())) {
+        throw new BadRequestException('Invalid since filter');
+      }
+      sinceDate = parsed;
+    }
+
+    const whereClause: Prisma.ChatConversationWhereInput = {
+      campgroundId: context.campgroundId,
+      participantType: context.participantType,
+      participantId: context.participantId,
+    };
+    if (beforeDate || sinceDate) {
+      whereClause.updatedAt = {
+        ...(beforeDate ? { lt: beforeDate } : {}),
+        ...(sinceDate ? { gte: sinceDate } : {}),
+      };
+    }
+
+    const trimmedQuery = query?.trim();
+    if (trimmedQuery) {
+      whereClause.AND = [
+        {
+          OR: [
+            { title: { contains: trimmedQuery, mode: 'insensitive' } },
+            {
+              ChatMessage: {
+                some: { content: { contains: trimmedQuery, mode: 'insensitive' } },
+              },
+            },
+          ],
+        },
+      ];
+    }
+
+    const conversations = await this.prisma.chatConversation.findMany({
+      where: whereClause,
+      orderBy: { updatedAt: 'desc' },
+      take: limit + 1,
+      select: {
+        id: true,
+        title: true,
+        updatedAt: true,
+        ChatMessage: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: { content: true, createdAt: true, metadata: true },
+        },
+      },
+    });
+
+    const hasMore = conversations.length > limit;
+    if (hasMore) {
+      conversations.pop();
+    }
+
+    const summaries: ConversationSummary[] = conversations.map((conversation) => {
+      const lastMessage = conversation.ChatMessage[0];
+      const lastContent = lastMessage?.content?.trim() ?? '';
+      let lastMessagePreview = lastContent ? lastContent.slice(0, 160) : undefined;
+      if (!lastMessagePreview && lastMessage) {
+        const metadata = isRecord(lastMessage.metadata) ? lastMessage.metadata : undefined;
+        const attachments = normalizeAttachments(metadata?.attachments);
+        if (attachments && attachments.length > 0) {
+          if (attachments.length === 1) {
+            lastMessagePreview = `Attachment: ${attachments[0].name}`.slice(0, 160);
+          } else {
+            lastMessagePreview = `${attachments.length} attachments`;
+          }
+        }
+      }
+      return {
+        id: conversation.id,
+        title: conversation.title,
+        updatedAt: conversation.updatedAt.toISOString(),
+        lastMessagePreview,
+        lastMessageAt: lastMessage?.createdAt.toISOString(),
+      };
+    });
+
+    const nextCursor =
+      hasMore && conversations.length > 0
+        ? conversations[conversations.length - 1].updatedAt.toISOString()
+        : undefined;
+
+    return {
+      conversations: summaries,
+      hasMore,
+      nextCursor,
+    };
+  }
+
+  /**
+   * Persist feedback for a chat message
+   */
+  async submitFeedback(
+    dto: SubmitFeedbackDto,
+    context: ChatContext,
+  ): Promise<SubmitFeedbackResponse> {
+    const message = await this.prisma.chatMessage.findUnique({
+      where: { id: dto.messageId },
+    });
+
+    if (!message) {
+      throw new NotFoundException('Message not found');
+    }
+
+    await this.getConversation(message.conversationId, context);
+
+    if (message.role !== ChatMessageRole.assistant) {
+      throw new BadRequestException('Feedback is only available for assistant messages');
+    }
+
+    const metadata = isRecord(message.metadata) ? { ...message.metadata } : {};
+    metadata.feedback = {
+      value: dto.value,
+      at: new Date().toISOString(),
+      by: {
+        type: context.participantType,
+        id: context.participantId,
+      },
+    };
+
+    await this.prisma.chatMessage.update({
+      where: { id: message.id },
+      data: {
+        metadata: toJsonValue(metadata),
+      },
+    });
+
+    await this.trackChatAction({
+      sessionId: dto.sessionId,
+      context,
+      actionType: 'chat_feedback',
+      metadata: {
+        messageId: message.id,
+        conversationId: message.conversationId,
+        value: dto.value,
+      },
+    });
+
+    return { success: true, message: 'Feedback saved' };
+  }
+
+  /**
+   * Regenerate an assistant response based on the original user prompt
+   */
+  async regenerateMessage(
+    dto: RegenerateMessageDto,
+    context: ChatContext,
+  ): Promise<ChatMessageResponse> {
+    const targetMessage = await this.prisma.chatMessage.findUnique({
+      where: { id: dto.messageId },
+    });
+
+    if (!targetMessage) {
+      throw new NotFoundException('Message not found');
+    }
+
+    if (targetMessage.role !== ChatMessageRole.assistant) {
+      throw new BadRequestException('Only assistant messages can be regenerated');
+    }
+
+    const conversation = await this.getConversation(targetMessage.conversationId, context);
+
+    const userMessage = await this.prisma.chatMessage.findFirst({
+      where: {
+        conversationId: conversation.id,
+        role: ChatMessageRole.user,
+        createdAt: { lt: targetMessage.createdAt },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!userMessage) {
+      throw new BadRequestException('No user prompt found to regenerate');
+    }
+
+    const userMetadata = isRecord(userMessage.metadata) ? userMessage.metadata : undefined;
+    const userAttachments = normalizeAttachments(userMetadata?.attachments);
+    const history = await this.buildConversationHistoryBefore(conversation.id, targetMessage.createdAt);
+    const tools = this.toolsService.getToolsForUser(context);
+    const systemPrompt = this.buildSystemPrompt(context);
+
+    await this.trackChatAction({
+      sessionId: dto.sessionId,
+      context,
+      actionType: 'chat_regenerate',
+      metadata: {
+        messageId: dto.messageId,
+        conversationId: conversation.id,
+      },
+    });
+
+    try {
+      const aiResponse = await this.aiProvider.getToolCompletion({
+        campgroundId: context.campgroundId,
+        featureType: AiFeatureType.booking_assist,
+        systemPrompt,
+        userPrompt: this.formatHistoryForAI(history, userMessage.content, userAttachments),
+        tools: tools.map(t => ({
+          type: 'function',
+          function: {
+            name: t.name,
+            description: t.description,
+            parameters: t.parameters,
+          },
+        })),
+        maxTokens: 1000,
+        temperature: 0.7,
+      });
+
+      let toolCalls: ToolCall[] = [];
+      let toolResults: ToolResult[] = [];
+      let actionRequired: ActionRequired | undefined;
+      let finalContent = aiResponse.content;
+
+      if (aiResponse.toolCalls && aiResponse.toolCalls.length > 0) {
+        const toolProcessResult = await this.processToolCalls(
+          aiResponse.toolCalls,
+          context,
+          conversation.id,
+        );
+        toolCalls = toolProcessResult.toolCalls;
+        toolResults = toolProcessResult.toolResults;
+        actionRequired = toolProcessResult.actionRequired;
+
+        if (toolResults.length > 0 && !actionRequired) {
+          const followUp = await this.aiProvider.getCompletion({
+            campgroundId: context.campgroundId,
+            featureType: AiFeatureType.booking_assist,
+            systemPrompt,
+            userPrompt: this.formatHistoryWithToolResults(
+              history,
+              userMessage.content,
+              toolCalls,
+              toolResults,
+              userAttachments,
+            ),
+            maxTokens: 500,
+            temperature: 0.7,
+          });
+          finalContent = followUp.content;
+        }
+      }
+
+      const assistantMessage = await this.prisma.chatMessage.create({
+        data: {
+          id: randomUUID(),
+          conversationId: conversation.id,
+          role: ChatMessageRole.assistant,
+          content: finalContent,
+          toolCalls: toolCalls.length > 0 ? toJsonValue(toolCalls) : undefined,
+          toolResults: toolResults.length > 0 ? toJsonValue(toolResults) : undefined,
+          metadata: toJsonValue({
+            regeneratedFrom: targetMessage.id,
+          }),
+        },
+      });
+
+      await this.prisma.chatConversation.update({
+        where: { id: conversation.id },
+        data: { updatedAt: new Date() },
+      });
+
+      return {
+        conversationId: conversation.id,
+        messageId: assistantMessage.id,
+        role: 'assistant',
+        content: finalContent,
+        toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+        toolResults: toolResults.length > 0 ? toolResults : undefined,
+        actionRequired,
+        createdAt: assistantMessage.createdAt.toISOString(),
+      };
+    } catch (error) {
+      this.logger.error('Chat regenerate error:', error);
+
+      await this.prisma.chatMessage.create({
+        data: {
+          id: randomUUID(),
+          conversationId: conversation.id,
+          role: ChatMessageRole.system,
+          content: 'I encountered an error regenerating your request. Please try again.',
+          metadata: toJsonValue({ error: error instanceof Error ? error.message : 'Unknown error' }),
+        },
+      });
+
+      throw error;
+    }
   }
 
   /**
@@ -792,12 +1175,149 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
     return messages.reverse();
   }
 
+  private async hydrateAttachments(
+    attachments?: ChatAttachment[],
+  ): Promise<ChatAttachment[] | undefined> {
+    if (!attachments || attachments.length === 0) return undefined;
+
+    const hydrated = await Promise.all(
+      attachments.map(async (attachment) => {
+        if (!attachment.storageKey) return attachment;
+        try {
+          const downloadUrl = await this.uploads.getSignedUrl(attachment.storageKey);
+          return { ...attachment, downloadUrl };
+        } catch {
+          return attachment;
+        }
+      })
+    );
+
+    return hydrated;
+  }
+
+  private async buildConversationHistoryBefore(
+    conversationId: string,
+    before: Date,
+  ): Promise<ChatMessage[]> {
+    const messages = await this.prisma.chatMessage.findMany({
+      where: { conversationId, createdAt: { lt: before } },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    });
+
+    return messages.reverse();
+  }
+
+  private formatAttachmentSummary(attachments?: ChatAttachment[]): string | undefined {
+    if (!attachments || attachments.length === 0) return undefined;
+    const names = attachments
+      .map((attachment) => attachment.name.trim())
+      .filter((name) => name.length > 0);
+    if (names.length === 0) return 'attachments uploaded';
+    if (names.length === 1) return `attachment: ${names[0]}`;
+    const preview = names.slice(0, 3).join(', ');
+    const suffix = names.length > 3 ? ` and ${names.length - 3} more` : '';
+    return `attachments: ${preview}${suffix}`;
+  }
+
+  private buildConversationTitle(message: string, attachments?: ChatAttachment[]): string | undefined {
+    const trimmed = message.trim();
+    if (trimmed) return trimmed.slice(0, 60);
+    const summary = this.formatAttachmentSummary(attachments);
+    return summary ? summary.slice(0, 60) : undefined;
+  }
+
+  private async ensureConversationTitle(
+    conversationId: string,
+    existingTitle: string | null | undefined,
+    message: string,
+    attachments?: ChatAttachment[],
+  ): Promise<void> {
+    if (existingTitle && existingTitle.trim().length > 0) return;
+    const title = this.buildConversationTitle(message, attachments);
+    if (!title) return;
+    await this.prisma.chatConversation.updateMany({
+      where: {
+        id: conversationId,
+        OR: [{ title: null }, { title: "" }],
+      },
+      data: {
+        title,
+        updatedAt: new Date(),
+      },
+    });
+  }
+
+  private async trackChatAction(params: {
+    sessionId?: string;
+    context: ChatContext;
+    actionType: string;
+    metadata: Record<string, unknown>;
+  }) {
+    const { sessionId, context, actionType, metadata } = params;
+    if (!sessionId) return;
+
+    try {
+      if (context.participantType === ChatParticipantType.staff) {
+        await this.enhancedAnalytics.trackAdminEvent(
+          {
+            sessionId,
+            eventName: AnalyticsEventName.admin_action,
+            campgroundId: context.campgroundId,
+            userId: context.participantId,
+            featureArea: 'chat',
+            actionType,
+            actionTarget: 'message',
+            metadata,
+          },
+          {
+            campgroundId: context.campgroundId,
+            organizationId: null,
+            userId: context.participantId,
+          }
+        );
+      } else if (context.participantType === ChatParticipantType.guest) {
+        await this.analytics.ingest(
+          {
+            sessionId,
+            eventName: AnalyticsEventName.portal_action,
+            campgroundId: context.campgroundId,
+            metadata: {
+              actionType,
+              ...metadata,
+            },
+          },
+          {
+            campgroundId: context.campgroundId,
+            organizationId: null,
+            userId: null,
+          }
+        );
+      }
+    } catch (error) {
+      this.logger.warn('Failed to track chat analytics', error);
+    }
+  }
+
+  private formatMessageForAI(message: string, attachments?: ChatAttachment[]): string {
+    const trimmed = message.trim();
+    const attachmentSummary = this.formatAttachmentSummary(attachments);
+    if (!attachmentSummary) return trimmed;
+    if (!trimmed) return attachmentSummary;
+    return `${trimmed}\n(${attachmentSummary})`;
+  }
+
   /**
    * Format history for AI prompt
    */
-  private formatHistoryForAI(history: ChatMessage[], currentMessage: string): string {
+  private formatHistoryForAI(
+    history: ChatMessage[],
+    currentMessage: string,
+    currentAttachments?: ChatAttachment[],
+  ): string {
+    const formattedCurrent = this.formatMessageForAI(currentMessage, currentAttachments);
     if (history.length === 0) {
-      return currentMessage;
+      return formattedCurrent;
     }
 
     const formattedHistory = history
@@ -811,11 +1331,14 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
               : m.role === ChatMessageRole.system
                 ? 'System'
                 : 'Tool';
-        return `${role}: ${m.content}`;
+        const metadata = isRecord(m.metadata) ? m.metadata : undefined;
+        const attachments = normalizeAttachments(metadata?.attachments);
+        const message = this.formatMessageForAI(m.content, attachments);
+        return `${role}: ${message}`;
       })
       .join('\n\n');
 
-    return `Previous conversation:\n${formattedHistory}\n\nUser: ${currentMessage}`;
+    return `Previous conversation:\n${formattedHistory}\n\nUser: ${formattedCurrent}`;
   }
 
   /**
@@ -826,8 +1349,9 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
     message: string,
     toolCalls: ToolCall[],
     toolResults: ToolResult[],
+    attachments?: ChatAttachment[],
   ): string {
-    const base = this.formatHistoryForAI(history, message);
+    const base = this.formatHistoryForAI(history, message, attachments);
 
     const toolInfo = toolCalls.map((tc, i) => {
       const result = toolResults[i];
