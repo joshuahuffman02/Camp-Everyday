@@ -49,6 +49,11 @@ type PartnerMessage = UnifiedChatMessage & {
   evidenceLinks?: EvidenceLink[];
 };
 
+const isUserAssistantMessage = <T extends UnifiedChatMessage>(
+  message: T
+): message is T & { role: "user" | "assistant" } =>
+  message.role === "user" || message.role === "assistant";
+
 function generateSessionId() {
   return `support_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
@@ -539,7 +544,7 @@ export function SupportChatWidget() {
 
       setSupportMessages((prev) => [...prev, userMessage]);
 
-      const history = supportMessages.map((m) => ({
+      const history = supportMessages.filter(isUserAssistantMessage).map((m) => ({
         role: m.role,
         content: m.content,
       }));
@@ -571,7 +576,7 @@ export function SupportChatWidget() {
 
     setPartnerMessages((prev) => [...prev, userMessage]);
 
-    const history = partnerMessages.map((m) => ({
+    const history = partnerMessages.filter(isUserAssistantMessage).map((m) => ({
       role: m.role,
       content: m.content,
     }));

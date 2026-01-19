@@ -353,8 +353,7 @@ export function ChatWidget({
 
     const items: AttachmentItem[] = files.map((file) => {
       const meta = resolveAttachmentMeta(file);
-      const contentType =
-        "contentType" in meta ? meta.contentType : file.type || "application/octet-stream";
+      const contentType = (meta.contentType ?? file.type) || "application/octet-stream";
       const previewUrl = contentType.startsWith("image/") ? URL.createObjectURL(file) : undefined;
 
       if ("error" in meta) {

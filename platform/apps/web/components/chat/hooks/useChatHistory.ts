@@ -30,6 +30,18 @@ const toHistoryResponse = (value: unknown): HistoryResponse | null => {
   if (typeof value.conversationId !== "string") return null;
   if (!Array.isArray(value.messages)) return null;
 
+  const resolveRole = (role: unknown): UnifiedChatMessage["role"] => {
+    switch (role) {
+      case "user":
+      case "assistant":
+      case "tool":
+      case "system":
+        return role;
+      default:
+        return "assistant";
+    }
+  };
+
   const isAttachment = (entry: unknown): entry is ChatAttachment =>
     isRecord(entry) &&
     typeof entry.name === "string" &&
@@ -41,13 +53,7 @@ const toHistoryResponse = (value: unknown): HistoryResponse | null => {
 
   const messages = value.messages.filter(isRecord).map((message) => ({
     id: typeof message.id === "string" ? message.id : `msg_${Date.now()}`,
-    role:
-      message.role === "user" ||
-      message.role === "assistant" ||
-      message.role === "tool" ||
-      message.role === "system"
-        ? message.role
-        : "assistant",
+    role: resolveRole(message.role),
     content: typeof message.content === "string" ? message.content : "",
     toolCalls: Array.isArray(message.toolCalls) ? message.toolCalls : undefined,
     toolResults: Array.isArray(message.toolResults) ? message.toolResults : undefined,

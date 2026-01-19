@@ -13,6 +13,7 @@
 - Enforce onboarding reservation import token scope/expiry and filter imports to active sites.
 - Block conflicting reservation imports, honor system pricing toggles, and dedupe guests in execution.
 - Use consistent API base resolution for onboarding reservation import requests.
+- Normalize chat attachment content types and filter support/partner chat history roles for web build typing.
 
 ### Added
 - Onboarding import checklist with system-specific export prompts, coverage tracking, and warning override.
