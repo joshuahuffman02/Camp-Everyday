@@ -26,6 +26,7 @@
 - Json-render report/graph cards inside the staff chat artifact panel.
 - Occupancy and revenue tools now return json-render payloads for inline report charts and tables.
 - Staff chat tool calls now show input/output cards, with a Playwright regression test for scroll behavior.
+- Staff chat message rendering now supports markdown for richer KPI summaries.
 
 #### Phase 1: Pricing & Payments
 - **Dynamic Pricing Engine** (`/pricing-v2`)

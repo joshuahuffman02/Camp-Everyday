@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { Bot, User, ExternalLink, Check, AlertCircle, Copy, PencilLine, RotateCcw, ThumbsUp, ThumbsDown, FileText } from "lucide-react";
+import ReactMarkdown, { type Components } from "react-markdown";
 import { cn } from "@/lib/utils";
 import { SuggestedPrompts } from "./SuggestedPrompts";
 import type {
@@ -38,6 +39,77 @@ const getString = (value: unknown, fallback = ""): string =>
 
 const getNumber = (value: unknown, fallback = 0): number =>
   typeof value === "number" ? value : fallback;
+
+const buildMarkdownComponents = (isUser: boolean): Components => {
+  const linkClass = isUser ? "text-white underline underline-offset-4" : "text-blue-600 underline underline-offset-4";
+  const codeInlineClass = isUser
+    ? "bg-white/15 text-white"
+    : "bg-muted/60 text-foreground";
+  const codeBlockClass = isUser
+    ? "bg-white/10 text-white"
+    : "bg-muted/60 text-foreground";
+
+  return {
+    p: ({ children }) => (
+      <p className="text-sm leading-relaxed whitespace-pre-wrap mb-2 last:mb-0">{children}</p>
+    ),
+    a: ({ href, children }) => {
+      if (!href) {
+        return <span className={linkClass}>{children}</span>;
+      }
+      const isExternal = href.startsWith("http://") || href.startsWith("https://");
+      if (isExternal) {
+        return (
+          <a href={href} target="_blank" rel="noreferrer" className={linkClass}>
+            {children}
+          </a>
+        );
+      }
+      return (
+        <Link href={href} className={linkClass}>
+          {children}
+        </Link>
+      );
+    },
+    ul: ({ children }) => (
+      <ul className="list-disc pl-5 text-sm leading-relaxed space-y-1">{children}</ul>
+    ),
+    ol: ({ children }) => (
+      <ol className="list-decimal pl-5 text-sm leading-relaxed space-y-1">{children}</ol>
+    ),
+    li: ({ children }) => <li className="text-sm leading-relaxed">{children}</li>,
+    blockquote: ({ children }) => (
+      <blockquote className={cn(
+        "border-l-2 pl-3 text-sm leading-relaxed italic",
+        isUser ? "border-white/40 text-white/90" : "border-border text-muted-foreground"
+      )}>
+        {children}
+      </blockquote>
+    ),
+    code: ({ inline, className, children }) => {
+      if (inline) {
+        return (
+          <code className={cn("rounded px-1 py-0.5 text-xs font-medium", codeInlineClass)}>
+            {children}
+          </code>
+        );
+      }
+      return (
+        <code className={cn("block text-xs font-medium", className)}>
+          {children}
+        </code>
+      );
+    },
+    pre: ({ children }) => (
+      <pre className={cn(
+        "mt-2 max-h-60 overflow-auto rounded-md p-2 text-xs",
+        codeBlockClass
+      )}>
+        {children}
+      </pre>
+    ),
+  };
+};
 
 const formatJson = (value: unknown) => {
   try {
@@ -350,6 +422,10 @@ export function ChatMessage({
   const orphanedToolResults = (toolResults ?? []).filter(
     (result) => !toolCallIds.has(result.toolCallId)
   );
+  const markdownComponents = useMemo(
+    () => buildMarkdownComponents(isUser),
+    [isUser]
+  );
 
   const handleCopy = useMemo(
     () => async () => {
@@ -423,7 +499,9 @@ export function ChatMessage({
         )}
       >
         {hasContent && (
-          <p className="text-sm whitespace-pre-wrap">{content}</p>
+          <ReactMarkdown components={markdownComponents}>
+            {content}
+          </ReactMarkdown>
         )}
 
         {hasAttachments && (

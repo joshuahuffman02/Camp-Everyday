@@ -27,7 +27,7 @@ Keep this template near the top of any large task PR so reviewers immediately un
 
 ## Plan: Vercel Standards Foundation (Turbo + pnpm 9.15.9)
 - Objective: Introduce Turbo build pipelines and upgrade pnpm tooling to align Keepr with Vercel monorepo standards.
-- Background: Current tooling is pnpm 7 with sequential build scripts; Vercel repos use pnpm 9/10 and Turbo caching.
+- Background: Prior tooling used pnpm 7 with sequential build scripts; Vercel repos use pnpm 9/10 and Turbo caching.
 - Scope: `package.json`, `pnpm-lock.yaml`, `turbo.json`, `platform/apps/api/package.json`, `platform/apps/web/package.json`, `Dockerfile.web`, `Dockerfile.api`, `.github/workflows/ci.yml`, `docs/repo_summary.md`, `docs/RAILWAY_TROUBLESHOOTING.md`, new `docs/vercel-standards-checklist.md`.
 - Steps:
   1. Add `turbo.json` and wire root build scripts to use Turbo; align API/Web build scripts for dependency-based builds.
@@ -36,7 +36,7 @@ Keep this template near the top of any large task PR so reviewers immediately un
   4. Publish a Vercel standards checklist doc and update repo summary.
 - Risks & Mitigations: lockfile format upgrade (run `pnpm install` with new version); Prisma client generation now happens in API build (verify CI still generates client); web build may require env vars (use `SKIP_ENV_VALIDATION` if needed).
 - Verification: `pnpm lint:web`, `pnpm build`, `pnpm --dir platform/apps/api test:smoke`.
-- Status: In progress; lockfile regeneration and verification pending.
+- Status: In progress; lockfile regenerated and verification pending.
 
 ## Plan: AI UI Builder (json-render)
 - Objective: Add a json-render powered AI UI builder for analytics dashboards, report composers, and staff workflows in Keepr.
@@ -80,7 +80,7 @@ Keep this template near the top of any large task PR so reviewers immediately un
 - Risks & Mitigations: streaming adapter complexity -> incremental rollout + feature flags; PII retention -> session-only public chat + retention policy; action safety -> confirmations + audit trail; attachment storage -> choose storage provider with scoped access.
 - Verification: `pnpm lint:web`, `pnpm --dir platform/apps/api test:smoke`, `pnpm --dir platform/apps/web test`, `pnpm --dir platform/apps/web test:e2e`, `pnpm build`.
 - Documentation / Follow-up: update `docs/frontend.mmd` as shared chat shell conventions emerge; keep `docs/chat-widget-upgrade-todo.md` current as phases ship.
-- Status: In progress; Phase 0 complete; Phase 1 streaming + message actions + history panel delivered; Phase 1b conversation list + resume delivered; feedback/regenerate persistence delivered; Phase 2 attachments upload + preview delivered; staff history search/filters + auto-titles delivered; artifact sidecar delivered; feedback/regenerate analytics events delivered; attachment content type typing + support/partner history role filters fixed for web build; Phase 3 support ticket composer with severity, transcript, attachments, and SLA/email fallback delivered; json-render report/graph cards now render in the chat artifact panel; occupancy/revenue tools now emit json-render payloads for inline charts/tables; tool call inputs/outputs + jump-to-latest scroll controls now live.
+- Status: In progress; Phase 0 complete; Phase 1 streaming + message actions + history panel delivered; Phase 1b conversation list + resume delivered; feedback/regenerate persistence delivered; Phase 2 attachments upload + preview delivered; staff history search/filters + auto-titles delivered; artifact sidecar delivered; feedback/regenerate analytics events delivered; attachment content type typing + support/partner history role filters fixed for web build; Phase 3 support ticket composer with severity, transcript, attachments, and SLA/email fallback delivered; json-render report/graph cards now render in the chat artifact panel; occupancy/revenue tools now emit json-render payloads for inline charts/tables; tool call inputs/outputs + jump-to-latest scroll controls now live; markdown rendering enabled for chat messages.
 
 ## Plan: Campground Onboarding Finalization
 - Objective: Finalize campground ownership + bookability on launch, align onboarding step payloads, and tighten onboarding invite/AI import safety.

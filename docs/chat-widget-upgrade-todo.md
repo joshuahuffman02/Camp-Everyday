@@ -79,6 +79,7 @@ Goal: Bring Keepr's guest, portal, staff, and support chat experiences up to the
 - [x] Add artifact sidecar panel.
 - [x] Wire json-render into the chat artifact panel for staff graphs/reports.
 - [x] Add jump-to-latest control and autoscroll guard for long chat responses.
+- [x] Render markdown (links, lists, code blocks) inside chat messages.
 
 ### API + Backend (NestJS)
 - [x] Add AI SDK-compatible SSE endpoint or proxy for streaming.
@@ -154,6 +155,7 @@ Phase 4 - Optimization + rollout (ongoing)
 - Json-render report/graph cards now render inside the staff artifact sidecar when tool results include a json-render tree.
 - Occupancy and revenue tools now include json-render payloads for inline charts and tables.
 - Staff chat now shows tool call inputs/outputs with a jump-to-latest button and guarded autoscroll for long responses.
+- Chat messages now render markdown for richer KPI snapshots and instructions.
 - Feedback/regenerate actions now emit analytics events when a session ID is available.
 - Support chat now includes an in-chat ticket composer with severity, transcripts, attachments, and SLA/email fallback messaging.
 
