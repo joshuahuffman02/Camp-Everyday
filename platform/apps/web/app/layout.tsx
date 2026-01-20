@@ -6,6 +6,8 @@ import { RootJsonLd } from "@/components/seo";
 import { SEO_CONFIG } from "@/lib/seo";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { fontVariables } from "@/lib/fonts";
+import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 import { Metadata, Viewport } from "next";
 
@@ -102,6 +104,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <ClientRoot>{children}</ClientRoot>
           </ErrorBoundary>
         </Providers>
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
