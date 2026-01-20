@@ -35,7 +35,7 @@ This checklist tracks alignment with Vercel-grade monorepo standards for speed, 
 | Vercel build context | SDK excluded by ignore | SDK sources included in build | Platform | Phase 2 | Done | `.vercelignore` no longer excludes `platform/packages/sdk` |
 | Vercel env parity | Env documented only | Vercel env matches web `.env` needs | Platform | Phase 2 | Planned | Ensure `NEXT_PUBLIC_API_BASE`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `OTEL_*` set |
 | Vercel analytics | Not enabled | Speed Insights + Analytics | Web | Phase 3 | Done | Added `@vercel/analytics` + `@vercel/speed-insights` in web root layout |
-| Sentry Next.js config | Legacy client config | instrumentation-client convention | Web | Phase 3 | Planned | Address Sentry deprecation warning for Turbopack |
+| Sentry Next.js config | Legacy client config | instrumentation-client convention | Web | Phase 3 | Done | Added `platform/apps/web/instrumentation-client.ts` and enabled instrumentation hook |
 | Turbo remote cache | Disabled | Remote cache enabled | Platform | Phase 3 | Planned | Enable Vercel Remote Cache for faster builds |
 
 ## Next Actions
