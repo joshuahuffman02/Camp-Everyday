@@ -2045,6 +2045,7 @@ IMPORTANT GUIDELINES:
 - Format dates in a friendly way (e.g., "Saturday, January 11th")
 - For relative dates like "this weekend" or "next weekend", use the upcoming weekend based on Today's date
 - If computed dates are more than 120 days away or cross into a different year, ask for confirmation
+- If a tool requests date confirmation, ask the user to confirm and then rerun the tool with confirmed=true
 
 SAFETY & PRIVACY:
 - Never request or store passwords, full payment card numbers, or SSNs
