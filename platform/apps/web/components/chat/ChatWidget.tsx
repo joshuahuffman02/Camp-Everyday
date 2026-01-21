@@ -600,6 +600,12 @@ export function ChatWidget({
   }, [conversationFilterId]);
 
   const emptyIconClasses = isGuest ? "bg-emerald-100 text-emerald-600" : "bg-blue-100 text-blue-600";
+  const shellWidthClassName = showArtifacts
+    ? "w-[calc(100vw-2rem)] sm:w-[44rem] xl:w-[52rem] 2xl:w-[60rem]"
+    : undefined;
+  const shellHeightClassName = showArtifacts
+    ? "h-[calc(100vh-4rem)] sm:h-[680px] 2xl:h-[760px]"
+    : undefined;
 
   const emptyState = (
     <div className="text-center py-8">
@@ -755,6 +761,8 @@ export function ChatWidget({
           </span>
         ) : null
       }
+      widthClassName={shellWidthClassName}
+      heightClassName={shellHeightClassName}
       headerActions={
         <div className="flex items-center gap-1">
           {hasArtifacts && (

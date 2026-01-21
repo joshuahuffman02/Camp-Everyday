@@ -1966,8 +1966,8 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
     if (totalSites !== undefined) {
       facts.push(
         totalSites === 0
-          ? 'Active sites: 0 (no active sites configured).'
-          : `Active sites: ${totalSites}.`
+          ? 'Active sites reported: 0.'
+          : `Active sites reported: ${totalSites}.`
       );
     }
 
@@ -1976,10 +1976,7 @@ export class ChatService implements OnModuleInit, OnModuleDestroy {
         totalAvailable === 0
           ? 'Availability: 0 sites available for the requested dates.'
           : `Availability: ${totalAvailable} sites available for the requested dates.`;
-      const clarifiedAvailability =
-        totalSites === 0
-          ? 'Availability: 0 sites available because there are no active sites configured.'
-          : availabilityLabel;
+      const clarifiedAvailability = availabilityLabel;
       const nightsSuffix = nights ? ` (${nights} night${nights !== 1 ? 's' : ''})` : '';
       facts.push(`${clarifiedAvailability}${nightsSuffix}`);
     }
@@ -2046,6 +2043,8 @@ IMPORTANT GUIDELINES:
 - Keep responses under 150 words unless detailed information is requested
 - Format prices in dollars (e.g., $99.00)
 - Format dates in a friendly way (e.g., "Saturday, January 11th")
+- For relative dates like "this weekend" or "next weekend", use the upcoming weekend based on Today's date
+- If computed dates are more than 120 days away or cross into a different year, ask for confirmation
 
 SAFETY & PRIVACY:
 - Never request or store passwords, full payment card numbers, or SSNs

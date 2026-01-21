@@ -45,6 +45,8 @@
 - Redact PII from chat tool execution logs.
 - Accept the `open` state alias for chat task queries so ops can fetch pending/assigned/in-progress/blocked tasks.
 - Hide the `get_tasks` tool cards in the staff chat UI to reduce noise when tasks are empty.
+- Avoid overstating "no active sites configured" when occupancy returns zero and prompt for confirmation on far-future relative dates.
+- Expand the chat shell when artifacts are open and make the artifact panel full width on small screens.
 
 ### Added
 - Onboarding import checklist with system-specific export prompts, coverage tracking, and warning override.

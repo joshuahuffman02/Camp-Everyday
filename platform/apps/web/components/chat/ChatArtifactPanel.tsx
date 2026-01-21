@@ -271,7 +271,7 @@ export function ChatArtifactPanel({
           : "border-blue-200";
 
   return (
-    <div className="absolute inset-y-0 right-0 w-80 bg-card border-l border-border shadow-xl z-10 flex flex-col">
+    <div className="absolute inset-0 sm:inset-y-0 sm:right-0 sm:left-auto w-full sm:w-80 bg-card border-t border-border sm:border-t-0 sm:border-l shadow-xl z-10 flex flex-col">
       <div className="flex items-center justify-between px-3 py-2 border-b border-border">
         <div className="text-sm font-semibold">Artifacts</div>
         <button
