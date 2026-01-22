@@ -69,6 +69,14 @@ interface ExecuteActionResponse {
   error?: string;
 }
 
+interface ExecuteToolResponse {
+  success: boolean;
+  message: string;
+  result?: unknown;
+  error?: string;
+  prevalidateFailed?: boolean;
+}
+
 interface SubmitFeedbackResponse {
   success: boolean;
   message: string;
@@ -131,6 +139,19 @@ const toExecuteActionResponse = (value: unknown): ExecuteActionResponse => {
     message: getString(value.message) ?? "Action completed",
     result: value.result,
     error: getString(value.error),
+  };
+};
+
+const toExecuteToolResponse = (value: unknown): ExecuteToolResponse => {
+  if (!isRecord(value)) {
+    return { success: false, message: "Tool failed", error: "Invalid response" };
+  }
+  return {
+    success: typeof value.success === "boolean" ? value.success : false,
+    message: getString(value.message) ?? "Tool completed",
+    result: value.result,
+    error: getString(value.error),
+    prevalidateFailed: value.prevalidateFailed === true,
   };
 };
 
@@ -301,6 +322,84 @@ export function useChat({ campgroundId, isGuest, guestId, authToken, sessionId }
     },
   });
 
+  const executeToolMutation = useMutation({
+    mutationFn: async ({
+      tool,
+      args,
+    }: {
+      tool: string;
+      args?: Record<string, unknown>;
+    }): Promise<ExecuteToolResponse> => {
+      if (!conversationId) {
+        throw new Error("No active conversation");
+      }
+
+      const endpoint = isGuest
+        ? `${API_BASE}/chat/portal/${campgroundId}/tools/execute`
+        : `${API_BASE}/chat/campgrounds/${campgroundId}/tools/execute`;
+
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify({
+          conversationId,
+          tool,
+          args,
+          sessionId,
+        }),
+      });
+
+      if (!res.ok) {
+        const error = await res.text();
+        throw new Error(error || "Failed to execute tool");
+      }
+
+      const data: unknown = await res.json();
+      return toExecuteToolResponse(data);
+    },
+    onMutate: () => {
+      setIsTyping(true);
+    },
+    onSuccess: (data, variables) => {
+      const toolCallId = `tool_${Date.now()}`;
+      const resultPayload =
+        data.result ??
+        {
+          success: data.success,
+          message: data.message,
+          prevalidateFailed: data.prevalidateFailed,
+        };
+      const assistantMessage: ChatMessage = {
+        id: `tool_${Date.now()}`,
+        conversationId: conversationId || "",
+        role: "assistant",
+        content: data.message,
+        toolCalls: [
+          {
+            id: toolCallId,
+            name: variables.tool,
+            args: variables.args ?? {},
+          },
+        ],
+        toolResults: [{ toolCallId, result: resultPayload }],
+        createdAt: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, assistantMessage]);
+      setIsTyping(false);
+    },
+    onError: (error) => {
+      const errorMessage: ChatMessage = {
+        id: `error_${Date.now()}`,
+        conversationId: conversationId || "",
+        role: "system",
+        content: error instanceof Error ? error.message : "Failed to execute tool",
+        createdAt: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+      setIsTyping(false);
+    },
+  });
+
   const feedbackMutation = useMutation({
     mutationFn: async ({
       messageId,
@@ -420,6 +519,13 @@ export function useChat({ campgroundId, isGuest, guestId, authToken, sessionId }
     [executeActionMutation]
   );
 
+  const executeTool = useCallback(
+    (tool: string, args?: Record<string, unknown>) => {
+      executeToolMutation.mutate({ tool, args });
+    },
+    [executeToolMutation]
+  );
+
   const submitFeedback = useCallback(
     (messageId: string, value: "up" | "down") => {
       feedbackMutation.mutate({ messageId, value });
@@ -469,8 +575,10 @@ export function useChat({ campgroundId, isGuest, guestId, authToken, sessionId }
     isTyping,
     isSending: sendMessageMutation.isPending || regenerateMutation.isPending,
     isExecuting: executeActionMutation.isPending,
+    isExecutingTool: executeToolMutation.isPending,
     sendMessage,
     executeAction,
+    executeTool,
     submitFeedback,
     regenerateMessage,
     clearMessages,

@@ -24,6 +24,8 @@ export interface ChatMessageProps extends UnifiedChatMessage {
   ticketHref?: string;
   onTicketAction?: () => void;
   onShowArtifacts?: () => void;
+  onToolConfirm?: (tool: string, args: Record<string, unknown>) => void;
+  isExecutingTool?: boolean;
   onEditMessage?: (messageId: string, content: string) => void;
   onRegenerate?: (messageId: string) => void;
   onFeedback?: (messageId: string, value: "up" | "down") => void;
@@ -38,12 +40,27 @@ const SUPPORT_SLA = "Typical response within 24 hours.";
 const LONG_MESSAGE_CHAR_LIMIT = 800;
 const LONG_MESSAGE_LINE_LIMIT = 12;
 const HIDDEN_TOOL_NAMES = new Set(["get_tasks"]);
+const CONFIRMABLE_DATE_TOOLS = new Set([
+  "check_availability",
+  "get_quote",
+  "get_activities",
+  "get_occupancy",
+  "get_revenue_report",
+]);
 
 const getString = (value: unknown, fallback = ""): string =>
   typeof value === "string" ? value : fallback;
 
 const getNumber = (value: unknown, fallback = 0): number =>
   typeof value === "number" ? value : fallback;
+
+const getPrevalidateMessage = (result?: ChatToolResult): string | undefined => {
+  const payload = result?.result;
+  if (!isRecord(payload)) return undefined;
+  if (payload.prevalidateFailed !== true) return undefined;
+  const message = getString(payload.message);
+  return message || undefined;
+};
 
 const getCodeString = (value: ReactNode): string => {
   if (Array.isArray(value)) {
@@ -627,19 +644,31 @@ function ToolResultDisplay({ result }: { result: ChatToolResult }) {
 function ToolCallCard({
   call,
   result,
+  onConfirm,
+  isConfirming,
+  confirmLabel,
 }: {
   call: ChatToolCall;
   result?: ChatToolResult;
+  onConfirm?: (call: ChatToolCall) => void;
+  isConfirming?: boolean;
+  confirmLabel?: string;
 }) {
   const argsJson = formatJson(call.args);
   const hasArgs = argsJson !== "{}";
+  const prevalidateMessage = getPrevalidateMessage(result);
+  const needsConfirmation = Boolean(prevalidateMessage);
   const statusLabel = result?.error
     ? "Failed"
+    : needsConfirmation
+      ? "Needs confirmation"
     : result
       ? "Completed"
       : "Running";
   const statusClass = result?.error
     ? "text-red-600"
+    : needsConfirmation
+      ? "text-amber-600"
     : result
       ? "text-emerald-600"
       : "text-muted-foreground";
@@ -661,8 +690,23 @@ function ToolCallCard({
         )}
       </div>
       {result && (
-        <div className="px-3 pb-3">
+        <div className="px-3 pb-3 space-y-2">
           <ToolResultDisplay result={result} />
+          {needsConfirmation && onConfirm && (
+            <button
+              type="button"
+              onClick={() => onConfirm(call)}
+              disabled={isConfirming}
+              className={cn(
+                "inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition",
+                isConfirming
+                  ? "bg-muted text-muted-foreground cursor-not-allowed"
+                  : "bg-amber-600 text-white hover:bg-amber-700"
+              )}
+            >
+              {isConfirming ? "Confirming..." : confirmLabel ?? "Confirm dates"}
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -731,6 +775,8 @@ export const ChatMessage = memo(function ChatMessage({
   ticketHref = "/dashboard/help/contact",
   onTicketAction,
   onShowArtifacts,
+  onToolConfirm,
+  isExecutingTool,
   onEditMessage,
   onRegenerate,
   onFeedback,
@@ -741,6 +787,7 @@ export const ChatMessage = memo(function ChatMessage({
   const isInternalNote = visibility === "internal";
   const trimmedContent = content.trim();
   const resolvedAccent: ChatAccent = accent ?? (isGuest ? "guest" : "staff");
+  const confirmLabel = resolvedAccent === "guest" ? "Use these dates" : "Confirm dates";
   const accentStyles: Record<ChatAccent, { avatar: string; avatarIcon: string; userBubble: string; userText: string }> =
     {
       guest: {
@@ -801,6 +848,14 @@ export const ChatMessage = memo(function ChatMessage({
   );
   const visibleOrphanedToolResults = orphanedToolResults.filter(
     (result) => !hiddenToolCallIds.has(result.toolCallId)
+  );
+  const handleToolConfirm = useCallback(
+    (call: ChatToolCall) => {
+      if (!onToolConfirm) return;
+      if (!CONFIRMABLE_DATE_TOOLS.has(call.name)) return;
+      onToolConfirm(call.name, { ...call.args, confirmed: true });
+    },
+    [onToolConfirm]
   );
   const reportSummary = useMemo(
     () => extractReportSummary(toolResults),
@@ -1227,7 +1282,17 @@ export const ChatMessage = memo(function ChatMessage({
           <div className="mt-3 space-y-2">
             {visibleToolCalls.map((call) => {
               const result = toolResults?.find((item) => item.toolCallId === call.id);
-              return <ToolCallCard key={call.id} call={call} result={result} />;
+              const canConfirm = Boolean(onToolConfirm) && CONFIRMABLE_DATE_TOOLS.has(call.name);
+              return (
+                <ToolCallCard
+                  key={call.id}
+                  call={call}
+                  result={result}
+                  onConfirm={canConfirm ? handleToolConfirm : undefined}
+                  isConfirming={isExecutingTool}
+                  confirmLabel={confirmLabel}
+                />
+              );
             })}
           </div>
         )}

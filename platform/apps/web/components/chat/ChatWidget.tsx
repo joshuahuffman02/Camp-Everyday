@@ -192,12 +192,14 @@ export function ChatWidget({
     isSending,
     sendMessage,
     executeAction,
+    executeTool,
     submitFeedback,
     regenerateMessage,
     conversationId,
     clearMessages,
     replaceMessages,
     setActiveConversation,
+    isExecutingTool,
   } = chat;
   const isConnected = useStreaming ? streamingChat.isConnected : true;
 
@@ -740,6 +742,13 @@ export function ChatWidget({
     setFirstUnreadMessageId(null);
   };
 
+  const handleToolConfirm = useCallback(
+    (tool: string, args: Record<string, unknown>) => {
+      executeTool?.(tool, args);
+    },
+    [executeTool]
+  );
+
   return (
     <ChatShell
       isOpen={isOpen}
@@ -811,6 +820,8 @@ export function ChatWidget({
           onScroll={handleMessageScroll}
           onShowArtifacts={handleShowArtifacts}
           className={artifactPanelPaddingClassName}
+          onToolConfirm={handleToolConfirm}
+          isExecutingTool={isExecutingTool}
         />
         {showJumpToLatest && (
           <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">

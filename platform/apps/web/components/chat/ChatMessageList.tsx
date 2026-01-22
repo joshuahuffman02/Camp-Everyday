@@ -48,6 +48,8 @@ type ChatMessageListProps = {
   containerRef?: RefObject<HTMLDivElement>;
   onScroll?: () => void;
   className?: string;
+  onToolConfirm?: (tool: string, args: Record<string, unknown>) => void;
+  isExecutingTool?: boolean;
 };
 
 export function ChatMessageList({
@@ -69,6 +71,8 @@ export function ChatMessageList({
   containerRef,
   onScroll,
   className,
+  onToolConfirm,
+  isExecutingTool,
 }: ChatMessageListProps) {
   const localContainerRef = useRef<HTMLDivElement>(null);
   const lastTouchYRef = useRef<number | null>(null);
@@ -221,6 +225,8 @@ export function ChatMessageList({
             onTicketAction={onTicketAction}
             ticketHref={ticketHref}
             onShowArtifacts={onShowArtifacts}
+            onToolConfirm={onToolConfirm}
+            isExecutingTool={isExecutingTool}
             {...message}
           />
         </Fragment>

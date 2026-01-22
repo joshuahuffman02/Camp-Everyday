@@ -78,6 +78,7 @@ const getDateConfirmationError = (
   startDate?: string,
   endDate?: string,
   confirmed?: boolean,
+  participantType?: ChatParticipantType,
 ): string | null => {
   const parsedStart = parseDateInput(startDate);
   if (!parsedStart) return null;
@@ -86,7 +87,10 @@ const getDateConfirmationError = (
   const rangeLabel = startDate && endDate
     ? `${startDate} to ${endDate}`
     : startDate ?? endDate ?? "the requested dates";
-  return `That date range looks far out (${rangeLabel}). Did you mean this upcoming weekend? If not, please confirm the exact dates (YYYY-MM-DD to YYYY-MM-DD).`;
+  if (participantType === ChatParticipantType.guest) {
+    return `That date range looks far out (${rangeLabel}). Did you mean this upcoming weekend? If not, reply with the exact dates (YYYY-MM-DD to YYYY-MM-DD).`;
+  }
+  return `That range looks far out (${rangeLabel}). Confirm the exact dates to run this (YYYY-MM-DD to YYYY-MM-DD).`;
 };
 
 const formatCurrency = (amountCents?: number) => {
@@ -502,7 +506,12 @@ export class ChatToolsService {
         const arrivalDate = getString(args.arrivalDate);
         const departureDate = getString(args.departureDate);
         const confirmed = getBoolean(args.confirmed);
-        const confirmationError = getDateConfirmationError(arrivalDate, departureDate, confirmed);
+        const confirmationError = getDateConfirmationError(
+          arrivalDate,
+          departureDate,
+          confirmed,
+          context.participantType
+        );
         if (confirmationError) {
           return { valid: false, message: confirmationError };
         }
@@ -607,7 +616,12 @@ export class ChatToolsService {
         const arrivalDate = getString(args.arrivalDate);
         const departureDate = getString(args.departureDate);
         const confirmed = getBoolean(args.confirmed);
-        const confirmationError = getDateConfirmationError(arrivalDate, departureDate, confirmed);
+        const confirmationError = getDateConfirmationError(
+          arrivalDate,
+          departureDate,
+          confirmed,
+          context.participantType
+        );
         if (confirmationError) {
           return { valid: false, message: confirmationError };
         }
@@ -1408,7 +1422,12 @@ export class ChatToolsService {
         const startDate = getString(args.startDate);
         const endDate = getString(args.endDate);
         const confirmed = getBoolean(args.confirmed);
-        const confirmationError = getDateConfirmationError(startDate, endDate, confirmed);
+        const confirmationError = getDateConfirmationError(
+          startDate,
+          endDate,
+          confirmed,
+          context.participantType
+        );
         if (confirmationError) {
           return { valid: false, message: confirmationError };
         }
@@ -1770,7 +1789,12 @@ export class ChatToolsService {
         const startDate = getString(args.startDate);
         const endDate = getString(args.endDate);
         const confirmed = getBoolean(args.confirmed);
-        const confirmationError = getDateConfirmationError(startDate, endDate, confirmed);
+        const confirmationError = getDateConfirmationError(
+          startDate,
+          endDate,
+          confirmed,
+          context.participantType
+        );
         if (confirmationError) {
           return { valid: false, message: confirmationError };
         }
@@ -1950,7 +1974,12 @@ export class ChatToolsService {
         const startDate = getString(args.startDate);
         const endDate = getString(args.endDate);
         const confirmed = getBoolean(args.confirmed);
-        const confirmationError = getDateConfirmationError(startDate, endDate, confirmed);
+        const confirmationError = getDateConfirmationError(
+          startDate,
+          endDate,
+          confirmed,
+          context.participantType
+        );
         if (confirmationError) {
           return { valid: false, message: confirmationError };
         }

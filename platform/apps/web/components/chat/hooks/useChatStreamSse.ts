@@ -33,6 +33,14 @@ export type ChatStreamMeta = {
   visibility?: ChatMessageVisibility;
 };
 
+type ExecuteToolResponse = {
+  success: boolean;
+  message: string;
+  result?: unknown;
+  error?: string;
+  prevalidateFailed?: boolean;
+};
+
 interface UseChatStreamSseOptions {
   mode: ChatStreamMode;
   campgroundId?: string;
@@ -182,6 +190,19 @@ const toChatStreamMeta = (value: unknown): ChatStreamMeta | null => {
   return meta;
 };
 
+const toExecuteToolResponse = (value: unknown): ExecuteToolResponse => {
+  if (!isRecord(value)) {
+    return { success: false, message: "Tool failed", error: "Invalid response" };
+  }
+  return {
+    success: typeof value.success === "boolean" ? value.success : false,
+    message: getString(value.message) ?? "Tool completed",
+    result: value.result,
+    error: getString(value.error),
+    prevalidateFailed: value.prevalidateFailed === true,
+  };
+};
+
 const toHistory = (messages: UnifiedChatMessage[]) =>
   messages
     .filter((message) => message.role === "user" || message.role === "assistant")
@@ -206,6 +227,7 @@ export function useChatStreamSse({
   const [isTyping, setIsTyping] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
+  const [isExecutingTool, setIsExecutingTool] = useState(false);
   const [isConnected, setIsConnected] = useState(true);
 
   const messagesRef = useRef(messages);
@@ -492,6 +514,74 @@ export function useChatStreamSse({
     [authToken, campgroundId, conversationId, guestId, mode]
   );
 
+  const executeTool = useCallback(
+    async (tool: string, args?: Record<string, unknown>) => {
+      if (!conversationId) return;
+      if (mode !== "staff" && mode !== "guest") return;
+      if (!campgroundId) return;
+
+      setIsExecutingTool(true);
+      try {
+        const endpoint =
+          mode === "guest"
+            ? `${API_BASE}/chat/portal/${campgroundId}/tools/execute`
+            : `${API_BASE}/chat/campgrounds/${campgroundId}/tools/execute`;
+
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+        if (guestId) headers["x-guest-id"] = guestId;
+
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            conversationId,
+            tool,
+            args,
+            sessionId,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText || "Failed to execute tool");
+        }
+
+        const result = toExecuteToolResponse(await response.json());
+        const toolCallId = `tool_${Date.now()}`;
+        const resultPayload =
+          result.result ??
+          {
+            success: result.success,
+            message: result.message,
+            prevalidateFailed: result.prevalidateFailed,
+          };
+        const resultMessage: UnifiedChatMessage = {
+          id: `tool_${Date.now()}`,
+          role: "assistant",
+          content: result.message,
+          toolCalls: [{ id: toolCallId, name: tool, args: args ?? {} }],
+          toolResults: [{ toolCallId, result: resultPayload }],
+          createdAt: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, resultMessage]);
+      } catch (error) {
+        const errorMessage: UnifiedChatMessage = {
+          id: `error_${Date.now()}`,
+          role: "system",
+          content: error instanceof Error ? error.message : "Failed to execute tool",
+          createdAt: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, errorMessage]);
+      } finally {
+        setIsExecutingTool(false);
+      }
+    },
+    [authToken, campgroundId, conversationId, guestId, mode, sessionId]
+  );
+
   const submitFeedback = useCallback(
     async (messageId: string, value: "up" | "down") => {
       if (mode !== "staff" && mode !== "guest") return;
@@ -622,9 +712,11 @@ export function useChatStreamSse({
     isTyping,
     isSending,
     isExecuting,
+    isExecutingTool,
     isConnected,
     sendMessage,
     executeAction,
+    executeTool,
     submitFeedback,
     regenerateMessage,
     clearMessages,

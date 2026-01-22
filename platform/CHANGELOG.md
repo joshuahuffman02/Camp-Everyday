@@ -50,6 +50,7 @@
 - Expand the chat shell when artifacts are open and make the artifact panel full width on small screens.
 - Widen the artifact panel on desktop and pad the chat message list so report cards feel less cramped.
 - Return direct confirmation prompts when tool pre-validation fails so chat replies don't get truncated, with clearer date confirmation copy.
+- Add one-tap date confirmations for chat tool pre-validation failures and tailor copy for staff vs guest tone.
 
 ### Added
 - Onboarding import checklist with system-specific export prompts, coverage tracking, and warning override.
