@@ -213,6 +213,8 @@ describe("Privacy & Permissions APIs (e2e-ish)", () => {
     expect(createRes.status).toBe("approved");
 
     const approvals = await permissionsService.listApprovals();
-    expect(approvals.some((row) => isRecord(row) && row.id === createRes.id)).toBe(true);
+    expect(
+      approvals.some((row: Record<string, unknown>) => isRecord(row) && row.id === createRes.id),
+    ).toBe(true);
   });
 });

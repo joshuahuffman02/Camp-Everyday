@@ -237,11 +237,11 @@ describe("TillService", () => {
       overShortCents: -50,
     });
 
-    const sess1 = report.sessions.find((session) => session.id === "sess-1");
+    const sess1 = report.sessions.find((session: { id: string }) => session.id === "sess-1");
     expect(sess1?.expectedCloseCents).toBe(10800);
     expect(sess1?.overShortCents).toBe(-50);
 
-    const sess2 = report.sessions.find((session) => session.id === "sess-2");
+    const sess2 = report.sessions.find((session: { id: string }) => session.id === "sess-2");
     expect(sess2?.expectedCloseCents).toBe(2500);
     expect(sess2?.overShortCents).toBeNull();
   });

@@ -545,7 +545,7 @@ export class ChatToolsService {
         required: ["arrivalDate", "departureDate"],
       },
       guestAllowed: true,
-      preValidate: async (args) => {
+      preValidate: async (args, context) => {
         const arrivalDate = getString(args.arrivalDate);
         const departureDate = getString(args.departureDate);
         const confirmed = getBoolean(args.confirmed);
@@ -1511,7 +1511,7 @@ export class ChatToolsService {
         required: [],
       },
       guestAllowed: true,
-      preValidate: async (args) => {
+      preValidate: async (args, context) => {
         const reservationId = getString(args.reservationId);
         if (reservationId) {
           return { valid: true };
@@ -1904,7 +1904,7 @@ export class ChatToolsService {
       },
       guestAllowed: false,
       staffRoles: ["owner", "manager"],
-      preValidate: async (args) => {
+      preValidate: async (args, context) => {
         const startDate = getString(args.startDate);
         const endDate = getString(args.endDate);
         const confirmed = getBoolean(args.confirmed);
@@ -2093,7 +2093,7 @@ export class ChatToolsService {
       },
       guestAllowed: false,
       staffRoles: ["owner", "manager", "finance"],
-      preValidate: async (args) => {
+      preValidate: async (args, context) => {
         const startDate = getString(args.startDate);
         const endDate = getString(args.endDate);
         const confirmed = getBoolean(args.confirmed);
