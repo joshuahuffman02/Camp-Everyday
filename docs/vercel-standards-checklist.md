@@ -34,16 +34,14 @@ This checklist tracks alignment with Vercel-grade monorepo standards for speed, 
 | Health checks           | Health + readiness endpoints  | Health + readiness + SLO docs                 | Platform | Phase 2 | Done        | API + Rust readiness endpoints documented in observability conventions                                                         |
 | Deployment docs         | Mixed references              | Single source of truth                        | Platform | Phase 2 | Done        | Vercel config + repo summary + architecture docs aligned                                                                       |
 | Vercel web output       | Root config only              | App-level config for subdir builds            | Platform | Phase 2 | Done        | Added `platform/apps/web/vercel.json` with `.next` output; root config keeps `platform/apps/web/.next`                         |
-| Vercel project settings | Unverified                    | Root/output dir aligned to app                | Platform | Phase 2 | In progress | Documented in `docs/vercel-project-settings.md`; confirm in Vercel UI                                                          |
+| Vercel project settings | Unverified                    | Root/output dir aligned to app                | Platform | Phase 2 | Done        | Confirmed via CLI: Root Directory `platform/apps/web`, Output `.next`                                                         |
 | Vercel build context    | SDK excluded by ignore        | SDK sources included in build                 | Platform | Phase 2 | Done        | `.vercelignore` no longer excludes `platform/packages/sdk`                                                                     |
-| Vercel env parity       | Env documented only           | Vercel env matches web `.env` needs           | Platform | Phase 2 | Done        | Expanded `platform/apps/web/.env.example` with required/optional keys                                                          |
+| Vercel env parity       | Env documented only           | Vercel env matches web `.env` needs           | Platform | Phase 2 | Done        | Applied web env vars to Vercel for prod/preview/dev                                                                            |
 | Vercel analytics        | Not enabled                   | Speed Insights + Analytics                    | Web      | Phase 3 | Done        | Added `@vercel/analytics` + `@vercel/speed-insights` in web root layout                                                        |
 | Sentry Next.js config   | Legacy client config          | instrumentation-client convention             | Web      | Phase 3 | Done        | Added `platform/apps/web/instrumentation-client.ts` and enabled instrumentation hook                                           |
 | Turbo remote cache      | Disabled                      | Remote cache enabled                          | Platform | Phase 3 | Done        | Enabled in Vercel with `TURBO_TEAM`/`TURBO_TOKEN` set                                                                          |
 
 ## Next Actions
 
-- CI running on push, run id `21260482718` in progress.
+- CI completed successfully for latest push.
 - Local verification complete: `pnpm typecheck`, `pnpm lint:web`, `pnpm --dir platform/apps/api test:smoke`, `pnpm --dir platform/apps/web test`, `cargo test --manifest-path platform/services/availability-rs/Cargo.toml`, `cargo test --manifest-path platform/services/payment-processor-rs/Cargo.toml`, `cargo test --manifest-path platform/services/auth-service-rs/Cargo.toml`.
-- Confirm Vercel project Root/Output Directory settings for the web app.
-- Apply web env variables in Vercel using `platform/apps/web/.env.example`.

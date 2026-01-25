@@ -51,3 +51,5 @@ test-results/
 .vscode/
 *.swp
 CLAUDE.local.md
+.vercel
+.env*.local
